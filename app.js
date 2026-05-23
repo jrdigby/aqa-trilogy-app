@@ -1,4 +1,4 @@
-console.log("APP LOADED");
+console.log("APP VERSION", "v-" + Date.now());
 // ====== CONFIG ======
 const SUPABASE_URL = "https://cbycwfhczyvzzhthpgsw.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_xD75RVd3kyvxs3IK_WsNag_eoCAZF4W";
