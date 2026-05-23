@@ -415,9 +415,9 @@ async function upsertSRS(specPointId, quality) {
   };
 
   // upsert (insert or update)
-  await supabase.from("srs_state").upsert(payload);
+  await supabaseClient.from("srs_state").upsert(payload);
 }
 
 // init
-supabase.auth.onAuthStateChange(() => refreshSession());
+supabaseClient.auth.onAuthStateChange(() => refreshSession());
 refreshSession();
