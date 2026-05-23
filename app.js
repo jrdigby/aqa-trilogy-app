@@ -111,18 +111,31 @@ btnSignIn.onclick = async () => {
   const email = el("email").value.trim();
   const password = el("password").value;
 
-  await supabaseClient.auth.signInWithPassword({ email, password });
+  console.log("BEFORE LOGIN", { emailLength: email.length, pwLength: password.length });
 
-  const { data } = await supabaseClient.auth.getSession();
+  try {
+    const result = await supabaseClient.auth.signInWithPassword({ email, password });
+    console.log("AFTER LOGIN result", result);
 
-  if (data.session) {
-    authMsg.textContent = "Signed in ✅";
-    await refreshSession();
-  } else {
-    authMsg.textContent = "Login failed ❌";
+    const session = await supabaseClient.auth.getSession();
+    console.log("AFTER getSession", session);
+
+    if (result.error) {
+      authMsg.textContent = "Sign in failed: " + result.error.message;
+      return;
+    }
+
+    if (session.data.session) {
+      authMsg.textContent = "Signed in ✅";
+      await refreshSession();
+    } else {
+      authMsg.textContent = "Signed in call returned, but no session found ❌";
+    }
+  } catch (e) {
+    console.log("LOGIN THROW", e);
+    authMsg.textContent = "Sign in crashed: " + (e?.message || e);
   }
 };
-
 btnSignOut.onclick = async () => {
   await supabaseClient.auth.signOut();
   await refreshSession();
