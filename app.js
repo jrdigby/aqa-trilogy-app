@@ -105,36 +105,21 @@ btnSignUp.onclick = async () => {
     : "Sign up successful ✅ Now click Sign in.";
 };
 
-
 btnSignIn.onclick = async () => {
   authMsg.textContent = "Signing in…";
 
   const email = el("email").value.trim();
   const password = el("password").value;
 
-  console.log("BEFORE LOGIN");
+  await supabaseClient.auth.signInWithPassword({ email, password });
 
-  const result = await supabaseClient.auth.signInWithPassword({
-    email,
-    password
-  });
+  const { data } = await supabaseClient.auth.getSession();
 
-  console.log("AFTER LOGIN", result);
-
-  if (result.error) {
-    authMsg.textContent = "Error: " + result.error.message;
-    return;
-  }
-
-  authMsg.textContent = "Signed in ✅ (but checking session...)";
-
-  const session = await supabaseClient.auth.getSession();
-  console.log("SESSION:", session);
-
-  if (session.data.session) {
-    authMsg.textContent = "Login SUCCESS ✅";
+  if (data.session) {
+    authMsg.textContent = "Signed in ✅";
+    await refreshSession();
   } else {
-    authMsg.textContent = "No session found ❌";
+    authMsg.textContent = "Login failed ❌";
   }
 };
 
