@@ -2,7 +2,7 @@
 const SUPABASE_URL = "https://cbycwfhczyvzzhthpgsw.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_xD75RVd3kyvxs3IK_WsNag_eoCAZF4W";
 
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ====== UI ======
 const el = (id) => document.getElementById(id);
@@ -74,7 +74,7 @@ function updateSRS({ quality, ef, reps, interval }) {
 
 // ====== AUTH ======
 async function refreshSession() {
-  const { data } = await supabase.auth.getSession();
+  const { data } = await supabaseClient.auth.getSession();
   currentUser = data.session?.user ?? null;
 
   if (currentUser) {
@@ -94,20 +94,20 @@ async function refreshSession() {
 btnSignUp.onclick = async () => {
   const email = el("email").value.trim();
   const password = el("password").value;
-  const { error } = await supabase.auth.signUp({ email, password });
+  const { error } = await supabaseClient.auth.signUp({ email, password });
   authMsg.textContent = error ? error.message : "Check your email for confirmation (if enabled), then sign in.";
 };
 
 btnSignIn.onclick = async () => {
   const email = el("email").value.trim();
   const password = el("password").value;
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
   authMsg.textContent = error ? error.message : "Signed in.";
   await refreshSession();
 };
 
 btnSignOut.onclick = async () => {
-  await supabase.auth.signOut();
+  await supabaseClient.auth.signOut();
   await refreshSession();
 };
 
@@ -115,7 +115,7 @@ btnSignOut.onclick = async () => {
 async function loadDashboard() {
   // list due spec points
   const today = todayISO();
-  const { data: due, error } = await supabase
+  const { data: due, error } = await supabaseClient
     .from("srs_state")
     .select("spec_point_id,due_date,interval_days,ease_factor,repetitions,lapses,last_quality, spec_points(subject,topic_name,spec_ref,spec_text)")
     .lte("due_date", today)
@@ -142,7 +142,7 @@ async function loadDashboard() {
 btnStartDue.onclick = async () => {
   // if due exists, pick the first due spec point and load its questions
   const today = todayISO();
-  const { data: due } = await supabase
+  const { data: due } = await supabaseClient
     .from("srs_state")
     .select("spec_point_id")
     .lte("due_date", today)
@@ -162,7 +162,7 @@ btnStartAny.onclick = async () => {
 
 async function startAnyPractice() {
   // pick any spec point (first one) and start
-  const { data: sp } = await supabase
+  const { data: sp } = await supabaseClient
     .from("spec_points")
     .select("id")
     .limit(1);
@@ -176,7 +176,7 @@ async function startAnyPractice() {
 
 async function startSessionForSpecPoint(specPointId) {
   // pull up to 5 questions for that spec point
-  const { data: qs, error } = await supabase
+  const { data: qs, error } = await supabaseClient
     .from("questions")
     .select("id,question_type,prompt,options,spec_point_id")
     .eq("spec_point_id", specPointId)
@@ -203,14 +203,14 @@ async function loadQuestion() {
   btnSubmit.disabled = false;
 
   // fetch key + mark points
-  const { data: k } = await supabase
+  const { data: k } = await supabaseClient
     .from("answer_keys")
     .select("key_type,key_payload")
     .eq("question_id", currentQ.id)
     .single();
   currentKey = k;
 
-  const { data: mp } = await supabase
+  const { data: mp } = await supabaseClient
     .from("mark_points")
     .select("ao,point_text,feedback_if_missing,max_marks")
     .eq("question_id", currentQ.id);
@@ -246,7 +246,7 @@ btnSubmit.onclick = async () => {
   const marking = markResponse(currentQ, response, currentKey, currentMarkPoints);
 
   // save attempt
-  await supabase.from("attempts").insert({
+  await supabaseClient.from("attempts").insert({
     user_id: currentUser.id,
     question_id: currentQ.id,
     response_payload: response,
@@ -387,7 +387,7 @@ function renderFeedback(marking) {
 
 async function upsertSRS(specPointId, quality) {
   // get current state
-  const { data: existing } = await supabase
+  const { data: existing } = await supabaseClient
     .from("srs_state")
     .select("interval_days,ease_factor,repetitions,lapses")
     .eq("user_id", currentUser.id)
