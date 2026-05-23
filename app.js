@@ -1,6 +1,6 @@
 // ====== CONFIG ======
-const SUPABASE_URL = "...";
-const SUPABASE_ANON_KEY = "...";
+const SUPABASE_URL = "https://cbycwfhczyvzzhthpgsw.supabase.co/rest/v1/";
+const SUPABASE_ANON_KEY = "sb_publishable_xD75RVd3kyvxs3IK_WsNag_eoCAZF4W";
 
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
