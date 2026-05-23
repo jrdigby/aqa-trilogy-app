@@ -100,11 +100,23 @@ btnSignUp.onclick = async () => {
 };
 
 btnSignIn.onclick = async () => {
-  const email = el("email").value.trim();
-  const password = el("password").value;
-  const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
-  authMsg.textContent = error ? error.message : "Signed in.";
-  await refreshSession();
+  alert("Sign in button clicked ✅");
+
+  const email = document.getElementById("email").value;
+  const password = document.getElementById("password").value;
+
+  console.log("Trying login:", email);
+
+  const { error } = await supabaseClient.auth.signInWithPassword({
+    email,
+    password
+  });
+
+  if (error) {
+    alert("Error: " + error.message);
+  } else {
+    alert("Login successful ✅");
+  }
 };
 
 btnSignOut.onclick = async () => {
