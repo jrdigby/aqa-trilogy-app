@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>AQA Trilogy Retrieval MVP</title>
+  styles.css
+  https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2script>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>AQA Trilogy Retrieval (MVP)</h1>
+      <p class="muted">Login → Due today → Practice → AO feedback → Scheduled review</p>
+    </header>
+
+    <section id="auth" class="card">
+      <h2>Login / Sign up</h2>
+      <div class="row">
+        <input id="email" type="email" placeholder="email"/>
+        <input id="password" type="password" placeholder="password"/>
+      </div>
+      <div class="row">
+        <button id="btnSignUp">Sign up</button>
+        <button id="btnSignIn">Sign in</button>
+        <button id="btnSignOut" class="secondary hidden">Sign out</button>
+      </div>
+      <p id="authMsg" class="muted"></p>
+    </section>
+
+    <section id="dashboard" class="card hidden">
+      <div class="row space">
+        <h2>Dashboard</h2>
+        <span id="userChip" class="chip"></span>
+      </div>
+      <p><strong>Due today:</strong> <span id="dueCount">0</span></p>
+      <div class="row">
+        <button id="btnStartDue">Start due session</button>
+        <button id="btnStartAny" class="secondary">Start practice (any)</button>
+      </div>
+      <div id="dueList" class="list"></div>
+    </section>
+
+    <section id="session" class="card hidden">
+      <div class="row space">
+        <h2>Practice session</h2>
+        <span id="progress" class="muted"></span>
+      </div>
+      <div id="qBox"></div>
+      <div class="row">
+        <button id="btnSubmit">Submit answer</button>
+        <button id="btnNext" class="secondary hidden">Next</button>
+      </div>
+      <div id="feedback" class="feedback"></div>
+    </section>
+
+    <footer class="muted">
+      <small>MVP for AQA Trilogy (8464). Spec refs here are placeholders; you’ll import exact spec points later.</small>
+    </footer>
+  </div>
+
+  app.jsscript>
+</body>
+</html>
