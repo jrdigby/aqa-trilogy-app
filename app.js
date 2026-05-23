@@ -3,7 +3,7 @@ console.log("APP LOADED");
 const SUPABASE_URL = "https://cbycwfhczyvzzhthpgsw.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_xD75RVd3kyvxs3IK_WsNag_eoCAZF4W";
 
-const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ====== UI ======
 const el = (id) => document.getElementById(id);
