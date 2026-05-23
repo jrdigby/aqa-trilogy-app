@@ -93,24 +93,35 @@ async function refreshSession() {
 }
 
 btnSignUp.onclick = async () => {
+  authMsg.textContent = "Creating account…";
+
   const email = el("email").value.trim();
   const password = el("password").value;
+
   const { error } = await supabaseClient.auth.signUp({ email, password });
-  authMsg.textContent = error ? error.message : "Check your email for confirmation (if enabled), then sign in.";
+
+  authMsg.textContent = error
+    ? "Sign up failed: " + error.message
+    : "Sign up successful ✅ Now click Sign in.";
 };
 
+
 btnSignIn.onclick = async () => {
-  alert("Sign in button clicked ✅");
+  authMsg.textContent = "Signing in…";
 
-  const email = document.getElementById("email").value;
-  const password = document.getElementById("password").value;
+  const email = el("email").value.trim();
+  const password = el("password").value;
 
-  console.log("Trying login:", email);
+  const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
 
-  const { error } = await supabaseClient.auth.signInWithPassword({
-    email,
-    password
-  });
+  if (error) {
+    authMsg.textContent = "Sign in failed: " + error.message;
+    return;
+  }
+
+  authMsg.textContent = "Signed in ✅";
+  await refreshSession();
+};
 
   if (error) {
     alert("Error: " + error.message);
