@@ -449,5 +449,46 @@ async function upsertSRS(specPointId, quality) {
 }
 
 // init
-supabaseClient.auth.onAuthStateChange(() => refreshSession());
-refreshSession();
+function setSignedOutUI() {
+  btnSignOut.classList.add("hidden");
+  dashSection.classList.add("hidden");
+  sessionSection.classList.add("hidden");
+  authMsg.textContent = "Not signed in.";
+}
+
+function setSignedInUI(user) {
+  btnSignOut.classList.remove("hidden");
+  dashSection.classList.remove("hidden");
+  userChip.textContent = user.email || user.id;
+  authMsg.textContent = "Signed in ✅";
+}
+
+async function initAuth() {
+  // 1) Read existing session ONCE at startup (safe)
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  if (session?.user) {
+    currentUser = session.user;
+    setSignedInUI(currentUser);
+    await loadDashboard(); // safe here (not inside onAuthStateChange)
+  } else {
+    currentUser = null;
+    setSignedOutUI();
+  }
+
+  // 2) Listen for auth changes, but DO NOT call Supabase inside this callback
+  supabaseClient.auth.onAuthStateChange((event, session) => {
+    if (session?.user) {
+      currentUser = session.user;
+      setSignedInUI(currentUser);
+
+      // IMPORTANT: schedule dashboard load AFTER the callback returns
+      // (avoids the deadlock described in Supabase troubleshooting)
+      setTimeout(() => loadDashboard(), 0);
+    } else {
+      currentUser = null;
+      setSignedOutUI();
+    }
+  });
+}
+
+initAuth();
