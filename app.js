@@ -123,13 +123,6 @@ btnSignIn.onclick = async () => {
   await refreshSession();
 };
 
-  if (error) {
-    alert("Error: " + error.message);
-  } else {
-    alert("Login successful ✅");
-  }
-};
-
 btnSignOut.onclick = async () => {
   await supabaseClient.auth.signOut();
   await refreshSession();
