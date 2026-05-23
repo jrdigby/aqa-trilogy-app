@@ -104,7 +104,6 @@ btnSignUp.onclick = async () => {
     ? "Sign up failed: " + error.message
     : "Sign up successful ✅ Now click Sign in.";
 };
-
 btnSignIn.onclick = async () => {
   authMsg.textContent = "Signing in…";
 
@@ -113,29 +112,30 @@ btnSignIn.onclick = async () => {
 
   console.log("BEFORE LOGIN", { emailLength: email.length, pwLength: password.length });
 
-  try {
-    const result = await supabaseClient.auth.signInWithPassword({ email, password });
-    console.log("AFTER LOGIN result", result);
+  const loginPromise = supabaseClient.auth.signInWithPassword({ email, password });
 
-    const session = await supabaseClient.auth.getSession();
-    console.log("AFTER getSession", session);
+  const timeoutPromise = new Promise((resolve) => {
+    setTimeout(() => resolve({ timeout: true }), 8000);
+  });
 
-    if (result.error) {
-      authMsg.textContent = "Sign in failed: " + result.error.message;
-      return;
-    }
+  const result = await Promise.race([loginPromise, timeoutPromise]);
 
-    if (session.data.session) {
-      authMsg.textContent = "Signed in ✅";
-      await refreshSession();
-    } else {
-      authMsg.textContent = "Signed in call returned, but no session found ❌";
-    }
-  } catch (e) {
-    console.log("LOGIN THROW", e);
-    authMsg.textContent = "Sign in crashed: " + (e?.message || e);
+  console.log("RACE RESULT", result);
+
+  // Even if signInWithPassword hangs, session may still be created.
+  const session = await supabaseClient.auth.getSession();
+  console.log("SESSION AFTER RACE", session);
+
+  if (session?.data?.session) {
+    authMsg.textContent = "Signed in ✅";
+    await refreshSession(); // show dashboard, due list, etc.
+  } else if (result?.error) {
+    authMsg.textContent = "Sign in failed: " + result.error.message;
+  } else {
+    authMsg.textContent = "Sign in didn’t complete. Check Network tab for auth request.";
   }
 };
+
 btnSignOut.onclick = async () => {
   await supabaseClient.auth.signOut();
   await refreshSession();
