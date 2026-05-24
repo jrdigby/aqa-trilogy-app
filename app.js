@@ -603,5 +603,11 @@ async function loadTopics() {
     `<option value="">All topics</option>` +
     unique.map(t => `<option value="${t}">${t}</option>`).join("");
 }
+// ✅ hook up dropdown changes
+if (subjectFilter && paperFilter) {
+  subjectFilter.addEventListener("change", loadTopics);
+  paperFilter.addEventListener("change", loadTopics);
+}
 
+// ✅ start auth + app
 initAuth();
