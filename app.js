@@ -457,27 +457,32 @@ btnSignOut.style.display = "block";
   authMsg.textContent = "Signed in ✅";
 }
 
-
 async function initAuth() {
-  // 1) Read existing session ONCE at startup (safe)
+
   const { data: { session } } = await supabaseClient.auth.getSession();
+
   if (session?.user) {
     currentUser = session.user;
-    setSignedInUI(currentUser);
-    await loadDashboard(); // safe here (not inside onAuthStateChange)
+
+    console.log("User already signed in ✅");
+
+    setSignedInUI(currentUser);   // ✅ THIS MUST RUN
+
+    await loadDashboard();
+
   } else {
     currentUser = null;
-    setSignedOutUI();
+
+    console.log("No session ❌");
+
+    setSignedOutUI();             // ✅ THIS must restore login UI
   }
 
-  // 2) Listen for auth changes, but DO NOT call Supabase inside this callback
+  // Listen for changes (safe version)
   supabaseClient.auth.onAuthStateChange((event, session) => {
     if (session?.user) {
       currentUser = session.user;
       setSignedInUI(currentUser);
-
-      // IMPORTANT: schedule dashboard load AFTER the callback returns
-      // (avoids the deadlock described in Supabase troubleshooting)
       setTimeout(() => loadDashboard(), 0);
     } else {
       currentUser = null;
