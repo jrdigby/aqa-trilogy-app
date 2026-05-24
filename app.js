@@ -32,11 +32,14 @@ const progress = el("progress");
 
 const btnSignUp = el("btnSignUp");
 const btnSignIn = el("btnSignIn");
+const btnSignOut = el("btnSignOut");   // ✅ moved up BEFORE use
+
 console.log("BUTTON CHECK:", { btnSignIn, btnSignUp, btnSignOut });
 
 if (!btnSignIn) alert("btnSignIn not found - check HTML id='btnSignIn'");
 if (!btnSignUp) alert("btnSignUp not found - check HTML id='btnSignUp'");
-const btnSignOut = el("btnSignOut");
+if (!btnSignOut) alert("btnSignOut not found - check HTML id='btnSignOut'");
+
 
 const btnStartDue = el("btnStartDue");
 const btnStartAny = el("btnStartAny");
@@ -243,9 +246,6 @@ async function startAnyPractice() {
   await startSessionForSpecPoint(chosen.id);
 }
 
-  // Pick a random spec point to avoid always getting the first one
-  const chosen = sp[Math.floor(Math.random() * sp.length)];
-  await startSessionForSpecPoint(chosen.id);
 }
 
 async function startSessionForSpecPoint(specPointId) {
@@ -550,7 +550,6 @@ async function initAuth() {
   });
 }
 async function loadTopics() {
-  // If dropdowns aren't present yet, do nothing safely
   if (!subjectFilter || !paperFilter || !topicFilter) return;
 
   const subject = subjectFilter.value;
@@ -568,29 +567,7 @@ async function loadTopics() {
     return;
   }
 
-  const rows = data || [];
-  const unique = [...new Set(rows.map(r => r.topic_name).filter(Boolean))];
-
-  topicFilter.innerHTML =
-    `<option value="">All topics</option>` +
-    unique.map(t => `<option value="${t}">${t}</option>`).join("");
-}
-
-  const rows = data || [];
-  const unique = [...new Set(rows.map(r => r.topic_name).filter(Boolean))];
-
-  topicFilter.innerHTML =
-    `<option value="">All topics</option>` +
-    unique.map(t => `<option value="${t}">${t}</option>`).join("");
-}
-
-if (subjectFilter && paperFilter) {
-  subjectFilter.onchange = async () => {
-    await loadTopics();
-  };
-  paperFilter.onchange = async () => {
-    await loadTopics();
-  };
+ 
 }
 
 initAuth();
