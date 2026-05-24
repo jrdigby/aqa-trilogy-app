@@ -74,23 +74,7 @@ function updateSRS({ quality, ef, reps, interval }) {
 }
 
 // ====== AUTH ======
-async function refreshSession() {
-  const { data } = await supabaseClient.auth.getSession();
-  currentUser = data.session?.user ?? null;
 
-  if (currentUser) {
-    btnSignOut.classList.remove("hidden");
-    dashSection.classList.remove("hidden");
-    userChip.textContent = currentUser.email || currentUser.id;
-    authMsg.textContent = "Signed in.";
-    await loadDashboard();
-  } else {
-    btnSignOut.classList.add("hidden");
-    dashSection.classList.add("hidden");
-    sessionSection.classList.add("hidden");
-    authMsg.textContent = "Not signed in.";
-  }
-}
 
 btnSignUp.onclick = async () => {
   authMsg.textContent = "Creating account…";
@@ -120,16 +104,14 @@ btnSignIn.onclick = async () => {
     return;
   }
 
-  // ✅ THIS IS THE KEY LINE
+  // ✅ FORCE UI STATE HERE
   currentUser = data.user;
+  console.log("SIGNED IN USER:", currentUser);
 
-  // ✅ FORCE UI UPDATE
-  setSignedInUI(currentUser);
+  setSignedInUI(currentUser);  // ✅ THIS MUST RUN
 
-  // ✅ Load dashboard
-  await loadDashboard();
+  await loadDashboard();       // ✅ THEN load data
 };
-
 
 btnSignOut.onclick = async () => {
   await supabaseClient.auth.signOut();
