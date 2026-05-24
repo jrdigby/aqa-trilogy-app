@@ -1,4 +1,13 @@
 console.log("APP VERSION", "v-" + Date.now());
+window.addEventListener("error", (e) => {
+  console.error("JS ERROR:", e.message, e.error);
+  alert("JS ERROR: " + e.message);
+});
+
+window.addEventListener("unhandledrejection", (e) => {
+  console.error("PROMISE ERROR:", e.reason);
+  alert("PROMISE ERROR: " + (e.reason?.message || e.reason));
+});
 // ====== CONFIG ======
 const SUPABASE_URL = "https://cbycwfhczyvzzhthpgsw.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_xD75RVd3kyvxs3IK_WsNag_eoCAZF4W";
