@@ -110,30 +110,24 @@ btnSignIn.onclick = async () => {
   const email = el("email").value.trim();
   const password = el("password").value;
 
-  console.log("BEFORE LOGIN", { emailLength: email.length, pwLength: password.length });
-
-  const loginPromise = supabaseClient.auth.signInWithPassword({ email, password });
-
-  const timeoutPromise = new Promise((resolve) => {
-    setTimeout(() => resolve({ timeout: true }), 8000);
+  const { data, error } = await supabaseClient.auth.signInWithPassword({
+    email,
+    password
   });
 
-  const result = await Promise.race([loginPromise, timeoutPromise]);
-
-  console.log("RACE RESULT", result);
-
-  // Even if signInWithPassword hangs, session may still be created.
-  const session = await supabaseClient.auth.getSession();
-  console.log("SESSION AFTER RACE", session);
-
-  if (session?.data?.session) {
-    authMsg.textContent = "Signed in ✅";
-  //  await refreshSession(); // show dashboard, due list, etc.
-  } else if (result?.error) {
-    authMsg.textContent = "Sign in failed: " + result.error.message;
-  } else {
-    authMsg.textContent = "Sign in didn’t complete. Check Network tab for auth request.";
+  if (error) {
+    authMsg.textContent = "Sign in failed: " + error.message;
+    return;
   }
+
+  // ✅ THIS IS THE KEY LINE
+  currentUser = data.user;
+
+  // ✅ FORCE UI UPDATE
+  setSignedInUI(currentUser);
+
+  // ✅ Load dashboard
+  await loadDashboard();
 };
 
 btnSignOut.onclick = async () => {
