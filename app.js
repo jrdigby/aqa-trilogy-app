@@ -491,13 +491,15 @@ function setSignedOutUI() {
 }
 
 function setSignedInUI(user) {
-  btnSignOut.classList.remove("hidden");   // ✅ show it
-  authSection.classList.add("hidden");     // ✅ hide login
-
+  btnSignOut.classList.remove("hidden");
+  authSection.classList.add("hidden");
   dashSection.classList.remove("hidden");
 
   userChip.textContent = user.email || user.id;
   authMsg.textContent = "Signed in ✅";
+
+  // ✅ Populate topics now that dashboard + filters are visible
+  loadTopics();
 }
 
 
@@ -535,25 +537,40 @@ async function initAuth() {
   });
 }
 async function loadTopics() {
-  const { subject, paper } = getSelectedFilters();
+  // If filters aren’t on the page yet, do nothing
+  if (!subjectFilter || !paperFilter || !topicFilter) return;
 
-  const { data } = await supabaseClient
+  const subject = subjectFilter.value;
+  const paper = paperFilter.value;
+
+  const { data, error } = await supabaseClient
     .from("spec_points")
     .select("topic_name")
     .eq("subject", subject)
     .eq("paper", paper);
 
-  const unique = [...new Set(data.map(d => d.topic_name))];
+  if (error) {
+    console.log("loadTopics error:", error.message);
+    // still populate with default option so UI doesn't break
+    topicFilter.innerHTML = `<option value="">All topics</option>`;
+    return;
+  }
+
+  const rows = data || [];
+  const unique = [...new Set(rows.map(r => r.topic_name).filter(Boolean))];
 
   topicFilter.innerHTML =
     `<option value="">All topics</option>` +
     unique.map(t => `<option value="${t}">${t}</option>`).join("");
 }
 
-// ✅ ADD THESE LINES RIGHT AFTER ABOVE FUNCTION
-subjectFilter.onchange = loadTopics;
-paperFilter.onchange = loadTopics;
+if (subjectFilter && paperFilter) {
+  subjectFilter.onchange = async () => {
+    await loadTopics();
+  };
+  paperFilter.onchange = async () => {
+    await loadTopics();
+  };
+}
 
-// ✅ ALSO LOAD TOPICS ON PAGE LOAD
-loadTopics();
 initAuth();
