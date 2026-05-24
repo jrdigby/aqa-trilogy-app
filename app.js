@@ -453,12 +453,18 @@ function setSignedOutUI() {
   btnSignOut.classList.add("hidden");
   dashSection.classList.add("hidden");
   sessionSection.classList.add("hidden");
+
+  authSection.classList.remove("hidden"); // ✅ show login box
+
   authMsg.textContent = "Not signed in.";
 }
 
 function setSignedInUI(user) {
   btnSignOut.classList.remove("hidden");
   dashSection.classList.remove("hidden");
+
+  authSection.classList.add("hidden");  // ✅ hide login box
+
   userChip.textContent = user.email || user.id;
   authMsg.textContent = "Signed in ✅";
 }
