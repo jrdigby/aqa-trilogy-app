@@ -246,8 +246,6 @@ async function startAnyPractice() {
   await startSessionForSpecPoint(chosen.id);
 }
 
-}
-
 async function startSessionForSpecPoint(specPointId) {
   // pull up to 5 questions for that spec point
   const { data: qs, error } = await supabaseClient
@@ -567,7 +565,12 @@ async function loadTopics() {
     return;
   }
 
- 
+  const rows = data || [];
+  const unique = [...new Set(rows.map(r => r.topic_name).filter(Boolean))];
+
+  topicFilter.innerHTML =
+    `<option value="">All topics</option>` +
+    unique.map(t => `<option value="${t}">${t}</option>`).join("");
 }
 
 initAuth();
