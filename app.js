@@ -169,17 +169,16 @@ btnStartAny.onclick = async () => {
 
 async function startAnyPractice() {
   // pick any spec point (first one) and start
-  const { data: sp } = await supabaseClient
-    .from("spec_points")
-    .select("id")
-    .limit(1);
+ const subject = subjectFilter.value;
+const paper = paperFilter.value;
 
-  if (!sp || sp.length === 0) {
-    alert("No spec points found. Seed the database first.");
-    return;
-  }
-  await startSessionForSpecPoint(sp[0].id);
-}
+const { data: sp, error } = await supabaseClient
+  .from("spec_points")
+  .select("id, subject, paper") // ✅ include debug info
+  .eq("subject", subjectFilter.value)
+  .eq("paper", paperFilter.value);
+
+console.log("SPEC POINTS RESULT:", sp);
 
 async function startSessionForSpecPoint(specPointId) {
   // pull up to 5 questions for that spec point
