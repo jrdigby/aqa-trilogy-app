@@ -292,18 +292,49 @@ async function loadQuestion() {
 }
 
 function renderQuestion(q) {
-  let html = `<div class="item"><div><strong>${q.prompt}</strong></div></div>`;
+  let html = `
+    <div class="item">
+      <div><strong>${escapeHtml(q.prompt)}</strong></div>
+    </div>
+  `;
 
   if (q.question_type === "mcq") {
-    const opts = q.options || [];
-    html += `<div class="item">` + opts.map(o => `
-      <label class="row"><input type="radio" name="mcq" value="${escapeHtml(o)}"/> ${escapeHtml(o)}</label>
-    `).join("") + `</div>`;
+    const opts = Array.isArray(q.options) ? q.options : [];
+
+    html += `
+      <div class="mcq-container">
+        ${opts.map(o => `
+          <label class="mcq-option">
+            <input type="radio" name="mcq" value="${escapeHtml(o)}"/>
+            <span>${escapeHtml(o)}</span>
+          </label>
+        `).join("")}
+      </div>
+    `;
   } else if (q.question_type === "numeric") {
-    html += `<div class="item"><label>Answer: <input id="numAns" type="number" step="any"/></label>
-             <label style="margin-left:10px;">Units (optional): <input id="numUnit" type="text" placeholder="e.g. m/s"/></label></div>`;
+    html += `
+      <div class="item">
+        <label>
+          Answer:
+          <input id="numAns" type="number" step="any"/>
+        </label>
+        <label style="margin-left:10px;">
+          Units (optional):
+          <input id="numUnit" type="text" placeholder="e.g. m/s"/>
+        </label>
+      </div>
+    `;
   } else {
-    html += `<div class="item"><textarea id="txtAns" rows="4" style="width:100%;padding:10px;border-radius:10px;border:1px solid rgba(110,168,254,.25);background:#0b1427;color:#e8eefc" placeholder="Type your answer..."></textarea></div>`;
+    html += `
+      <div class="item">
+        <textarea
+          id="txtAns"
+          rows="4"
+          style="width:100%;padding:10px;border-radius:10px;border:1px solid #ccc;background:#ffffff;color:#000000"
+          placeholder="Type your answer..."
+        ></textarea>
+      </div>
+    `;
   }
 
   qBox.innerHTML = html;
