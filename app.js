@@ -32,7 +32,7 @@ const btnNext = el("btnNext");
 
 const subjectFilter = el("subjectFilter");
 const paperFilter = el("paperFilter");
-
+const topicFilter = el("topicFilter");
 
 // ====== SESSION STATE ======
 let currentUser = null;
@@ -45,9 +45,10 @@ let currentMarkPoints = [];
 // ====== HELPERS ======
 function getSelectedFilters() {
   // defaults if dropdowns are missing for any reason
-  const subject = subjectFilter?.value || "physics";
+  const subject = subjectFilter?.value || "biology";
   const paper = paperFilter?.value || "paper1";
-  return { subject, paper };
+  const topic = topicFilter?.value || "";   
+  return { subject, paper, topic };
 }
 function todayISO() {
   const d = new Date();
@@ -196,15 +197,22 @@ btnStartAny.onclick = async () => {
 };
 
 async function startAnyPractice() {
-  const { subject, paper } = getSelectedFilters();
+  const { subject, paper, topic } = getSelectedFilters();
 
-  const { data: sp, error } = await supabaseClient
+  // Build query: always filter by subject+paper, optionally by topic_name
+  let query = supabaseClient
     .from("spec_points")
-    .select("id, subject, paper")
+    .select("id, subject, paper, topic_name")
     .eq("subject", subject)
     .eq("paper", paper);
 
-  console.log("FILTERED SPEC POINTS RESULT:", sp);
+  if (topic) {
+    query = query.eq("topic_name", topic);
+  }
+
+  const { data: sp, error } = await query;
+
+  console.log("FILTERED SPEC POINTS RESULT:", { subject, paper, topic, count: sp?.length || 0, sp });
 
   if (error) {
     alert("Error loading spec points: " + error.message);
@@ -212,9 +220,15 @@ async function startAnyPractice() {
   }
 
   if (!sp || sp.length === 0) {
-    alert(`No spec points found for ${subject} ${paper}. Seed the database first.`);
+    const topicLabel = topic ? ` and topic "${topic}"` : "";
+    alert(`No spec points found for ${subject} ${paper}${topicLabel}. Seed the database first.`);
     return;
   }
+
+  // Pick a random spec point from the filtered set
+  const chosen = sp[Math.floor(Math.random() * sp.length)];
+  await startSessionForSpecPoint(chosen.id);
+}
 
   // Pick a random spec point to avoid always getting the first one
   const chosen = sp[Math.floor(Math.random() * sp.length)];
