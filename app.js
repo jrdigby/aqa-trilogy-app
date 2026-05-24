@@ -138,7 +138,6 @@ btnSignIn.onclick = async () => {
 
 btnSignOut.onclick = async () => {
   await supabaseClient.auth.signOut();
-  await refreshSession();
 };
 
 // ====== DASHBOARD ======
