@@ -32,6 +32,10 @@ const progress = el("progress");
 
 const btnSignUp = el("btnSignUp");
 const btnSignIn = el("btnSignIn");
+console.log("BUTTON CHECK:", { btnSignIn, btnSignUp, btnSignOut });
+
+if (!btnSignIn) alert("btnSignIn not found - check HTML id='btnSignIn'");
+if (!btnSignUp) alert("btnSignUp not found - check HTML id='btnSignUp'");
 const btnSignOut = el("btnSignOut");
 
 const btnStartDue = el("btnStartDue");
@@ -546,7 +550,7 @@ async function initAuth() {
   });
 }
 async function loadTopics() {
-  // If filters aren’t on the page yet, do nothing
+  // If dropdowns aren't present yet, do nothing safely
   if (!subjectFilter || !paperFilter || !topicFilter) return;
 
   const subject = subjectFilter.value;
@@ -560,10 +564,17 @@ async function loadTopics() {
 
   if (error) {
     console.log("loadTopics error:", error.message);
-    // still populate with default option so UI doesn't break
     topicFilter.innerHTML = `<option value="">All topics</option>`;
     return;
   }
+
+  const rows = data || [];
+  const unique = [...new Set(rows.map(r => r.topic_name).filter(Boolean))];
+
+  topicFilter.innerHTML =
+    `<option value="">All topics</option>` +
+    unique.map(t => `<option value="${t}">${t}</option>`).join("");
+}
 
   const rows = data || [];
   const unique = [...new Set(rows.map(r => r.topic_name).filter(Boolean))];
