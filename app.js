@@ -128,7 +128,7 @@ btnSignIn.onclick = async () => {
 
   if (session?.data?.session) {
     authMsg.textContent = "Signed in ✅";
-    await refreshSession(); // show dashboard, due list, etc.
+  //  await refreshSession(); // show dashboard, due list, etc.
   } else if (result?.error) {
     authMsg.textContent = "Sign in failed: " + result.error.message;
   } else {
@@ -460,14 +460,16 @@ function setSignedOutUI() {
 }
 
 function setSignedInUI(user) {
-  btnSignOut.classList.remove("hidden");
-  dashSection.classList.remove("hidden");
+  console.log("SET SIGNED IN UI");
 
-  authSection.classList.add("hidden");  // ✅ hide login box
+  btnSignOut.classList.remove("hidden");  // ✅ show button
+  dashSection.classList.remove("hidden");
+  authSection.classList.add("hidden");
 
   userChip.textContent = user.email || user.id;
   authMsg.textContent = "Signed in ✅";
 }
+
 
 async function initAuth() {
   // 1) Read existing session ONCE at startup (safe)
