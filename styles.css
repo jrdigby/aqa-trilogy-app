@@ -27,10 +27,16 @@ header{margin-bottom:14px}
 
 .row {
   display: flex;
-  justify-content: center;
-  gap: 10px;
+  justify-content: center;   /* ✅ centre horizontally */
+  align-items: center;
+  gap: 10px;                 /* ✅ space between radio + text */
+  margin: 8px 0;
+  text-align: left;          /* keeps text readable */
 }
 
+.row input[type="radio"] {
+  transform: scale(1.2);     /* ✅ slightly larger radios (optional) */
+}
 .row label {
   display: flex;
   align-items: center;
