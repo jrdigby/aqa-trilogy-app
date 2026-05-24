@@ -113,14 +113,10 @@ btnSignIn.onclick = async () => {
   await loadDashboard();       // ✅ THEN load data
 };
 
-
 btnSignOut.onclick = async () => {
   await supabaseClient.auth.signOut();
-  currentUser = null;
   setSignedOutUI();
 };
-
-
 
 // ====== DASHBOARD ======
 async function loadDashboard() {
@@ -431,31 +427,25 @@ async function upsertSRS(specPointId, quality) {
 
 // init
 function setSignedOutUI() {
-  btnSignOut.classList.add("hidden");
+  btnSignOut.classList.add("hidden");      // ✅ hide it
+  authSection.classList.remove("hidden");  // ✅ show login
+
   dashSection.classList.add("hidden");
   sessionSection.classList.add("hidden");
-
-  authSection.classList.remove("hidden"); // ✅ show login box
 
   authMsg.textContent = "Not signed in.";
 }
 
 function setSignedInUI(user) {
-  console.log("SET SIGNED IN UI");
+  btnSignOut.classList.remove("hidden");   // ✅ show it
+  authSection.classList.add("hidden");     // ✅ hide login
 
-  btnSignOut.classList.remove("hidden");  // ✅ show button
-  
-btnSignOut.style.display = "block";
-  btnSignOut.style.background = "red";
-  btnSignOut.style.color = "white";
-
-  btnSignOut.style.border = "3px solid red";
   dashSection.classList.remove("hidden");
-  authSection.classList.add("hidden");
 
   userChip.textContent = user.email || user.id;
   authMsg.textContent = "Signed in ✅";
 }
+
 
 async function initAuth() {
 
