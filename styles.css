@@ -65,7 +65,7 @@ hr{
   margin:12px 0
 }
 ``
-/* ===== MCQ CARD STYLES ===== */
+/* ===== MCQ CARD STYLES (SAFE VERSION) ===== */
 
 .mcq-container {
   display: flex;
@@ -76,8 +76,8 @@ hr{
   width: 100%;
 }
 
-/* Answer card */
-.row {
+/* Individual answer card */
+.mcq-option {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -97,36 +97,36 @@ hr{
 }
 
 /* Hover effect */
-.row:hover {
+.mcq-option:hover {
   background: rgba(74,144,226,0.08);
   border-color: rgba(74,144,226,0.4);
 }
 
-/* Radio button */
-.row input[type="radio"] {
+/* Radio */
+.mcq-option input[type="radio"] {
   transform: scale(1.2);
   cursor: pointer;
 }
 
-/* Text alignment */
-.row span {
+/* Text */
+.mcq-option span {
   flex: 1;
   text-align: left;
 }
 
 /* Selected text */
-.row input[type="radio"]:checked + span {
+.mcq-option input[type="radio"]:checked + span {
   font-weight: 600;
 }
 
 /* Selected card */
-.row:has(input[type="radio"]:checked) {
+.mcq-option:has(input[type="radio"]:checked) {
   background: rgba(74,144,226,0.12);
   border-color: var(--accent);
   box-shadow: 0 0 0 2px rgba(74,144,226,0.2);
 }
 
-/* Small click effect */
-.row:active {
+/* Click effect */
+.mcq-option:active {
   transform: scale(0.98);
 }
