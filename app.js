@@ -444,6 +444,11 @@ function setSignedInUI(user) {
   console.log("SET SIGNED IN UI");
 
   btnSignOut.classList.remove("hidden");  // ✅ show button
+  
+btnSignOut.style.display = "block";
+  btnSignOut.style.background = "red";
+  btnSignOut.style.color = "white";
+
   btnSignOut.style.border = "3px solid red";
   dashSection.classList.remove("hidden");
   authSection.classList.add("hidden");
