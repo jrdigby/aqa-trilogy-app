@@ -113,10 +113,13 @@ btnSignIn.onclick = async () => {
   await loadDashboard();       // ✅ THEN load data
 };
 
+
 btnSignOut.onclick = async () => {
   await supabaseClient.auth.signOut();
+  currentUser = null;
   setSignedOutUI();
 };
+
 
 
 // ====== DASHBOARD ======
