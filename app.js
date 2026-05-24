@@ -30,6 +30,10 @@ const btnStartAny = el("btnStartAny");
 const btnSubmit = el("btnSubmit");
 const btnNext = el("btnNext");
 
+const subjectFilter = el("subjectFilter");
+const paperFilter = el("paperFilter");
+
+
 // ====== SESSION STATE ======
 let currentUser = null;
 let sessionQuestions = [];
@@ -39,6 +43,12 @@ let currentKey = null;
 let currentMarkPoints = [];
 
 // ====== HELPERS ======
+function getSelectedFilters() {
+  // defaults if dropdowns are missing for any reason
+  const subject = subjectFilter?.value || "physics";
+  const paper = paperFilter?.value || "paper1";
+  return { subject, paper };
+}
 function todayISO() {
   const d = new Date();
   return d.toISOString().slice(0,10);
@@ -147,20 +157,38 @@ async function loadDashboard() {
 }
 
 btnStartDue.onclick = async () => {
-  // if due exists, pick the first due spec point and load its questions
   const today = todayISO();
-  const { data: due } = await supabaseClient
-    .from("srs_state")
-    .select("spec_point_id")
-    .lte("due_date", today)
-    .order("due_date", { ascending: true })
-    .limit(1);
+  const { subject, paper } = getSelectedFilters();
 
-  if (!due || due.length === 0) {
-    await startAnyPractice();
-  } else {
-    await startSessionForSpecPoint(due[0].spec_point_id);
+  // Pull all due items (for this user, via RLS), including joined spec_points metadata
+  const { data: due, error } = await supabaseClient
+    .from("srs_state")
+    .select(`
+      spec_point_id,
+      due_date,
+      spec_points(subject, paper)
+    `)
+    .lte("due_date", today)
+    .order("due_date", { ascending: true });
+
+  if (error) {
+    alert("Error loading due items: " + error.message);
+    return;
   }
+
+  // Filter due list by the dropdown selection
+  const filteredDue = (due || []).filter(d =>
+    d.spec_points?.subject === subject &&
+    d.spec_points?.paper === paper
+  );
+
+  if (filteredDue.length === 0) {
+    // Nothing due for this filter → do filtered practice instead
+    await startAnyPractice();
+    return;
+  }
+
+  await startSessionForSpecPoint(filteredDue[0].spec_point_id);
 };
 
 btnStartAny.onclick = async () => {
@@ -168,17 +196,30 @@ btnStartAny.onclick = async () => {
 };
 
 async function startAnyPractice() {
-  // pick any spec point (first one) and start
- const subject = subjectFilter.value;
-const paper = paperFilter.value;
+  const { subject, paper } = getSelectedFilters();
 
-const { data: sp, error } = await supabaseClient
-  .from("spec_points")
-  .select("id, subject, paper") // ✅ include debug info
-  .eq("subject", subjectFilter.value)
-  .eq("paper", paperFilter.value);
+  const { data: sp, error } = await supabaseClient
+    .from("spec_points")
+    .select("id, subject, paper")
+    .eq("subject", subject)
+    .eq("paper", paper);
 
-console.log("SPEC POINTS RESULT:", sp);
+  console.log("FILTERED SPEC POINTS RESULT:", sp);
+
+  if (error) {
+    alert("Error loading spec points: " + error.message);
+    return;
+  }
+
+  if (!sp || sp.length === 0) {
+    alert(`No spec points found for ${subject} ${paper}. Seed the database first.`);
+    return;
+  }
+
+  // Pick a random spec point to avoid always getting the first one
+  const chosen = sp[Math.floor(Math.random() * sp.length)];
+  await startSessionForSpecPoint(chosen.id);
+}
 
 async function startSessionForSpecPoint(specPointId) {
   // pull up to 5 questions for that spec point
