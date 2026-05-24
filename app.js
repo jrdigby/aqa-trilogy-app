@@ -534,5 +534,26 @@ async function initAuth() {
     }
   });
 }
+async function loadTopics() {
+  const { subject, paper } = getSelectedFilters();
 
+  const { data } = await supabaseClient
+    .from("spec_points")
+    .select("topic_name")
+    .eq("subject", subject)
+    .eq("paper", paper);
+
+  const unique = [...new Set(data.map(d => d.topic_name))];
+
+  topicFilter.innerHTML =
+    `<option value="">All topics</option>` +
+    unique.map(t => `<option value="${t}">${t}</option>`).join("");
+}
+
+// ✅ ADD THESE LINES RIGHT AFTER ABOVE FUNCTION
+subjectFilter.onchange = loadTopics;
+paperFilter.onchange = loadTopics;
+
+// ✅ ALSO LOAD TOPICS ON PAGE LOAD
+loadTopics();
 initAuth();
