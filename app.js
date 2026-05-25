@@ -265,27 +265,39 @@ function escapeHtml(s) {
 
 btnSubmit.onclick = async () => {
   if (!currentUser) return;
+  
+  // 1. Instantly lock the button to prevent accidental double submissions
   btnSubmit.disabled = true;
+  
+  // 2. Extract answer data and run your newly updated marking calculations
   const response = getResponsePayload(currentQ);
   const marking = markResponse(currentQ, response, currentKey, currentMarkPoints);
 
-  await supabaseClient.from("attempts").insert({
-    user_id: currentUser.id,
-    question_id: currentQ.id,
-    response_payload: response,
-    score_total: marking.total,
-    score_max: marking.max,
-    ao1_score: marking.ao.AO1,
-    ao2_score: marking.ao.AO2,
-    ao3_score: marking.ao.AO3,
-    feedback_payload: marking.feedbackPayload
-  });
-
-  await upsertSRS(currentQ.spec_point_id, marking.quality);
+  // 3. ✅ IMMEDIATE UI REFRESH: Render the "How to Improve" panel right away
   feedback.innerHTML = renderFeedback(marking);
   btnNext.classList.remove("hidden");
-};
 
+  try {
+    // 4. Run background network database operations after the UI has already updated
+    await supabaseClient.from("attempts").insert({
+      user_id: currentUser.id,
+      question_id: currentQ.id,
+      response_payload: response,
+      score_total: marking.total,
+      score_max: marking.max,
+      ao1_score: marking.ao.AO1,
+      ao2_score: marking.ao.AO2,
+      ao3_score: marking.ao.AO3,
+      feedback_payload: marking.feedbackPayload
+    });
+
+    await upsertSRS(currentQ.spec_point_id, marking.quality);
+    
+  } catch (dbError) {
+    // Silent catch or background log so network dropouts don't crash the student's active revision card layout
+    console.error("Background sync failed:", dbError);
+  }
+};
 btnNext.onclick = async () => {
   idx++;
   if (idx >= sessionQuestions.length) {
