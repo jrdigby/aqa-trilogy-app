@@ -324,7 +324,7 @@ function markResponse(q, resp, key, markPoints) {
   let total = 0, max = 1;
   let ao = { AO1: 0, AO2: 0, AO3: 0 };
   let missing = [], quality = 0;
-
+console.log("DEBUG SCORING DATA:", { key, markPointsArrayLength: markPoints?.length });
   if (!key) return { total: 0, max: 1, ao, missing, quality: 0, feedbackPayload: {} };
 
   // ====== MULTIPLE CHOICE QUESTIONS (MCQ) ======
