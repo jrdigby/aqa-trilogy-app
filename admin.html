@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>AQA Trilogy Question Bank Creator (Admin)</title>
+  
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  
+  <style>
+    :root {
+      --bg: #f4f7f6;
+      --card-bg: #ffffff;
+      --text: #333333;
+      --primary: #00a86b; /* Green for teacher/admin dashboard styling */
+      --border: #dddddd;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      max-width: 750px;
+      margin: 0 auto;
+    }
+    .card {
+      background: var(--card-bg);
+      padding: 25px;
+      border-radius: 12px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+      margin-bottom: 20px;
+    }
+    h1, h2, h3, h4 { margin-top: 0; color: #111; }
+    label {
+      display: block;
+      margin: 12px 0 6px;
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+    input, select, textarea {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      box-sizing: border-box;
+      font-size: 0.95rem;
+    }
+    textarea { resize: vertical; }
+    .row {
+      display: flex;
+      gap: 15px;
+      margin-bottom: 10px;
+    }
+    .row > div { flex: 1; }
+    button {
+      background: var(--primary);
+      color: white;
+      border: none;
+      padding: 12px 20px;
+      font-size: 1rem;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    button:hover { opacity: 0.9; }
+    .hidden { display: none; }
+    .status-msg {
+      margin-top: 15px;
+      padding: 10px;
+      border-radius: 6px;
+      font-weight: 500;
+    }
+    .success { background: #e6f4ea; color: #137333; }
+    .error { background: #fce8e6; color: #c5221f; }
+    .box {
+      border: 1px dashed var(--border);
+      padding: 15px;
+      border-radius: 8px;
+      background: #fafafa;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <h1>AQA Trilogy Question Creator</h1>
+    <p>Upload Biology, Chemistry, or Physics questions targeted directly to a specification point.</p>
+  </header>
+
+  <section class="card">
+    <h2>1. Syllabus Target Mapping</h2>
+    <div class="row">
+      <div>
+        <label for="subjectFilter">Subject</label>
+        <select id="subjectFilter">
+          <option value="biology">Biology</option>
+          <option value="chemistry">Chemistry</option>
+          <option value="physics">Physics</option>
+        </select>
+      </div>
+      <div>
+        <label for="paperFilter">Paper</label>
+        <select id="paperFilter">
+          <option value="paper1">Paper 1</option>
+          <option value="paper2">Paper 2</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <label for="topicFilter">Topic Area</label>
+        <select id="topicFilter">
+          <option value="">-- Select a subject/paper first --</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <label for="specPointFilter">Specific Code / Statement Descriptor</label>
+        <select id="specPointFilter">
+          <option value="">-- Select a topic first --</option>
+        </select>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>2. Setup Question Attributes</h2>
+    
+    <label for="qPrompt">Question Prompt</label>
+    <textarea id="qPrompt" rows="3" placeholder="e.g. Describe how standard visual testing evaluates human visual acuity limits."></textarea>
+
+    <label for="qType">Question Typology Structure</label>
+    <select id="qType">
+      <option value="short_text" selected>Short Text / Keyword Recognition</option>
+      <option value="mcq">Multiple Choice Question (MCQ)</option>
+      <option value="numeric">Mathematical / Numeric Input</option>
+    </select>
+
+    <div id="panelMcq" class="box hidden">
+      <h3>MCQ Configuration Options</h3>
+      <label for="mcqOptions">Options (One option per line)</label>
+      <textarea id="mcqOptions" rows="4" placeholder="Option A&#10;Option B&#10;Option C&#10;Option D"></textarea>
+      
+      <label for="mcqCorrect">Exact Correct Answer String</label>
+      <input id="mcqCorrect" type="text" placeholder="Must match one of the choices exactly"/>
+    </div>
+
+    <div id="panelNumeric" class="box hidden">
+      <h3>Numeric Target Configuration</h3>
+      <div class="row">
+        <div>
+          <label for="numAnswer">Target Numeric Output</label>
+          <input id="numAnswer" type="number" step="any" placeholder="e.g. 0.05"/>
+        </div>
+        <div>
+          <label for="numTolerance">Acceptable Deviation Tolerance</label>
+          <input id="numTolerance" type="number" step="any" value="0" placeholder="e.g. 0.01"/>
+        </div>
+      </div>
+    </div>
+
+    <div id="panelKeywords" class="box">
+      <h3>Keyword Evaluation Architecture</h3>
+      <p style="font-size: 0.85rem; margin: 0 0 10px; color: #666;">
+        Separate words with commas. The engine verifies these fragments locally during grading pipelines.
+      </p>
+      <label for="keyRequired">Required Terms (All must match for AO1 base criteria)</label>
+      <input id="keyRequired" type="text" placeholder="e.g. focus, lens"/>
+
+      <label for="keyOptional">Optional/Alternative Terms (Secondary Marks)</label>
+      <input id="keyOptional" type="text" placeholder="e.g. retina, distance, refraction"/>
+
+      <label for="minOptional">Minimum Optional Count Threshold</label>
+      <input id="minOptional" type="number" value="1" min="0"/>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>3. AQA Assessment Objective Feedback Mapping</h2>
+    <p style="font-size: 0.85rem; margin: 0 0 15px; color: #666;">
+      Provide targeted instructional remedies that display if a specific Assessment Objective condition is dropped.
+    </p>
+
+    <div class="box" style="margin-bottom: 10px;">
+      <h4>Mark Point Criteria Entry 1</h4>
+      <div class="row">
+        <div>
+          <label for="aoTarget1">Objective Target</label>
+          <select id="aoTarget1">
+            <option value="AO1">AO1: Core Knowledge / Definitions</option>
+            <option value="AO2">AO2: Data/Concept Application</option>
+            <option value="AO3">AO3: Evaluation/Analysis</option>
+          </select>
+        </div>
+        <div>
+          <label for="mpText1">Scheme Intent Descriptor</label>
+          <input id="mpText1" type="text" placeholder="e.g. Core definition matching"/>
+        </div>
+      </div>
+      <label for="mpFeedback1">Remediation Feedback (Shows if missed)</label>
+      <textarea id="mpFeedback1" rows="2" placeholder="Make sure to explicitly mention how structural properties impact behavior..."></textarea>
+    </div>
+
+    <div class="box">
+      <h4>Mark Point Criteria Entry 2 (Optional)</h4>
+      <div class="row">
+        <div>
+          <label for="aoTarget2">Objective Target</label>
+          <select id="aoTarget2">
+            <option value="AO1">AO1: Core Knowledge / Definitions</option>
+            <option value="AO2" selected>AO2: Data/Concept Application</option>
+            <option value="AO3">AO3: Evaluation/Analysis</option>
+          </select>
+        </div>
+        <div>
+          <label for="mpText2">Scheme Intent Descriptor</label>
+          <input id="mpText2" type="text" placeholder="e.g. System context analysis"/>
+        </div>
+      </div>
+      <label for="mpFeedback2">Remediation Feedback (Shows if missed)</label>
+      <textarea id="mpFeedback2" rows="2" placeholder="Remember to state the final destination or environment where energy/products accumulate."></textarea>
+    </div>
+  </section>
+
+  <div class="card" style="text-align: right;">
+    <button id="btnCommit">Upload & Commit Question Node</button>
+    <div id="statusOutput" class="status-msg hidden"></div>
+  </div>
+</div>
+
+<script>
+  // ====== CONFIGURATION INITIALIZATION ======
+  const SUPABASE_URL = "https://cbycwfhczyvzzhthpgsw.supabase.co";
+  const SUPABASE_ANON_KEY = "sb_publishable_xD75RVd3kyvxs3IK_WsNag_eoCAZF4W";
+  
+  const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  // ====== DOM NODE RECOGNITIONS ======
+  const subjectFilter = document.getElementById("subjectFilter");
+  const paperFilter = document.getElementById("paperFilter");
+  const topicFilter = document.getElementById("topicFilter");
+  const specPointFilter = document.getElementById("specPointFilter");
+  
+  const qType = document.getElementById("qType");
+  const panelMcq = document.getElementById("panelMcq");
+  const panelNumeric = document.getElementById("panelNumeric");
+  const panelKeywords = document.getElementById("panelKeywords");
+  const btnCommit = document.getElementById("btnCommit");
+  const statusOutput = document.getElementById("statusOutput");
+
+  // ====== DYNAMIC SYLLABUS SYNC SYSTEM ======
+  async function syncTopics() {
+    topicFilter.innerHTML = '<option value="">Loading topics...</option>';
+    specPointFilter.innerHTML = '<option value="">-- Select a topic first --</option>';
+
+    const { data, error } = await supabaseClient
+      .from("spec_points")
+      .select("topic_name")
+      .eq("subject", subjectFilter.value)
+      .eq("paper", paperFilter.value);
+
+    if (error || !data) {
+      topicFilter.innerHTML = '<option value="">Error loading topics</option>';
+      return;
+    }
+
+    const uniqueTopics = [...new Set(data.map(r => r.topic_name).filter(Boolean))];
+    
+    if(uniqueTopics.length === 0) {
+      topicFilter.innerHTML = '<option value="">No topics found. Database empty for this filter.</option>';
+      return;
+    }
+
+    topicFilter.innerHTML = '<option value="">-- Select a Topic --</option>' + 
+      uniqueTopics.map(t => `<option value="${t}">${t}</option>`).join("");
+  }
+
+  async function syncSpecPoints() {
+    if (!topicFilter.value) return;
+    specPointFilter.innerHTML = '<option value="">Loading specification entries...</option>';
+
+    const { data, error } = await supabaseClient
+      .from("spec_points")
+      .select("id, spec_ref, spec_text")
+      .eq("subject", subjectFilter.value)
+      .eq("paper", paperFilter.value)
+      .eq("topic_name", topicFilter.value);
+
+    if (error || !data) {
+      specPointFilter.innerHTML = '<option value="">Error loading specification entries</option>';
+      return;
+    }
+
+    specPointFilter.innerHTML = '<option value="">-- Select Specific Reference point --</option>' +
+      data.map(sp => `<option value="${sp.id}">[${sp.spec_ref}] ${sp.spec_text.slice(0, 60)}...</option>`).join("");
+  }
+
+  // Hook up event cascades
+  subjectFilter.addEventListener("change", syncTopics);
+  paperFilter.addEventListener("change", syncTopics);
+  topicFilter.addEventListener("change", syncSpecPoints);
+
+  // Dynamic panel toggler layout matrix
+  qType.addEventListener("change", () => {
+    panelMcq.classList.add("hidden");
+    panelNumeric.classList.add("hidden");
+    panelKeywords.classList.add("hidden");
+
+    if (qType.value === "mcq") panelMcq.classList.remove("hidden");
+    else if (qType.value === "numeric") panelNumeric.classList.remove("hidden");
+    else if (qType.value === "short_text") panelKeywords.classList.remove("hidden");
+  });
+
+  // Helper arrays parsing pipelines
+  function splitClean(val) {
+    return val.split(',').map(s => s.trim()).filter(Boolean);
+  }
+
+  function showStatus(text, isError = false) {
+    statusOutput.textContent = text;
+    statusOutput.className = "status-msg " + (isError ? "error" : "success");
+    statusOutput.classList.remove("hidden");
+  }
+
+  // ====== INTERACTIVE PIPELINE COMMIT EXECUTION ======
+  btnCommit.onclick = async () => {
+    statusOutput.classList.add("hidden");
+    
+    // Core parameters extraction
+    const specPointId = specPointFilter.value;
+    const prompt = document.getElementById("qPrompt").value.trim();
+    const questionType = qType.value;
+
+    if (!specPointId) {
+      showStatus("Aborted: You must drill down and select a target Specification Point entry.", true);
+      return;
+    }
+    if (!prompt) {
+      showStatus("Aborted: The Question Prompt textarea block cannot be blank.", true);
+      return;
+    }
+
+    // Dynamic payload constructors depending on typology target
+    let optionsPayload = null;
+    let keyTypeTarget = "keywords";
+    let keyPayloadConstructor = {};
+
+    if (questionType === "mcq") {
+      keyTypeTarget = "mcq";
+      const rawOptions = document.getElementById("mcqOptions").value.split('\n');
+      optionsPayload = rawOptions.map(o => o.trim()).filter(Boolean);
+      keyPayloadConstructor = { correct: document.getElementById("mcqCorrect").value.trim() };
+    } 
+    else if (questionType === "numeric") {
+      keyTypeTarget = "numeric";
+      keyPayloadConstructor = {
+        answer: parseFloat(document.getElementById("numAnswer").value),
+        tolerance: parseFloat(document.getElementById("numTolerance").value || 0)
+      };
+    } 
+    else { // short_text
+      keyTypeTarget = "keywords";
+      keyPayloadConstructor = {
+        required: splitClean(document.getElementById("keyRequired").value),
+        optional: splitClean(document.getElementById("keyOptional").value),
+        min_optional: parseInt(document.getElementById("minOptional").value || 0, 10)
+      };
+    }
+
+    try {
+      // Step 1: Write Question Definition Base Row
+      const { data: questionNode, error: qErr } = await supabaseClient
+        .from("questions")
+        .insert({
+          spec_point_id: specPointId,
+          question_type: questionType,
+          prompt: prompt,
+          options: optionsPayload
+        })
+        .select()
+        .single();
+
+      if (qErr) throw qErr;
+      const targetQuestionId = questionNode.id;
+
+      // Step 2: Write Answer Evaluation Rules Context Row
+      const { error: keyErr } = await supabaseClient
+        .from("answer_keys")
+        .insert({
+          question_id: targetQuestionId,
+          key_type: keyTypeTarget,
+          key_payload: keyPayloadConstructor
+        });
+
+      if (keyErr) throw keyErr;
+
+      // Step 3: Write Accompanying Mark Point Remediations (Multi-Row stack construction)
+      const markPointsBatch = [];
+      
+      const mpText1 = document.getElementById("mpText1").value.trim();
+      const mpFeedback1 = document.getElementById("mpFeedback1").value.trim();
+      if (mpText1 && mpFeedback1) {
+        markPointsBatch.push({
+          question_id: targetQuestionId,
+          ao: document.getElementById("aoTarget1").value,
+          point_text: mpText1,
+          feedback_if_missing: mpFeedback1,
+          max_marks: 1
+        });
+      }
+
+      const mpText2 = document.getElementById("mpText2").value.trim();
+      const mpFeedback2 = document.getElementById("mpFeedback2").value.trim();
+      if (mpText2 && mpFeedback2) {
+        markPointsBatch.push({
+          question_id: targetQuestionId,
+          ao: document.getElementById("aoTarget2").value,
+          point_text: mpText2,
+          feedback_if_missing: mpFeedback2,
+          max_marks: 1
+        });
+      }
+
+      if (markPointsBatch.length > 0) {
+        const { error: mpErr } = await supabaseClient
+          .from("mark_points")
+          .insert(markPointsBatch);
+          
+        if (mpErr) throw mpErr;
+      }
+
+      showStatus(`Success! Question node successfully initialized and bound. Assigned UUID: ${targetQuestionId}`);
+      
+      // Clear inputs
+      document.getElementById("qPrompt").value = "";
+      document.getElementById("keyRequired").value = "";
+      document.getElementById("keyOptional").value = "";
+      document.getElementById("mpFeedback1").value = "";
+      document.getElementById("mpFeedback2").value = "";
+      document.getElementById("mpText1").value = "";
+      document.getElementById("mpText2").value = "";
+
+    } catch (err) {
+      console.error(err);
+      showStatus("Transaction Faulted: " + err.message, true);
+    }
+  };
+
+  // Run initial cascade fill on startup
+  syncTopics();
+</script>
+
+</body>
+</html>
