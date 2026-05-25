@@ -52,11 +52,11 @@ let currentMarkPoints = [];
 
 // ====== HELPERS ======
 function getSelectedFilters() {
-  return {
-    subject: subjectFilter?.value || "biology",
-    paper: paperFilter?.value || "paper1",
-    topic: topicFilter?.value || ""
-  };
+  const subject = subjectFilter?.value || "biology";
+  const paper = paperFilter?.value || "paper1";
+  const topic = topicFilter?.value || "";   
+  const qType = document.getElementById("typeFilter")?.value || ""; // ✅ Captures type selection
+  return { subject, paper, topic, qType };
 }
 function todayISO() { return new Date().toISOString().slice(0, 10); }
 function addDaysISO(days) {
@@ -177,29 +177,49 @@ btnStartDue.onclick = async () => {
 btnStartAny.onclick = async () => { await startAnyPractice(); };
 
 async function startAnyPractice() {
-  const { subject, paper, topic } = getSelectedFilters();
-  let query = supabaseClient.from("spec_points").select("id, subject, paper, topic_name").eq("subject", subject).eq("paper", paper);
-  if (topic) query = query.eq("topic_name", topic);
+  const { subject, paper, topic, qType } = getSelectedFilters();
+
+  let query = supabaseClient
+    .from("spec_points")
+    .select("id, subject, paper, topic_name")
+    .eq("subject", subject)
+    .eq("paper", paper);
+
+  if (topic) {
+    query = query.eq("topic_name", topic);
+  }
 
   const { data: sp, error } = await query;
+
   if (error || !sp || sp.length === 0) {
-    alert(`No structural material matching filters found.`);
+    alert(`No specification targets found for this selection layout.`);
     return;
   }
 
+  // Pick a random matching spec point
   const chosen = sp[Math.floor(Math.random() * sp.length)];
-  await startSessionForSpecPoint(chosen.id);
+  
+  // ✅ Pass the qType filter choice directly into the session selector
+  await startSessionForSpecPoint(chosen.id, qType);
 }
 
-async function startSessionForSpecPoint(specPointId) {
-  const { data: qs, error } = await supabaseClient
+async function startSessionForSpecPoint(specPointId, qType = "") {
+  // Build query targeting questions linked to this specific syllabus node
+  let query = supabaseClient
     .from("questions")
     .select("id,question_type,prompt,options,spec_point_id")
-    .eq("spec_point_id", specPointId)
-    .limit(5);
+    .eq("spec_point_id", specPointId);
+
+  // ✅ If the user picked a specific question type, filter by it in the database
+  if (qType) {
+    query = query.eq("question_type", qType);
+  }
+
+  // Limit to 5 questions for the active test session loop
+  const { data: qs, error } = await query.limit(5);
 
   if (error || !qs || qs.length === 0) {
-    alert(error?.message || "No questions loaded for this node entry.");
+    alert("No matching questions found for this combination. Try a different type or add questions via admin.html!");
     return;
   }
 
@@ -209,7 +229,6 @@ async function startSessionForSpecPoint(specPointId) {
   sessionSection.classList.remove("hidden");
   await loadQuestion();
 }
-
 async function loadQuestion() {
   currentQ = sessionQuestions[idx];
   progress.textContent = `Question ${idx + 1} of ${sessionQuestions.length}`;
