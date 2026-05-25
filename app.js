@@ -371,6 +371,7 @@ console.log("DEBUG SCORING DATA:", { key, markPointsArrayLength: markPoints?.len
     const minOptional = key.key_payload.min_optional || 0;
     const text = (resp.text || "").toLowerCase();
 
+    // 1. Evaluate baseline text matches against key rules
     const hasAllRequired = required.every(k => text.includes(k.toLowerCase()));
     const matchedOptional = optional.filter(k => text.includes(k.toLowerCase()));
     const optionalHits = matchedOptional.length;
@@ -378,13 +379,17 @@ console.log("DEBUG SCORING DATA:", { key, markPointsArrayLength: markPoints?.len
     if (markPoints.length) {
       max = markPoints.reduce((sum, mp) => sum + (mp.max_marks || 1), 0);
 
-      markPoints.forEach(mp => {
+      markPoints.forEach((mp, index) => {
         let pointEarned = false;
 
         if (mp.ao === "AO1") {
+          // Core Knowledge (AO1): Requires all base phrases to be present
           pointEarned = hasAllRequired;
         } else {
-          pointEarned = optionalHits >= minOptional || matchedOptional.length >= 1;
+          // ✅ SECURE STRICT FIX: 
+          // If there's only one optional mark point, ensure they hit the min optional threshold.
+          // If they missed it, pointEarned stays false.
+          pointEarned = optionalHits >= minOptional;
         }
 
         if (pointEarned) {
