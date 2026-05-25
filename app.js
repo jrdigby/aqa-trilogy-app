@@ -307,30 +307,55 @@ function markResponse(q, resp, key, markPoints) {
   } else if (key.key_type === "keywords") {
     const required = key.key_payload.required || [];
     const optional = key.key_payload.optional || [];
+    const minOptional = key.key_payload.min_optional || 0;
     const text = (resp.text || "").toLowerCase();
 
+    // 1. Evaluate baseline text matches against key rules
     const hasAllRequired = required.every(k => text.includes(k.toLowerCase()));
-    const optionalHits = optional.filter(k => text.includes(k.toLowerCase())).length;
-    max = Math.max(1, markPoints.length);
+    const matchedOptional = optional.filter(k => text.includes(k.toLowerCase()));
+    const optionalHits = matchedOptional.length;
 
     if (markPoints.length) {
+      // 2. Sum up total maximum available points dynamically from the database rows
+      max = markPoints.reduce((sum, mp) => sum + (mp.max_marks || 1), 0);
+
       markPoints.forEach(mp => {
-        let ok = mp.ao === "AO1" ? hasAllRequired : optionalHits >= 1;
-        if (ok) {
-          total += (mp.max_marks || 1);
-          ao[mp.ao] += (mp.max_marks || 1);
-        } else if (mp.feedback_if_missing) {
-          missing.push({ ao: mp.ao, text: mp.feedback_if_missing });
+        let pointEarned = false;
+
+        if (mp.ao === "AO1") {
+          // Core Knowledge (AO1): Requires all base phrases to be present
+          pointEarned = hasAllRequired;
+        } else {
+          // Application/Analysis (AO2/AO3): Cleared if any optional hit exists 
+          // OR if the student meets the minimum overall fallback threshold
+          pointEarned = optionalHits >= minOptional || matchedOptional.length >= 1;
+        }
+
+        if (pointEarned) {
+          const awarded = (mp.max_marks || 1);
+          total += awarded;
+          ao[mp.ao] += awarded; // ✅ Safely tallies direct AO score indicators
+        } else {
+          if (mp.feedback_if_missing) {
+            missing.push({ ao: mp.ao, text: mp.feedback_if_missing });
+          }
         }
       });
     } else {
-      total = (hasAllRequired && optionalHits >= (key.key_payload.min_optional ?? 0)) ? 1 : 0;
+      // Fallback configuration if no detailed mark points are provided
+      max = 1;
+      total = (hasAllRequired && optionalHits >= minOptional) ? 1 : 0;
+      if (total === 1) ao.AO1 = 1;
     }
-    quality = total === 0 ? 1 : (total < max ? 3 : 5);
+
+    // 3. Map scores accurately across standard SM-2 intervals
+    if (total === 0) quality = 0;
+    else if (total < max) quality = 3;
+    else quality = 5;
   }
+
   return { total, max, ao, missing, quality, feedbackPayload: { missing } };
 }
-
 function renderFeedback(marking) {
   const pct = Math.round((marking.total / marking.max) * 100);
   let html = `<div><span class="${marking.total === marking.max ? "good" : "bad"}">${marking.total === marking.max ? "Correct" : "Not quite"}</span> — ${marking.total}/${marking.max} (${pct}%)</div><hr/>`;
