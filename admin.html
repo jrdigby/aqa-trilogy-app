@@ -89,6 +89,27 @@
 
 <div class="container">
   <header>
+    <section id="adminAuthSection" class="card">
+    <h2>🔒 Admin Authentication Required</h2>
+    <p style="font-size: 0.85rem; color: #666;">You must sign in with authorized teacher credentials to push new questions.</p>
+    <div class="row">
+      <div>
+        <label for="adminEmail">Email Address</label>
+        <input id="adminEmail" type="email" placeholder="admin@school.com" />
+      </div>
+      <div>
+        <label for="adminPassword">Password</label>
+        <input id="adminPassword" type="password" placeholder="••••••••" />
+      </div>
+    </div>
+    <div style="text-align: right; margin-top: 10px;">
+      <button id="btnAdminSignIn" style="background: #333;">Authenticate Admin Session</button>
+    </div>
+    <div id="authStatus" class="status-msg hidden"></div>
+  </section>
+
+  <div id="adminCoreForm" class="hidden">
+     </div>
     <h1>AQA Trilogy Question Creator</h1>
     <p>Upload Biology, Chemistry, or Physics questions targeted directly to a specification point.</p>
   </header>
@@ -239,6 +260,55 @@
 
 <script>
   // ====== CONFIGURATION INITIALIZATION ======
+  // ====== NEW ADMIN AUTH CONTROL WINDOWS ======
+  const adminAuthSection = document.getElementById("adminAuthSection");
+  const adminCoreForm = document.getElementById("adminCoreForm");
+  const btnAdminSignIn = document.getElementById("btnAdminSignIn");
+  const authStatus = document.getElementById("authStatus");
+
+  function showAuthStatus(text, isError = false) {
+    authStatus.textContent = text;
+    authStatus.className = "status-msg " + (isError ? "error" : "success");
+    authStatus.classList.remove("hidden");
+  }
+
+  // Handle explicit admin authentication click
+  btnAdminSignIn.onclick = async () => {
+    authStatus.classList.add("hidden");
+    const email = document.getElementById("adminEmail").value.trim();
+    const password = document.getElementById("adminPassword").value;
+
+    const { data, error } = await supabaseClient.auth.signInWithPassword({
+      email,
+      password
+    });
+
+    if (error) {
+      showAuthStatus("Authentication Failed: " + error.message, true);
+      return;
+    }
+
+    // Reveal forms on successful authentication
+    showAuthStatus("Authenticated successfully. Secure token loaded.");
+    adminAuthSection.classList.add("hidden");
+    adminCoreForm.classList.remove("hidden");
+    
+    // Trigger initial topic synchronization now that we are logged in
+    syncTopics();
+  };
+
+  // Automatically check if an active session already exists on page load
+  async function checkExistingAdminSession() {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (session?.user) {
+      adminAuthSection.classList.add("hidden");
+      adminCoreForm.classList.remove("hidden");
+      syncTopics();
+    }
+  }
+
+  // Replace your default standalone "syncTopics();" line at the very bottom of your script with this:
+  checkExistingAdminSession();
   const SUPABASE_URL = "https://cbycwfhczyvzzhthpgsw.supabase.co";
   const SUPABASE_ANON_KEY = "sb_publishable_xD75RVd3kyvxs3IK_WsNag_eoCAZF4W";
   
