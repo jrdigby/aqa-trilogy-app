@@ -358,12 +358,24 @@ function markResponse(q, resp, key, markPoints) {
 }
 function renderFeedback(marking) {
   const pct = Math.round((marking.total / marking.max) * 100);
-  let html = `<div><span class="${marking.total === marking.max ? "good" : "bad"}">${marking.total === marking.max ? "Correct" : "Not quite"}</span> — ${marking.total}/${marking.max} (${pct}%)</div><hr/>`;
-  html += `<div><strong>AO Breakdown</strong></div><div class="muted">AO1: ${marking.ao.AO1} • AO2: ${marking.ao.AO2} • AO3: ${marking.ao.AO3}</div>`;
-  if (marking.missing.length) {
-    html += `<hr/><div><strong>How to improve</strong></div>` + marking.missing.map(m => `<div class="item"><span class="chip">${m.ao}</span> ${escapeHtml(m.text)}</div>`).join("");
+  const isPerfect = marking.total === marking.max;
+
+  let html = `<div><span class="${isPerfect ? "good" : "bad"}">${isPerfect ? "Correct" : "Not quite"}</span> — ${marking.total}/${marking.max} (${pct}%)</div>`;
+  html += `<hr/>`;
+  html += `<div><strong>AO breakdown</strong></div>`;
+  html += `<div class="muted">AO1: ${marking.ao.AO1} • AO2: ${marking.ao.AO2} • AO3: ${marking.ao.AO3}</div>`;
+
+  // ✅ FIX: Use marking.missing safely directly from the returned object
+  if (marking.missing && marking.missing.length > 0) {
+    html += `<hr/><div><strong>How to improve</strong></div>`;
+    html += marking.missing.map(m => `
+      <div class="item" style="margin: 5px 0; padding: 5px; background: #fff5f5; border-left: 3px solid #ff4d4d;">
+        <span class="chip" style="background:#ff4d4d; color:white; padding:2px 6px; border-radius:4px; font-size:0.8rem;">${m.ao}</span> 
+        ${escapeHtml(m.text)}
+      </div>
+    `).join("");
   } else {
-    html += `<hr/><div class="good">Nice work! Keep advancing.</div>`;
+    html += `<hr/><div class="good">Nice — perfect marks on this specification point!</div>`;
   }
   return html;
 }
