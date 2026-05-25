@@ -33,32 +33,30 @@
       <p id="authMsg" class="muted"></p>
     </section>
 
-    <section id="dashboard" class="card hidden">
+   <section id="dashboard" class="card hidden">
       <div class="row space">
-  <h2>Dashboard</h2>
-  <div class="row">
-    <span id="userChip" class="chip"></span>
-    <button id="btnSignOut" class="secondary hidden">Sign out</button>
-  </div>
-</div>
-      <!-- ✅ SUBJECT + PAPER + TOPIC FILTER -->
-<div class="row">
-  <select id="subjectFilter">
-    <option value="physics">Physics</option>
-    <option value="biology">Biology</option>
-    <option value="chemistry">Chemistry</option>
-  </select>
+        <h2>Dashboard</h2>
+        <span id="userChip" class="chip"></span>
+        <button id="btnSignOut" class="secondary hidden">Sign out</button>
+      </div>
 
-  <select id="paperFilter">
-    <option value="paper1">Paper 1</option>
-    <option value="paper2">Paper 2</option>
-  </select>
-  
-  <select id="topicFilter">
-  <option value="">All topics</option>
-</select>
+      <div class="row">
+        <select id="subjectFilter">
+          <option value="physics">Physics</option>
+          <option value="biology">Biology</option>
+          <option value="chemistry">Chemistry</option>
+        </select>
 
-</div>
+        <select id="paperFilter">
+          <option value="paper1">Paper 1</option>
+          <option value="paper2">Paper 2</option>
+        </select>
+        
+        <select id="topicFilter">
+          <option value="">All topics</option>
+        </select>
+      </div>
+
       <p><strong>Due today:</strong> <span id="dueCount">0</span></p>
       <div class="row">
         <button id="btnStartDue">Start due session</button>
@@ -66,7 +64,6 @@
       </div>
       <div id="dueList" class="list"></div>
     </section>
-
     <section id="session" class="card hidden">
       <div class="row space">
         <h2>Practice session</h2>
