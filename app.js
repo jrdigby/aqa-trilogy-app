@@ -204,6 +204,7 @@ async function startAnyPractice() {
 }
 
 async function startSessionForSpecPoint(specPointId, qType = "") {
+  console.log("Supabase Query Check:", { specPointId, qType });
   // Build query targeting questions linked to this specific syllabus node
   let query = supabaseClient
     .from("questions")
