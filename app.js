@@ -327,45 +327,70 @@ function markResponse(q, resp, key, markPoints) {
 
   if (!key) return { total: 0, max: 1, ao, missing, quality: 0, feedbackPayload: {} };
 
+  // ====== MULTIPLE CHOICE QUESTIONS (MCQ) ======
   if (key.key_type === "mcq") {
-    total = resp.answer === key.key_payload.correct ? 1 : 0;
+    max = 1;
+    const isCorrect = resp.answer === key.key_payload.correct ? 1 : 0;
+    total = isCorrect;
     quality = total ? 5 : 1;
-  } else if (key.key_type === "numeric") {
+    
+    if (total === 1) {
+      ao.AO1 = 1; // ✅ Explicitly award 1 mark to AO1 on a correct MCQ match
+    } else {
+      // Provide fallback context to the "How to Improve" array if they miss an MCQ
+      missing.push({ 
+        ao: "AO1", 
+        text: `The correct answer was: "${key.key_payload.correct}". Review this specification concept again.` 
+      });
+    }
+  } 
+  
+  // ====== NUMERIC / CALCULATION QUESTIONS ======
+  else if (key.key_type === "numeric") {
+    max = 1;
     const ans = key.key_payload.answer;
     const tol = key.key_payload.tolerance ?? 0;
-    total = (resp.value !== null && Math.abs(resp.value - ans) <= tol) ? 1 : 0;
+    const isCorrect = (resp.value !== null && Math.abs(resp.value - ans) <= tol) ? 1 : 0;
+    total = isCorrect;
     quality = total ? 5 : 1;
-  } else if (key.key_type === "keywords") {
+    
+    if (total === 1) {
+      ao.AO2 = 1; // ✅ Numeric calculations are generally standard quantitative applications (AO2)
+    } else {
+      missing.push({ 
+        ao: "AO2", 
+        text: `Calculation discrepancy detected. Target value: ${ans} (±${tol}). Check your steps and basic units.` 
+      });
+    }
+  } 
+  
+  // ====== SHORT TEXT / KEYWORD QUESTIONS ======
+  else if (key.key_type === "keywords") {
     const required = key.key_payload.required || [];
     const optional = key.key_payload.optional || [];
     const minOptional = key.key_payload.min_optional || 0;
     const text = (resp.text || "").toLowerCase();
 
-    // 1. Evaluate baseline text matches against key rules
     const hasAllRequired = required.every(k => text.includes(k.toLowerCase()));
     const matchedOptional = optional.filter(k => text.includes(k.toLowerCase()));
     const optionalHits = matchedOptional.length;
 
     if (markPoints.length) {
-      // 2. Sum up total maximum available points dynamically from the database rows
       max = markPoints.reduce((sum, mp) => sum + (mp.max_marks || 1), 0);
 
       markPoints.forEach(mp => {
         let pointEarned = false;
 
         if (mp.ao === "AO1") {
-          // Core Knowledge (AO1): Requires all base phrases to be present
           pointEarned = hasAllRequired;
         } else {
-          // Application/Analysis (AO2/AO3): Cleared if any optional hit exists 
-          // OR if the student meets the minimum overall fallback threshold
           pointEarned = optionalHits >= minOptional || matchedOptional.length >= 1;
         }
 
         if (pointEarned) {
           const awarded = (mp.max_marks || 1);
           total += awarded;
-          ao[mp.ao] += awarded; // ✅ Safely tallies direct AO score indicators
+          ao[mp.ao] += awarded; 
         } else {
           if (mp.feedback_if_missing) {
             missing.push({ ao: mp.ao, text: mp.feedback_if_missing });
@@ -373,13 +398,11 @@ function markResponse(q, resp, key, markPoints) {
         }
       });
     } else {
-      // Fallback configuration if no detailed mark points are provided
       max = 1;
       total = (hasAllRequired && optionalHits >= minOptional) ? 1 : 0;
       if (total === 1) ao.AO1 = 1;
     }
 
-    // 3. Map scores accurately across standard SM-2 intervals
     if (total === 0) quality = 0;
     else if (total < max) quality = 3;
     else quality = 5;
@@ -387,6 +410,7 @@ function markResponse(q, resp, key, markPoints) {
 
   return { total, max, ao, missing, quality, feedbackPayload: { missing } };
 }
+
 function renderFeedback(marking) {
   const pct = Math.round((marking.total / marking.max) * 100);
   const isPerfect = marking.total === marking.max;
