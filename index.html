@@ -40,7 +40,7 @@
         <button id="btnSignOut" class="secondary hidden">Sign out</button>
       </div>
 
-     <div class="row">
+     <div class="row" style="display: flex; gap: 10px; margin-bottom: 15px;">
         <select id="subjectFilter">
           <option value="physics">Physics</option>
           <option value="biology">Biology</option>
@@ -54,18 +54,19 @@
         
         <select id="typeFilter">
           <option value="">All Question Types</option>
-          <option value="short_text" selected>Short Text / Written</option>
+          <option value="short_text">Short Text / Written</option>
           <option value="mcq">Multiple Choice (MCQ)</option>
           <option value="numeric">Numeric / Calculation</option>
         </select>
-        
+
         <select id="topicFilter">
           <option value="">All topics</option>
         </select>
       </div>
-     <div id="topicCountSummary" class="muted" style="margin-top: -10px; margin-bottom: 15px; font-size: 0.85rem;">
-  Select a topic to view available questions.
-</div>
+
+      <div id="topicCountSummary" class="muted" style="margin-top: -5px; margin-bottom: 15px; font-size: 0.85rem; color: #666;">
+        Select filters to calculate available questions...
+      </div>
       <p><strong>Due today:</strong> <span id="dueCount">0</span></p>
       <div class="row">
         <button id="btnStartDue">Start due session</button>
