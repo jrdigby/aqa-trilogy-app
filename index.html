@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AQA Science Spaced Repetition MVP</title>
+  <title>AQA Science Spaced Learning</title>
   <style>
     :root {
       --bg: #f4f6f8;
@@ -222,7 +222,7 @@
     </header>
 
     <section id="auth" class="card hidden">
-      <h2>🔑 Student Authentication Gate</h2>
+      <h2>🔑 Student Log In and Sign Up Page</h2>
       <div class="input-group">
         <label for="email">Email Address</label>
         <input id="email" type="email" placeholder="student@school.co.uk" />
@@ -257,7 +257,7 @@
         </div>
 
         <div class="filter-group">
-          <label for="paperFilter">Paper Target</label>
+          <label for="paperFilter">Paper</label>
           <select id="paperFilter" class="custom-select">
             <option value="paper1">Paper 1</option>
             <option value="paper2">Paper 2</option>
@@ -265,7 +265,7 @@
         </div>
 
         <div class="filter-group">
-          <label for="typeFilter">Question Typology</label>
+          <label for="typeFilter">Question Type</label>
           <select id="typeFilter" class="custom-select">
             <option value="">All Question Types</option>
             <option value="short_text">Short Text / Written</option>
@@ -275,7 +275,7 @@
         </div>
 
         <div class="filter-group">
-          <label for="topicFilter">Specification Topic Area</label>
+          <label for="topicFilter">Topic</label>
           <select id="topicFilter" class="custom-select">
             <option value="">All topics</option>
           </select>
@@ -289,7 +289,7 @@
       </div>
 
       <div class="btn-group">
-        <button id="btnStartDue" class="btn-primary">Start Due Review Run</button>
+        <button id="btnStartDue" class="btn-primary">Start Due Questions</button>
         <button id="btnStartAny" class="btn-secondary">Open Practice Mode (Randomized)</button>
       </div>
 
