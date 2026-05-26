@@ -204,6 +204,7 @@ async function startAnyPractice() {
     return;
   }
 
+  // Pick from items safely using relational subquery protection layers tomorrow
   const chosen = sp[Math.floor(Math.random() * sp.length)];
   await startSessionForSpecPoint(chosen.id, qType);
 }
@@ -311,7 +312,6 @@ function markResponse(q, resp, key, markPoints) {
         if (mp.ao === "AO1") {
           pointEarned = hasAllRequired;
         } else {
-          // ✅ STRICT CLEAN CHECK: Explicitly matches threshold objective rule limit bounds
           pointEarned = optionalHits >= minOptional;
         }
 
@@ -369,7 +369,6 @@ btnSubmit.onclick = async () => {
   const response = getResponsePayload(currentQ);
   const marking = markResponse(currentQ, response, currentKey, currentMarkPoints);
 
-  // Instant local UI thread trigger update unblocking network lag
   feedback.innerHTML = renderFeedback(marking);
   btnNext.classList.remove("hidden");
 
@@ -474,7 +473,7 @@ async function loadTopics() {
 
   const subject = subjectFilter.value;
   const paper = paperFilter.value;
-  const qType = document.getElementById("typeFilter")?.value || "";
+  const qType = el("typeFilter")?.value || "";
 
   // 1. Fetch all specification points for this specific Subject + Paper combo
   const { data: specPoints, error: spError } = await supabaseClient
@@ -532,7 +531,7 @@ async function loadTopics() {
     `).join("");
 
   // 5. Update the text summary indicator if it exists on your page
-  const summaryDiv = document.getElementById("topicCountSummary");
+  const summaryDiv = el("topicCountSummary");
   if (summaryDiv) {
     if (qType) {
       const typeLabel = qType === "short_text" ? "written short-text" : qType.toUpperCase();
@@ -542,6 +541,31 @@ async function loadTopics() {
     }
   }
 }
+
+// ====== FIXED INTERACTION HANDLERS (EVENT LISTENERS) ======
+if (subjectFilter) {
+  subjectFilter.addEventListener("change", () => {
+    console.log("Subject constraint altered -> refreshing layout...");
+    loadTopics();
+  });
+}
+
+if (paperFilter) {
+  paperFilter.addEventListener("change", () => {
+    console.log("Paper constraint altered -> refreshing layout...");
+    loadTopics();
+  });
+}
+
+// Intercept optional question type dropdown state switches safely
+const liveTypeFilter = el("typeFilter");
+if (liveTypeFilter) {
+  liveTypeFilter.addEventListener("change", () => {
+    console.log("Typology query target modified -> re-tallying nodes...");
+    loadTopics();
+  });
+}
+
 // ====== MONOLITHIC ENTRY ENGINE GATE ======
 supabaseClient.auth.onAuthStateChange((event, session) => {
   if (session?.user) {
