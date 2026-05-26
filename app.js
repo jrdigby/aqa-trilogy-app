@@ -212,7 +212,7 @@ async function startAnyPractice() {
 async function startSessionForSpecPoint(specPointId, qType = "") {
   let query = supabaseClient
     .from("questions")
-    .select("id,question_type,prompt,options,spec_point_id")
+    .select("id,question_type,prompt,options,spec_point_id, resource_links")
     .eq("spec_point_id", specPointId);
 
   if (qType) {
@@ -321,7 +321,7 @@ function markResponse(q, resp, key, markPoints) {
           ao[mp.ao] += awarded; 
         } else {
           if (mp.feedback_if_missing) {
-            missing.push({ ao: mp.ao, text: mp.feedback_if_missing });
+            missing.push({ ao: mp.ao, text: mp.feedback_if_missing, url: q.resource_links });
           }
         }
       });
@@ -348,12 +348,23 @@ function renderFeedback(marking) {
   html += `<div><strong>AO breakdown</strong></div>`;
   html += `<div class="muted">AO1: ${marking.ao.AO1} • AO2: ${marking.ao.AO2} • AO3: ${marking.ao.AO3}</div>`;
 
-  if (marking.missing && marking.missing.length > 0) {
+ if (marking.missing && marking.missing.length > 0) {
     html += `<hr/><div><strong>How to improve</strong></div>`;
     html += marking.missing.map(m => `
-      <div class="item" style="margin: 5px 0; padding: 5px; background: #fff5f5; border-left: 3px solid #ff4d4d;">
-        <span class="chip" style="background:#ff4d4d; color:white; padding:2px 6px; border-radius:4px; font-size:0.8rem;">${m.ao}</span> 
-        ${escapeHtml(m.text)}
+      <div class="item" style="margin: 5px 0; padding: 12px; background: #fff5f5; border-left: 3px solid #ff4d4d;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px;">
+          <div>
+            <span class="chip" style="background:#ff4d4d; color:white; padding:2px 6px; border-radius:4px; font-size:0.8rem; margin-right: 5px;">${m.ao}</span> 
+            ${escapeHtml(m.text)}
+          </div>
+          
+          ${m.url ? `
+            <a href="${m.url}" target="_blank" rel="noopener noreferrer" 
+               style="flex-shrink: 0; display: inline-block; padding: 4px 10px; background: var(--primary); color: white; text-decoration: none; font-size: 0.8rem; font-weight: 600; border-radius: 6px; transition: background 0.15s;">
+              Review Resource ↗
+            </a>
+          ` : ''}
+        </div>
       </div>
     `).join("");
   } else {
