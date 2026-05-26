@@ -283,7 +283,7 @@ function markResponse(q, resp, key, markPoints) {
     total = resp.answer === key.key_payload.correct ? 1 : 0;
     quality = total ? 5 : 1;
     if (total === 1) ao.AO1 = 1;
-    else missing.push({ ao: "AO1", text: `Expected choice: "${key.key_payload.correct}".` });
+    else missing.push({ ao: "AO1", text: `Expected choice: "${key.key_payload.correct}".`, url: q.resource_links });
   } 
   else if (key.key_type === "numeric") {
     max = 1;
@@ -292,7 +292,7 @@ function markResponse(q, resp, key, markPoints) {
     total = (resp.value !== null && Math.abs(resp.value - ans) <= tol) ? 1 : 0;
     quality = total ? 5 : 1;
     if (total === 1) ao.AO2 = 1;
-    else missing.push({ ao: "AO2", text: `Target value calculation was: ${ans} (±${tol}).` });
+    else missing.push({ ao: "AO2", text: `Target value calculation was: ${ans} (±${tol}).`, url: q.resource_links });
   } 
   else if (key.key_type === "keywords") {
     const required = key.key_payload.required || [];
