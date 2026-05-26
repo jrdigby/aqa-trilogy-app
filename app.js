@@ -474,31 +474,74 @@ async function loadTopics() {
 
   const subject = subjectFilter.value;
   const paper = paperFilter.value;
+  const qType = document.getElementById("typeFilter")?.value || "";
 
-  const { data, error } = await supabaseClient
+  // 1. Fetch all specification points for this specific Subject + Paper combo
+  const { data: specPoints, error: spError } = await supabaseClient
     .from("spec_points")
-    .select("topic_name")
+    .select("id, topic_name")
     .eq("subject", subject)
     .eq("paper", paper);
 
-  if (error) {
-    topicFilter.innerHTML = `<option value="">All topics</option>`;
+  if (spError) {
+    topicFilter.innerHTML = `<option value="">All topics (0)</option>`;
     return;
   }
 
-  const rows = data || [];
-  const unique = [...new Set(rows.map(r => r.topic_name).filter(Boolean))];
+  const rows = specPoints || [];
+  
+  // 2. Fetch all questions matching your active question type filter (if one is selected)
+  let qQuery = supabaseClient.from("questions").select("spec_point_id, question_type");
+  if (qType) {
+    qQuery = qQuery.eq("question_type", qType);
+  }
+  const { data: questions, error: qError } = await qQuery;
 
+  if (qError) {
+    console.error("Error retrieving question counts:", qError);
+  }
+
+  // 3. Map spec_point_ids to their topic names and count questions per topic
+  const specToTopicMap = {};
+  rows.forEach(sp => {
+    specToTopicMap[sp.id] = sp.topic_name;
+  });
+
+  const topicCounts = {};
+  // Initialize all found topics with a count of 0
+  const uniqueTopics = [...new Set(rows.map(r => r.topic_name).filter(Boolean))];
+  uniqueTopics.forEach(t => {
+    topicCounts[t] = 0;
+  });
+
+  // Tally up questions belonging to these topics
+  let totalMatchingQuestions = 0;
+  (questions || []).forEach(q => {
+    const matchedTopic = specToTopicMap[q.spec_point_id];
+    if (matchedTopic !== undefined) {
+      topicCounts[matchedTopic] = (topicCounts[matchedTopic] || 0) + 1;
+      totalMatchingQuestions++;
+    }
+  });
+
+  // 4. Populate the Topic Dropdown menu with dynamic count badges
   topicFilter.innerHTML =
-    `<option value="">All topics</option>` +
-    unique.map(t => `<option value="${t}">${t}</option>`).join("");
-}
+    `<option value="">All topics (${totalMatchingQuestions})</option>` +
+    uniqueTopics.map(t => `
+      <option value="${t}">${t} (${topicCounts[t]})</option>
+    `).join("");
 
-if (subjectFilter && paperFilter) {
-  subjectFilter.addEventListener("change", loadTopics);
-  paperFilter.addEventListener("change", loadTopics);
+  // 5. Update the text summary indicator if it exists on your page
+  const summaryDiv = document.getElementById("topicCountSummary");
+  if (summaryDiv) {
+    if (qType) {
+      const typeLabel = qType === "short_text" ? "written short-text" : qType.toUpperCase();
+      summaryDiv.textContent = `Found ${totalMatchingQuestions} total ${typeLabel} questions for ${subject.toUpperCase()} ${paper.toUpperCase()}.`;
+    } else {
+      summaryDiv.textContent = `Found ${totalMatchingQuestions} total questions across all types for ${subject.toUpperCase()} ${paper.toUpperCase()}.`;
+    }
+  }
 }
-
 // ====== MONOLITHIC ENTRY ENGINE GATE ======
 supabaseClient.auth.onAuthStateChange((event, session) => {
   if (session?.user) {
