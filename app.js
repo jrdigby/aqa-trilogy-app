@@ -44,7 +44,6 @@ const btnNext = el("btnNext");
 const subjectFilter = el("subjectFilter");
 const paperFilter = el("paperFilter");
 const topicFilter = el("topicFilter");
-const tierFilter = el("tierFilter"); 
 
 // ====== SESSION STATE ======
 let currentUser = null;
@@ -60,7 +59,8 @@ function getSelectedFilters() {
   const paper = paperFilter?.value || "paper1";
   const topic = topicFilter?.value || "";   
   const qType = el("typeFilter")?.value || ""; 
-  const tier = tierFilter?.value || "FT"; 
+  // ✅ FIX: Query DOM on-the-fly with a safe fallback to prevent boot crashes
+  const tier = el("tierFilter")?.value || "FT"; 
   return { subject, paper, topic, qType, tier };
 }
 function todayISO() {
@@ -568,8 +568,10 @@ function setSignedInUI(user) {
   if (authSection) authSection.classList.add("hidden");
   if (dashSection) dashSection.classList.remove("hidden");
 
-  if (tierFilter && !tierFilter.value) {
-    tierFilter.value = "FT";
+  // ✅ FIX: Target selector dynamically at runtime to prevent initialization drops
+  const runtimeTierSelect = el("tierFilter");
+  if (runtimeTierSelect && !runtimeTierSelect.value) {
+    runtimeTierSelect.value = "FT";
   }
 
   if (userChip) userChip.textContent = `${user.email || user.id}`;
@@ -712,14 +714,6 @@ if (topicFilter) {
   });
 }
 
-// ✅ FIXED: Wrapped in safety block to avoid crashing on login page load
-if (tierFilter) {
-  tierFilter.addEventListener("change", () => {
-    console.log("Exam entry tier altered -> updating question footprint allocations...");
-    loadTopics();
-  });
-}
-
 // Intercept optional question type dropdown state switches safely
 const liveTypeFilter = el("typeFilter");
 if (liveTypeFilter) {
@@ -735,6 +729,15 @@ supabaseClient.auth.onAuthStateChange((event, session) => {
     currentUser = session.user;
     setSignedInUI(currentUser);
     loadDashboard();
+    
+    // ✅ FIX: Only look for the dropdown element once authenticated and the card becomes visible in the DOM
+    const runtimeTierSelect = el("tierFilter");
+    if (runtimeTierSelect) {
+      runtimeTierSelect.addEventListener("change", () => {
+        console.log("Exam entry tier altered -> updating question footprint allocations...");
+        loadTopics();
+      });
+    }
   } else {
     currentUser = null;
     setSignedOutUI();
