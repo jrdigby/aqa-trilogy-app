@@ -307,9 +307,10 @@ function markResponse(q, resp, key, markPoints) {
   if (!key) return { total: 0, max: 1, ao, missing, quality: 0, feedbackPayload: {} };
 
   // Helper validation filter to verify that resource links are explicit executable URLs
-  const cleanUrl = (q && typeof q.resource_links === "string" && q.resource_links.trim().toLowerCase().startsWith('http')) 
-    ? q.resource_links.trim() 
-    : null;
+ // ✅ SAFE RUNTIME FIX: Checks if it's a real string before trying to run .trim()
+const cleanUrl = (q && typeof q.resource_links === "string" && q.resource_links.trim().toLowerCase().startsWith('http')) 
+  ? q.resource_links.trim() 
+  : null;
   
   if (key.key_type === "mcq") {
     max = 1;
