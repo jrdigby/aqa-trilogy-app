@@ -63,29 +63,36 @@
       color: #34495e;
     }
 
-    /* ====== MODERN FILTER DROPDOWN ROW ====== */
+    /* ====== UPDATED COMPACT FILTER ROW LAYOUT ====== */
     .filter-row {
       display: flex;
       flex-wrap: wrap;
       gap: 12px;
       margin-bottom: 12px;
+      align-items: flex-end; /* Aligns all inputs perfectly along their bottom edge */
     }
 
     .filter-group {
-      flex: 1;
-      min-width: 160px; /* Prevents squishing on mobile layouts */
       display: flex;
       flex-direction: column;
     }
 
-    .filter-group label {
-      font-size: 0.75rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: var(--text-muted);
-      margin-bottom: 6px;
-      margin-left: 2px;
+    /* Target specific dropdown widths to comfortably match their text labels */
+    .filter-group:has(#subjectFilter) {
+      width: 130px; /* Perfectly sizes Physics, Biology, Chemistry */
+    }
+
+    .filter-group:has(#paperFilter) {
+      width: 110px; /* Sized precisely for "Paper 1" and "Paper 2" */
+    }
+
+    .filter-group:has(#typeFilter) {
+      width: 220px; /* Widened to comfortably fit longer question type options */
+    }
+
+    .filter-group:has(#topicFilter) {
+      flex: 1;          /* Allows the Topic dropdown to take up all remaining space on the row */
+      min-width: 240px; /* Ensures it stays wide enough to avoid squeezing long syllabus titles */
     }
 
     .custom-select {
