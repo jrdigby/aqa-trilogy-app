@@ -676,7 +676,7 @@ async function loadTopics() {
     const targetSessionCount = Math.min(totalDueQuestionsAvailable, 5);
 
     if (targetSessionCount > 0) {
-      dueBtn.textContent = `Do ${targetSessionCount} Due Questions for selected topic(s)`;
+      dueBtn.textContent = `You have ${targetSessionCount} due questions for selected topic(s)`;
       dueBtn.disabled = false;
     } else {
       dueBtn.textContent = "No Scheduled Items Due for Type/Topic";
