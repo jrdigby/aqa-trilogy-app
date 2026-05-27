@@ -170,7 +170,7 @@ btnStartDue.onclick = async () => {
   }
 
   const filteredDue = (due || []).filter(d =>
-    d.spec_points?.subject === subject && d.spec_points?.paper === paper
+    d.spec_points?.subject === subject && d.spec_points?.paper === paper && d.spec_points?.topic_name === topic
   );
 
   if (filteredDue.length === 0) {
