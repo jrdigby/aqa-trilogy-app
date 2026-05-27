@@ -278,17 +278,21 @@ function markResponse(q, resp, key, markPoints) {
 
   if (!key) return { total: 0, max: 1, ao, missing, quality: 0, feedbackPayload: {} };
 
+  // Helper validation filter to verify that resource links are explicit executable URLs
+  const cleanUrl = (q.resource_links && q.resource_links.trim().toLowerCase().startsWith('http')) ? q.resource_links.trim() : null;
+
   if (key.key_type === "mcq") {
     max = 1;
     total = resp.answer === key.key_payload.correct ? 1 : 0;
     quality = total ? 5 : 1;
     if (total === 1) ao.AO1 = 1;
     else {
-  missing.push({ 
-    ao: "AO1", 
-    text: `Expected choice: "${key.key_payload.correct}".`,
-    url: (q.resource_links && q.resource_links.trim() !== "") ? q.resource_links.trim() : null 
-  });
+      missing.push({ 
+        ao: "AO1", 
+        text: `Expected choice: "${key.key_payload.correct}".`,
+        url: cleanUrl 
+      });
+    }
   } 
   else if (key.key_type === "numeric") {
     max = 1;
@@ -298,11 +302,12 @@ function markResponse(q, resp, key, markPoints) {
     quality = total ? 5 : 1;
     if (total === 1) ao.AO2 = 1;
     else {
-  missing.push({ 
-    ao: "AO2", 
-    text: `Target value calculation was: ${ans} (±${tol}).`,
-    url: (q.resource_links && q.resource_links.trim() !== "") ? q.resource_links.trim() : null 
-  });
+      missing.push({ 
+        ao: "AO2", 
+        text: `Target value calculation was: ${ans} (±${tol}).`,
+        url: cleanUrl 
+      });
+    }
   } 
   else if (key.key_type === "keywords") {
     const required = key.key_payload.required || [];
@@ -330,12 +335,12 @@ function markResponse(q, resp, key, markPoints) {
           total += awarded;
           ao[mp.ao] += awarded; 
         } else {
-  if (mp.feedback_if_missing) {
-    missing.push({ 
-      ao: mp.ao, 
-      text: mp.feedback_if_missing,
-      url: (q.resource_links && q.resource_links.trim() !== "") ? q.resource_links.trim() : null 
-    });
+          if (mp.feedback_if_missing) {
+            missing.push({ 
+              ao: mp.ao, 
+              text: mp.feedback_if_missing,
+              url: cleanUrl 
+            });
           }
         }
       });
@@ -362,7 +367,7 @@ function renderFeedback(marking) {
   html += `<div><strong>AO breakdown</strong></div>`;
   html += `<div class="muted">AO1: ${marking.ao.AO1} • AO2: ${marking.ao.AO2} • AO3: ${marking.ao.AO3}</div>`;
 
- if (marking.missing && marking.missing.length > 0) {
+  if (marking.missing && marking.missing.length > 0) {
     html += `<hr/><div><strong>How to improve</strong></div>`;
     html += marking.missing.map(m => `
       <div class="item" style="margin: 5px 0; padding: 12px; background: #fff5f5; border-left: 3px solid #ff4d4d;">
@@ -520,85 +525,3 @@ async function loadTopics() {
     qQuery = qQuery.eq("question_type", qType);
   }
   const { data: questions, error: qError } = await qQuery;
-
-  if (qError) {
-    console.error("Error retrieving question counts:", qError);
-  }
-
-  // 3. Map spec_point_ids to their topic names and count questions per topic
-  const specToTopicMap = {};
-  rows.forEach(sp => {
-    specToTopicMap[sp.id] = sp.topic_name;
-  });
-
-  const topicCounts = {};
-  // Initialize all found topics with a count of 0
-  const uniqueTopics = [...new Set(rows.map(r => r.topic_name).filter(Boolean))];
-  uniqueTopics.forEach(t => {
-    topicCounts[t] = 0;
-  });
-
-  // Tally up questions belonging to these topics
-  let totalMatchingQuestions = 0;
-  (questions || []).forEach(q => {
-    const matchedTopic = specToTopicMap[q.spec_point_id];
-    if (matchedTopic !== undefined) {
-      topicCounts[matchedTopic] = (topicCounts[matchedTopic] || 0) + 1;
-      totalMatchingQuestions++;
-    }
-  });
-
-  // 4. Populate the Topic Dropdown menu with dynamic count badges
-  topicFilter.innerHTML =
-    `<option value="">All topics (${totalMatchingQuestions})</option>` +
-    uniqueTopics.map(t => `
-      <option value="${t}">${t} (${topicCounts[t]})</option>
-    `).join("");
-
-  // 5. Update the text summary indicator if it exists on your page
-  const summaryDiv = el("topicCountSummary");
-  if (summaryDiv) {
-    if (qType) {
-      const typeLabel = qType === "short_text" ? "written short-text" : qType.toUpperCase();
-      summaryDiv.textContent = `Found ${totalMatchingQuestions} total ${typeLabel} questions for ${subject.toUpperCase()} ${paper.toUpperCase()}.`;
-    } else {
-      summaryDiv.textContent = `Found ${totalMatchingQuestions} total questions across all types for ${subject.toUpperCase()} ${paper.toUpperCase()}.`;
-    }
-  }
-}
-
-// ====== FIXED INTERACTION HANDLERS (EVENT LISTENERS) ======
-if (subjectFilter) {
-  subjectFilter.addEventListener("change", () => {
-    console.log("Subject constraint altered -> refreshing layout...");
-    loadTopics();
-  });
-}
-
-if (paperFilter) {
-  paperFilter.addEventListener("change", () => {
-    console.log("Paper constraint altered -> refreshing layout...");
-    loadTopics();
-  });
-}
-
-// Intercept optional question type dropdown state switches safely
-const liveTypeFilter = el("typeFilter");
-if (liveTypeFilter) {
-  liveTypeFilter.addEventListener("change", () => {
-    console.log("Typology query target modified -> re-tallying nodes...");
-    loadTopics();
-  });
-}
-
-// ====== MONOLITHIC ENTRY ENGINE GATE ======
-supabaseClient.auth.onAuthStateChange((event, session) => {
-  if (session?.user) {
-    currentUser = session.user;
-    setSignedInUI(currentUser);
-    loadDashboard();
-  } else {
-    currentUser = null;
-    setSignedOutUI();
-  }
-});
