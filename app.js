@@ -156,11 +156,11 @@ async function loadDashboard() {
 btnStartDue.onclick = async () => {
   if (!currentUser) return;
   const today = todayISO();
-  const { subject, paper, qType } = getSelectedFilters();
+  const { subject, paper, topic, qType } = getSelectedFilters(); // ✅ Captured topic value
 
   const { data: due, error } = await supabaseClient
     .from("srs_state")
-    .select(`spec_point_id, due_date, spec_points(subject, paper)`)
+    .select(`spec_point_id, due_date, spec_points(subject, paper, topic_name)`)
     .eq("user_id", currentUser.id)
     .lte("due_date", today);
 
@@ -169,15 +169,20 @@ btnStartDue.onclick = async () => {
     return;
   }
 
-  const filteredDue = (due || []).filter(d =>
-    d.spec_points?.subject === subject && d.spec_points?.paper === paper && d.spec_points?.topic_name === topic
-  );
+  // ✅ ENFORCED TOPIC BOUNDS: Filters based on Subject, Paper, and optionally Topic
+  const filteredDue = (due || []).filter(d => {
+    const matchSubj = d.spec_points?.subject === subject;
+    const matchPaper = d.spec_points?.paper === paper;
+    const matchTopic = topic ? (d.spec_points?.topic_name === topic) : true;
+    return matchSubj && matchPaper && matchTopic;
+  });
 
   if (filteredDue.length === 0) {
     await startAnyPractice();
     return;
   }
 
+  // Fire off up to 5 questions targeting the first overdue spec point matching your filter choice
   await startSessionForSpecPoint(filteredDue[0].spec_point_id, qType);
 };
 
@@ -535,6 +540,7 @@ async function loadTopics() {
 
   const subject = subjectFilter.value;
   const paper = paperFilter.value;
+  const topic = topicFilter.value; // ✅ Capture active topic selection
   const qType = el("typeFilter")?.value || "";
 
   // 1. Fetch all specification points for this specific Subject + Paper combo
@@ -586,11 +592,14 @@ async function loadTopics() {
   });
 
   // 4. Populate the Topic Dropdown menu with dynamic count badges
+  // Keep active selection stable during innerHTML swaps
+  const currentSelectedTopic = topicFilter.value;
   topicFilter.innerHTML =
     `<option value="">All topics (${totalMatchingQuestions})</option>` +
     uniqueTopics.map(t => `
       <option value="${t}">${t} (${topicCounts[t]})</option>
     `).join("");
+  topicFilter.value = currentSelectedTopic;
 
   // 5. Update the text summary indicator if it exists on your page
   const summaryDiv = el("topicCountSummary");
@@ -600,6 +609,41 @@ async function loadTopics() {
       summaryDiv.textContent = `Found ${totalMatchingQuestions} total ${typeLabel} questions for ${subject.toUpperCase()} ${paper.toUpperCase()}.`;
     } else {
       summaryDiv.textContent = `Found ${totalMatchingQuestions} total questions across all types for ${subject.toUpperCase()} ${paper.toUpperCase()}.`;
+    }
+  }
+
+  // =============================================================
+  // ✅ NEW CODE: DYNAMICALLY UPDATE THE DUE BUTTON TEXT BASED ON FILTER
+  // =============================================================
+  const dueBtn = el("btnStartDue");
+  if (dueBtn) {
+    // Re-fetch or recalculate current baseline due count from the dashboard list
+    // We filter down using Subject + Paper + Topic (if a topic is chosen)
+    const today = todayISO();
+    
+    const { data: rawDue } = await supabaseClient
+      .from("srs_state")
+      .select(`spec_point_id, due_date, spec_points(subject, paper, topic_name)`)
+      .eq("user_id", currentUser?.id)
+      .lte("due_date", today);
+
+    const filteredDueItems = (rawDue || []).filter(d => {
+      const matchSubj = d.spec_points?.subject === subject;
+      const matchPaper = d.spec_points?.paper === paper;
+      const matchTopic = topic ? (d.spec_points?.topic_name === topic) : true;
+      return matchSubj && matchPaper && matchTopic;
+    });
+
+    const activeDueCount = filteredDueItems.length;
+    // Cap display maximum value at 5 questions per subset configuration rules
+    const targetSessionCount = Math.min(activeDueCount, 5);
+
+    if (targetSessionCount > 0) {
+      dueBtn.textContent = `Do ${targetSessionCount} Due Questions for selected topic(s)`;
+      dueBtn.disabled = false;
+    } else {
+      dueBtn.textContent = "No Scheduled Items Due for Topic";
+      dueBtn.disabled = true;
     }
   }
 }
@@ -615,6 +659,13 @@ if (subjectFilter) {
 if (paperFilter) {
   paperFilter.addEventListener("change", () => {
     console.log("Paper constraint altered -> refreshing layout...");
+    loadTopics();
+  });
+}
+
+if (topicFilter) {
+  topicFilter.addEventListener("change", () => {
+    console.log("Topic constraint altered -> recalculating due run counts...");
     loadTopics();
   });
 }
