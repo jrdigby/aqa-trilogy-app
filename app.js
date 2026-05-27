@@ -525,3 +525,85 @@ async function loadTopics() {
     qQuery = qQuery.eq("question_type", qType);
   }
   const { data: questions, error: qError } = await qQuery;
+
+  if (qError) {
+    console.error("Error retrieving question counts:", qError);
+  }
+
+  // 3. Map spec_point_ids to their topic names and count questions per topic
+  const specToTopicMap = {};
+  rows.forEach(sp => {
+    specToTopicMap[sp.id] = sp.topic_name;
+  });
+
+  const topicCounts = {};
+  // Initialize all found topics with a count of 0
+  const uniqueTopics = [...new Set(rows.map(r => r.topic_name).filter(Boolean))];
+  uniqueTopics.forEach(t => {
+    topicCounts[t] = 0;
+  });
+
+  // Tally up questions belonging to these topics
+  let totalMatchingQuestions = 0;
+  (questions || []).forEach(q => {
+    const matchedTopic = specToTopicMap[q.spec_point_id];
+    if (matchedTopic !== undefined) {
+      topicCounts[matchedTopic] = (topicCounts[matchedTopic] || 0) + 1;
+      totalMatchingQuestions++;
+    }
+  });
+
+  // 4. Populate the Topic Dropdown menu with dynamic count badges
+  topicFilter.innerHTML =
+    `<option value="">All topics (${totalMatchingQuestions})</option>` +
+    uniqueTopics.map(t => `
+      <option value="${t}">${t} (${topicCounts[t]})</option>
+    `).join("");
+
+  // 5. Update the text summary indicator if it exists on your page
+  const summaryDiv = el("topicCountSummary");
+  if (summaryDiv) {
+    if (qType) {
+      const typeLabel = qType === "short_text" ? "written short-text" : qType.toUpperCase();
+      summaryDiv.textContent = `Found ${totalMatchingQuestions} total ${typeLabel} questions for ${subject.toUpperCase()} ${paper.toUpperCase()}.`;
+    } else {
+      summaryDiv.textContent = `Found ${totalMatchingQuestions} total questions across all types for ${subject.toUpperCase()} ${paper.toUpperCase()}.`;
+    }
+  }
+}
+
+// ====== FIXED INTERACTION HANDLERS (EVENT LISTENERS) ======
+if (subjectFilter) {
+  subjectFilter.addEventListener("change", () => {
+    console.log("Subject constraint altered -> refreshing layout...");
+    loadTopics();
+  });
+}
+
+if (paperFilter) {
+  paperFilter.addEventListener("change", () => {
+    console.log("Paper constraint altered -> refreshing layout...");
+    loadTopics();
+  });
+}
+
+// Intercept optional question type dropdown state switches safely
+const liveTypeFilter = el("typeFilter");
+if (liveTypeFilter) {
+  liveTypeFilter.addEventListener("change", () => {
+    console.log("Typology query target modified -> re-tallying nodes...");
+    loadTopics();
+  });
+}
+
+// ====== MONOLITHIC ENTRY ENGINE GATE ======
+supabaseClient.auth.onAuthStateChange((event, session) => {
+  if (session?.user) {
+    currentUser = session.user;
+    setSignedInUI(currentUser);
+    loadDashboard();
+  } else {
+    currentUser = null;
+    setSignedOutUI();
+  }
+});
