@@ -132,7 +132,8 @@ async function loadDashboard() {
     .select("spec_point_id,due_date,interval_days,ease_factor,repetitions,lapses,last_quality, spec_points(subject,topic_name,spec_ref,spec_text)")
     .eq("user_id", currentUser.id)
     .lte("due_date", today)
-    .order("due_date", { ascending: true });
+    .order("due_date", { ascending: true })
+    .order("ease_factor", { ascending: true });
 
   if (error) {
     dueCount.textContent = "0";
