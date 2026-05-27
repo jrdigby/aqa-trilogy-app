@@ -156,8 +156,9 @@ async function loadDashboard() {
 btnStartDue.onclick = async () => {
   if (!currentUser) return;
   const today = todayISO();
-  const { subject, paper, topic, qType } = getSelectedFilters(); // ✅ Captured topic value
+  const { subject, paper, topic, qType } = getSelectedFilters(); 
 
+  // 1. Grab all due states
   const { data: due, error } = await supabaseClient
     .from("srs_state")
     .select(`spec_point_id, due_date, spec_points(subject, paper, topic_name)`)
@@ -169,7 +170,7 @@ btnStartDue.onclick = async () => {
     return;
   }
 
-  // ✅ ENFORCED TOPIC BOUNDS: Filters based on Subject, Paper, and optionally Topic
+  // 2. Filter down to the matching topic/subject boundaries
   const filteredDue = (due || []).filter(d => {
     const matchSubj = d.spec_points?.subject === subject;
     const matchPaper = d.spec_points?.paper === paper;
@@ -182,8 +183,34 @@ btnStartDue.onclick = async () => {
     return;
   }
 
-  // Fire off up to 5 questions targeting the first overdue spec point matching your filter choice
-  await startSessionForSpecPoint(filteredDue[0].spec_point_id, qType);
+  // 3. ✅ LOOKAHEAD VERIFICATION: Find the first due item that actually has the requested type available
+  let targetedSpecPointId = null;
+
+  if (qType) {
+    // Fetch a list of active questions for these due items to confirm matching types exist
+    const dueSpecIds = filteredDue.map(d => d.spec_point_id);
+    const { data: matchingQs } = await supabaseClient
+      .from("questions")
+      .select("spec_point_id")
+      .in("spec_point_id", dueSpecIds)
+      .eq("question_type", qType);
+
+    if (matchingQs && matchingQs.length > 0) {
+      // Pick the first due item that has a valid question type match
+      targetedSpecPointId = matchingQs[0].spec_point_id;
+    }
+  } else {
+    // Default to the most overdue item if no type filter is active
+    targetedSpecPointId = filteredDue[0].spec_point_id;
+  }
+
+  if (!targetedSpecPointId) {
+    alert(`No questions found matching your specific question type choice for this due topic.`);
+    return;
+  }
+
+  // Launch the session targeting the verified node
+  await startSessionForSpecPoint(targetedSpecPointId, qType);
 };
 
 btnStartAny.onclick = async () => {
@@ -540,8 +567,8 @@ async function loadTopics() {
 
   const subject = subjectFilter.value;
   const paper = paperFilter.value;
-  const topic = topicFilter.value; // ✅ Capture active topic selection
-  const qType = el("typeFilter")?.value || "";
+  const topic = topicFilter.value; 
+  const qType = el("typeFilter")?.value || ""; // ✅ Captured question type
 
   // 1. Fetch all specification points for this specific Subject + Paper combo
   const { data: specPoints, error: spError } = await supabaseClient
@@ -558,7 +585,7 @@ async function loadTopics() {
   const rows = specPoints || [];
   
   // 2. Fetch all questions matching your active question type filter (if one is selected)
-  let qQuery = supabaseClient.from("questions").select("spec_point_id, question_type");
+  let qQuery = supabaseClient.from("questions").select("id, spec_point_id, question_type");
   if (qType) {
     qQuery = qQuery.eq("question_type", qType);
   }
@@ -592,7 +619,6 @@ async function loadTopics() {
   });
 
   // 4. Populate the Topic Dropdown menu with dynamic count badges
-  // Keep active selection stable during innerHTML swaps
   const currentSelectedTopic = topicFilter.value;
   topicFilter.innerHTML =
     `<option value="">All topics (${totalMatchingQuestions})</option>` +
@@ -613,41 +639,51 @@ async function loadTopics() {
   }
 
   // =============================================================
-  // ✅ NEW CODE: DYNAMICALLY UPDATE THE DUE BUTTON TEXT BASED ON FILTER
+  // ✅ ENHANCED CODE: DYNAMICALLY UPDATE THE DUE BUTTON TEXT BY TOPIC + TYPE
   // =============================================================
   const dueBtn = el("btnStartDue");
   if (dueBtn) {
-    // Re-fetch or recalculate current baseline due count from the dashboard list
-    // We filter down using Subject + Paper + Topic (if a topic is chosen)
     const today = todayISO();
     
+    // Fetch user's active due milestones
     const { data: rawDue } = await supabaseClient
       .from("srs_state")
       .select(`spec_point_id, due_date, spec_points(subject, paper, topic_name)`)
       .eq("user_id", currentUser?.id)
       .lte("due_date", today);
 
-    const filteredDueItems = (rawDue || []).filter(d => {
-      const matchSubj = d.spec_points?.subject === subject;
-      const matchPaper = d.spec_points?.paper === paper;
-      const matchTopic = topic ? (d.spec_points?.topic_name === topic) : true;
-      return matchSubj && matchPaper && matchTopic;
+    // Create a quick look-up table of spec IDs that are currently due
+    const dueSpecIds = new Set((rawDue || []).map(d => d.spec_point_id));
+
+    // Count how many questions match the Type + Topic AND belong to a due Spec Point
+    let totalDueQuestionsAvailable = 0;
+
+    (questions || []).forEach(q => {
+      const parentTopic = specToTopicMap[q.spec_point_id];
+      
+      // Is this question's specification point currently due?
+      const isSpecDue = dueSpecIds.has(q.spec_point_id);
+      
+      // Does it match the dashboard's chosen topic?
+      const matchesTopicFilter = topic ? (parentTopic === topic) : (parentTopic !== undefined);
+
+      if (isSpecDue && matchesTopicFilter) {
+        totalDueQuestionsAvailable++;
+      }
     });
 
-    const activeDueCount = filteredDueItems.length;
-    // Cap display maximum value at 5 questions per subset configuration rules
-    const targetSessionCount = Math.min(activeDueCount, 5);
+    // Apply the 5-question session constraint cap
+    const targetSessionCount = Math.min(totalDueQuestionsAvailable, 5);
 
     if (targetSessionCount > 0) {
       dueBtn.textContent = `Do ${targetSessionCount} Due Questions for selected topic(s)`;
       dueBtn.disabled = false;
     } else {
-      dueBtn.textContent = "No Scheduled Items Due for Topic";
+      dueBtn.textContent = "No Scheduled Items Due for Type/Topic";
       dueBtn.disabled = true;
     }
   }
 }
-
 // ====== FIXED INTERACTION HANDLERS (EVENT LISTENERS) ======
 if (subjectFilter) {
   subjectFilter.addEventListener("change", () => {
