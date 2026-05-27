@@ -63,7 +63,7 @@
       color: #34495e;
     }
 
-    /* ====== NEW MODERN FILTER DROPDOWN ROW ====== */
+    /* ====== MODERN FILTER DROPDOWN ROW ====== */
     .filter-row {
       display: flex;
       flex-wrap: wrap;
@@ -249,7 +249,6 @@
         <h2>🎯 Review Dashboard</h2>
         
         <div style="display: flex; align-items: center; gap: 12px;">
-          
           <div style="display: flex; align-items: center; gap: 6px;">
             <label for="tierFilter" style="font-size: 0.8rem; font-weight: 600; text-transform: uppercase; color: var(--text-muted);">Tier:</label>
             <select id="tierFilter" class="custom-select" style="padding: 4px 30px 4px 10px; font-size: 0.85rem; font-weight: 600; border-radius: 6px; width: auto; height: auto; background-position: right 6px center; background-size: 12px;">
@@ -267,4 +266,71 @@
         <div class="filter-group">
           <label for="subjectFilter">Subject</label>
           <select id="subjectFilter" class="custom-select">
-            <option
+            <option value="physics">Physics</option>
+            <option value="biology">Biology</option>
+            <option value="chemistry">Chemistry</option>
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <label for="paperFilter">Paper</label>
+          <select id="paperFilter" class="custom-select">
+            <option value="paper1">Paper 1</option>
+            <option value="paper2">Paper 2</option>
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <label for="typeFilter">Question Type</label>
+          <select id="typeFilter" class="custom-select">
+            <option value="">All Question Types</option>
+            <option value="short_text">Short Text / Written</option>
+            <option value="mcq">Multiple Choice (MCQs)</option>
+            <option value="numeric">Numeric / Calculations</option>
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <label for="topicFilter">Topic</label>
+          <select id="topicFilter" class="custom-select">
+            <option value="">All topics</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="practice-context-block">
+        <div id="topicCountSummary">Calculating baseline questions footprint...</div>
+        <button id="btnStartAny" class="btn-secondary" style="flex: none; padding: 8px 16px; font-size: 0.88rem; width: auto;">Open practice mode for selected topic(s)</button>
+      </div>
+
+      <hr/>
+
+      <div style="margin: 20px 0; display: flex; justify-content: space-between; align-items: center;">
+        <h3>Due Item Queue: <span id="dueCount" style="color: var(--primary);">0</span> target objectives waiting</h3>
+        <button id="btnStartDue" class="btn-primary" style="flex: none; width: auto; padding: 10px 20px;">Start Due Questions for selected topic(s)</button>
+      </div>
+
+      <div style="margin-bottom: 10px; font-weight: 600; font-size: 0.9rem; color: var(--text-muted);">Active Schedule Forecast:</div>
+      <div id="dueList"></div>
+    </section>
+
+    <section id="session" class="card hidden">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+        <h2>📝 Questions</h2>
+        <div id="progress" class="chip">Question 0 of 0</div>
+      </div>
+
+      <div id="qBox"></div>
+      
+      <div id="feedback" style="margin: 15px 0;"></div>
+
+      <div class="btn-group" style="margin-top: 20px;">
+        <button id="btnSubmit" class="btn-success">Submit Answer</button>
+        <button id="btnNext" class="btn-primary hidden">Advance to Next Question →</button>
+      </div>
+    </section>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
