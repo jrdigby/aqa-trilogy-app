@@ -44,6 +44,7 @@ const btnNext = el("btnNext");
 const subjectFilter = el("subjectFilter");
 const paperFilter = el("paperFilter");
 const topicFilter = el("topicFilter");
+const tierFilter = el("tierFilter"); // ✅ Added UI element descriptor tracking
 
 // ====== SESSION STATE ======
 let currentUser = null;
@@ -59,7 +60,8 @@ function getSelectedFilters() {
   const paper = paperFilter?.value || "paper1";
   const topic = topicFilter?.value || "";   
   const qType = el("typeFilter")?.value || ""; 
-  return { subject, paper, topic, qType };
+  const tier = tierFilter?.value || "FT"; // ✅ Added to runtime filter matrix collection
+  return { subject, paper, topic, qType, tier };
 }
 function todayISO() {
   const d = new Date();
@@ -156,7 +158,7 @@ async function loadDashboard() {
 btnStartDue.onclick = async () => {
   if (!currentUser) return;
   const today = todayISO();
-  const { subject, paper, topic, qType } = getSelectedFilters(); 
+  const { subject, paper, topic, qType, tier } = getSelectedFilters(); 
 
   // 1. Grab all due states
   const { data: due, error } = await supabaseClient
@@ -183,29 +185,31 @@ btnStartDue.onclick = async () => {
     return;
   }
 
-  // 3. ✅ LOOKAHEAD VERIFICATION: Find the first due item that actually has the requested type available
+  // 3. ✅ LOOKAHEAD VERIFICATION: Find the first due item that has a valid tier-appropriate question available
   let targetedSpecPointId = null;
+  const targetTiers = tier === "HT" ? ["HT", "Both"] : ["FT", "Both"];
+
+  // Fetch active question nodes matching tier matrix boundaries
+  const dueSpecIds = filteredDue.map(d => d.spec_point_id);
+  let qQuery = supabaseClient
+    .from("questions")
+    .select("spec_point_id, question_type")
+    .in("spec_point_id", dueSpecIds)
+    .in("tier", targetTiers);
 
   if (qType) {
-    // Fetch a list of active questions for these due items to confirm matching types exist
-    const dueSpecIds = filteredDue.map(d => d.spec_point_id);
-    const { data: matchingQs } = await supabaseClient
-      .from("questions")
-      .select("spec_point_id")
-      .in("spec_point_id", dueSpecIds)
-      .eq("question_type", qType);
+    qQuery = qQuery.eq("question_type", qType);
+  }
 
-    if (matchingQs && matchingQs.length > 0) {
-      // Pick the first due item that has a valid question type match
-      targetedSpecPointId = matchingQs[0].spec_point_id;
-    }
-  } else {
-    // Default to the most overdue item if no type filter is active
-    targetedSpecPointId = filteredDue[0].spec_point_id;
+  const { data: matchingQs } = await qQuery;
+
+  if (matchingQs && matchingQs.length > 0) {
+    // Pick the first due item that is verified to have an accessible question structure
+    targetedSpecPointId = matchingQs[0].spec_point_id;
   }
 
   if (!targetedSpecPointId) {
-    alert(`No questions found matching your specific question type choice for this due topic.`);
+    alert(`No questions found matching your specific tier/type parameters for this due topic.`);
     return;
   }
 
@@ -218,7 +222,8 @@ btnStartAny.onclick = async () => {
 };
 
 async function startAnyPractice() {
-  const { subject, paper, topic, qType } = getSelectedFilters();
+  const { subject, paper, topic, qType, tier } = getSelectedFilters();
+  const targetTiers = tier === "HT" ? ["HT", "Both"] : ["FT", "Both"];
 
   // 1. Fetch all specification points for this specific Subject + Paper combo
   let query = supabaseClient
@@ -238,30 +243,30 @@ async function startAnyPractice() {
     return;
   }
 
-  // 2. ✅ RELATIONAL GUARD: If a question type filter is active, find out which spec points actually have questions matching it
-  let matchingSpecPoints = [];
-  
+  // 2. ✅ RELATIONAL GUARD: Find which specification points have items matching the selected question type AND tier configurations
+  let qQuery = supabaseClient
+    .from("questions")
+    .select("spec_point_id")
+    .in("tier", targetTiers);
+    
   if (qType) {
-    const { data: activeQs, error: activeQError } = await supabaseClient
-      .from("questions")
-      .select("spec_point_id")
-      .eq("question_type", qType);
-      
-    if (activeQError) {
-      console.error("Error fetching active question spec links:", activeQError);
-    }
-
-    const activeIds = new Set((activeQs || []).map(q => q.spec_point_id));
-    // Filter our specification array down ONLY to rows that possess that type of question
-    matchingSpecPoints = sp.filter(item => activeIds.has(item.id));
-  } else {
-    matchingSpecPoints = sp;
+    qQuery = qQuery.eq("question_type", qType);
   }
+  
+  const { data: activeQs, error: activeQError } = await qQuery;
+    
+  if (activeQError) {
+    console.error("Error fetching active question spec links:", activeQError);
+  }
+
+  const activeIds = new Set((activeQs || []).map(q => q.spec_point_id));
+  // Filter our specification array down ONLY to rows that possess that tier/type of question
+  const matchingSpecPoints = sp.filter(item => activeIds.has(item.id));
 
   // 3. ✅ FALLBACK LAYER: Alert nicely if the matching array dried up
   if (matchingSpecPoints.length === 0) {
-    const typeLabel = qType === "short_text" ? "Short Text / Written" : qType;
-    alert(`No structural questions found of type "${typeLabel}" loaded for the selected topics.`);
+    const typeLabel = qType === "short_text" ? "Short Text / Written" : (qType || "any");
+    alert(`No structural questions found of type "${typeLabel}" loaded for the selected ${tier} tier topics.`);
     return;
   }
 
@@ -271,10 +276,14 @@ async function startAnyPractice() {
 }
 
 async function startSessionForSpecPoint(specPointId, qType = "") {
+  const { tier } = getSelectedFilters();
+  const targetTiers = tier === "HT" ? ["HT", "Both"] : ["FT", "Both"];
+
   let query = supabaseClient
     .from("questions")
     .select("id,question_type,prompt,options,spec_point_id, resource_links")
-    .eq("spec_point_id", specPointId);
+    .eq("spec_point_id", specPointId)
+    .in("tier", targetTiers); // ✅ Enforce strict selection allocation limits
 
   if (qType) {
     query = query.eq("question_type", qType);
@@ -283,7 +292,7 @@ async function startSessionForSpecPoint(specPointId, qType = "") {
   const { data: qs, error } = await query.limit(10);
 
   if (error || !qs || qs.length === 0) {
-    alert(`No structural questions found of type "${qType}" for this topic folder.`);
+    alert(`No structural questions found matching your filter rules for this topic folder.`);
     return;
   }
 
@@ -339,12 +348,11 @@ function markResponse(q, resp, key, markPoints) {
 
   if (!key) return { total: 0, max: 1, ao, missing, quality: 0, feedbackPayload: {} };
 
-  // Helper validation filter to verify that resource links are explicit executable URLs
- // ✅ SAFE RUNTIME FIX: Checks if it's a real string before trying to run .trim()
-const cleanUrl = (q && typeof q.resource_links === "string" && q.resource_links.trim().toLowerCase().startsWith('http')) 
-  ? q.resource_links.trim() 
-  : null;
-  
+  // ✅ SAFE RUNTIME FIX: Checks if it's a real string before trying to run .trim()
+  const cleanUrl = (q && typeof q.resource_links === "string" && q.resource_links.trim().toLowerCase().startsWith('http')) 
+    ? q.resource_links.trim() 
+    : null;
+    
   if (key.key_type === "mcq") {
     max = 1;
     total = resp.answer === key.key_payload.correct ? 1 : 0;
@@ -556,7 +564,12 @@ function setSignedInUI(user) {
   authSection.classList.add("hidden");
   dashSection.classList.remove("hidden");
 
-  userChip.textContent = user.email || user.id;
+  // Default dropdown initializing view fallback assignment
+  if (tierFilter && !tierFilter.value) {
+    tierFilter.value = "FT";
+  }
+
+  userChip.textContent = `${user.email || user.id}`;
   authMsg.textContent = "Signed in ✅";
 
   loadTopics();
@@ -568,7 +581,9 @@ async function loadTopics() {
   const subject = subjectFilter.value;
   const paper = paperFilter.value;
   const topic = topicFilter.value; 
-  const qType = el("typeFilter")?.value || ""; // ✅ Captured question type
+  const qType = el("typeFilter")?.value || "";
+  const { tier } = getSelectedFilters(); // ✅ Dynamic local filter pull
+  const targetTiers = tier === "HT" ? ["HT", "Both"] : ["FT", "Both"];
 
   // 1. Fetch all specification points for this specific Subject + Paper combo
   const { data: specPoints, error: spError } = await supabaseClient
@@ -585,8 +600,12 @@ async function loadTopics() {
 
   const rows = specPoints || [];
   
-  // 2. Fetch all questions matching your active question type filter (if one is selected)
-  let qQuery = supabaseClient.from("questions").select("id, spec_point_id, question_type");
+  // 2. Fetch all questions matching the active question type filter AND tier boundaries
+  let qQuery = supabaseClient
+    .from("questions")
+    .select("id, spec_point_id, question_type, tier")
+    .in("tier", targetTiers);
+
   if (qType) {
     qQuery = qQuery.eq("question_type", qType);
   }
@@ -633,14 +652,14 @@ async function loadTopics() {
   if (summaryDiv) {
     if (qType) {
       const typeLabel = qType === "short_text" ? "written short-text" : qType.toUpperCase();
-      summaryDiv.textContent = `Found ${totalMatchingQuestions} total ${typeLabel} questions for ${subject.toUpperCase()} ${paper.toUpperCase()}.`;
+      summaryDiv.textContent = `Found ${totalMatchingQuestions} total ${typeLabel} questions for ${subject.toUpperCase()} ${paper.toUpperCase()} (${tier}).`;
     } else {
-      summaryDiv.textContent = `Found ${totalMatchingQuestions} total questions across all types for ${subject.toUpperCase()} ${paper.toUpperCase()}.`;
+      summaryDiv.textContent = `Found ${totalMatchingQuestions} total questions across all types for ${subject.toUpperCase()} ${paper.toUpperCase()} (${tier}).`;
     }
   }
 
   // =============================================================
-  // ✅ ENHANCED CODE: DYNAMICALLY UPDATE THE DUE BUTTON TEXT BY TOPIC + TYPE
+  // ✅ ENHANCED CODE: DYNAMICALLY UPDATE THE DUE BUTTON TEXT BY TOPIC + TYPE + TIER
   // =============================================================
   const dueBtn = el("btnStartDue");
   if (dueBtn) {
@@ -656,7 +675,7 @@ async function loadTopics() {
     // Create a quick look-up table of spec IDs that are currently due
     const dueSpecIds = new Set((rawDue || []).map(d => d.spec_point_id));
 
-    // Count how many questions match the Type + Topic AND belong to a due Spec Point
+    // Count how many questions match the Type + Topic AND belong to a due Spec Point and selected tier configurations
     let totalDueQuestionsAvailable = 0;
 
     (questions || []).forEach(q => {
@@ -685,6 +704,7 @@ async function loadTopics() {
     }
   }
 }
+
 // ====== FIXED INTERACTION HANDLERS (EVENT LISTENERS) ======
 if (subjectFilter) {
   subjectFilter.addEventListener("change", () => {
@@ -703,6 +723,14 @@ if (paperFilter) {
 if (topicFilter) {
   topicFilter.addEventListener("change", () => {
     console.log("Topic constraint altered -> recalculating due run counts...");
+    loadTopics();
+  });
+}
+
+// Intercept optional question tier toggle select dropdown state switches safely
+if (tierFilter) {
+  tierFilter.addEventListener("change", () => {
+    console.log("Exam entry tier altered -> updating question footprint allocations...");
     loadTopics();
   });
 }
