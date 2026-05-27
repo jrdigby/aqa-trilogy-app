@@ -575,7 +575,8 @@ async function loadTopics() {
     .from("spec_points")
     .select("id, topic_name")
     .eq("subject", subject)
-    .eq("paper", paper);
+    .eq("paper", paper)
+    .order("id", { ascending: true});
 
   if (spError) {
     topicFilter.innerHTML = `<option value="">All topics (0)</option>`;
