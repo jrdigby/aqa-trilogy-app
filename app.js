@@ -44,7 +44,7 @@ const btnNext = el("btnNext");
 const subjectFilter = el("subjectFilter");
 const paperFilter = el("paperFilter");
 const topicFilter = el("topicFilter");
-const tierFilter = el("tierFilter"); // ✅ Added UI element descriptor tracking
+const tierFilter = el("tierFilter"); 
 
 // ====== SESSION STATE ======
 let currentUser = null;
@@ -60,7 +60,7 @@ function getSelectedFilters() {
   const paper = paperFilter?.value || "paper1";
   const topic = topicFilter?.value || "";   
   const qType = el("typeFilter")?.value || ""; 
-  const tier = tierFilter?.value || "FT"; // ✅ Added to runtime filter matrix collection
+  const tier = tierFilter?.value || "FT"; 
   return { subject, paper, topic, qType, tier };
 }
 function todayISO() {
@@ -97,33 +97,39 @@ function updateSRS({ quality, ef, reps, interval }) {
 }
 
 // ====== AUTH ======
-btnSignUp.onclick = async () => {
-  authMsg.textContent = "Creating account…";
-  const email = el("email").value.trim();
-  const password = el("password").value;
-  const { error } = await supabaseClient.auth.signUp({ email, password });
-  authMsg.textContent = error ? "Sign up failed: " + error.message : "Sign up successful ✅ Now click Sign in.";
-};
+if (btnSignUp) {
+  btnSignUp.onclick = async () => {
+    authMsg.textContent = "Creating account…";
+    const email = el("email").value.trim();
+    const password = el("password").value;
+    const { error } = await supabaseClient.auth.signUp({ email, password });
+    authMsg.textContent = error ? "Sign up failed: " + error.message : "Sign up successful ✅ Now click Sign in.";
+  };
+}
 
-btnSignIn.onclick = async () => {
-  authMsg.textContent = "Signing in…";
-  const email = el("email").value.trim();
-  const password = el("password").value;
-  const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+if (btnSignIn) {
+  btnSignIn.onclick = async () => {
+    authMsg.textContent = "Signing in…";
+    const email = el("email").value.trim();
+    const password = el("password").value;
+    const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
 
-  if (error) {
-    authMsg.textContent = "Sign in failed: " + error.message;
-    return;
-  }
-  currentUser = data.user;
-  setSignedInUI(currentUser);
-  await loadDashboard();       
-};
+    if (error) {
+      authMsg.textContent = "Sign in failed: " + error.message;
+      return;
+    }
+    currentUser = data.user;
+    setSignedInUI(currentUser);
+    await loadDashboard();       
+  };
+}
 
-btnSignOut.onclick = async () => {
-  await supabaseClient.auth.signOut();
-  setSignedOutUI();
-};
+if (btnSignOut) {
+  btnSignOut.onclick = async () => {
+    await supabaseClient.auth.signOut();
+    setSignedOutUI();
+  };
+}
 
 // ====== DASHBOARD ======
 async function loadDashboard() {
@@ -138,94 +144,93 @@ async function loadDashboard() {
     .order("ease_factor", { ascending: true });
 
   if (error) {
-    dueCount.textContent = "0";
-    dueList.innerHTML = `<div class="item"><span class="bad">Error:</span> ${error.message}</div>`;
+    if (dueCount) dueCount.textContent = "0";
+    if (dueList) dueList.innerHTML = `<div class="item"><span class="bad">Error:</span> ${error.message}</div>`;
     return;
   }
 
-  dueCount.textContent = due.length;
-  dueList.innerHTML = due.length
-    ? due.map(d => `
-      <div class="item">
-        <div><strong>${d.spec_points?.topic_name ?? "Spec point"}</strong> <span class="chip">${d.spec_points?.spec_ref ?? ""}</span></div>
-        <div class="muted">${d.spec_points?.spec_text ?? ""}</div>
-        <div class="muted">Due: ${d.due_date} • EF: ${d.ease_factor.toFixed(2)} • Interval: ${d.interval_days}d</div>
-      </div>
-    `).join("")
-    : `<div class="item">Nothing due today. Start practice to create your first schedule.</div>`;
+  if (dueCount) dueCount.textContent = due.length;
+  if (dueList) {
+    dueList.innerHTML = due.length
+      ? due.map(d => `
+        <div class="item">
+          <div><strong>${d.spec_points?.topic_name ?? "Spec point"}</strong> <span class="chip">${d.spec_points?.spec_ref ?? ""}</span></div>
+          <div class="muted">${d.spec_points?.spec_text ?? ""}</div>
+          <div class="muted">Due: ${d.due_date} • EF: ${d.ease_factor.toFixed(2)} • Interval: ${d.interval_days}d</div>
+        </div>
+      `).join("")
+      : `<div class="item">Nothing due today. Start practice to create your first schedule.</div>`;
+  }
 }
 
-btnStartDue.onclick = async () => {
-  if (!currentUser) return;
-  const today = todayISO();
-  const { subject, paper, topic, qType, tier } = getSelectedFilters(); 
+if (btnStartDue) {
+  btnStartDue.onclick = async () => {
+    if (!currentUser) return;
+    const today = todayISO();
+    const { subject, paper, topic, qType, tier } = getSelectedFilters(); 
 
-  // 1. Grab all due states
-  const { data: due, error } = await supabaseClient
-    .from("srs_state")
-    .select(`spec_point_id, due_date, spec_points(subject, paper, topic_name)`)
-    .eq("user_id", currentUser.id)
-    .lte("due_date", today);
+    const { data: due, error } = await supabaseClient
+      .from("srs_state")
+      .select(`spec_point_id, due_date, spec_points(subject, paper, topic_name)`)
+      .eq("user_id", currentUser.id)
+      .lte("due_date", today);
 
-  if (error) {
-    alert("Error loading due items: " + error.message);
-    return;
-  }
+    if (error) {
+      alert("Error loading due items: " + error.message);
+      return;
+    }
 
-  // 2. Filter down to the matching topic/subject boundaries
-  const filteredDue = (due || []).filter(d => {
-    const matchSubj = d.spec_points?.subject === subject;
-    const matchPaper = d.spec_points?.paper === paper;
-    const matchTopic = topic ? (d.spec_points?.topic_name === topic) : true;
-    return matchSubj && matchPaper && matchTopic;
-  });
+    const filteredDue = (due || []).filter(d => {
+      const matchSubj = d.spec_points?.subject === subject;
+      const matchPaper = d.spec_points?.paper === paper;
+      const matchTopic = topic ? (d.spec_points?.topic_name === topic) : true;
+      return matchSubj && matchPaper && matchTopic;
+    });
 
-  if (filteredDue.length === 0) {
+    if (filteredDue.length === 0) {
+      await startAnyPractice();
+      return;
+    }
+
+    let targetedSpecPointId = null;
+    const targetTiers = tier === "HT" ? ["HT", "Both"] : ["FT", "Both"];
+
+    const dueSpecIds = filteredDue.map(d => d.spec_point_id);
+    let qQuery = supabaseClient
+      .from("questions")
+      .select("spec_point_id, question_type")
+      .in("spec_point_id", dueSpecIds)
+      .in("tier", targetTiers);
+
+    if (qType) {
+      qQuery = qQuery.eq("question_type", qType);
+    }
+
+    const { data: matchingQs } = await qQuery;
+
+    if (matchingQs && matchingQs.length > 0) {
+      targetedSpecPointId = matchingQs[0].spec_point_id;
+    }
+
+    if (!targetedSpecPointId) {
+      alert(`No questions found matching your specific tier/type parameters for this due topic.`);
+      return;
+    }
+
+    await startSessionForSpecPoint(targetedSpecPointId, qType);
+  };
+}
+
+if (btnStartAny) {
+  btnStartAny.onclick = async () => {
     await startAnyPractice();
-    return;
-  }
-
-  // 3. ✅ LOOKAHEAD VERIFICATION: Find the first due item that has a valid tier-appropriate question available
-  let targetedSpecPointId = null;
-  const targetTiers = tier === "HT" ? ["HT", "Both"] : ["FT", "Both"];
-
-  // Fetch active question nodes matching tier matrix boundaries
-  const dueSpecIds = filteredDue.map(d => d.spec_point_id);
-  let qQuery = supabaseClient
-    .from("questions")
-    .select("spec_point_id, question_type")
-    .in("spec_point_id", dueSpecIds)
-    .in("tier", targetTiers);
-
-  if (qType) {
-    qQuery = qQuery.eq("question_type", qType);
-  }
-
-  const { data: matchingQs } = await qQuery;
-
-  if (matchingQs && matchingQs.length > 0) {
-    // Pick the first due item that is verified to have an accessible question structure
-    targetedSpecPointId = matchingQs[0].spec_point_id;
-  }
-
-  if (!targetedSpecPointId) {
-    alert(`No questions found matching your specific tier/type parameters for this due topic.`);
-    return;
-  }
-
-  // Launch the session targeting the verified node
-  await startSessionForSpecPoint(targetedSpecPointId, qType);
-};
-
-btnStartAny.onclick = async () => {
-  await startAnyPractice();
-};
+  };
+}
 
 async function startAnyPractice() {
   const { subject, paper, topic, qType, tier } = getSelectedFilters();
   const targetTiers = tier === "HT" ? ["HT", "Both"] : ["FT", "Both"];
 
-  // 1. Fetch all specification points for this specific Subject + Paper combo
   let query = supabaseClient
     .from("spec_points")
     .select("id, subject, paper, topic_name")
@@ -243,34 +248,30 @@ async function startAnyPractice() {
     return;
   }
 
-  // 2. ✅ RELATIONAL GUARD: Find which specification points have items matching the selected question type AND tier configurations
   let qQuery = supabaseClient
     .from("questions")
     .select("spec_point_id")
     .in("tier", targetTiers);
-    
+      
   if (qType) {
     qQuery = qQuery.eq("question_type", qType);
   }
-  
-  const { data: activeQs, error: activeQError } = await qQuery;
     
+  const { data: activeQs, error: activeQError } = await qQuery;
+      
   if (activeQError) {
     console.error("Error fetching active question spec links:", activeQError);
   }
 
   const activeIds = new Set((activeQs || []).map(q => q.spec_point_id));
-  // Filter our specification array down ONLY to rows that possess that tier/type of question
   const matchingSpecPoints = sp.filter(item => activeIds.has(item.id));
 
-  // 3. ✅ FALLBACK LAYER: Alert nicely if the matching array dried up
   if (matchingSpecPoints.length === 0) {
     const typeLabel = qType === "short_text" ? "Short Text / Written" : (qType || "any");
     alert(`No structural questions found of type "${typeLabel}" loaded for the selected ${tier} tier topics.`);
     return;
   }
 
-  // 4. ✅ SAFE RANDOMIZATION: Pick a random specification point guaranteed to have a question
   const chosen = matchingSpecPoints[Math.floor(Math.random() * matchingSpecPoints.length)];
   await startSessionForSpecPoint(chosen.id, qType);
 }
@@ -283,7 +284,7 @@ async function startSessionForSpecPoint(specPointId, qType = "") {
     .from("questions")
     .select("id,question_type,prompt,options,spec_point_id, resource_links")
     .eq("spec_point_id", specPointId)
-    .in("tier", targetTiers); // ✅ Enforce strict selection allocation limits
+    .in("tier", targetTiers);
 
   if (qType) {
     query = query.eq("question_type", qType);
@@ -298,18 +299,18 @@ async function startSessionForSpecPoint(specPointId, qType = "") {
 
   sessionQuestions = qs;
   idx = 0;
-  dashSection.classList.add("hidden");
-  sessionSection.classList.remove("hidden");
+  if (dashSection) dashSection.classList.add("hidden");
+  if (sessionSection) sessionSection.classList.remove("hidden");
   await loadQuestion();
 }
 
 // ====== QUESTION RENDERING + MARKING ======
 async function loadQuestion() {
   currentQ = sessionQuestions[idx];
-  progress.textContent = `Question ${idx + 1} of ${sessionQuestions.length}`;
-  feedback.innerHTML = "";
-  btnNext.classList.add("hidden");
-  btnSubmit.disabled = false;
+  if (progress) progress.textContent = `Question ${idx + 1} of ${sessionQuestions.length}`;
+  if (feedback) feedback.innerHTML = "";
+  if (btnNext) btnNext.classList.add("hidden");
+  if (btnSubmit) btnSubmit.disabled = false;
 
   const [keyRes, markRes] = await Promise.all([
     supabaseClient.from("answer_keys").select("key_type,key_payload").eq("question_id", currentQ.id).maybeSingle(),
@@ -334,7 +335,7 @@ function renderQuestion(q) {
     html += `<div class="item"><textarea id="txtAns" rows="4" style="width:100%;padding:10px;border-radius:10px;border:1px solid #ccc;background:#ffffff;color:#000000" placeholder="Type your text response here..."></textarea></div>`;
   }
 
-  qBox.innerHTML = html;
+  if (qBox) qBox.innerHTML = html;
 }
 
 function escapeHtml(s) {
@@ -348,7 +349,6 @@ function markResponse(q, resp, key, markPoints) {
 
   if (!key) return { total: 0, max: 1, ao, missing, quality: 0, feedbackPayload: {} };
 
-  // ✅ SAFE RUNTIME FIX: Checks if it's a real string before trying to run .trim()
   const cleanUrl = (q && typeof q.resource_links === "string" && q.resource_links.trim().toLowerCase().startsWith('http')) 
     ? q.resource_links.trim() 
     : null;
@@ -464,45 +464,49 @@ function renderFeedback(marking) {
   return html;
 }
 
-btnSubmit.onclick = async () => {
-  if (!currentUser) return;
-  btnSubmit.disabled = true;
+if (btnSubmit) {
+  btnSubmit.onclick = async () => {
+    if (!currentUser) return;
+    btnSubmit.disabled = true;
 
-  const response = getResponsePayload(currentQ);
-  const marking = markResponse(currentQ, response, currentKey, currentMarkPoints);
+    const response = getResponsePayload(currentQ);
+    const marking = markResponse(currentQ, response, currentKey, currentMarkPoints);
 
-  feedback.innerHTML = renderFeedback(marking);
-  btnNext.classList.remove("hidden");
+    if (feedback) feedback.innerHTML = renderFeedback(marking);
+    if (btnNext) btnNext.classList.remove("hidden");
 
-  try {
-    await supabaseClient.from("attempts").insert({
-      user_id: currentUser.id,
-      question_id: currentQ.id,
-      response_payload: response,
-      score_total: marking.total,
-      score_max: marking.max,
-      ao1_score: marking.ao.AO1,
-      ao2_score: marking.ao.AO2,
-      ao3_score: marking.ao.AO3,
-      feedback_payload: marking.feedbackPayload
-    });
+    try {
+      await supabaseClient.from("attempts").insert({
+        user_id: currentUser.id,
+        question_id: currentQ.id,
+        response_payload: response,
+        score_total: marking.total,
+        score_max: marking.max,
+        ao1_score: marking.ao.AO1,
+        ao2_score: marking.ao.AO2,
+        ao3_score: marking.ao.AO3,
+        feedback_payload: marking.feedbackPayload
+      });
 
-    await upsertSRS(currentQ.spec_point_id, marking.quality);
-  } catch(err) {
-    console.error("Sync backup failure logged:", err);
-  }
-};
+      await upsertSRS(currentQ.spec_point_id, marking.quality);
+    } catch(err) {
+      console.error("Sync backup failure logged:", err);
+    }
+  };
+}
 
-btnNext.onclick = async () => {
-  idx++;
-  if (idx >= sessionQuestions.length) {
-    sessionSection.classList.add("hidden");
-    dashSection.classList.remove("hidden");
-    await loadDashboard();
-  } else {
-    await loadQuestion();
-  }
-};
+if (btnNext) {
+  btnNext.onclick = async () => {
+    idx++;
+    if (idx >= sessionQuestions.length) {
+      if (sessionSection) sessionSection.classList.add("hidden");
+      if (dashSection) dashSection.classList.remove("hidden");
+      await loadDashboard();
+    } else {
+      await loadQuestion();
+    }
+  };
+}
 
 function getResponsePayload(q) {
   if (q.question_type === "mcq") {
@@ -550,27 +554,26 @@ async function upsertSRS(specPointId, quality) {
 }
 
 function setSignedOutUI() {
-  btnSignOut.classList.add("hidden");      
-  authSection.classList.remove("hidden");  
+  if (btnSignOut) btnSignOut.classList.add("hidden");      
+  if (authSection) authSection.classList.remove("hidden");  
 
-  dashSection.classList.add("hidden");
-  sessionSection.classList.add("hidden");
+  if (dashSection) dashSection.classList.add("hidden");
+  if (sessionSection) sessionSection.classList.add("hidden");
 
-  authMsg.textContent = "Not signed in.";
+  if (authMsg) authMsg.textContent = "Not signed in.";
 }
 
 function setSignedInUI(user) {
-  btnSignOut.classList.remove("hidden");
-  authSection.classList.add("hidden");
-  dashSection.classList.remove("hidden");
+  if (btnSignOut) btnSignOut.classList.remove("hidden");
+  if (authSection) authSection.classList.add("hidden");
+  if (dashSection) dashSection.classList.remove("hidden");
 
-  // Default dropdown initializing view fallback assignment
   if (tierFilter && !tierFilter.value) {
     tierFilter.value = "FT";
   }
 
-  userChip.textContent = `${user.email || user.id}`;
-  authMsg.textContent = "Signed in ✅";
+  if (userChip) userChip.textContent = `${user.email || user.id}`;
+  if (authMsg) authMsg.textContent = "Signed in ✅";
 
   loadTopics();
 }
@@ -582,10 +585,9 @@ async function loadTopics() {
   const paper = paperFilter.value;
   const topic = topicFilter.value; 
   const qType = el("typeFilter")?.value || "";
-  const { tier } = getSelectedFilters(); // ✅ Dynamic local filter pull
+  const { tier } = getSelectedFilters(); 
   const targetTiers = tier === "HT" ? ["HT", "Both"] : ["FT", "Both"];
 
-  // 1. Fetch all specification points for this specific Subject + Paper combo
   const { data: specPoints, error: spError } = await supabaseClient
     .from("spec_points")
     .select("id, topic_name")
@@ -600,7 +602,6 @@ async function loadTopics() {
 
   const rows = specPoints || [];
   
-  // 2. Fetch all questions matching the active question type filter AND tier boundaries
   let qQuery = supabaseClient
     .from("questions")
     .select("id, spec_point_id, question_type, tier")
@@ -615,20 +616,17 @@ async function loadTopics() {
     console.error("Error retrieving question counts:", qError);
   }
 
-  // 3. Map spec_point_ids to their topic names and count questions per topic
   const specToTopicMap = {};
   rows.forEach(sp => {
     specToTopicMap[sp.id] = sp.topic_name;
   });
 
   const topicCounts = {};
-  // Initialize all found topics with a count of 0
   const uniqueTopics = [...new Set(rows.map(r => r.topic_name).filter(Boolean))];
   uniqueTopics.forEach(t => {
     topicCounts[t] = 0;
   });
 
-  // Tally up questions belonging to these topics
   let totalMatchingQuestions = 0;
   (questions || []).forEach(q => {
     const matchedTopic = specToTopicMap[q.spec_point_id];
@@ -638,7 +636,6 @@ async function loadTopics() {
     }
   });
 
-  // 4. Populate the Topic Dropdown menu with dynamic count badges
   const currentSelectedTopic = topicFilter.value;
   topicFilter.innerHTML =
     `<option value="">All topics (${totalMatchingQuestions})</option>` +
@@ -647,7 +644,6 @@ async function loadTopics() {
     `).join("");
   topicFilter.value = currentSelectedTopic;
 
-  // 5. Update the text summary indicator if it exists on your page
   const summaryDiv = el("topicCountSummary");
   if (summaryDiv) {
     if (qType) {
@@ -658,33 +654,23 @@ async function loadTopics() {
     }
   }
 
-  // =============================================================
-  // ✅ ENHANCED CODE: DYNAMICALLY UPDATE THE DUE BUTTON TEXT BY TOPIC + TYPE + TIER
-  // =============================================================
   const dueBtn = el("btnStartDue");
   if (dueBtn) {
     const today = todayISO();
     
-    // Fetch user's active due milestones
     const { data: rawDue } = await supabaseClient
       .from("srs_state")
       .select(`spec_point_id, due_date, spec_points(subject, paper, topic_name)`)
       .eq("user_id", currentUser?.id)
       .lte("due_date", today);
 
-    // Create a quick look-up table of spec IDs that are currently due
     const dueSpecIds = new Set((rawDue || []).map(d => d.spec_point_id));
 
-    // Count how many questions match the Type + Topic AND belong to a due Spec Point and selected tier configurations
     let totalDueQuestionsAvailable = 0;
 
     (questions || []).forEach(q => {
       const parentTopic = specToTopicMap[q.spec_point_id];
-      
-      // Is this question's specification point currently due?
       const isSpecDue = dueSpecIds.has(q.spec_point_id);
-      
-      // Does it match the dashboard's chosen topic?
       const matchesTopicFilter = topic ? (parentTopic === topic) : (parentTopic !== undefined);
 
       if (isSpecDue && matchesTopicFilter) {
@@ -692,7 +678,6 @@ async function loadTopics() {
       }
     });
 
-    // Apply the 10-question session constraint cap
     const targetSessionCount = Math.min(totalDueQuestionsAvailable, 10);
 
     if (targetSessionCount > 0) {
@@ -727,7 +712,7 @@ if (topicFilter) {
   });
 }
 
-// Intercept optional question tier toggle select dropdown state switches safely
+// ✅ FIXED: Wrapped in safety block to avoid crashing on login page load
 if (tierFilter) {
   tierFilter.addEventListener("change", () => {
     console.log("Exam entry tier altered -> updating question footprint allocations...");
