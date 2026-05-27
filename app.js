@@ -280,7 +280,7 @@ async function startSessionForSpecPoint(specPointId, qType = "") {
     query = query.eq("question_type", qType);
   }
 
-  const { data: qs, error } = await query.limit(5);
+  const { data: qs, error } = await query.limit(10);
 
   if (error || !qs || qs.length === 0) {
     alert(`No structural questions found of type "${qType}" for this topic folder.`);
@@ -672,8 +672,8 @@ async function loadTopics() {
       }
     });
 
-    // Apply the 5-question session constraint cap
-    const targetSessionCount = Math.min(totalDueQuestionsAvailable, 5);
+    // Apply the 10-question session constraint cap
+    const targetSessionCount = Math.min(totalDueQuestionsAvailable, 10);
 
     if (targetSessionCount > 0) {
       dueBtn.textContent = `You have ${targetSessionCount} due questions for selected topic(s)`;
