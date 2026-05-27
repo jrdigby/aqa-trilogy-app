@@ -193,7 +193,7 @@ if (btnStartDue) {
     }
 
     let targetedSpecPointId = null;
-    const targetTiers = tier === "HT" ? ["HT", "Both"] : ["FT", "Both"];
+    const targetTiers = tier === "HT" ? ["HT", "both"] : ["FT", "both"];
 
     const dueSpecIds = filteredDue.map(d => d.spec_point_id);
     let qQuery = supabaseClient
@@ -229,7 +229,7 @@ if (btnStartAny) {
 
 async function startAnyPractice() {
   const { subject, paper, topic, qType, tier } = getSelectedFilters();
-  const targetTiers = tier === "HT" ? ["HT", "Both"] : ["FT", "Both"];
+  const targetTiers = tier === "HT" ? ["HT", "both"] : ["FT", "both"];
 
   let query = supabaseClient
     .from("spec_points")
@@ -278,7 +278,7 @@ async function startAnyPractice() {
 
 async function startSessionForSpecPoint(specPointId, qType = "") {
   const { tier } = getSelectedFilters();
-  const targetTiers = tier === "HT" ? ["HT", "Both"] : ["FT", "Both"];
+  const targetTiers = tier === "HT" ? ["HT", "both"] : ["FT", "both"];
 
   let query = supabaseClient
     .from("questions")
@@ -588,7 +588,7 @@ async function loadTopics() {
   const topic = topicFilter.value; 
   const qType = el("typeFilter")?.value || "";
   const { tier } = getSelectedFilters(); 
-  const targetTiers = tier === "HT" ? ["HT", "Both"] : ["FT", "Both"];
+  const targetTiers = tier === "HT" ? ["HT", "both"] : ["FT", "both"];
 
   const { data: specPoints, error: spError } = await supabaseClient
     .from("spec_points")
