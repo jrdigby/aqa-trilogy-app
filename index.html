@@ -119,14 +119,21 @@
       box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.15);
     }
 
-    #topicCountSummary {
-      font-size: 0.85rem;
-      color: var(--text-muted);
+    /* CONTAINER PAIRING DYNAMIC COUNTS NEXT TO PRACTICE INITIATOR ELEMENT */
+    .practice-context-block {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 15px;
+      margin-bottom: 25px;
       background: #edf2f7;
-      padding: 8px 14px;
-      border-radius: 6px;
-      display: inline-block;
-      margin-bottom: 15px;
+      padding: 10px 14px;
+      border-radius: 10px;
+    }
+
+    #topicCountSummary {
+      font-size: 0.88rem;
+      color: var(--text-muted);
       font-weight: 500;
     }
 
@@ -282,18 +289,18 @@
         </div>
       </div>
 
-      <div id="topicCountSummary">Calculating baseline questions footprint...</div>
-
-      <div style="margin: 20px 0;">
-        <h3>Due Item Queue: <span id="dueCount" style="color: var(--primary);">0</span> target objectives waiting</h3>
-      </div>
-
-      <div class="btn-group">
-        <button id="btnStartDue" class="btn-primary">Start Due Questions</button>
-        <button id="btnStartAny" class="btn-secondary">Open Practice Mode for these questions</button>
+      <div class="practice-context-block">
+        <div id="topicCountSummary">Calculating baseline questions footprint...</div>
+        <button id="btnStartAny" class="btn-secondary" style="flex: none; padding: 8px 16px; font-size: 0.88rem; width: auto;">Open Practice Mode for these questions</button>
       </div>
 
       <hr/>
+
+      <div style="margin: 20px 0; display: flex; justify-content: space-between; align-items: center;">
+        <h3>Due Item Queue: <span id="dueCount" style="color: var(--primary);">0</span> target objectives waiting</h3>
+        <button id="btnStartDue" class="btn-primary" style="flex: none; width: auto; padding: 10px 20px;">Start Due Questions</button>
+      </div>
+
       <div style="margin-bottom: 10px; font-weight: 600; font-size: 0.9rem; color: var(--text-muted);">Active Schedule Forecast:</div>
       <div id="dueList"></div>
     </section>
