@@ -187,6 +187,7 @@ btnStartAny.onclick = async () => {
 async function startAnyPractice() {
   const { subject, paper, topic, qType } = getSelectedFilters();
 
+  // 1. Fetch all specification points for this specific Subject + Paper combo
   let query = supabaseClient
     .from("spec_points")
     .select("id, subject, paper, topic_name")
@@ -204,8 +205,35 @@ async function startAnyPractice() {
     return;
   }
 
-  // Pick from items safely using relational subquery protection layers tomorrow
-  const chosen = sp[Math.floor(Math.random() * sp.length)];
+  // 2. ✅ RELATIONAL GUARD: If a question type filter is active, find out which spec points actually have questions matching it
+  let matchingSpecPoints = [];
+  
+  if (qType) {
+    const { data: activeQs, error: activeQError } = await supabaseClient
+      .from("questions")
+      .select("spec_point_id")
+      .eq("question_type", qType);
+      
+    if (activeQError) {
+      console.error("Error fetching active question spec links:", activeQError);
+    }
+
+    const activeIds = new Set((activeQs || []).map(q => q.spec_point_id));
+    // Filter our specification array down ONLY to rows that possess that type of question
+    matchingSpecPoints = sp.filter(item => activeIds.has(item.id));
+  } else {
+    matchingSpecPoints = sp;
+  }
+
+  // 3. ✅ FALLBACK LAYER: Alert nicely if the matching array dried up
+  if (matchingSpecPoints.length === 0) {
+    const typeLabel = qType === "short_text" ? "Short Text / Written" : qType;
+    alert(`No structural questions found of type "${typeLabel}" loaded for the selected topics.`);
+    return;
+  }
+
+  // 4. ✅ SAFE RANDOMIZATION: Pick a random specification point guaranteed to have a question
+  const chosen = matchingSpecPoints[Math.floor(Math.random() * matchingSpecPoints.length)];
   await startSessionForSpecPoint(chosen.id, qType);
 }
 
