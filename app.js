@@ -45,6 +45,7 @@ const subjectFilter = el("subjectFilter");
 const paperFilter = el("paperFilter");
 const topicFilter = el("topicFilter");
 const forecastWrapper = el("forecastWrapper"); // ✅ Added lookahead chart tracker element
+const masteryWrapper = el("masteryWrapper"); // ✅ Track mastery list wrapper container
 
 // ====== SESSION STATE ======
 let currentUser = null;
@@ -753,6 +754,78 @@ async function loadTopics() {
     } else {
       dueBtn.textContent = "No Scheduled Items Due for Type/Topic";
       dueBtn.disabled = true;
+    }
+  }
+  // =============================================================
+  // ✅ NEW EXTRACTION LAYER: COMPUTE SYLLABUS MASTERY IN REAL-TIME
+  // =============================================================
+  if (masteryWrapper && currentUser) {
+    try {
+      // 1. Fetch all historic quiz attempts for this specific user
+      const { data: attempts, error: attError } = await supabaseClient
+        .from("attempts")
+        .select("score_total, score_max, question_id");
+
+      if (attError) throw attError;
+
+      // 2. Build a quick question-to-spec lookup map from the questions we already have
+      const questionToSpecMap = {};
+      (allQuestions || []).forEach(q => {
+        questionToSpecMap[q.id] = q.spec_point_id;
+      });
+
+      // 3. Tally running totals of earned marks vs max marks per topic_name
+      const topicMasteryTally = {};
+      uniqueTopics.forEach(t => {
+        topicMasteryTally[t] = { earned: 0, max: 0 };
+      });
+
+      (attempts || []).forEach(att => {
+        const specId = questionToSpecMap[att.question_id];
+        const topicName = specToTopicMap[specId];
+
+        // Only calculate if the attempt belongs to a topic currently on the user's filtered dashboard view
+        if (topicName !== undefined && topicMasteryTally[topicName]) {
+          topicMasteryTally[topicName].earned += att.score_total;
+          topicMasteryTally[topicName].max += att.score_max;
+        }
+      });
+
+      // 4. Render visual progress items for each unique topic node
+      masteryWrapper.innerHTML = uniqueTopics.map(t => {
+        const tally = topicMasteryTally[t];
+        const hasAttempts = tally.max > 0;
+        const percentage = hasAttempts ? Math.round((tally.earned / tally.max) * 100) : 0;
+
+        // Determine badge color theme based on classic mastery threshold milestones
+        let colorTheme = "#bdc3c7"; // Default Grey (unattempted)
+        if (hasAttempts) {
+          if (percentage < 50) colorTheme = "var(--error)";       // Red (<50%)
+          else if (percentage < 75) colorTheme = "#f39c12";       // Amber (50%-75%)
+          else colorTheme = "var(--success)";                    // Green (75%+)
+        }
+
+        return `
+          <div style="background: #fafbfc; border: 1px solid #edf2f7; padding: 12px; border-radius: 8px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 0.9rem; font-weight: 600;">
+              <span style="color: #2c3e50;">${t}</span>
+              <span style="color: ${colorTheme}; font-weight: 700;">
+                ${hasAttempts ? `${percentage}%` : "No Attempts"}
+              </span>
+            </div>
+            <div style="width: 100%; height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden;">
+              <div style="width: ${percentage}%; height: 100%; background: ${colorTheme}; transition: width 0.4s ease-on-out;"></div>
+            </div>
+            <div class="muted" style="font-size: 0.75rem; margin-top: 4px;">
+              ${hasAttempts ? `Earned ${tally.earned} of ${tally.max} total marks across syllabus items.` : "No metrics footprint recorded yet."}
+            </div>
+          </div>
+        `;
+      }).join("");
+
+    } catch (err) {
+      console.error("Mastery generation block execution dropped:", err);
+      masteryWrapper.innerHTML = `<div class="muted" style="text-align: center;">Unable to populate mastery parameters.</div>`;
     }
   }
 }
