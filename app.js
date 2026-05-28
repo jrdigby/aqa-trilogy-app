@@ -369,6 +369,69 @@ async function startSessionForSpecPoint(specPointId, qType = "") {
   await loadQuestion();
 }
 
+// ====== 🔥 DYNAMIC DAILY LOGIN STREAK ENGINE ======
+async function checkAndUpdateStreak() {
+  if (!currentUser) return;
+
+  const todayStr = todayISO(); // Uses your app's existing "YYYY-MM-DD" date utility
+  
+  try {
+    // 1. Fetch the student's current streak metrics using user_id
+    let { data: profile, error } = await supabaseClient
+      .from("profiles")
+      .select("current_streak, last_login_date")
+      .eq("user_id", currentUser.id)
+      .single();
+
+    if (error && error.code !== "PGRST116") { // Ignore 'no rows found' code to handle fresh accounts gracefully
+      throw error;
+    }
+
+    // Fallback defaults if the row is somehow missing or unpopulated
+    let currentStreak = profile?.current_streak || 0;
+    const lastLoginStr = profile?.last_login_date;
+
+    if (!lastLoginStr) {
+      // First login ever: establish baseline streak of 1
+      currentStreak = 1;
+      await supabaseClient
+        .from("profiles")
+        .update({ current_streak: currentStreak, last_login_date: todayStr })
+        .eq("user_id", currentUser.id);
+        
+    } else if (lastLoginStr === todayStr) {
+      // Already checked in today: do nothing, maintain current count
+    } else {
+      // Calculate calendar differences
+      const dateToday = new Date(todayStr);
+      const dateLastLogin = new Date(lastLoginStr);
+      const timeDiff = dateToday.getTime() - dateLastLogin.getTime();
+      const daysDiff = Math.ceil(timeDiff / (1000 * 3600 * 24));
+
+      if (daysDiff === 1) {
+        // Logged in yesterday: streak builds up!
+        currentStreak += 1;
+      } else {
+        // Missed a day: streak chain broken. Reset back to 1.
+        currentStreak = 1;
+      }
+
+      // Update row states using user_id selector matching
+      await supabaseClient
+        .from("profiles")
+        .update({ current_streak: currentStreak, last_login_date: todayStr })
+        .eq("user_id", currentUser.id);
+    }
+
+    // 2. Render the final computed count into your HTML layout placeholder
+    const counterEl = el("streakCount");
+    if (counterEl) counterEl.textContent = currentStreak;
+
+  } catch (err) {
+    console.error("Streak calculations module skipped:", err);
+  }
+}
+
 // ====== QUESTION RENDERING + MARKING ======
 async function loadQuestion() {
   currentQ = sessionQuestions[idx];
@@ -869,6 +932,7 @@ supabaseClient.auth.onAuthStateChange((event, session) => {
     setSignedInUI(currentUser);
     loadDashboard();
     loadWeeklyForecast();
+    checkAndUpdateStreak();
     
     // ✅ FIX: Only look for the dropdown element once authenticated and the card becomes visible in the DOM
     const runtimeTierSelect = el("tierFilter");
