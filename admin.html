@@ -14,6 +14,7 @@
       --text: #333333;
       --primary: #00a86b; /* Green for teacher/admin dashboard styling */
       --border: #dddddd;
+      --text-muted: #666666;
     }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -83,6 +84,26 @@
       background: #fafafa;
       margin-top: 10px;
     }
+
+    /* 🗂️ Administrative Mode Navigation Tab Sizing */
+    .tab-bar {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      border-bottom: 2px solid var(--border);
+      padding-bottom: 10px;
+    }
+    .tab-btn {
+      background: #e2e8f0;
+      color: var(--text);
+      padding: 8px 16px;
+      font-size: 0.9rem;
+      border-radius: 20px;
+    }
+    .tab-btn.active {
+      background: var(--primary);
+      color: white;
+    }
   </style>
 </head>
 <body>
@@ -90,231 +111,237 @@
 <div class="container">
   <header>
     <section id="adminAuthSection" class="card">
-    <h2>🔒 Admin Authentication Required</h2>
-    <p style="font-size: 0.85rem; color: #666;">You must sign in with authorized teacher credentials to push new questions.</p>
-    <div class="row">
-      <div>
-        <label for="adminEmail">Email Address</label>
-        <input id="adminEmail" type="email" placeholder="admin@school.com" />
+      <h2>🔒 Admin Authentication Required</h2>
+      <p style="font-size: 0.85rem; color: #666;">You must sign in with authorized teacher credentials to push new questions.</p>
+      <div class="row">
+        <div>
+          <label for="adminEmail">Email Address</label>
+          <input id="adminEmail" type="email" placeholder="admin@school.com" />
+        </div>
+        <div>
+          <label for="adminPassword">Password</label>
+          <input id="adminPassword" type="password" placeholder="••••••••" />
+        </div>
       </div>
-      <div>
-        <label for="adminPassword">Password</label>
-        <input id="adminPassword" type="password" placeholder="••••••••" />
+      <div style="text-align: right; margin-top: 10px;">
+        <button id="btnAdminSignIn" style="background: #333;">Authenticate Admin Session</button>
       </div>
-    </div>
-    <div style="text-align: right; margin-top: 10px;">
-      <button id="btnAdminSignIn" style="background: #333;">Authenticate Admin Session</button>
-    </div>
-    <div id="authStatus" class="status-msg hidden"></div>
-  </section>
+      <div id="authStatus" class="status-msg hidden"></div>
+    </section>
 
-  <div id="adminCoreForm" class="hidden">
-     </div>
-    <h1>AQA Trilogy Question Creator</h1>
-    <p>Upload Biology, Chemistry, or Physics questions targeted directly to a specification point.</p>
+    <div id="adminHeaderBlock" class="hidden">
+      <h1>AQA Trilogy Question Creator Dashboard</h1>
+      <p>Upload Biology, Chemistry, or Physics items targeted directly to syllabus specification nodes.</p>
+      
+      <div class="tab-bar">
+        <button id="tabIndivBtn" class="tab-btn active">Individual Form Mode</button>
+        <button id="tabBulkBtn" class="tab-btn">Excel CSV Bulk Import</button>
+      </div>
+    </div>
   </header>
 
-  <section class="card">
-    <h2>1. Syllabus Target Mapping</h2>
-    <div class="row">
-      <div>
-        <label for="subjectFilter">Subject</label>
-        <select id="subjectFilter">
-          <option value="biology">Biology</option>
-          <option value="chemistry">Chemistry</option>
-          <option value="physics">Physics</option>
-        </select>
+  <div id="adminCoreForm" class="hidden">
+    <section class="card">
+      <h2>1. Syllabus Target Mapping</h2>
+      <div class="row">
+        <div>
+          <label for="subjectFilter">Subject</label>
+          <select id="subjectFilter">
+            <option value="biology">Biology</option>
+            <option value="chemistry">Chemistry</option>
+            <option value="physics">Physics</option>
+          </select>
+        </div>
+        <div>
+          <label for="paperFilter">Paper</label>
+          <select id="paperFilter">
+            <option value="paper1">Paper 1</option>
+            <option value="paper2">Paper 2</option>
+          </select>
+        </div>
       </div>
-      <div>
-        <label for="paperFilter">Paper</label>
-        <select id="paperFilter">
-          <option value="paper1">Paper 1</option>
-          <option value="paper2">Paper 2</option>
-        </select>
+
+      <div class="row">
+        <div>
+          <label for="topicFilter">Topic Area</label>
+          <select id="topicFilter">
+            <option value="">-- Select a subject/paper first --</option>
+          </select>
+        </div>
       </div>
-    </div>
 
-    <div class="row">
-      <div>
-        <label for="topicFilter">Topic Area</label>
-        <select id="topicFilter">
-          <option value="">-- Select a subject/paper first --</option>
-        </select>
+      <div class="row">
+        <div>
+          <label for="specPointFilter">Specific Code / Statement Descriptor</label>
+          <select id="specPointFilter">
+            <option value="">-- Select a topic first --</option>
+          </select>
+        </div>
       </div>
-    </div>
+    </section>
 
-    <div class="row">
-      <div>
-        <label for="specPointFilter">Specific Code / Statement Descriptor</label>
-        <select id="specPointFilter">
-          <option value="">-- Select a topic first --</option>
-        </select>
-      </div>
-    </div>
-  </section>
-
-  <section class="card">
-    <h2>2. Setup Question Attributes</h2>
-    
-    <label for="qPrompt">Question Prompt</label>
-    <textarea id="qPrompt" rows="3" placeholder="e.g. Describe how standard visual testing evaluates human visual acuity limits."></textarea>
-
-    <label for="qType">Question Typology Structure</label>
-    <select id="qType">
-      <option value="short_text" selected>Short Text / Keyword Recognition</option>
-      <option value="mcq">Multiple Choice Question (MCQ)</option>
-      <option value="numeric">Mathematical / Numeric Input</option>
-    </select>
-
-    <div id="panelMcq" class="box hidden">
-      <h3>MCQ Configuration Options</h3>
-      <label for="mcqOptions">Options (One option per line)</label>
-      <textarea id="mcqOptions" rows="4" placeholder="Option A&#10;Option B&#10;Option C&#10;Option D"></textarea>
+    <section class="card">
+      <h2>2. Setup Question Attributes</h2>
       
-      <label for="mcqCorrect">Exact Correct Answer String</label>
-      <input id="mcqCorrect" type="text" placeholder="Must match one of the choices exactly"/>
-    </div>
+      <label for="qPrompt">Question Prompt</label>
+      <textarea id="qPrompt" rows="3" placeholder="e.g. Describe how standard visual testing evaluates human visual acuity limits."></textarea>
 
-    <div id="panelNumeric" class="box hidden">
-      <h3>Numeric Target Configuration</h3>
-      <div class="row">
+      <div class="row" style="margin-top: 10px;">
         <div>
-          <label for="numAnswer">Target Numeric Output</label>
-          <input id="numAnswer" type="number" step="any" placeholder="e.g. 0.05"/>
+          <label for="qTier">Target Entry Tier</label>
+          <select id="qTier">
+            <option value="both" selected>Both Tiers (Standard)</option>
+            <option value="FT">Foundation Tier (FT Only)</option>
+            <option value="HT">Higher Tier (HT Only)</option>
+          </select>
         </div>
         <div>
-          <label for="numTolerance">Acceptable Deviation Tolerance</label>
-          <input id="numTolerance" type="number" step="any" value="0" placeholder="e.g. 0.01"/>
+          <label for="qDifficulty">Difficulty Weight</label>
+          <select id="qDifficulty">
+            <option value="1" selected>1 (Easy)</option>
+            <option value="2">2 (Medium)</option>
+            <option value="3">3 (Hard)</option>
+          </select>
         </div>
       </div>
-    </div>
 
-    <div id="panelKeywords" class="box">
-      <h3>Keyword Evaluation Architecture</h3>
-      <p style="font-size: 0.85rem; margin: 0 0 10px; color: #666;">
-        Separate words with commas. The engine verifies these fragments locally during grading pipelines.
+      <label for="qType">Question Typology Structure</label>
+      <select id="qType" style="margin-top: 5px;">
+        <option value="short_text" selected>Short Text / Keyword Recognition</option>
+        <option value="mcq">Multiple Choice Question (MCQ)</option>
+        <option value="numeric">Mathematical / Numeric Input</option>
+      </select>
+
+      <div id="panelMcq" class="box hidden">
+        <h3>MCQ Configuration Options</h3>
+        <label for="mcqOptions">Options (One option per line)</label>
+        <textarea id="mcqOptions" rows="4" placeholder="Option A&#10;Option B&#10;Option C&#10;Option D"></textarea>
+        
+        <label for="mcqCorrect">Exact Correct Answer String</label>
+        <input id="mcqCorrect" type="text" placeholder="Must match one of the choices exactly"/>
+      </div>
+
+      <div id="panelNumeric" class="box hidden">
+        <h3>Numeric Target Configuration</h3>
+        <div class="row">
+          <div>
+            <label for="numAnswer">Target Numeric Output</label>
+            <input id="numAnswer" type="number" step="any" placeholder="e.g. 0.05"/>
+          </div>
+          <div>
+            <label for="numTolerance">Acceptable Deviation Tolerance</label>
+            <input id="numTolerance" type="number" step="any" value="0" placeholder="e.g. 0.01"/>
+          </div>
+        </div>
+      </div>
+
+      <div id="panelKeywords" class="box">
+        <h3>Keyword Evaluation Architecture</h3>
+        <p style="font-size: 0.85rem; margin: 0 0 10px; color: #666;">
+          Separate words with commas. The engine verifies these fragments locally during grading pipelines.
+        </p>
+        <label for="keyRequired">Required Terms (All must match for AO1 base criteria)</label>
+        <input id="keyRequired" type="text" placeholder="e.g. focus, lens"/>
+
+        <label for="keyOptional">Optional/Alternative Terms (Secondary Marks)</label>
+        <input id="keyOptional" type="text" placeholder="e.g. retina, distance, refraction"/>
+
+        <label for="minOptional">Minimum Optional Count Threshold</label>
+        <input id="minOptional" type="number" value="1" min="0"/>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>3. AQA Assessment Objective Feedback Mapping</h2>
+      <p style="font-size: 0.85rem; margin: 0 0 15px; color: #666;">
+        Provide targeted instructional remedies that display if a specific Assessment Objective condition is dropped.
       </p>
-      <label for="keyRequired">Required Terms (All must match for AO1 base criteria)</label>
-      <input id="keyRequired" type="text" placeholder="e.g. focus, lens"/>
 
-      <label for="keyOptional">Optional/Alternative Terms (Secondary Marks)</label>
-      <input id="keyOptional" type="text" placeholder="e.g. retina, distance, refraction"/>
-
-      <label for="minOptional">Minimum Optional Count Threshold</label>
-      <input id="minOptional" type="number" value="1" min="0"/>
-    </div>
-  </section>
-
-  <section class="card">
-    <h2>3. AQA Assessment Objective Feedback Mapping</h2>
-    <p style="font-size: 0.85rem; margin: 0 0 15px; color: #666;">
-      Provide targeted instructional remedies that display if a specific Assessment Objective condition is dropped.
-    </p>
-
-    <div class="box" style="margin-bottom: 10px;">
-      <h4>Mark Point Criteria Entry 1</h4>
-      <div class="row">
-        <div>
-          <label for="aoTarget1">Objective Target</label>
-          <select id="aoTarget1">
-            <option value="AO1">AO1: Core Knowledge / Definitions</option>
-            <option value="AO2">AO2: Data/Concept Application</option>
-            <option value="AO3">AO3: Evaluation/Analysis</option>
-          </select>
+      <div class="box" style="margin-bottom: 10px;">
+        <h4>Mark Point Criteria Entry 1</h4>
+        <div class="row">
+          <div>
+            <label for="aoTarget1">Objective Target</label>
+            <select id="aoTarget1">
+              <option value="AO1">AO1: Core Knowledge / Definitions</option>
+              <option value="AO2">AO2: Data/Concept Application</option>
+              <option value="AO3">AO3: Evaluation/Analysis</option>
+            </select>
+          </div>
+          <div>
+            <label for="mpText1">Scheme Intent Descriptor</label>
+            <input id="mpText1" type="text" placeholder="e.g. Core definition matching"/>
+          </div>
         </div>
-        <div>
-          <label for="mpText1">Scheme Intent Descriptor</label>
-          <input id="mpText1" type="text" placeholder="e.g. Core definition matching"/>
-        </div>
+        <label for="mpFeedback1">Remediation Feedback (Shows if missed)</label>
+        <textarea id="mpFeedback1" rows="2" placeholder="Make sure to explicitly mention how structural properties impact behavior..."></textarea>
       </div>
-      <label for="mpFeedback1">Remediation Feedback (Shows if missed)</label>
-      <textarea id="mpFeedback1" rows="2" placeholder="Make sure to explicitly mention how structural properties impact behavior..."></textarea>
-    </div>
 
-    <div class="box">
-      <h4>Mark Point Criteria Entry 2 (Optional)</h4>
-      <div class="row">
-        <div>
-          <label for="aoTarget2">Objective Target</label>
-          <select id="aoTarget2">
-            <option value="AO1">AO1: Core Knowledge / Definitions</option>
-            <option value="AO2" selected>AO2: Data/Concept Application</option>
-            <option value="AO3">AO3: Evaluation/Analysis</option>
-          </select>
+      <div class="box">
+        <h4>Mark Point Criteria Entry 2 (Optional)</h4>
+        <div class="row">
+          <div>
+            <label for="aoTarget2">Objective Target</label>
+            <select id="aoTarget2">
+              <option value="AO1">AO1: Core Knowledge / Definitions</option>
+              <option value="AO2" selected>AO2: Data/Concept Application</option>
+              <option value="AO3">AO3: Evaluation/Analysis</option>
+            </select>
+          </div>
+          <div>
+            <label for="mpText2">Scheme Intent Descriptor</label>
+            <input id="mpText2" type="text" placeholder="e.g. System context analysis"/>
+          </div>
         </div>
-        <div>
-          <label for="mpText2">Scheme Intent Descriptor</label>
-          <input id="mpText2" type="text" placeholder="e.g. System context analysis"/>
-        </div>
+        <label for="mpFeedback2">Remediation Feedback (Shows if missed)</label>
+        <textarea id="mpFeedback2" rows="2" placeholder="Remember to state the final destination or environment where energy/products accumulate."></textarea>
       </div>
-      <label for="mpFeedback2">Remediation Feedback (Shows if missed)</label>
-      <textarea id="mpFeedback2" rows="2" placeholder="Remember to state the final destination or environment where energy/products accumulate."></textarea>
-    </div>
-  </section>
+    </section>
 
-  <div class="card" style="text-align: right;">
-    <button id="btnCommit">Upload & Commit Question Node</button>
-    <div id="statusOutput" class="status-msg hidden"></div>
+    <div class="card" style="text-align: right;">
+      <button id="btnCommit">Upload & Commit Question Node</button>
+      <div id="statusOutput" class="status-msg hidden"></div>
+    </div>
+  </div>
+
+  <div id="adminBulkForm" class="hidden">
+    <section class="card">
+      <h2>Excel Spreadsheet Bulk Import Panel</h2>
+      <p style="font-size: 0.85rem; color: #666; margin-bottom: 15px;">
+        Paste raw comma-separated text from your Excel backup master tracker. Ensure column headers match: 
+        <code style="background:#e8ecf0; padding:2px 4px; border-radius:4px; font-size:0.8rem;">spec_point_id, question_type, prompt, options, difficulty, tier, key_type, key_payload, mp1_ao, mp1_text, mp2_ao, mp2_text, mp3_ao, mp3_text, mp4_ao, mp4_text</code>
+      </p>
+      
+      <label for="csvInput">Raw CSV Data Input Area</label>
+      <textarea id="csvInput" style="height: 280px; font-family: monospace; background: #fafafa;" placeholder="spec_point_id,question_type,prompt,options,difficulty,tier,key_type,key_payload,mp1_ao,mp1_text,mp2_ao,mp2_text..."></textarea>
+      
+      <div style="margin-top: 15px; text-align: right;">
+        <button id="btnExecuteBulk" style="background: #2980b9; width: 100%;">Process Excel Transaction List</button>
+      </div>
+      
+      <div id="bulkStatusOutput" class="status-msg hidden" style="max-height: 250px; overflow-y: auto; text-align: left; font-family: monospace; font-size: 0.85rem; line-height: 1.5;"></div>
+    </section>
   </div>
 </div>
 
 <script>
-  // ====== CONFIGURATION INITIALIZATION ======
-  // ====== NEW ADMIN AUTH CONTROL WINDOWS ======
+  // ====== PROJECT CREDENTIAL CONFIGURATION ======
+  const SUPABASE_URL = "https://cbycwfhczyvzzhthpgsw.supabase.co";
+  const SUPABASE_ANON_KEY = "sb_publishable_xD75RVd3kyvxs3IK_WsNag_eoCAZF4W";
+  const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  // ====== DOM ELEMENT REFERENCES ======
   const adminAuthSection = document.getElementById("adminAuthSection");
+  const adminHeaderBlock = document.getElementById("adminHeaderBlock");
   const adminCoreForm = document.getElementById("adminCoreForm");
+  const adminBulkForm = document.getElementById("adminBulkForm");
+  
+  const tabIndivBtn = document.getElementById("tabIndivBtn");
+  const tabBulkBtn = document.getElementById("tabBulkBtn");
+  
   const btnAdminSignIn = document.getElementById("btnAdminSignIn");
   const authStatus = document.getElementById("authStatus");
 
-  function showAuthStatus(text, isError = false) {
-    authStatus.textContent = text;
-    authStatus.className = "status-msg " + (isError ? "error" : "success");
-    authStatus.classList.remove("hidden");
-  }
-
-  // Handle explicit admin authentication click
-  btnAdminSignIn.onclick = async () => {
-    authStatus.classList.add("hidden");
-    const email = document.getElementById("adminEmail").value.trim();
-    const password = document.getElementById("adminPassword").value;
-
-    const { data, error } = await supabaseClient.auth.signInWithPassword({
-      email,
-      password
-    });
-
-    if (error) {
-      showAuthStatus("Authentication Failed: " + error.message, true);
-      return;
-    }
-
-    // Reveal forms on successful authentication
-    showAuthStatus("Authenticated successfully. Secure token loaded.");
-    adminAuthSection.classList.add("hidden");
-    adminCoreForm.classList.remove("hidden");
-    
-    // Trigger initial topic synchronization now that we are logged in
-    syncTopics();
-  };
-
-  // Automatically check if an active session already exists on page load
-  async function checkExistingAdminSession() {
-    const { data: { session } } = await supabaseClient.auth.getSession();
-    if (session?.user) {
-      adminAuthSection.classList.add("hidden");
-      adminCoreForm.classList.remove("hidden");
-      syncTopics();
-    }
-  }
-
-  // Replace your default standalone "syncTopics();" line at the very bottom of your script with this:
-  checkExistingAdminSession();
-  const SUPABASE_URL = "https://cbycwfhczyvzzhthpgsw.supabase.co";
-  const SUPABASE_ANON_KEY = "sb_publishable_xD75RVd3kyvxs3IK_WsNag_eoCAZF4W";
-  
-  const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-  // ====== DOM NODE RECOGNITIONS ======
   const subjectFilter = document.getElementById("subjectFilter");
   const paperFilter = document.getElementById("paperFilter");
   const topicFilter = document.getElementById("topicFilter");
@@ -324,210 +351,3 @@
   const panelMcq = document.getElementById("panelMcq");
   const panelNumeric = document.getElementById("panelNumeric");
   const panelKeywords = document.getElementById("panelKeywords");
-  const btnCommit = document.getElementById("btnCommit");
-  const statusOutput = document.getElementById("statusOutput");
-
-  // ====== DYNAMIC SYLLABUS SYNC SYSTEM ======
-  async function syncTopics() {
-    topicFilter.innerHTML = '<option value="">Loading topics...</option>';
-    specPointFilter.innerHTML = '<option value="">-- Select a topic first --</option>';
-
-    const { data, error } = await supabaseClient
-      .from("spec_points")
-      .select("topic_name")
-      .eq("subject", subjectFilter.value)
-      .eq("paper", paperFilter.value);
-
-    if (error || !data) {
-      topicFilter.innerHTML = '<option value="">Error loading topics</option>';
-      return;
-    }
-
-    const uniqueTopics = [...new Set(data.map(r => r.topic_name).filter(Boolean))];
-    
-    if(uniqueTopics.length === 0) {
-      topicFilter.innerHTML = '<option value="">No topics found. Database empty for this filter.</option>';
-      return;
-    }
-
-    topicFilter.innerHTML = '<option value="">-- Select a Topic --</option>' + 
-      uniqueTopics.map(t => `<option value="${t}">${t}</option>`).join("");
-  }
-
-  async function syncSpecPoints() {
-    if (!topicFilter.value) return;
-    specPointFilter.innerHTML = '<option value="">Loading specification entries...</option>';
-
-    const { data, error } = await supabaseClient
-      .from("spec_points")
-      .select("id, spec_ref, spec_text")
-      .eq("subject", subjectFilter.value)
-      .eq("paper", paperFilter.value)
-      .eq("topic_name", topicFilter.value);
-
-    if (error || !data) {
-      specPointFilter.innerHTML = '<option value="">Error loading specification entries</option>';
-      return;
-    }
-
-    specPointFilter.innerHTML = '<option value="">-- Select Specific Reference point --</option>' +
-      data.map(sp => `<option value="${sp.id}">[${sp.spec_ref}] ${sp.spec_text.slice(0, 60)}...</option>`).join("");
-  }
-
-  // Hook up event cascades
-  subjectFilter.addEventListener("change", syncTopics);
-  paperFilter.addEventListener("change", syncTopics);
-  topicFilter.addEventListener("change", syncSpecPoints);
-
-  // Dynamic panel toggler layout matrix
-  qType.addEventListener("change", () => {
-    panelMcq.classList.add("hidden");
-    panelNumeric.classList.add("hidden");
-    panelKeywords.classList.add("hidden");
-
-    if (qType.value === "mcq") panelMcq.classList.remove("hidden");
-    else if (qType.value === "numeric") panelNumeric.classList.remove("hidden");
-    else if (qType.value === "short_text") panelKeywords.classList.remove("hidden");
-  });
-
-  // Helper arrays parsing pipelines
-  function splitClean(val) {
-    return val.split(',').map(s => s.trim()).filter(Boolean);
-  }
-
-  function showStatus(text, isError = false) {
-    statusOutput.textContent = text;
-    statusOutput.className = "status-msg " + (isError ? "error" : "success");
-    statusOutput.classList.remove("hidden");
-  }
-
-  // ====== INTERACTIVE PIPELINE COMMIT EXECUTION ======
-  btnCommit.onclick = async () => {
-    statusOutput.classList.add("hidden");
-    
-    // Core parameters extraction
-    const specPointId = specPointFilter.value;
-    const prompt = document.getElementById("qPrompt").value.trim();
-    const questionType = qType.value;
-
-    if (!specPointId) {
-      showStatus("Aborted: You must drill down and select a target Specification Point entry.", true);
-      return;
-    }
-    if (!prompt) {
-      showStatus("Aborted: The Question Prompt textarea block cannot be blank.", true);
-      return;
-    }
-
-    // Dynamic payload constructors depending on typology target
-    let optionsPayload = null;
-    let keyTypeTarget = "keywords";
-    let keyPayloadConstructor = {};
-
-    if (questionType === "mcq") {
-      keyTypeTarget = "mcq";
-      const rawOptions = document.getElementById("mcqOptions").value.split('\n');
-      optionsPayload = rawOptions.map(o => o.trim()).filter(Boolean);
-      keyPayloadConstructor = { correct: document.getElementById("mcqCorrect").value.trim() };
-    } 
-    else if (questionType === "numeric") {
-      keyTypeTarget = "numeric";
-      keyPayloadConstructor = {
-        answer: parseFloat(document.getElementById("numAnswer").value),
-        tolerance: parseFloat(document.getElementById("numTolerance").value || 0)
-      };
-    } 
-    else { // short_text
-      keyTypeTarget = "keywords";
-      keyPayloadConstructor = {
-        required: splitClean(document.getElementById("keyRequired").value),
-        optional: splitClean(document.getElementById("keyOptional").value),
-        min_optional: parseInt(document.getElementById("minOptional").value || 0, 10)
-      };
-    }
-
-    try {
-      // Step 1: Write Question Definition Base Row
-      const { data: questionNode, error: qErr } = await supabaseClient
-        .from("questions")
-        .insert({
-          spec_point_id: specPointId,
-          question_type: questionType,
-          prompt: prompt,
-          options: optionsPayload
-        })
-        .select()
-        .single();
-
-      if (qErr) throw qErr;
-      const targetQuestionId = questionNode.id;
-
-      // Step 2: Write Answer Evaluation Rules Context Row
-      const { error: keyErr } = await supabaseClient
-        .from("answer_keys")
-        .insert({
-          question_id: targetQuestionId,
-          key_type: keyTypeTarget,
-          key_payload: keyPayloadConstructor
-        });
-
-      if (keyErr) throw keyErr;
-
-      // Step 3: Write Accompanying Mark Point Remediations (Multi-Row stack construction)
-      const markPointsBatch = [];
-      
-      const mpText1 = document.getElementById("mpText1").value.trim();
-      const mpFeedback1 = document.getElementById("mpFeedback1").value.trim();
-      if (mpText1 && mpFeedback1) {
-        markPointsBatch.push({
-          question_id: targetQuestionId,
-          ao: document.getElementById("aoTarget1").value,
-          point_text: mpText1,
-          feedback_if_missing: mpFeedback1,
-          max_marks: 1
-        });
-      }
-
-      const mpText2 = document.getElementById("mpText2").value.trim();
-      const mpFeedback2 = document.getElementById("mpFeedback2").value.trim();
-      if (mpText2 && mpFeedback2) {
-        markPointsBatch.push({
-          question_id: targetQuestionId,
-          ao: document.getElementById("aoTarget2").value,
-          point_text: mpText2,
-          feedback_if_missing: mpFeedback2,
-          max_marks: 1
-        });
-      }
-
-      if (markPointsBatch.length > 0) {
-        const { error: mpErr } = await supabaseClient
-          .from("mark_points")
-          .insert(markPointsBatch);
-          
-        if (mpErr) throw mpErr;
-      }
-
-      showStatus(`Success! Question node successfully initialized and bound. Assigned UUID: ${targetQuestionId}`);
-      
-      // Clear inputs
-      document.getElementById("qPrompt").value = "";
-      document.getElementById("keyRequired").value = "";
-      document.getElementById("keyOptional").value = "";
-      document.getElementById("mpFeedback1").value = "";
-      document.getElementById("mpFeedback2").value = "";
-      document.getElementById("mpText1").value = "";
-      document.getElementById("mpText2").value = "";
-
-    } catch (err) {
-      console.error(err);
-      showStatus("Transaction Faulted: " + err.message, true);
-    }
-  };
-
-  // Run initial cascade fill on startup
-  syncTopics();
-</script>
-
-</body>
-</html>
