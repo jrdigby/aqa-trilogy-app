@@ -819,7 +819,7 @@ async function loadTopics() {
               <div style="width: ${percentage}%; height: 100%; background: ${colorTheme}; transition: width 0.4s ease-on-out;"></div>
             </div>
             <div class="muted" style="font-size: 0.75rem; margin-top: 4px;">
-              ${hasAttempts ? `Earned ${tally.earned} of ${tally.max} total marks across syllabus items.` : "No metrics footprint recorded yet."}
+              ${hasAttempts ? `Earned ${tally.earned} of ${tally.max} total marks across syllabus items.` : "No questions attempted yet."}
             </div>
           </div>
         `;
