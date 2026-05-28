@@ -44,6 +44,7 @@ const btnNext = el("btnNext");
 const subjectFilter = el("subjectFilter");
 const paperFilter = el("paperFilter");
 const topicFilter = el("topicFilter");
+const forecastWrapper = el("forecastWrapper"); // ✅ Added lookahead chart tracker element
 
 // ====== SESSION STATE ======
 let currentUser = null;
@@ -225,6 +226,69 @@ if (btnStartAny) {
   btnStartAny.onclick = async () => {
     await startAnyPractice();
   };
+}
+
+// ====== 7-DAY WORKLOAD REVISION FORECAST ======
+async function loadWeeklyForecast() {
+  if (!currentUser || !forecastWrapper) return;
+
+  const weekdayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const datesArray = [];
+  const countsMap = {};
+
+  // 1. Initialize slots for the next 7 days starting today
+  for (let i = 0; i < 7; i++) {
+    const targetDate = new Date();
+    targetDate.setDate(targetDate.getDate() + i);
+    
+    const dateString = targetDate.toISOString().slice(0, 10);
+    const dayLabel = i === 0 ? "Today" : weekdayNames[targetDate.getDay()];
+    
+    datesArray.push({ dateString, dayLabel });
+    countsMap[dateString] = 0;
+  }
+
+  // 2. Fetch all upcoming due schedules for this specific student user
+  const { data: schedules, error } = await supabaseClient
+    .from("srs_state")
+    .select("due_date")
+    .eq("user_id", currentUser.id);
+
+  if (error) {
+    console.error("Forecast collection query failed:", error);
+    forecastWrapper.innerHTML = `<div class="bad" style="margin: auto;">Error loading workload forecast.</div>`;
+    return;
+  }
+
+  // 3. Tally how many items fall into each day's bucket
+  (schedules || []).forEach(s => {
+    if (countsMap[s.due_date] !== undefined) {
+      countsMap[s.due_date]++;
+    }
+  });
+
+  // Find the maximum daily count value so we can scale the chart heights proportionally
+  const maxCount = Math.max(...Object.values(countsMap), 1);
+
+  // 4. Generate the micro bar chart layout HTML string dynamically
+  forecastWrapper.innerHTML = datesArray.map(d => {
+    const totalDueOnDay = countsMap[d.dateString];
+    // Calculate percentage height scaling based on a maximum bounding bar ceiling height of 75px
+    const barHeightPx = Math.round((totalDueOnDay / maxCount) * 75);
+    const isActiveBar = totalDueOnDay > 0;
+
+    return `
+      <div style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; justify-content: flex-end;">
+        <span style="font-size: 0.75rem; font-weight: 700; color: ${isActiveBar ? 'var(--primary)' : 'var(--text-muted)'};">
+          ${totalDueOnDay}
+        </span>
+        <div style="width: 70%; max-width: 35px; height: ${barHeightPx}px; background: ${isActiveBar ? 'var(--primary)' : '#e2e8f0'}; border-radius: 4px 4px 0 0; transition: height 0.3s ease;"></div>
+        <span style="font-size: 0.75rem; font-weight: 600; color: var(--text-muted); margin-bottom: 2px;">
+          ${d.dayLabel}
+        </span>
+      </div>
+    `;
+  }).join("");
 }
 
 async function startAnyPractice() {
@@ -502,6 +566,7 @@ if (btnNext) {
       if (sessionSection) sessionSection.classList.add("hidden");
       if (dashSection) dashSection.classList.remove("hidden");
       await loadDashboard();
+      await loadWeeklyForecast();
     } else {
       await loadQuestion();
     }
@@ -729,6 +794,7 @@ supabaseClient.auth.onAuthStateChange((event, session) => {
     currentUser = session.user;
     setSignedInUI(currentUser);
     loadDashboard();
+    loadWeeklyForecast();
     
     // ✅ FIX: Only look for the dropdown element once authenticated and the card becomes visible in the DOM
     const runtimeTierSelect = el("tierFilter");
