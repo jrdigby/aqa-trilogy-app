@@ -351,3 +351,361 @@
   const panelMcq = document.getElementById("panelMcq");
   const panelNumeric = document.getElementById("panelNumeric");
   const panelKeywords = document.getElementById("panelKeywords");
+  const btnCommit = document.getElementById("btnCommit");
+  const statusOutput = document.getElementById("statusOutput");
+
+  const csvInput = document.getElementById("csvInput");
+  const btnExecuteBulk = document.getElementById("btnExecuteBulk");
+  const bulkStatusOutput = document.getElementById("bulkStatusOutput");
+
+  // ====== 🗂️ NAV TAB TOGGLE ENGINE ======
+  tabIndivBtn.onclick = () => {
+    tabIndivBtn.classList.add("active");
+    tabBulkBtn.classList.remove("active");
+    adminCoreForm.classList.remove("hidden");
+    adminBulkForm.classList.add("hidden");
+  };
+
+  tabBulkBtn.onclick = () => {
+    tabBulkBtn.classList.add("active");
+    tabIndivBtn.classList.remove("active");
+    adminBulkForm.classList.remove("hidden");
+    adminCoreForm.classList.add("hidden");
+  };
+
+  // ====== AUTHENTICATION MANAGER ======
+  function showAuthStatus(text, isError = false) {
+    authStatus.textContent = text;
+    authStatus.className = "status-msg " + (isError ? "error" : "success");
+    authStatus.classList.remove("hidden");
+  }
+
+  btnAdminSignIn.onclick = async () => {
+    authStatus.classList.add("hidden");
+    const email = document.getElementById("adminEmail").value.trim();
+    const password = document.getElementById("adminPassword").value;
+
+    if (!email || !password) {
+      showAuthStatus("Please enter both email and password parameters.", true);
+      return;
+    }
+
+    const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+
+    if (error) {
+      showAuthStatus("Authentication Failed: " + error.message, true);
+      return;
+    }
+
+    showAuthStatus("Authenticated successfully.");
+    revealAdminPortal();
+  };
+
+  async function checkExistingAdminSession() {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (session?.user) {
+      revealAdminPortal();
+    }
+  }
+
+  function revealAdminPortal() {
+    adminAuthSection.classList.add("hidden");
+    adminHeaderBlock.classList.remove("hidden");
+    adminCoreForm.classList.remove("hidden"); // Default to Form View
+    syncTopics();
+  }
+
+  // ====== DYNAMIC DROPDOWN CASCADING SYSTEM ======
+  async function syncTopics() {
+    topicFilter.innerHTML = '<option value="">Loading topics...</option>';
+    specPointFilter.innerHTML = '<option value="">-- Select a subject/paper first --</option>';
+
+    const { data, error } = await supabaseClient
+      .from("spec_points")
+      .select("topic_name")
+      .eq("subject", subjectFilter.value)
+      .eq("paper", paperFilter.value);
+
+    if (error || !data) {
+      topicFilter.innerHTML = '<option value="">Error loading topics</option>';
+      return;
+    }
+
+    const uniqueTopics = [...new Set(data.map(r => r.topic_name).filter(Boolean))];
+    
+    if(uniqueTopics.length === 0) {
+      topicFilter.innerHTML = '<option value="">No topics found inside this section.</option>';
+      return;
+    }
+
+    topicFilter.innerHTML = '<option value="">-- Select a Topic --</option>' + 
+      uniqueTopics.map(t => `<option value="${t}">${t}</option>`).join("");
+  }
+
+  async function syncSpecPoints() {
+    if (!topicFilter.value) return;
+    specPointFilter.innerHTML = '<option value="">Loading specification entries...</option>';
+
+    const { data, error } = await supabaseClient
+      .from("spec_points")
+      .select("id, spec_ref, spec_text")
+      .eq("subject", subjectFilter.value)
+      .eq("paper", paperFilter.value)
+      .eq("topic_name", topicFilter.value);
+
+    if (error || !data) {
+      specPointFilter.innerHTML = '<option value="">Error loading specification entries</option>';
+      return;
+    }
+
+    specPointFilter.innerHTML = '<option value="">-- Select Specific Reference point --</option>' +
+      data.map(sp => `<option value="${sp.id}">[${sp.spec_ref}] ${sp.spec_text.slice(0, 60)}...</option>`).join("");
+  }
+
+  subjectFilter.addEventListener("change", syncTopics);
+  paperFilter.addEventListener("change", syncTopics);
+  topicFilter.addEventListener("change", syncSpecPoints);
+
+  qType.addEventListener("change", () => {
+    panelMcq.classList.add("hidden");
+    panelNumeric.classList.add("hidden");
+    panelKeywords.classList.add("hidden");
+
+    if (qType.value === "mcq") panelMcq.classList.remove("hidden");
+    else if (qType.value === "numeric") panelNumeric.classList.remove("hidden");
+    else if (qType.value === "short_text") panelKeywords.classList.remove("hidden");
+  });
+
+  function splitClean(val) {
+    return val.split(',').map(s => s.trim()).filter(Boolean);
+  }
+
+  function showStatus(text, isError = false) {
+    statusOutput.textContent = text;
+    statusOutput.className = "status-msg " + (isError ? "error" : "success");
+    statusOutput.classList.remove("hidden");
+  }
+
+  // ====== INDIVIDUAL CREATOR: COMMIT ACTION ======
+  btnCommit.onclick = async () => {
+    statusOutput.classList.add("hidden");
+    
+    const specPointId = specPointFilter.value;
+    const prompt = document.getElementById("qPrompt").value.trim();
+    const questionType = qType.value;
+    const tier = document.getElementById("qTier").value;
+    const difficulty = parseInt(document.getElementById("qDifficulty").value, 10);
+
+    if (!specPointId || !prompt) {
+      showStatus("Aborted: You must complete the syllabus target mapping and prompt text.", true);
+      return;
+    }
+
+    let optionsPayload = null;
+    let keyTypeTarget = "keywords";
+    let keyPayloadConstructor = {};
+
+    if (questionType === "mcq") {
+      keyTypeTarget = "mcq";
+      const rawOptions = document.getElementById("mcqOptions").value.split('\n');
+      optionsPayload = rawOptions.map(o => o.trim()).filter(Boolean);
+      keyPayloadConstructor = { correct: document.getElementById("mcqCorrect").value.trim() };
+    } 
+    else if (questionType === "numeric") {
+      keyTypeTarget = "numeric";
+      keyPayloadConstructor = {
+        answer: parseFloat(document.getElementById("numAnswer").value),
+        tolerance: parseFloat(document.getElementById("numTolerance").value || 0)
+      };
+    } 
+    else {
+      keyTypeTarget = "keywords";
+      keyPayloadConstructor = {
+        required: splitClean(document.getElementById("keyRequired").value),
+        optional: splitClean(document.getElementById("keyOptional").value),
+        min_optional: parseInt(document.getElementById("minOptional").value || 0, 10)
+      };
+    }
+
+    try {
+      // 1. Insert Base Question Row
+      const { data: questionNode, error: qErr } = await supabaseClient
+        .from("questions")
+        .insert({
+          spec_point_id: specPointId,
+          question_type: questionType,
+          prompt: prompt,
+          options: optionsPayload,
+          difficulty: difficulty,
+          tier: tier
+        })
+        .select().single();
+
+      if (qErr) throw qErr;
+      const targetQuestionId = questionNode.id;
+
+      // 2. Insert Answer Key Row
+      const { error: keyErr } = await supabaseClient
+        .from("answer_keys")
+        .insert({
+          question_id: targetQuestionId,
+          key_type: keyTypeTarget,
+          key_payload: keyPayloadConstructor
+        });
+
+      if (keyErr) throw keyErr;
+
+      // 3. Insert Mark Points Rows
+      const markPointsBatch = [];
+      for(let m = 1; m <= 2; m++) {
+        const text = document.getElementById(`mpText${m}`).value.trim();
+        const feedback = document.getElementById(`mpFeedback${m}`).value.trim();
+        if (text && feedback) {
+          markPointsBatch.push({
+            question_id: targetQuestionId,
+            ao: document.getElementById(`aoTarget${m}`).value,
+            point_text: text,
+            feedback_if_missing: feedback,
+            max_marks: 1
+          });
+        }
+      }
+
+      if (markPointsBatch.length > 0) {
+        const { error: mpErr } = await supabaseClient.from("mark_points").insert(markPointsBatch);
+        if (mpErr) throw mpErr;
+      }
+
+      showStatus(`Success! Question node successfully initialized. ID: ${targetQuestionId}`);
+      
+      // Reset textareas safely
+      document.getElementById("qPrompt").value = "";
+      document.getElementById("mcqOptions").value = "";
+      document.getElementById("mcqCorrect").value = "";
+      document.getElementById("numAnswer").value = "";
+      document.getElementById("keyRequired").value = "";
+      document.getElementById("keyOptional").value = "";
+      document.getElementById("mpText1").value = "";
+      document.getElementById("mpText2").value = "";
+      document.getElementById("mpFeedback1").value = "";
+      document.getElementById("mpFeedback2").value = "";
+
+    } catch (err) {
+      console.error(err);
+      showStatus("Transaction Faulted: " + err.message, true);
+    }
+  };
+
+  // ====== EXCEL BULK SPREADSHEET PARSER UTILITY ======
+  function parseCSVToObjects(csvText) {
+    const lines = csvText.split(/\r?\n/);
+    if (lines.length < 2) return [];
+    
+    const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+    const result = [];
+    
+    for (let i = 1; i < lines.length; i++) {
+      const lineStr = lines[i].trim();
+      if (!lineStr) continue;
+      
+      const matches = lineStr.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || lineStr.split(',');
+      const row = {};
+      headers.forEach((header, idx) => {
+        let val = matches[idx] ? matches[idx].trim() : '';
+        row[header] = val.replace(/^"|"$/g, '').replace(/""/g, '"'); 
+      });
+      result.push(row);
+    }
+    return result;
+  }
+
+  // ====== EXCEL BULK IMPORT: RUN ACTION ======
+  btnExecuteBulk.onclick = async () => {
+    const rawCSV = csvInput.value.trim();
+    if (!rawCSV) {
+      alert("Please paste valid CSV rows into the textbox.");
+      return;
+    }
+
+    const rows = parseCSVToObjects(rawCSV);
+    if (rows.length === 0) {
+      alert("No rows parsed. Confirm headers are correctly configured.");
+      return;
+    }
+
+    btnExecuteBulk.disabled = true;
+    btnExecuteBulk.textContent = `Syncing ${rows.length} Spreadsheet rows...`;
+    bulkStatusOutput.classList.remove("hidden");
+    bulkStatusOutput.innerHTML = "<b>Starting bulk processing transaction sequence...</b><br>";
+
+    let successCount = 0;
+    let failCount = 0;
+
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      
+      const markPointsArray = [];
+      for (let m = 1; m <= 4; m++) {
+        const ao = r[`mp${m}_ao`];
+        const text = r[`mp${m}_text`];
+        if (ao && text) {
+          markPointsArray.push({
+            ao: ao,
+            point_text: text,
+            feedback_if_missing: `Missing key points required by marking index ${m}.`,
+            max_marks: 1
+          });
+        }
+      }
+
+      let parsedOptions = null;
+      if (r.options && r.options.trim()) {
+        parsedOptions = r.options.split('|').map(o => o.trim()).filter(Boolean);
+      }
+
+      let parsedPayload = {};
+      try {
+        parsedPayload = r.key_payload ? JSON.parse(r.key_payload) : { "answer": r.key_payload };
+      } catch(e) {
+        parsedPayload = { "answer": r.key_payload };
+      }
+
+      try {
+        const { data: newQuestionId, error: rpcError } = await supabaseClient.rpc(
+          "bulk_import_full_question", 
+          {
+            p_spec_point_id: r.spec_point_id,
+            p_question_type: r.question_type,
+            p_prompt: r.prompt,
+            p_options: parsedOptions,
+            p_difficulty: parseInt(r.difficulty || 1, 10),
+            p_tier: r.tier || "both",
+            p_resource_links: null,
+            p_key_type: r.key_type || r.question_type,
+            p_key_payload: parsedPayload,
+            p_mark_points_json: markPointsArray.length > 0 ? markPointsArray : null
+          }
+        );
+
+        if (rpcError) throw rpcError;
+        successCount++;
+        bulkStatusOutput.innerHTML += `<span style="color:#27ae60;">[✓] Row ${i+1}: Success! New Question UUID -> ${newQuestionId}</span><br>`;
+
+      } catch (err) {
+        failCount++;
+        bulkStatusOutput.innerHTML += `<span style="color:#c0392b;">[✗] Row ${i+1}: Failed -> ${err.message || JSON.stringify(err)}</span><br>`;
+      }
+      bulkStatusOutput.scrollTop = bulkStatusOutput.scrollHeight;
+    }
+
+    btnExecuteBulk.disabled = false;
+    btnExecuteBulk.textContent = "Process Excel Transaction List";
+    bulkStatusOutput.innerHTML += `<br><b>🏁 Run completed. Successfully imported: ${successCount}. Failed entries: ${failCount}.</b>`;
+  };
+
+  // Entry Execution initialization check
+  checkExistingAdminSession();
+</script>
+
+</body>
+</html>
