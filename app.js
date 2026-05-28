@@ -768,9 +768,10 @@ async function loadTopics() {
 
       if (attError) throw attError;
 
-      // 2. Build a quick question-to-spec lookup map from the questions we already have
+      // 2. Build a quick question-to-spec lookup map from the active questions pool
       const questionToSpecMap = {};
-      (allQuestions || []).forEach(q => {
+      // ✅ CHANGED: Read from 'questions' instead of 'allQuestions'
+      (questions || []).forEach(q => {
         questionToSpecMap[q.id] = q.spec_point_id;
       });
 
@@ -802,7 +803,7 @@ async function loadTopics() {
         if (hasAttempts) {
           if (percentage < 50) colorTheme = "var(--error)";       // Red (<50%)
           else if (percentage < 75) colorTheme = "#f39c12";       // Amber (50%-75%)
-          else colorTheme = "var(--success)";                    // Green (75%+)
+          else colorTheme = "var(--success)";                     // Green (75%+)
         }
 
         return `
@@ -829,7 +830,6 @@ async function loadTopics() {
     }
   }
 }
-
 // ====== FIXED INTERACTION HANDLERS (EVENT LISTENERS) ======
 if (subjectFilter) {
   subjectFilter.addEventListener("change", () => {
