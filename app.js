@@ -568,6 +568,7 @@ if (btnNext) {
       if (dashSection) dashSection.classList.remove("hidden");
       await loadDashboard();
       await loadWeeklyForecast();
+      await loadTopics();
     } else {
       await loadQuestion();
     }
