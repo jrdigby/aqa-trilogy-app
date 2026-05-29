@@ -64,9 +64,8 @@ hr{
   border-top:1px solid #ddd;
   margin:12px 0
 }
-``
-/* ===== SIMPLE MCQ LAYOUT ===== */
 
+/* ===== SIMPLE MCQ LAYOUT ===== */
 .mcq-container {
   display: flex;
   flex-direction: column;     /* ✅ one column ONLY */
@@ -96,4 +95,44 @@ hr{
 /* radio */
 .mcq-option input[type="radio"] {
   transform: scale(1.2);
+}
+
+/* ================================================================= */
+/* 🔎 SHORT ANSWER VISUAL MARKUP HIGHLIGHTS ENGINE                   */
+/* ================================================================= */
+
+/* Exact matches found in student raw text */
+.match-exact {
+  background-color: #d1fae5;
+  color: #065f46;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+  border-bottom: 2px solid #10b981;
+  display: inline-block;
+}
+
+/* Fuzzy near-miss typographical items identified via Levenshtein */
+.match-fuzzy {
+  background-color: #ffedd5;
+  color: #9a3412;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+  border-bottom: 2px solid #f97316;
+  display: inline-block;
+}
+
+/* General design container parameters for baseline criteria badges */
+.keyword-badge {
+  display: inline-block;
+  background: #f1f5f9;
+  color: #334155;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin: 4px;
+  border: 1px solid #cbd5e1;
+  transition: all 0.2s ease;
 }
