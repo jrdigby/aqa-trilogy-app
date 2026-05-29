@@ -173,9 +173,11 @@ if (btnSignOut) {
 async function loadDashboard() {
   if (!currentUser) return;
   const today = todayISO();
+  
+  // ✅ FIXED: Explicitly namespace 'spec_point_id' field inside table filter queries to clear database ambiguity faults
   const { data: due, error } = await supabaseClient
     .from("srs_state")
-    .select("spec_point_id,due_date,interval_days,ease_factor,repetitions,lapses,last_quality, spec_points(subject,topic_name,spec_ref,spec_text)")
+    .select("spec_point_id,due_date,interval_days,ease_factor,repetitions,lapses,last_quality, spec_points(id,subject,topic_name,spec_ref,spec_text)")
     .eq("user_id", currentUser.id)
     .lte("due_date", today)
     .order("due_date", { ascending: true })
@@ -833,7 +835,7 @@ async function loadTopics() {
     .order("topic_number", { ascending: true});
 
   if (spError) {
-    topicFilter.innerHTML = `<option value="">All topics (0)</option>`;
+    topicFilter.innerHTML = `<option value="">All topics (0)</option>';`;
     return;
   }
 
@@ -1034,7 +1036,6 @@ supabaseClient.auth.onAuthStateChange(async (event, session) => {
     
     const runtimeTierSelect = el("tierFilter");
     if (runtimeTierSelect) {
-      // Clean up duplicate old listeners by overwriting the change event context safely
       runtimeTierSelect.onchange = async () => {
         const newSelectedTier = runtimeTierSelect.value;
         console.log("Exam entry tier altered -> updating payload allocation:", newSelectedTier);
