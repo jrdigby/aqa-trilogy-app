@@ -612,6 +612,73 @@ function renderFeedback(marking) {
   html += `<div><strong>AO breakdown</strong></div>`;
   html += `<div class="muted">AO1: ${marking.ao.AO1} • AO2: ${marking.ao.AO2} • AO3: ${marking.ao.AO3}</div>`;
 
+  // 📝 NEW: IF SHORT TEXT & KEYWORDS IN PLAY, GENERATE VISUAL MARKUP HIGHLIGHTS
+  if (currentQ.question_type === "short_text" && currentKey && currentKey.key_type === "keywords") {
+    const required = currentKey.key_payload.required || [];
+    const optional = currentKey.key_payload.optional || [];
+    const allTargetKeywords = [...required, ...optional];
+    
+    // Get raw student text from input field safely
+    const studentRawText = (el("txtAns")?.value || "").trim();
+    
+    // Split text into words, keeping track of original punctuation and white spaces
+    const tokens = studentRawText.split(/(\s+|[.,\/#!$%\^&\*;:{}=\-_`~()?])/);
+    
+    // Process and highlight student text array token by token
+    const highlightedStudentTokens = tokens.map(token => {
+      // If it's a punctuation or space token, skip evaluation rules
+      if (/^[\s.,\/#!$%\^&\*;:{}=\-_`~()?]+$/.test(token) || !token) return escapeHtml(token);
+      
+      let bestMatch = null;
+      let highestType = null; // 'exact' or 'fuzzy'
+      
+      for (const target of allTargetKeywords) {
+        if (token.toLowerCase() === target.toLowerCase()) {
+          bestMatch = target;
+          highestType = 'exact';
+          break; // Perfect catch, stop iterating
+        } else if (isFuzzyMatch(token, target, 0.85)) {
+          bestMatch = target;
+          highestType = 'fuzzy';
+        }
+      }
+      
+      if (highestType === 'exact') {
+        return `<span class="match-exact" title="Exact match for: ${escapeHtml(bestMatch)}">${escapeHtml(token)}</span>`;
+      } else if (highestType === 'fuzzy') {
+        return `<span class="match-fuzzy" title="Spelling correction target: ${escapeHtml(bestMatch)}">${escapeHtml(token)} (⚠️ spell: ${escapeHtml(bestMatch)})</span>`;
+      }
+      
+      return escapeHtml(token);
+    });
+
+    // Process target baseline keywords layout highlight row array
+    const highlightedTargetsHTML = allTargetKeywords.map(target => {
+      // Determine if student found this target keyword via word-by-word checks
+      const studentWords = studentRawText.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "").split(/\s+/);
+      
+      const hasExact = studentWords.some(w => w === target.toLowerCase());
+      const hasFuzzy = !hasExact && studentWords.some(w => isFuzzyMatch(w, target, 0.85));
+      
+      if (hasExact) {
+        return `<span class="keyword-badge" style="border-color: #10b981; background: #e6f4ea; color: #137333;">🟢 ${escapeHtml(target)}</span>`;
+      } else if (hasFuzzy) {
+        return `<span class="keyword-badge" style="border-color: #f97316; background: #fff7ed; color: #9a3412;">🟠 ${escapeHtml(target)}</span>`;
+      } else {
+        return `<span class="keyword-badge" style="opacity: 0.6;">⚪ ${escapeHtml(target)}</span>`;
+      }
+    }).join(" ");
+
+    // Append custom text compare blocks to interface feedback window panel
+    html += `<hr/>`;
+    html += `<div style="margin-bottom: 12px;"><strong>Your Answer Analysis:</strong></div>`;
+    html += `<div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 14px; border-radius: 8px; font-size: 0.95rem; line-height: 1.6; margin-bottom: 15px; color: #0f172a;">${highlightedStudentTokens.join("")}</div>`;
+    
+    html += `<div><strong>Syllabus Target Keywords:</strong></div>`;
+    html += `<div style="margin-top: 6px; margin-bottom: 10px;">${highlightedTargetsHTML}</div>`;
+  }
+
+  // Retention of standard remediation criteria block loop structures
   if (marking.missing && marking.missing.length > 0) {
     html += `<hr/><div><strong>How to improve</strong></div>`;
     html += marking.missing.map(m => `
@@ -621,7 +688,6 @@ function renderFeedback(marking) {
             <span class="chip" style="background:#ff4d4d; color:white; padding:2px 6px; border-radius:4px; font-size:0.8rem; margin-right: 5px;">${m.ao}</span> 
             ${escapeHtml(m.text)}
           </div>
-          
           ${m.url ? `
             <a href="${m.url}" target="_blank" rel="noopener noreferrer" 
                style="flex-shrink: 0; display: inline-block; padding: 4px 10px; background: var(--primary); color: white; text-decoration: none; font-size: 0.8rem; font-weight: 600; border-radius: 6px; transition: background 0.15s;">
@@ -635,52 +701,6 @@ function renderFeedback(marking) {
     html += `<hr/><div class="good">Nice — perfect marks on this specification point!</div>`;
   }
   return html;
-}
-
-if (btnSubmit) {
-  btnSubmit.onclick = async () => {
-    if (!currentUser) return;
-    btnSubmit.disabled = true;
-
-    const response = getResponsePayload(currentQ);
-    const marking = markResponse(currentQ, response, currentKey, currentMarkPoints);
-
-    if (feedback) feedback.innerHTML = renderFeedback(marking);
-    if (btnNext) btnNext.classList.remove("hidden");
-
-    try {
-      await supabaseClient.from("attempts").insert({
-        user_id: currentUser.id,
-        question_id: currentQ.id,
-        response_payload: response,
-        score_total: marking.total,
-        score_max: marking.max,
-        ao1_score: marking.ao.AO1,
-        ao2_score: marking.ao.AO2,
-        ao3_score: marking.ao.AO3,
-        feedback_payload: marking.feedbackPayload
-      });
-
-      await upsertSRS(currentQ.spec_point_id, marking.quality);
-    } catch(err) {
-      console.error("Sync backup failure logged:", err);
-    }
-  };
-}
-
-if (btnNext) {
-  btnNext.onclick = async () => {
-    idx++;
-    if (idx >= sessionQuestions.length) {
-      if (sessionSection) sessionSection.classList.add("hidden");
-      if (dashSection) dashSection.classList.remove("hidden");
-      await loadDashboard();
-      await loadWeeklyForecast();
-      await loadTopics();
-    } else {
-      await loadQuestion();
-    }
-  };
 }
 
 function getResponsePayload(q) {
