@@ -1019,35 +1019,37 @@ if (liveTypeFilter) {
 }
 
 // ====== MONOLITHIC ENTRY ENGINE GATE ======
-supabaseClient.auth.onAuthStateChange((event, session) => {
+supabaseClient.auth.onAuthStateChange(async (event, session) => {
   if (session?.user) {
     currentUser = session.user;
-    setSignedInUI(currentUser); // Handles parsing and pre-loading saved metrics
-    loadDashboard();
-    loadWeeklyForecast();
-    checkAndUpdateStreak();
+    
+    // Process profile and layout setups sequentially
+    await setSignedInUI(currentUser);
+    await loadDashboard();
+    await loadWeeklyForecast();
+    await checkAndUpdateStreak();
     
     const runtimeTierSelect = el("tierFilter");
     if (runtimeTierSelect) {
-      runtimeTierSelect.addEventListener("change", async () => {
-        console.log("Exam entry tier altered -> updating allocation metrics...");
-        
-        // 🔄 NEW: Commit the altered choice directly into the user's permanent database profile row
+      // Clean up duplicate old listeners by overwriting the click execution context safely
+      runtimeTierSelect.onchange = async () => {
         const newSelectedTier = runtimeTierSelect.value;
+        console.log("Exam entry tier altered -> updating payload allocation:", newSelectedTier);
+        
         try {
           await supabaseClient
             .from("profiles")
             .update({ preferred_tier: newSelectedTier })
             .eq("user_id", currentUser.id);
           
-          console.log(`✓ Preference saved permanently: ${newSelectedTier}`);
+          console.log(`✓ Preference saved permanently to database: ${newSelectedTier}`);
         } catch (saveErr) {
           console.error("Could not backup profile preference alteration:", saveErr);
         }
 
-        // Recalculate dashboard topic counts to update indicators matching new tier scope
-        loadTopics();
-      });
+        // Re-render topic indicators matching new tier scope
+        await loadTopics();
+      };
     }
   } else {
     currentUser = null;
