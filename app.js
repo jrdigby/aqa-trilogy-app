@@ -174,7 +174,6 @@ async function loadDashboard() {
   if (!currentUser) return;
   const today = todayISO();
   
-  // ✅ FIXED: Explicitly namespace 'spec_point_id' field inside table filter queries to clear database ambiguity faults
   const { data: due, error } = await supabaseClient
     .from("srs_state")
     .select("spec_point_id,due_date,interval_days,ease_factor,repetitions,lapses,last_quality, spec_points(id,subject,topic_name,spec_ref,spec_text)")
@@ -790,13 +789,11 @@ async function setSignedInUI(user) {
   if (userChip) userChip.textContent = `${user.email || user.id}`;
   if (authMsg) authMsg.textContent = "Signed in ✅";
 
-  // 🔄 Step 1: Initialize baseline fallback instantly so the DOM element is NEVER empty
   const runtimeTierSelect = el("tierFilter");
   if (runtimeTierSelect && !runtimeTierSelect.value) {
     runtimeTierSelect.value = "FT";
   }
 
-  // 🔄 Step 2: Fetch student profile preferences asynchronously
   try {
     const { data: profile, error } = await supabaseClient
       .from("profiles")
@@ -812,7 +809,6 @@ async function setSignedInUI(user) {
     console.error("Failed to recover persistent tier configuration profile:", err);
   }
 
-  // 🔄 Step 3: Run your initial dashboard generation loop AFTER the values are securely anchored
   await loadTopics();
 }
 
