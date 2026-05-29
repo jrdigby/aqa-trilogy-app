@@ -776,19 +776,33 @@ function setSignedOutUI() {
   if (authMsg) authMsg.textContent = "Not signed in.";
 }
 
-function setSignedInUI(user) {
+// ====== PROFILE PRE-LOAD UPDATE ======
+async function setSignedInUI(user) {
   if (btnSignOut) btnSignOut.classList.remove("hidden");
   if (authSection) authSection.classList.add("hidden");
   if (dashSection) dashSection.classList.remove("hidden");
 
-  const runtimeTierSelect = el("tierFilter");
-  if (runtimeTierSelect && !runtimeTierSelect.value) {
-    runtimeTierSelect.value = "FT";
-  }
-
   if (userChip) userChip.textContent = `${user.email || user.id}`;
   if (authMsg) authMsg.textContent = "Signed in ✅";
 
+  // 🔄 NEW: Fetch student profile preferences asynchronously upon entry
+  try {
+    const { data: profile } = await supabaseClient
+      .from("profiles")
+      .select("preferred_tier")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    const runtimeTierSelect = el("tierFilter");
+    if (runtimeTierSelect) {
+      // Pre-load saved tier option, default to Foundation if unconfigured
+      runtimeTierSelect.value = profile?.preferred_tier || "FT";
+    }
+  } catch (err) {
+    console.error("Failed to recover persistent tier configuration profile:", err);
+  }
+
+  // Sweep and draw dashboard counts using the pre-loaded tier constraint
   loadTopics();
 }
 
@@ -1002,15 +1016,30 @@ if (liveTypeFilter) {
 supabaseClient.auth.onAuthStateChange((event, session) => {
   if (session?.user) {
     currentUser = session.user;
-    setSignedInUI(currentUser);
+    setSignedInUI(currentUser); // Handles parsing and pre-loading saved metrics
     loadDashboard();
     loadWeeklyForecast();
     checkAndUpdateStreak();
     
     const runtimeTierSelect = el("tierFilter");
     if (runtimeTierSelect) {
-      runtimeTierSelect.addEventListener("change", () => {
-        console.log("Exam entry tier altered -> updating question footprint allocations...");
+      runtimeTierSelect.addEventListener("change", async () => {
+        console.log("Exam entry tier altered -> updating allocation metrics...");
+        
+        // 🔄 NEW: Commit the altered choice directly into the user's permanent database profile row
+        const newSelectedTier = runtimeTierSelect.value;
+        try {
+          await supabaseClient
+            .from("profiles")
+            .update({ preferred_tier: newSelectedTier })
+            .eq("user_id", currentUser.id);
+          
+          console.log(`✓ Preference saved permanently: ${newSelectedTier}`);
+        } catch (saveErr) {
+          console.error("Could not backup profile preference alteration:", saveErr);
+        }
+
+        // Recalculate dashboard topic counts to update indicators matching new tier scope
         loadTopics();
       });
     }
