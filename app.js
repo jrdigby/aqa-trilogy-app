@@ -309,4 +309,686 @@ async function loadWeeklyForecast() {
   forecastWrapper.innerHTML = datesArray.map(d => {
     const totalDueOnDay = countsMap[d.dateString];
     // Calculate percentage height scaling based on a maximum bounding bar ceiling height of 75px
-    const bar
+    const barHeightPx = Math.round((totalDueOnDay / maxCount) * 75);
+    const isActiveBar = totalDueOnDay > 0;
+
+    return `
+      <div style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; justify-content: flex-end;">
+        <span style="font-size: 0.75rem; font-weight: 700; color: ${isActiveBar ? 'var(--primary)' : 'var(--text-muted)'};">
+          ${totalDueOnDay}
+        </span>
+        <div style="width: 70%; max-width: 35px; height: ${barHeightPx}px; background: ${isActiveBar ? 'var(--primary)' : '#e2e8f0'}; border-radius: 4px 4px 0 0; transition: height 0.3s ease;"></div>
+        <span style="font-size: 0.75rem; font-weight: 600; color: var(--text-muted); margin-bottom: 2px;">
+          ${d.dayLabel}
+        </span>
+      </div>
+    `;
+  }).join("");
+}
+
+async function startAnyPractice() {
+  const { subject, paper, topic, qType, tier } = getSelectedFilters();
+  const targetTiers = tier === "HT" ? ["HT", "both"] : ["FT", "both"];
+
+  let query = supabaseClient
+    .from("spec_points")
+    .select("id, subject, paper, topic_name")
+    .eq("subject", subject)
+    .eq("paper", paper);
+
+  if (topic) {
+    query = query.eq("topic_name", topic);
+  }
+
+  const { data: sp, error } = await query;
+
+  if (error || !sp || sp.length === 0) {
+    alert(`No matching specification items found for your selection choices.`);
+    return;
+  }
+
+  let qQuery = supabaseClient
+    .from("questions")
+    .select("spec_point_id")
+    .in("tier", targetTiers);
+      
+  if (qType) {
+    qQuery = qQuery.eq("question_type", qType);
+  }
+    
+  const { data: activeQs, error: activeQError } = await qQuery;
+      
+  if (activeQError) {
+    console.error("Error fetching active question spec links:", activeQError);
+  }
+
+  const activeIds = new Set((activeQs || []).map(q => q.spec_point_id));
+  const matchingSpecPoints = sp.filter(item => activeIds.has(item.id));
+
+  if (matchingSpecPoints.length === 0) {
+    const typeLabel = qType === "short_text" ? "Short Text / Written" : (qType || "any");
+    alert(`No structural questions found of type "${typeLabel}" loaded for the selected ${tier} tier topics.`);
+    return;
+  }
+
+  const chosen = matchingSpecPoints[Math.floor(Math.random() * matchingSpecPoints.length)];
+  await startSessionForSpecPoint(chosen.id, qType);
+}
+
+async function startSessionForSpecPoint(specPointId, qType = "") {
+  const { tier } = getSelectedFilters();
+  const targetTiers = tier === "HT" ? ["HT", "both"] : ["FT", "both"];
+
+  let query = supabaseClient
+    .from("questions")
+    .select("id,question_type,prompt,options,spec_point_id, resource_links")
+    .eq("spec_point_id", specPointId)
+    .in("tier", targetTiers);
+
+  if (qType) {
+    query = query.eq("question_type", qType);
+  }
+
+  const { data: qs, error } = await query.limit(10);
+
+  if (error || !qs || qs.length === 0) {
+    alert(`No structural questions found matching your filter rules for this topic folder.`);
+    return;
+  }
+
+  sessionQuestions = qs;
+  idx = 0;
+  if (dashSection) dashSection.classList.add("hidden");
+  if (sessionSection) sessionSection.classList.remove("hidden");
+  await loadQuestion();
+}
+
+// ====== 🔥 DYNAMIC DAILY LOGIN STREAK ENGINE ======
+async function checkAndUpdateStreak() {
+  if (!currentUser) return;
+
+  const todayStr = todayISO(); // Uses your app's existing "YYYY-MM-DD" date utility
+  
+  try {
+    // 1. Fetch the student's current streak metrics using user_id
+    let { data: profile, error } = await supabaseClient
+      .from("profiles")
+      .select("current_streak, last_login_date")
+      .eq("user_id", currentUser.id)
+      .single();
+
+    if (error && error.code !== "PGRST116") { // Ignore 'no rows found' code to handle fresh accounts gracefully
+      throw error;
+    }
+
+    // Fallback defaults if the row is somehow missing or unpopulated
+    let currentStreak = profile?.current_streak || 0;
+    const lastLoginStr = profile?.last_login_date;
+
+    if (!lastLoginStr) {
+      // First login ever: establish baseline streak of 1
+      currentStreak = 1;
+      await supabaseClient
+        .from("profiles")
+        .update({ current_streak: currentStreak, last_login_date: todayStr })
+        .eq("user_id", currentUser.id);
+        
+    } else if (lastLoginStr === todayStr) {
+      // Already checked in today: do nothing, maintain current count
+    } else {
+      // Calculate calendar differences
+      const dateToday = new Date(todayStr);
+      const dateLastLogin = new Date(lastLoginStr);
+      const timeDiff = dateToday.getTime() - dateLastLogin.getTime();
+      const daysDiff = Math.ceil(timeDiff / (1000 * 3600 * 24));
+
+      if (daysDiff === 1) {
+        // Logged in yesterday: streak builds up!
+        currentStreak += 1;
+      } else {
+        // Missed a day: streak chain broken. Reset back to 1.
+        currentStreak = 1;
+      }
+
+      // Update row states using user_id selector matching
+      await supabaseClient
+        .from("profiles")
+        .update({ current_streak: currentStreak, last_login_date: todayStr })
+        .eq("user_id", currentUser.id);
+    }
+
+    // 2. Render the final computed count into your HTML layout placeholder
+    const counterEl = el("streakCount");
+    if (counterEl) counterEl.textContent = currentStreak;
+
+  } catch (err) {
+    console.error("Streak calculations module skipped:", err);
+  }
+}
+
+// ====== QUESTION RENDERING + MARKING ======
+async function loadQuestion() {
+  currentQ = sessionQuestions[idx];
+  if (progress) progress.textContent = `Question ${idx + 1} of ${sessionQuestions.length}`;
+  if (feedback) feedback.innerHTML = "";
+  if (btnNext) btnNext.classList.add("hidden");
+  if (btnSubmit) btnSubmit.disabled = false;
+
+  const [keyRes, markRes] = await Promise.all([
+    supabaseClient.from("answer_keys").select("key_type,key_payload").eq("question_id", currentQ.id).maybeSingle(),
+    supabaseClient.from("mark_points").select("ao,point_text,feedback_if_missing,max_marks").eq("question_id", currentQ.id)
+  ]);
+
+  currentKey = keyRes.data;
+  currentMarkPoints = markRes.data || [];
+
+  renderQuestion(currentQ);
+}
+
+function renderQuestion(q) {
+  let html = `<div class="item"><div><strong>${escapeHtml(q.prompt)}</strong></div></div>`;
+
+  if (q.question_type === "mcq") {
+    const opts = Array.isArray(q.options) ? q.options : [];
+    html += `<div class="mcq-container">${opts.map(o => `<label class="mcq-option"><input type="radio" name="mcq" value="${escapeHtml(o)}"/><span>${escapeHtml(o)}</span></label>`).join("")}</div>`;
+  } else if (q.question_type === "numeric") {
+    html += `<div class="item"><label>Answer: <input id="numAns" type="number" step="any"/></label><label style="margin-left:10px;">Units: <input id="numUnit" type="text"/></label></div>`;
+  } else {
+    html += `<div class="item"><textarea id="txtAns" rows="4" style="width:100%;padding:10px;border-radius:10px;border:1px solid #ccc;background:#ffffff;color:#000000" placeholder="Type your text response here..."></textarea></div>`;
+  }
+
+  if (qBox) qBox.innerHTML = html;
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function markResponse(q, resp, key, markPoints) {
+  let total = 0, max = 1;
+  let ao = { AO1: 0, AO2: 0, AO3: 0 };
+  let missing = [], quality = 0;
+
+  if (!key) return { total: 0, max: 1, ao, missing, quality: 0, feedbackPayload: {} };
+
+  const cleanUrl = (q && typeof q.resource_links === "string" && q.resource_links.trim().toLowerCase().startsWith('http')) 
+    ? q.resource_links.trim() 
+    : null;
+      
+  if (key.key_type === "mcq") {
+    max = 1;
+    total = resp.answer === key.key_payload.correct ? 1 : 0;
+    quality = total ? 5 : 1;
+    if (total === 1) ao.AO1 = 1;
+    else {
+      missing.push({ 
+        ao: "AO1", 
+        text: `Expected choice: "${key.key_payload.correct}".`,
+        url: cleanUrl 
+      });
+    }
+  } 
+  else if (key.key_type === "numeric") {
+    max = 1;
+    const ans = key.key_payload.answer;
+    const tol = key.key_payload.tolerance ?? 0;
+    total = (resp.value !== null && Math.abs(resp.value - ans) <= tol) ? 1 : 0;
+    quality = total ? 5 : 1;
+    if (total === 1) ao.AO2 = 1;
+    else {
+      missing.push({ 
+        ao: "AO2", 
+        text: `Target value calculation was: ${ans} (±${tol}).`,
+        url: cleanUrl 
+      });
+    }
+  } 
+  else if (key.key_type === "keywords") {
+    const required = key.key_payload.required || [];
+    const optional = key.key_payload.optional || [];
+    const minOptional = key.key_payload.min_optional || 0;
+    const textRaw = (resp.text || "").toLowerCase();
+
+    // Clean punctuation and tokenize student response into individual words for word-by-word evaluation
+    const cleanStudentText = textRaw.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "");
+    const studentWords = cleanStudentText.split(/\s+/).filter(Boolean);
+
+    // ✅ FUZZY UPGRADE: Evaluate required terms
+    const hasAllRequired = required.every(targetKeyword => 
+      studentWords.some(userWord => isFuzzyMatch(userWord, targetKeyword, 0.85))
+    );
+
+    // ✅ FUZZY UPGRADE: Count matching optional keywords
+    const optionalHits = optional.filter(targetKeyword => 
+      studentWords.some(userWord => isFuzzyMatch(userWord, targetKeyword, 0.85))
+    ).length;
+
+    if (markPoints.length) {
+      max = markPoints.reduce((sum, mp) => sum + (mp.max_marks || 1), 0);
+
+      markPoints.forEach((mp) => {
+        let pointEarned = false;
+
+        if (mp.ao === "AO1") {
+          pointEarned = hasAllRequired;
+        } else {
+          pointEarned = optionalHits >= minOptional;
+        }
+
+        if (pointEarned) {
+          const awarded = (mp.max_marks || 1);
+          total += awarded;
+          ao[mp.ao] += awarded; 
+        } else {
+          if (mp.feedback_if_missing) {
+            missing.push({ 
+              ao: mp.ao, 
+              text: mp.feedback_if_missing,
+              url: cleanUrl 
+            });
+          }
+        }
+      });
+    } else {
+      max = 1;
+      total = (hasAllRequired && optionalHits >= minOptional) ? 1 : 0;
+      if (total === 1) ao.AO1 = 1;
+    }
+
+    if (total === 0) quality = 0;
+    else if (total < max) quality = 3;
+    else quality = 5;
+  }
+
+  return { total, max, ao, missing, quality, feedbackPayload: { missing } };
+}
+
+function renderFeedback(marking) {
+  const pct = Math.round((marking.total / marking.max) * 100);
+  const isPerfect = marking.total === marking.max;
+
+  let html = `<div><span class="${isPerfect ? "good" : "bad"}">${isPerfect ? "Correct" : "Not quite"}</span> — ${marking.total}/${marking.max} (${pct}%)</div>`;
+  html += `<hr/>`;
+  html += `<div><strong>AO breakdown</strong></div>`;
+  html += `<div class="muted">AO1: ${marking.ao.AO1} • AO2: ${marking.ao.AO2} • AO3: ${marking.ao.AO3}</div>`;
+
+  if (marking.missing && marking.missing.length > 0) {
+    html += `<hr/><div><strong>How to improve</strong></div>`;
+    html += marking.missing.map(m => `
+      <div class="item" style="margin: 5px 0; padding: 12px; background: #fff5f5; border-left: 3px solid #ff4d4d;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px;">
+          <div>
+            <span class="chip" style="background:#ff4d4d; color:white; padding:2px 6px; border-radius:4px; font-size:0.8rem; margin-right: 5px;">${m.ao}</span> 
+            ${escapeHtml(m.text)}
+          </div>
+          
+          ${m.url ? `
+            <a href="${m.url}" target="_blank" rel="noopener noreferrer" 
+               style="flex-shrink: 0; display: inline-block; padding: 4px 10px; background: var(--primary); color: white; text-decoration: none; font-size: 0.8rem; font-weight: 600; border-radius: 6px; transition: background 0.15s;">
+              Review Resource ↗
+            </a>
+          ` : ''}
+        </div>
+      </div>
+    `).join("");
+  } else {
+    html += `<hr/><div class="good">Nice — perfect marks on this specification point!</div>`;
+  }
+  return html;
+}
+
+if (btnSubmit) {
+  btnSubmit.onclick = async () => {
+    if (!currentUser) return;
+    btnSubmit.disabled = true;
+
+    const response = getResponsePayload(currentQ);
+    const marking = markResponse(currentQ, response, currentKey, currentMarkPoints);
+
+    if (feedback) feedback.innerHTML = renderFeedback(marking);
+    if (btnNext) btnNext.classList.remove("hidden");
+
+    try {
+      await supabaseClient.from("attempts").insert({
+        user_id: currentUser.id,
+        question_id: currentQ.id,
+        response_payload: response,
+        score_total: marking.total,
+        score_max: marking.max,
+        ao1_score: marking.ao.AO1,
+        ao2_score: marking.ao.AO2,
+        ao3_score: marking.ao.AO3,
+        feedback_payload: marking.feedbackPayload
+      });
+
+      await upsertSRS(currentQ.spec_point_id, marking.quality);
+    } catch(err) {
+      console.error("Sync backup failure logged:", err);
+    }
+  };
+}
+
+if (btnNext) {
+  btnNext.onclick = async () => {
+    idx++;
+    if (idx >= sessionQuestions.length) {
+      if (sessionSection) sessionSection.classList.add("hidden");
+      if (dashSection) dashSection.classList.remove("hidden");
+      await loadDashboard();
+      await loadWeeklyForecast();
+      await loadTopics();
+    } else {
+      await loadQuestion();
+    }
+  };
+}
+
+function getResponsePayload(q) {
+  if (q.question_type === "mcq") {
+    const picked = document.querySelector('input[name="mcq"]:checked')?.value ?? "";
+    return { type: "mcq", answer: picked };
+  }
+  if (q.question_type === "numeric") {
+    const val = parseFloat(el("numAns")?.value);
+    const unit = (el("numUnit")?.value || "").trim();
+    return { type: "numeric", value: isNaN(val) ? null : val, unit };
+  }
+  const text = (el("txtAns")?.value || "").trim();
+  return { type: "short_text", text };
+}
+
+async function upsertSRS(specPointId, quality) {
+  const { data: existing } = await supabaseClient
+    .from("srs_state")
+    .select("interval_days,ease_factor,repetitions,lapses")
+    .eq("user_id", currentUser.id)
+    .eq("spec_point_id", specPointId)
+    .maybeSingle();
+
+  const ef = existing?.ease_factor ?? 2.5;
+  const reps = existing?.repetitions ?? 0;
+  const interval = existing?.interval_days ?? 1;
+  const lapses = existing?.lapses ?? 0;
+
+  const upd = updateSRS({ quality, ef, reps, interval });
+  const nextDue = addDaysISO(upd.newInterval);
+
+  const payload = {
+    user_id: currentUser.id,
+    spec_point_id: specPointId,
+    due_date: nextDue,
+    interval_days: upd.newInterval,
+    ease_factor: upd.newEF,
+    repetitions: upd.newReps,
+    lapses: lapses + upd.lapse,
+    last_quality: quality,
+    updated_at: new Date().toISOString()
+  };
+
+  await supabaseClient.from("srs_state").upsert(payload);
+}
+
+function setSignedOutUI() {
+  if (btnSignOut) btnSignOut.classList.add("hidden");      
+  if (authSection) authSection.classList.remove("hidden");  
+
+  if (dashSection) dashSection.classList.add("hidden");
+  if (sessionSection) sessionSection.classList.add("hidden");
+
+  if (authMsg) authMsg.textContent = "Not signed in.";
+}
+
+function setSignedInUI(user) {
+  if (btnSignOut) btnSignOut.classList.remove("hidden");
+  if (authSection) authSection.classList.add("hidden");
+  if (dashSection) dashSection.classList.remove("hidden");
+
+  // ✅ FIX: Target selector dynamically at runtime to prevent initialization drops
+  const runtimeTierSelect = el("tierFilter");
+  if (runtimeTierSelect && !runtimeTierSelect.value) {
+    runtimeTierSelect.value = "FT";
+  }
+
+  if (userChip) userChip.textContent = `${user.email || user.id}`;
+  if (authMsg) authMsg.textContent = "Signed in ✅";
+
+  loadTopics();
+}
+
+async function loadTopics() {
+  if (!subjectFilter || !paperFilter || !topicFilter) return;
+
+  const subject = subjectFilter.value;
+  const paper = paperFilter.value;
+  const topic = topicFilter.value; 
+  const qType = el("typeFilter")?.value || "";
+  const { tier } = getSelectedFilters(); 
+  const targetTiers = tier === "HT" ? ["HT", "both"] : ["FT", "both"];
+
+  const { data: specPoints, error: spError } = await supabaseClient
+    .from("spec_points")
+    .select("id, topic_name")
+    .eq("subject", subject)
+    .eq("paper", paper)
+    .order("topic_number", { ascending: true});
+
+  if (spError) {
+    topicFilter.innerHTML = `<option value="">All topics (0)</option>`;
+    return;
+  }
+
+  const rows = specPoints || [];
+  
+  let qQuery = supabaseClient
+    .from("questions")
+    .select("id, spec_point_id, question_type, tier")
+    .in("tier", targetTiers);
+
+  if (qType) {
+    qQuery = qQuery.eq("question_type", qType);
+  }
+  const { data: questions, error: qError } = await qQuery;
+
+  if (qError) {
+    console.error("Error retrieving question counts:", qError);
+  }
+
+  const specToTopicMap = {};
+  rows.forEach(sp => {
+    specToTopicMap[sp.id] = sp.topic_name;
+  });
+
+  const topicCounts = {};
+  const uniqueTopics = [...new Set(rows.map(r => r.topic_name).filter(Boolean))];
+  uniqueTopics.forEach(t => {
+    topicCounts[t] = 0;
+  });
+
+  let totalMatchingQuestions = 0;
+  (questions || []).forEach(q => {
+    const matchedTopic = specToTopicMap[q.spec_point_id];
+    if (matchedTopic !== undefined) {
+      topicCounts[matchedTopic] = (topicCounts[matchedTopic] || 0) + 1;
+      totalMatchingQuestions++;
+    }
+  });
+
+  const currentSelectedTopic = topicFilter.value;
+  topicFilter.innerHTML =
+    `<option value="">All topics (${totalMatchingQuestions})</option>` +
+    uniqueTopics.map(t => `
+      <option value="${t}">${t} (${topicCounts[t]})</option>
+    `).join("");
+  topicFilter.value = currentSelectedTopic;
+
+  const summaryDiv = el("topicCountSummary");
+  if (summaryDiv) {
+    if (qType) {
+      const typeLabel = qType === "short_text" ? "written short-text" : qType.toUpperCase();
+      summaryDiv.textContent = `Found ${totalMatchingQuestions} total ${typeLabel} questions for ${subject.toUpperCase()} ${paper.toUpperCase()} (${tier}).`;
+    } else {
+      summaryDiv.textContent = `Found ${totalMatchingQuestions} total questions across all types for ${subject.toUpperCase()} ${paper.toUpperCase()} (${tier}).`;
+    }
+  }
+
+  const dueBtn = el("btnStartDue");
+  if (dueBtn) {
+    const today = todayISO();
+    
+    const { data: rawDue } = await supabaseClient
+      .from("srs_state")
+      .select(`spec_point_id, due_date, spec_points(subject, paper, topic_name)`)
+      .eq("user_id", currentUser?.id)
+      .lte("due_date", today);
+
+    const dueSpecIds = new Set((rawDue || []).map(d => d.spec_point_id));
+
+    let totalDueQuestionsAvailable = 0;
+
+    (questions || []).forEach(q => {
+      const parentTopic = specToTopicMap[q.spec_point_id];
+      const isSpecDue = dueSpecIds.has(q.spec_point_id);
+      const matchesTopicFilter = topic ? (parentTopic === topic) : (parentTopic !== undefined);
+
+      if (isSpecDue && matchesTopicFilter) {
+        totalDueQuestionsAvailable++;
+      }
+    });
+
+    const targetSessionCount = Math.min(totalDueQuestionsAvailable, 10);
+
+    if (targetSessionCount > 0) {
+      dueBtn.textContent = `You have ${targetSessionCount} due questions for selected topic(s)`;
+      dueBtn.disabled = false;
+    } else {
+      dueBtn.textContent = "No Scheduled Items Due for Type/Topic";
+      dueBtn.disabled = true;
+    }
+  }
+  // =============================================================
+  // ✅ NEW EXTRACTION LAYER: COMPUTE SYLLABUS MASTERY IN REAL-TIME
+  // =============================================================
+  if (masteryWrapper && currentUser) {
+    try {
+      // 1. Fetch all historic quiz attempts for this specific user
+      const { data: attempts, error: attError } = await supabaseClient
+        .from("attempts")
+        .select("score_total, score_max, question_id");
+
+      if (attError) throw attError;
+
+      // 2. Build a quick question-to-spec lookup map from the active questions pool
+      const questionToSpecMap = {};
+      (questions || []).forEach(q => {
+        questionToSpecMap[q.id] = q.spec_point_id;
+      });
+
+      // 3. Tally running totals of earned marks vs max marks per topic_name
+      const topicMasteryTally = {};
+      uniqueTopics.forEach(t => {
+        topicMasteryTally[t] = { earned: 0, max: 0 };
+      });
+
+      (attempts || []).forEach(att => {
+        const specId = questionToSpecMap[att.question_id];
+        const topicName = specToTopicMap[specId];
+
+        // Only calculate if the attempt belongs to a topic currently on the user's filtered dashboard view
+        if (topicName !== undefined && topicMasteryTally[topicName]) {
+          topicMasteryTally[topicName].earned += att.score_total;
+          topicMasteryTally[topicName].max += att.score_max;
+        }
+      });
+
+      // 4. Render visual progress items for each unique topic node
+      masteryWrapper.innerHTML = uniqueTopics.map(t => {
+        const tally = topicMasteryTally[t];
+        const hasAttempts = tally.max > 0;
+        const percentage = hasAttempts ? Math.round((tally.earned / tally.max) * 100) : 0;
+
+        // Determine badge color theme based on classic mastery threshold milestones
+        let colorTheme = "#bdc3c7"; // Default Grey (unattempted)
+        if (hasAttempts) {
+          if (percentage < 50) colorTheme = "var(--error)";       // Red (<50%)
+          else if (percentage < 75) colorTheme = "#f39c12";       // Amber (50%-75%)
+          else colorTheme = "var(--success)";                     // Green (75%+)
+        }
+
+        return `
+          <div style="background: #fafbfc; border: 1px solid #edf2f7; padding: 12px; border-radius: 8px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 0.9rem; font-weight: 600;">
+              <span style="color: #2c3e50;">${t}</span>
+              <span style="color: ${colorTheme}; font-weight: 700;">
+                ${hasAttempts ? `${percentage}%` : "No Attempts"}
+              </span>
+            </div>
+            <div style="width: 100%; height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden;">
+              <div style="width: ${percentage}%; height: 100%; background: ${colorTheme}; transition: width 0.4s ease-on-out;"></div>
+            </div>
+            <div class="muted" style="font-size: 0.75rem; margin-top: 4px;">
+              ${hasAttempts ? `Earned ${tally.earned} of ${tally.max} total marks across syllabus items.` : "No questions attempted yet."}
+            </div>
+          </div>
+        `;
+      }).join("");
+
+    } catch (err) {
+      console.error("Mastery generation block execution dropped:", err);
+      masteryWrapper.innerHTML = `<div class="muted" style="text-align: center;">Unable to populate mastery parameters.</div>`;
+    }
+  }
+}
+
+// ====== FIXED INTERACTION HANDLERS (EVENT LISTENERS) ======
+if (subjectFilter) {
+  subjectFilter.addEventListener("change", () => {
+    console.log("Subject constraint altered -> refreshing layout...");
+    loadTopics();
+  });
+}
+
+if (paperFilter) {
+  paperFilter.addEventListener("change", () => {
+    console.log("Paper constraint altered -> refreshing layout...");
+    loadTopics();
+  });
+}
+
+if (topicFilter) {
+  topicFilter.addEventListener("change", () => {
+    console.log("Topic constraint altered -> recalculating due run counts...");
+    loadTopics();
+  });
+}
+
+// Intercept optional question type dropdown state switches safely
+const liveTypeFilter = el("typeFilter");
+if (liveTypeFilter) {
+  liveTypeFilter.addEventListener("change", () => {
+    console.log("Typology query target modified -> re-tallying nodes...");
+    loadTopics();
+  });
+}
+
+// ====== MONOLITHIC ENTRY ENGINE GATE ======
+supabaseClient.auth.onAuthStateChange((event, session) => {
+  if (session?.user) {
+    currentUser = session.user;
+    setSignedInUI(currentUser);
+    loadDashboard();
+    loadWeeklyForecast();
+    checkAndUpdateStreak();
+    
+    // ✅ FIX: Only look for the dropdown element once authenticated and the card becomes visible in the DOM
+    const runtimeTierSelect = el("tierFilter");
+    if (runtimeTierSelect) {
+      runtimeTierSelect.addEventListener("change", () => {
+        console.log("Exam entry tier altered -> updating question footprint allocations...");
+        loadTopics();
+      });
+    }
+  } else {
+    currentUser = null;
+    setSignedOutUI();
+  }
+});
