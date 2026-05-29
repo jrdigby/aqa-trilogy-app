@@ -125,20 +125,6 @@ function getLevenshteinDistance(s1, s2) {
   return track[s2.length][s1.length];
 }
 
-function isFuzzyMatch(userWord, targetKeyword, threshold = 0.85) {
-  const w1 = userWord.toLowerCase().trim();
-  const w2 = targetKeyword.toLowerCase().trim();
-  
-  if (w1 === w2) return true; 
-  if (w1.length === 0 || w2.length === 0) return false;
-  
-  const distance = getLevenshteinDistance(w1, w2);
-  const maxLength = Math.max(w1.length, w2.length);
-  const similarity = 1 - (distance / maxLength);
-  
-  return similarity >= threshold;
-}
-
 // ====== AUTH ======
 if (btnSignUp) {
   btnSignUp.onclick = async () => {
@@ -172,6 +158,20 @@ if (btnSignOut) {
     await supabaseClient.auth.signOut();
     setSignedOutUI();
   };
+}
+
+function isFuzzyMatch(userWord, targetKeyword, threshold = 0.85) {
+  const w1 = userWord.toLowerCase().trim();
+  const w2 = targetKeyword.toLowerCase().trim();
+  
+  if (w1 === w2) return true; 
+  if (w1.length === 0 || w2.length === 0) return false;
+  
+  const distance = getLevenshteinDistance(w1, w2);
+  const maxLength = Math.max(w1.length, w2.length);
+  const similarity = 1 - (distance / maxLength);
+  
+  return similarity >= threshold;
 }
 
 // ====== DASHBOARD ======
@@ -777,21 +777,6 @@ if (btnNext) {
   };
 }
 
-// ====== PRE-LOAD CORRECTION TRACK ======
-function getResponsePayload(q) {
-  if (q.question_type === "mcq") {
-    const picked = document.querySelector('input[name="mcq"]:checked')?.value ?? "";
-    return { type: "mcq", answer: picked };
-  }
-  if (q.question_type === "numeric") {
-    const val = parseFloat(el("numAns")?.value);
-    const unit = (el("numUnit")?.value || "").trim();
-    return { type: "numeric", value: isNaN(val) ? null : val, unit };
-  }
-  const text = (el("txtAns")?.value || "").trim();
-  return { type: "short_text", text };
-}
-
 async function upsertSRS(specPointId, quality) {
   const { data: existing } = await supabaseClient
     .from("srs_state")
@@ -821,16 +806,6 @@ async function upsertSRS(specPointId, quality) {
   };
 
   await supabaseClient.from("srs_state").upsert(payload);
-}
-
-function setSignedOutUI() {
-  if (btnSignOut) btnSignOut.classList.add("hidden");      
-  if (authSection) authSection.classList.remove("hidden");  
-
-  if (dashSection) dashSection.classList.add("hidden");
-  if (sessionSection) sessionSection.classList.add("hidden");
-
-  if (authMsg) authMsg.textContent = "Not signed in.";
 }
 
 // ====== PRE-LOAD SIGNED IN WORKFLOW SYSTEM ======
@@ -987,11 +962,15 @@ async function loadTopics() {
 
   const summaryDiv = el("topicCountSummary");
   if (summaryDiv) {
+    // Correctly filter metric calculations to reflect selected topic scope count rather than grand-total
+    const displayCount = topic ? (topicCounts[topic] || 0) : totalMatchingQuestions;
+    const scopeLabel = topic ? `topic "${topic}" in ` : "all types for ";
+    
     if (qType) {
       const typeLabel = qType === "short_text" ? "written short-text" : qType.toUpperCase();
-      summaryDiv.textContent = `Found ${totalMatchingQuestions} total ${typeLabel} questions for ${subject.toUpperCase()} ${paper.toUpperCase()} (${tier}).`;
+      summaryDiv.textContent = `Found ${displayCount} total ${typeLabel} questions for ${scopeLabel}${subject.toUpperCase()} ${paper.toUpperCase()} (${tier}).`;
     } else {
-      summaryDiv.textContent = `Found ${totalMatchingQuestions} total questions across all types for ${subject.toUpperCase()} ${paper.toUpperCase()} (${tier}).`;
+      summaryDiv.textContent = `Found ${displayCount} total questions for ${scopeLabel}${subject.toUpperCase()} ${paper.toUpperCase()} (${tier}).`;
     }
   }
 
