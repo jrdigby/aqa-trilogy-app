@@ -10,16 +10,12 @@ window.addEventListener("unhandledrejection", (e) => {
   alert("PROMISE ERROR: " + (e.reason?.message || e.reason));
 });
 
-// ====== CONFIG ======
 const SUPABASE_URL = "https://cbycwfhczyvzzhthpgsw.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_xD75RVd3kyvxs3IK_WsNag_eoCAZF4W";
 
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// ====== GLOBAL UTILITIES ======
 const escapeHtml = (s) => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-
-// ====== UI ELEMENTS ======
 const el = (id) => document.getElementById(id);
 
 const authSection = el("auth");
@@ -47,23 +43,20 @@ const btnNext = el("btnNext");
 const subjectFilter = el("subjectFilter");
 const paperFilter = el("paperFilter");
 const topicFilter = el("topicFilter");
-const forecastWrapper = el("forecastWrapper"); // Lookahead chart tracker element
-const masteryWrapper = el("masteryWrapper"); // Track mastery list wrapper container
+const forecastWrapper = el("forecastWrapper"); 
+const masteryWrapper = el("masteryWrapper"); 
 
-// ====== SESSION STATE ======
 let currentUser = null;
 let sessionQuestions = [];
 let idx = 0;
 let currentQ = null;
 let currentKey = null;
 let currentMarkPoints = [];
-let isInitializingPipeline = false; // State lock to prevent duplicate parallel auth triggers
+let isInitializingPipeline = false; 
 
-// Timeout utility to protect execution contexts from infinite database stalls
 const timeoutPromise = (ms, message = "Database connection timed out") => 
   new Promise((_, reject) => setTimeout(() => reject(new Error(message)), ms));
 
-// ====== HELPERS ======
 function getSelectedFilters() {
   const subject = subjectFilter?.value || "biology";
   const paper = paperFilter?.value || "paper1";
@@ -82,7 +75,6 @@ function addDaysISO(days) {
   return d.toISOString().slice(0,10);
 }
 
-// SM-2 style update (simple)
 function updateSRS({ quality, ef, reps, interval }) {
   let newEF = ef + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02));
   newEF = Math.max(1.3, newEF);
@@ -105,7 +97,6 @@ function updateSRS({ quality, ef, reps, interval }) {
   return { newEF, newReps, newInterval, lapse };
 }
 
-// ====== 🧠 FUZZY STRING MATCHING ENGINE (LEVENSHTEIN DISTANCE) ======
 function getLevenshteinDistance(s1, s2) {
   const track = Array(s2.length + 1).fill(null).map(() => Array(s1.length + 1).fill(null));
   
@@ -116,9 +107,9 @@ function getLevenshteinDistance(s1, s2) {
     for (let i = 1; i <= s1.length; i += 1) {
       const indicator = s1[i - 1] === s2[j - 1] ? 0 : 1;
       track[j][i] = Math.min(
-        track[j][i - 1] + 1, // deletion
-        track[j - 1][i] + 1, // insertion
-        track[j - 1][i - 1] + indicator // substitution
+        track[j][i - 1] + 1, 
+        track[j - 1][i] + 1, 
+        track[j - 1][i - 1] + indicator 
       );
     }
   }
@@ -139,7 +130,6 @@ function isFuzzyMatch(userWord, targetKeyword, threshold = 0.85) {
   return similarity >= threshold;
 }
 
-// ====== AUTH ======
 if (btnSignUp) {
   btnSignUp.onclick = async () => {
     authMsg.textContent = "Creating account…";
@@ -174,7 +164,6 @@ if (btnSignOut) {
   };
 }
 
-// ====== DASHBOARD ======
 async function loadDashboard() {
   if (!currentUser) return;
   const today = todayISO();
@@ -292,7 +281,6 @@ if (btnStartAny) {
   };
 }
 
-// ====== 7-DAY WORKLOAD REVISION FORECAST ======
 async function loadWeeklyForecast() {
   if (!currentUser || !forecastWrapper) return;
 
@@ -450,7 +438,6 @@ async function startSessionForSpecPoint(specPointId, qType = "") {
   await loadQuestion();
 }
 
-// ====== 🔥 DYNAMIC DAILY LOGIN STREAK ENGINE ======
 async function checkAndUpdateStreak() {
   if (!currentUser) return;
 
@@ -506,7 +493,6 @@ async function checkAndUpdateStreak() {
   }
 }
 
-// ====== QUESTION RENDERING + MARKING ======
 async function loadQuestion() {
   currentQ = sessionQuestions[idx];
   if (progress) progress.textContent = `Question ${idx + 1} of ${sessionQuestions.length}`;
@@ -647,8 +633,39 @@ function renderFeedback(marking) {
 
   let html = `<div><span class="${isPerfect ? "good" : "bad"}">${isPerfect ? "Correct" : "Not quite"}</span> — ${marking.total}/${marking.max} (${pct}%)</div>`;
   html += `<hr/>`;
-  html += `<div><strong>AO breakdown</strong></div>`;
-  html += `<div class="muted">AO1: ${marking.ao.AO1} • AO2: ${marking.ao.AO2} • AO3: ${marking.ao.AO3}</div>`;
+  
+  // Highlighting each AO on a separate line with a comprehensive scientific definition
+  html += `<div style="margin-top: 10px; margin-bottom: 5px;"><strong>GCSE Assessment Objectives (AO) Breakdown</strong></div>`;
+  html += `<div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">`;
+  
+  const ao1Awarded = marking.ao.AO1 || 0;
+  const ao2Awarded = marking.ao.AO2 || 0;
+  const ao3Awarded = marking.ao.AO3 || 0;
+
+  html += `
+    <div style="font-size: 0.85rem; padding: 8px 12px; background: #f8fafc; border-left: 4px solid #3b82f6; border-radius: 0 6px 6px 0; box-shadow: 0 1px 2px rgba(0,0,0,0.02);">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <span style="font-weight: 700; color: #1e3a8a;">AO1: Knowledge & Understanding</span> 
+        <span class="chip" style="font-weight: 700; background: ${ao1Awarded > 0 ? '#10b981' : '#cbd5e1'}; color: white; padding: 2px 6px; border-radius: 4px;">${ao1Awarded} marks</span>
+      </div>
+      <div style="font-size: 0.76rem; color: #475569; margin-top: 4px; line-height: 1.3;">Demonstrate knowledge and understanding of scientific ideas, processes, techniques, and procedures.</div>
+    </div>
+    <div style="font-size: 0.85rem; padding: 8px 12px; background: #f8fafc; border-left: 4px solid #10b981; border-radius: 0 6px 6px 0; box-shadow: 0 1px 2px rgba(0,0,0,0.02);">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <span style="font-weight: 700; color: #065f46;">AO2: Application of Science</span> 
+        <span class="chip" style="font-weight: 700; background: ${ao2Awarded > 0 ? '#10b981' : '#cbd5e1'}; color: white; padding: 2px 6px; border-radius: 4px;">${ao2Awarded} marks</span>
+      </div>
+      <div style="font-size: 0.76rem; color: #475569; margin-top: 4px; line-height: 1.3;">Apply knowledge and understanding of scientific ideas, processes, techniques, and procedures in theoretical and practical contexts.</div>
+    </div>
+    <div style="font-size: 0.85rem; padding: 8px 12px; background: #f8fafc; border-left: 4px solid #f59e0b; border-radius: 0 6px 6px 0; box-shadow: 0 1px 2px rgba(0,0,0,0.02);">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <span style="font-weight: 700; color: #78350f;">AO3: Analysis & Evaluation</span> 
+        <span class="chip" style="font-weight: 700; background: ${ao3Awarded > 0 ? '#10b981' : '#cbd5e1'}; color: white; padding: 2px 6px; border-radius: 4px;">${ao3Awarded} marks</span>
+      </div>
+      <div style="font-size: 0.76rem; color: #475569; margin-top: 4px; line-height: 1.3;">Analyse, interpret, and evaluate scientific information, ideas, and evidence to make judgements, draw conclusions, and develop procedures.</div>
+    </div>
+  `;
+  html += `</div>`;
 
   if (currentQ.question_type === "short_text" && currentKey && currentKey.key_type === "keywords") {
     const required = currentKey.key_payload.required || [];
@@ -808,7 +825,6 @@ async function upsertSRS(specPointId, quality) {
   await supabaseClient.from("srs_state").upsert(payload);
 }
 
-// ====== PRE-LOAD RESOLUTION PLUGS ======
 function getResponsePayload(q) {
   if (!q) return { type: "short_text", text: "" };
   if (q.question_type === "mcq") {
@@ -834,7 +850,6 @@ function setSignedOutUI() {
   if (authMsg) authMsg.textContent = "Not signed in.";
 }
 
-// ====== PRE-LOAD SIGNED IN WORKFLOW SYSTEM ======
 async function setSignedInUI(user) {
   console.log("DEBUG setSignedInUI: Started function successfully.");
   if (btnSignOut) btnSignOut.classList.remove("hidden");
@@ -864,7 +879,6 @@ async function setSignedInUI(user) {
       .eq("user_id", user.id)
       .maybeSingle();
 
-    // Race the database lookup against a 4-second timeout limit to accommodate free tier cold starts
     const result = await Promise.race([dbQuery, timeoutPromise(4000, "Profiles check timed out")]);
     
     if (result && result.error) {
@@ -877,10 +891,8 @@ async function setSignedInUI(user) {
     console.warn("DEBUG setSignedInUI: Profiles fetch failed or timed out. Applying fallback configuration safely. Error:", err.message || err);
   }
 
-  // Process the loaded profile metrics
   if (profile && profile.preferred_tier && runtimeTierSelect) {
     let mappedTier = profile.preferred_tier;
-    // Map full word schema values back to short codes just in case
     if (mappedTier === "foundation") mappedTier = "FT";
     if (mappedTier === "higher") mappedTier = "HT";
     
@@ -902,7 +914,6 @@ async function setSignedInUI(user) {
   }
 }
 
-// ====== DEFINITIVE DECLARATION LAYER FOR THE THE TOPICS SYNC ENGINE ======
 async function loadTopics() {
   if (!subjectFilter || !paperFilter || !topicFilter) {
     console.error("DEBUG loadTopics: Required DOM select elements not bound.");
@@ -918,7 +929,6 @@ async function loadTopics() {
 
   console.log(`DEBUG loadTopics: Launching parallel concurrent database query batch...`);
 
-  // Define each query target independently so they can resolve concurrently
   const specPointsQuery = supabaseClient
     .from("spec_points")
     .select("id, topic_name")
@@ -944,26 +954,32 @@ async function loadTopics() {
 
   const attemptsQuery = supabaseClient
     .from("attempts")
-    .select("score_total, score_max, question_id");
+    .select("score_total, score_max, question_id, ao1_score, ao2_score, ao3_score");
 
-  // Fire all queries simultaneously using Promise.all with explicit fallback catches
-  const [specPointsRes, questionsRes, srsStateRes, attemptsRes] = await Promise.all([
+  // Fetching the mark_points schema in parallel to calculate total potential AO values for questions
+  const markPointsQuery = supabaseClient
+    .from("mark_points")
+    .select("question_id, ao, max_marks");
+
+  const [specPointsRes, questionsRes, srsStateRes, attemptsRes, markPointsRes] = await Promise.all([
     Promise.race([specPointsQuery, timeoutPromise(4000, "spec_points lookup timed out")]).catch(err => ({ error: err, data: [] })),
     Promise.race([questionsQuery, timeoutPromise(4000, "questions lookup timed out")]).catch(err => ({ error: err, data: [] })),
     Promise.race([srsStateQuery, timeoutPromise(4000, "srs_state lookup timed out")]).catch(err => ({ error: err, data: [] })),
-    Promise.race([attemptsQuery, timeoutPromise(4000, "attempts statistics lookup timed out")]).catch(err => ({ error: err, data: [] }))
+    Promise.race([attemptsQuery, timeoutPromise(4000, "attempts statistics lookup timed out")]).catch(err => ({ error: err, data: [] })),
+    Promise.race([markPointsQuery, timeoutPromise(4000, "mark_points list lookup timed out")]).catch(err => ({ error: err, data: [] }))
   ]);
 
-  // Log explicit error details for timeout visibility, without causing execution crashes
   if (specPointsRes.error) console.error("DEBUG loadTopics: spec_points lookup stalled or crashed:", specPointsRes.error);
   if (questionsRes.error) console.error("DEBUG loadTopics: questions lookup stalled or crashed:", questionsRes.error);
   if (srsStateRes.error) console.warn("DEBUG loadTopics: srs_state logs fetch stalled or crashed:", srsStateRes.error);
   if (attemptsRes.error) console.warn("DEBUG loadTopics: attempts statistics failed to resolve safely:", attemptsRes.error);
+  if (markPointsRes.error) console.warn("DEBUG loadTopics: mark_points details resolution failed safely:", markPointsRes.error);
 
   const rows = specPointsRes.data || [];
   const questions = questionsRes.data || [];
   const rawDue = srsStateRes.data || [];
   const attempts = attemptsRes.data || [];
+  const markPoints = markPointsRes.data || [];
 
   console.log(`DEBUG loadTopics: All queries completed. Processing payloads... [Points: ${rows.length}, Questions: ${questions.length}, Due: ${rawDue.length}]`);
 
@@ -1091,9 +1107,134 @@ async function loadTopics() {
       masteryWrapper.innerHTML = `<div class="muted" style="text-align: center;">Unable to populate mastery parameters.</div>`;
     }
   }
+
+  let aoMasteryWrapper = el("aoMasteryWrapper");
+  if (!aoMasteryWrapper && masteryWrapper) {
+    const parent = masteryWrapper.parentNode;
+    
+    const header = document.createElement("div");
+    header.innerHTML = `<h3 style="margin-top: 24px; margin-bottom: 12px; font-weight: 700; color: var(--text);">Assessment Objective (AO) Mastery</h3>`;
+    
+    aoMasteryWrapper = document.createElement("div");
+    aoMasteryWrapper.id = "aoMasteryWrapper";
+    aoMasteryWrapper.style.display = "grid";
+    aoMasteryWrapper.style.gridTemplateColumns = "repeat(auto-fit, minmax(220px, 1fr))";
+    aoMasteryWrapper.style.gap = "16px";
+    aoMasteryWrapper.style.marginBottom = "24px";
+    
+    parent.insertBefore(header, masteryWrapper.nextSibling);
+    parent.insertBefore(aoMasteryWrapper, header.nextSibling);
+  }
+
+  if (aoMasteryWrapper && currentUser) {
+    try {
+      const qMaxAOMap = {};
+      
+      // Seed base AO max scores based on active loaded question configurations
+      questions.forEach(q => {
+        qMaxAOMap[q.id] = { AO1: 0, AO2: 0, AO3: 0 };
+        if (q.question_type === "mcq") {
+          qMaxAOMap[q.id].AO1 = 1;
+        } else if (q.question_type === "numeric") {
+          qMaxAOMap[q.id].AO2 = 1;
+        }
+      });
+
+      // Layer optional and required keyword mark points on top of base values
+      markPoints.forEach(mp => {
+        if (qMaxAOMap[mp.question_id]) {
+          const aoKey = mp.ao;
+          if (qMaxAOMap[mp.question_id][aoKey] !== undefined) {
+            qMaxAOMap[mp.question_id][aoKey] += (mp.max_marks || 1);
+          }
+        }
+      });
+
+      const aoStats = {
+        AO1: { earned: 0, max: 0 },
+        AO2: { earned: 0, max: 0 },
+        AO3: { earned: 0, max: 0 }
+      };
+
+      attempts.forEach(att => {
+        const qId = att.question_id;
+        const ao1_earned = att.ao1_score || 0;
+        const ao2_earned = att.ao2_score || 0;
+        const ao3_earned = att.ao3_score || 0;
+
+        aoStats.AO1.earned += ao1_earned;
+        aoStats.AO2.earned += ao2_earned;
+        aoStats.AO3.earned += ao3_earned;
+
+        if (qMaxAOMap[qId]) {
+          aoStats.AO1.max += qMaxAOMap[qId].AO1;
+          aoStats.AO2.max += qMaxAOMap[qId].AO2;
+          aoStats.AO3.max += qMaxAOMap[qId].AO3;
+        } else {
+          aoStats.AO1.max += ao1_earned;
+          aoStats.AO2.max += ao2_earned;
+          aoStats.AO3.max += ao3_earned;
+        }
+      });
+
+      const aosConfig = [
+        {
+          id: "AO1",
+          name: "AO1: Recall & Concepts",
+          desc: "Demonstrate knowledge and understanding of scientific ideas, processes, techniques, and procedures.",
+          color: "#3b82f6", 
+          border: "#bfdbfe"
+        },
+        {
+          id: "AO2",
+          name: "AO2: Theory Application",
+          desc: "Apply knowledge and understanding of scientific ideas, processes, techniques, and procedures in theoretical and practical scenarios.",
+          color: "#10b981", 
+          border: "#a7f3d0"
+        },
+        {
+          id: "AO3",
+          name: "AO3: Analysis & Evaluation",
+          desc: "Analyse, interpret, and evaluate scientific information, ideas, and evidence to make judgements and decisions.",
+          color: "#f59e0b", 
+          border: "#fde68a"
+        }
+      ];
+
+      aoMasteryWrapper.innerHTML = aosConfig.map(ao => {
+        const stats = aoStats[ao.id];
+        const hasAttempts = stats.max > 0;
+        const percentage = hasAttempts ? Math.round((stats.earned / stats.max) * 100) : 0;
+
+        return `
+          <div style="background: #ffffff; border: 1px solid ${ao.border}; padding: 16px; border-radius: 12px; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+            <div>
+              <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+                <span style="font-weight: 700; color: #1e293b; font-size: 0.95rem; line-height: 1.3;">${ao.name}</span>
+                <span style="font-size: 1.1rem; font-weight: 800; color: ${ao.color};">${hasAttempts ? `${percentage}%` : "0%"}</span>
+              </div>
+              <p style="font-size: 0.76rem; color: #64748b; line-height: 1.4; margin-bottom: 12px;">${ao.desc}</p>
+            </div>
+            <div>
+              <div style="width: 100%; height: 8px; background: #f1f5f9; border-radius: 4px; overflow: hidden; margin-bottom: 6px;">
+                <div style="width: ${percentage}%; height: 100%; background: ${ao.color}; border-radius: 4px; transition: width 0.5s ease-out;"></div>
+              </div>
+              <div style="font-size: 0.72rem; color: #475569; display: flex; justify-content: space-between;">
+                <span>Earned: <strong>${stats.earned}</strong> of <strong>${stats.max}</strong> max marks</span>
+                <span style="font-weight: 600; color: #64748b;">${hasAttempts ? 'Active Mastery' : 'No Attempts'}</span>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join("");
+
+    } catch (aoErr) {
+      console.error("DEBUG loadTopics: Failed to render AO mastery graph:", aoErr);
+      aoMasteryWrapper.innerHTML = `<div class="muted" style="text-align: center; padding: 10px;">AO mastery tracker offline (waiting for database interactions).</div>`;
+    }
+  }
 }
 
-// ====== FIXED INTERACTION HANDLERS (EVENT LISTENERS) WITH LIFECYCLE DEBUGGING ======
 console.log("DEBUG: Initializing top-level event listeners...");
 
 if (subjectFilter) {
@@ -1149,14 +1290,12 @@ if (liveTypeFilter) {
   console.log("DEBUG INFO: Optional #typeFilter element not present.");
 }
 
-// ====== MONOLITHIC ENTRY ENGINE GATE ======
 console.log("DEBUG: Hooking up supabaseClient.auth.onAuthStateChange...");
 
 supabaseClient.auth.onAuthStateChange(async (event, session) => {
   console.log(`DEBUG AUTH CHG: Event fired! [Event: ${event}]`, session ? `User ID: ${session.user.id}` : "No active session (session is null)");
   
   if (session?.user) {
-    // Block parallel execution of initialization loops for redundant auth event firings
     if (currentUser && currentUser.id === session.user.id && isInitializingPipeline) {
       console.log(`DEBUG AUTH CHG: Blocked parallel initialization pipeline for User ID: ${session.user.id}`);
       return;
@@ -1167,7 +1306,6 @@ supabaseClient.auth.onAuthStateChange(async (event, session) => {
     console.log("DEBUG AUTH CHG: currentUser set. Initiating parallel concurrent setup pipeline...");
     
     try {
-      // Execute all major dashboard tasks concurrently to dramatically speed up cold database starts
       console.log("DEBUG AUTH CHG: Issuing concurrent Promises for signed in widgets...");
       await Promise.all([
         setSignedInUI(currentUser),
@@ -1184,7 +1322,6 @@ supabaseClient.auth.onAuthStateChange(async (event, session) => {
       isInitializingPipeline = false;
     }
     
-    // Wire up or reset the tier configuration listener
     const runtimeTierSelect = el("tierFilter");
     if (runtimeTierSelect) {
       console.log("DEBUG AUTH CHG: #tierFilter identified. Binding dedicated .onchange override context safely.");
