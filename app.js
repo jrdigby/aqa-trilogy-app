@@ -835,7 +835,7 @@ async function loadTopics() {
     .order("topic_number", { ascending: true});
 
   if (spError) {
-    topicFilter.innerHTML = `<option value="">All topics (0)</option>';`;
+    topicFilter.innerHTML = `<option value="">All topics (0)</option>`;
     return;
   }
 
