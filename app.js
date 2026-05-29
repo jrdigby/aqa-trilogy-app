@@ -16,6 +16,10 @@ const SUPABASE_ANON_KEY = "sb_publishable_xD75RVd3kyvxs3IK_WsNag_eoCAZF4W";
 
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// ====== GLOBAL UTILITIES ======
+// ✅ FIXED: Shifted to a globally scoped arrow constant to prevent lexical resolution failures inside map callbacks
+const escapeHtml = (s) => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
 // ====== UI ELEMENTS ======
 const el = (id) => document.getElementById(id);
 
@@ -34,7 +38,7 @@ const progress = el("progress");
 
 const btnSignUp = el("btnSignUp");
 const btnSignIn = el("btnSignIn");
-const btnSignOut = el("btnSignOut");   
+const btnSignOut = el("btnSignOut");    
 
 const btnStartDue = el("btnStartDue");
 const btnStartAny = el("btnStartAny");
@@ -500,10 +504,6 @@ function renderQuestion(q) {
   if (qBox) qBox.innerHTML = html;
 }
 
-function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
-
 function markResponse(q, resp, key, markPoints) {
   let total = 0, max = 1;
   let ao = { AO1: 0, AO2: 0, AO3: 0 };
@@ -701,6 +701,52 @@ function renderFeedback(marking) {
     html += `<hr/><div class="good">Nice — perfect marks on this specification point!</div>`;
   }
   return html;
+}
+
+if (btnSubmit) {
+  btnSubmit.onclick = async () => {
+    if (!currentUser) return;
+    btnSubmit.disabled = true;
+
+    const response = getResponsePayload(currentQ);
+    const marking = markResponse(currentQ, response, currentKey, currentMarkPoints);
+
+    if (feedback) feedback.innerHTML = renderFeedback(marking);
+    if (btnNext) btnNext.classList.remove("hidden");
+
+    try {
+      await supabaseClient.from("attempts").insert({
+        user_id: currentUser.id,
+        question_id: currentQ.id,
+        response_payload: response,
+        score_total: marking.total,
+        score_max: marking.max,
+        ao1_score: marking.ao.AO1,
+        ao2_score: marking.ao.AO2,
+        ao3_score: marking.ao.AO3,
+        feedback_payload: marking.feedbackPayload
+      });
+
+      await upsertSRS(currentQ.spec_point_id, marking.quality);
+    } catch(err) {
+      console.error("Sync backup failure logged:", err);
+    }
+  };
+}
+
+if (btnNext) {
+  btnNext.onclick = async () => {
+    idx++;
+    if (idx >= sessionQuestions.length) {
+      if (sessionSection) sessionSection.classList.add("hidden");
+      if (dashSection) dashSection.classList.remove("hidden");
+      await loadDashboard();
+      await loadWeeklyForecast();
+      await loadTopics();
+    } else {
+      await loadQuestion();
+    }
+  };
 }
 
 function getResponsePayload(q) {
