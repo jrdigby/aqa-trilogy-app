@@ -17,7 +17,6 @@ const SUPABASE_ANON_KEY = "sb_publishable_xD75RVd3kyvxs3IK_WsNag_eoCAZF4W";
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ====== GLOBAL UTILITIES ======
-// ✅ FIXED: Shifted to a globally scoped arrow constant to prevent lexical resolution failures inside map callbacks
 const escapeHtml = (s) => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 // ====== UI ELEMENTS ======
@@ -65,7 +64,6 @@ function getSelectedFilters() {
   const paper = paperFilter?.value || "paper1";
   const topic = topicFilter?.value || "";   
   const qType = el("typeFilter")?.value || ""; 
-  // ✅ FIX: Query DOM on-the-fly with a safe fallback to prevent boot crashes
   const tier = el("tierFilter")?.value || "FT"; 
   return { subject, paper, topic, qType, tier };
 }
@@ -126,7 +124,7 @@ function isFuzzyMatch(userWord, targetKeyword, threshold = 0.85) {
   const w1 = userWord.toLowerCase().trim();
   const w2 = targetKeyword.toLowerCase().trim();
   
-  if (w1 === w2) return true; // Perfect match escape hatch
+  if (w1 === w2) return true; 
   if (w1.length === 0 || w2.length === 0) return false;
   
   const distance = getLevenshteinDistance(w1, w2);
@@ -275,7 +273,6 @@ async function loadWeeklyForecast() {
   const datesArray = [];
   const countsMap = {};
 
-  // 1. Initialize slots for the next 7 days starting today
   for (let i = 0; i < 7; i++) {
     const targetDate = new Date();
     targetDate.setDate(targetDate.getDate() + i);
@@ -287,7 +284,6 @@ async function loadWeeklyForecast() {
     countsMap[dateString] = 0;
   }
 
-  // 2. Fetch all upcoming due schedules for this specific student user
   const { data: schedules, error } = await supabaseClient
     .from("srs_state")
     .select("due_date")
@@ -299,20 +295,16 @@ async function loadWeeklyForecast() {
     return;
   }
 
-  // 3. Tally how many items fall into each day's bucket
   (schedules || []).forEach(s => {
     if (countsMap[s.due_date] !== undefined) {
       countsMap[s.due_date]++;
     }
   });
 
-  // Find the maximum daily count value so we can scale the chart heights proportionally
   const maxCount = Math.max(...Object.values(countsMap), 1);
 
-  // 4. Generate the micro bar chart layout HTML string dynamically
   forecastWrapper.innerHTML = datesArray.map(d => {
     const totalDueOnDay = countsMap[d.dateString];
-    // Calculate percentage height scaling based on a maximum bounding bar ceiling height of 75px
     const barHeightPx = Math.round((totalDueOnDay / maxCount) * 75);
     const isActiveBar = totalDueOnDay > 0;
 
@@ -411,26 +403,23 @@ async function startSessionForSpecPoint(specPointId, qType = "") {
 async function checkAndUpdateStreak() {
   if (!currentUser) return;
 
-  const todayStr = todayISO(); // Uses your app's existing "YYYY-MM-DD" date utility
+  const todayStr = todayISO(); 
   
   try {
-    // 1. Fetch the student's current streak metrics using user_id
     let { data: profile, error } = await supabaseClient
       .from("profiles")
       .select("current_streak, last_login_date")
       .eq("user_id", currentUser.id)
       .single();
 
-    if (error && error.code !== "PGRST116") { // Ignore 'no rows found' code to handle fresh accounts gracefully
+    if (error && error.code !== "PGRST116") { 
       throw error;
     }
 
-    // Fallback defaults if the row is somehow missing or unpopulated
     let currentStreak = profile?.current_streak || 0;
     const lastLoginStr = profile?.last_login_date;
 
     if (!lastLoginStr) {
-      // First login ever: establish baseline streak of 1
       currentStreak = 1;
       await supabaseClient
         .from("profiles")
@@ -438,30 +427,25 @@ async function checkAndUpdateStreak() {
         .eq("user_id", currentUser.id);
         
     } else if (lastLoginStr === todayStr) {
-      // Already checked in today: do nothing, maintain current count
+      // Intact
     } else {
-      // Calculate calendar differences
       const dateToday = new Date(todayStr);
       const dateLastLogin = new Date(lastLoginStr);
       const timeDiff = dateToday.getTime() - dateLastLogin.getTime();
       const daysDiff = Math.ceil(timeDiff / (1000 * 3600 * 24));
 
       if (daysDiff === 1) {
-        // Logged in yesterday: streak builds up!
         currentStreak += 1;
       } else {
-        // Missed a day: streak chain broken. Reset back to 1.
         currentStreak = 1;
       }
 
-      // Update row states using user_id selector matching
       await supabaseClient
         .from("profiles")
         .update({ current_streak: currentStreak, last_login_date: todayStr })
         .eq("user_id", currentUser.id);
     }
 
-    // 2. Render the final computed count into your HTML layout placeholder
     const counterEl = el("streakCount");
     if (counterEl) counterEl.textContent = currentStreak;
 
@@ -549,16 +533,13 @@ function markResponse(q, resp, key, markPoints) {
     const minOptional = key.key_payload.min_optional || 0;
     const textRaw = (resp.text || "").toLowerCase();
 
-    // Clean punctuation and tokenize student response into individual words for word-by-word evaluation
     const cleanStudentText = textRaw.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "");
     const studentWords = cleanStudentText.split(/\s+/).filter(Boolean);
 
-    // ✅ FUZZY UPGRADE: Evaluate required terms
     const hasAllRequired = required.every(targetKeyword => 
       studentWords.some(userWord => isFuzzyMatch(userWord, targetKeyword, 0.85))
     );
 
-    // ✅ FUZZY UPGRADE: Count matching optional keywords
     const optionalHits = optional.filter(targetKeyword => 
       studentWords.some(userWord => isFuzzyMatch(userWord, targetKeyword, 0.85))
     ).length;
@@ -612,49 +593,42 @@ function renderFeedback(marking) {
   html += `<div><strong>AO breakdown</strong></div>`;
   html += `<div class="muted">AO1: ${marking.ao.AO1} • AO2: ${marking.ao.AO2} • AO3: ${marking.ao.AO3}</div>`;
 
-  // 📝 NEW: IF SHORT TEXT & KEYWORDS IN PLAY, GENERATE VISUAL MARKUP HIGHLIGHTS
   if (currentQ.question_type === "short_text" && currentKey && currentKey.key_type === "keywords") {
     const required = currentKey.key_payload.required || [];
     const optional = currentKey.key_payload.optional || [];
     const allTargetKeywords = [...required, ...optional];
     
-    // Get raw student text from input field safely
     const studentRawText = (el("txtAns")?.value || "").trim();
-    
-    // Split text into words, keeping track of original punctuation and white spaces
     const tokens = studentRawText.split(/(\s+|[.,\/#!$%\^&\*;:{}=\-_`~()?])/);
     
-    // Process and highlight student text array token by token
     const highlightedStudentTokens = tokens.map(token => {
-      // If it's a punctuation or space token, skip evaluation rules
       if (/^[\s.,\/#!$%\^&\*;:{}=\-_`~()?]+$/.test(token) || !token) return escapeHtml(token);
       
       let bestMatch = null;
-      let highestType = null; // 'exact' or 'fuzzy'
+      let highestType = null; 
       
       for (const target of allTargetKeywords) {
         if (token.toLowerCase() === target.toLowerCase()) {
           bestMatch = target;
           highestType = 'exact';
-          break; // Perfect catch, stop iterating
+          break; 
         } else if (isFuzzyMatch(token, target, 0.85)) {
           bestMatch = target;
           highestType = 'fuzzy';
         }
       }
       
+      // ✅ MODIFIED: Fuzzy matches use 'match-fuzzy' background layout, corrections are wrapped in square brackets
       if (highestType === 'exact') {
         return `<span class="match-exact" title="Exact match for: ${escapeHtml(bestMatch)}">${escapeHtml(token)}</span>`;
       } else if (highestType === 'fuzzy') {
-        return `<span class="match-fuzzy" title="Spelling correction target: ${escapeHtml(bestMatch)}">${escapeHtml(token)} (⚠️ spell: ${escapeHtml(bestMatch)})</span>`;
+        return `<span class="match-fuzzy" title="Spelling correction target: ${escapeHtml(bestMatch)}">${escapeHtml(token)} <b style="font-weight:700;">[⚠️ spelling: ${escapeHtml(bestMatch)}]</b></span>`;
       }
       
       return escapeHtml(token);
     });
 
-    // Process target baseline keywords layout highlight row array
     const highlightedTargetsHTML = allTargetKeywords.map(target => {
-      // Determine if student found this target keyword via word-by-word checks
       const studentWords = studentRawText.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "").split(/\s+/);
       
       const hasExact = studentWords.some(w => w === target.toLowerCase());
@@ -669,7 +643,6 @@ function renderFeedback(marking) {
       }
     }).join(" ");
 
-    // Append custom text compare blocks to interface feedback window panel
     html += `<hr/>`;
     html += `<div style="margin-bottom: 12px;"><strong>Your Answer Analysis:</strong></div>`;
     html += `<div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 14px; border-radius: 8px; font-size: 0.95rem; line-height: 1.6; margin-bottom: 15px; color: #0f172a;">${highlightedStudentTokens.join("")}</div>`;
@@ -678,7 +651,6 @@ function renderFeedback(marking) {
     html += `<div style="margin-top: 6px; margin-bottom: 10px;">${highlightedTargetsHTML}</div>`;
   }
 
-  // Retention of standard remediation criteria block loop structures
   if (marking.missing && marking.missing.length > 0) {
     html += `<hr/><div><strong>How to improve</strong></div>`;
     html += marking.missing.map(m => `
@@ -809,7 +781,6 @@ function setSignedInUI(user) {
   if (authSection) authSection.classList.add("hidden");
   if (dashSection) dashSection.classList.remove("hidden");
 
-  // ✅ FIX: Target selector dynamically at runtime to prevent initialization drops
   const runtimeTierSelect = el("tierFilter");
   if (runtimeTierSelect && !runtimeTierSelect.value) {
     runtimeTierSelect.value = "FT";
@@ -931,25 +902,20 @@ async function loadTopics() {
       dueBtn.disabled = true;
     }
   }
-  // =============================================================
-  // ✅ NEW EXTRACTION LAYER: COMPUTE SYLLABUS MASTERY IN REAL-TIME
-  // =============================================================
+  
   if (masteryWrapper && currentUser) {
     try {
-      // 1. Fetch all historic quiz attempts for this specific user
       const { data: attempts, error: attError } = await supabaseClient
         .from("attempts")
         .select("score_total, score_max, question_id");
 
       if (attError) throw attError;
 
-      // 2. Build a quick question-to-spec lookup map from the active questions pool
       const questionToSpecMap = {};
       (questions || []).forEach(q => {
         questionToSpecMap[q.id] = q.spec_point_id;
       });
 
-      // 3. Tally running totals of earned marks vs max marks per topic_name
       const topicMasteryTally = {};
       uniqueTopics.forEach(t => {
         topicMasteryTally[t] = { earned: 0, max: 0 };
@@ -959,25 +925,22 @@ async function loadTopics() {
         const specId = questionToSpecMap[att.question_id];
         const topicName = specToTopicMap[specId];
 
-        // Only calculate if the attempt belongs to a topic currently on the user's filtered dashboard view
         if (topicName !== undefined && topicMasteryTally[topicName]) {
           topicMasteryTally[topicName].earned += att.score_total;
           topicMasteryTally[topicName].max += att.score_max;
         }
       });
 
-      // 4. Render visual progress items for each unique topic node
       masteryWrapper.innerHTML = uniqueTopics.map(t => {
         const tally = topicMasteryTally[t];
         const hasAttempts = tally.max > 0;
         const percentage = hasAttempts ? Math.round((tally.earned / tally.max) * 100) : 0;
 
-        // Determine badge color theme based on classic mastery threshold milestones
-        let colorTheme = "#bdc3c7"; // Default Grey (unattempted)
+        let colorTheme = "#bdc3c7"; 
         if (hasAttempts) {
-          if (percentage < 50) colorTheme = "var(--error)";       // Red (<50%)
-          else if (percentage < 75) colorTheme = "#f39c12";       // Amber (50%-75%)
-          else colorTheme = "var(--success)";                     // Green (75%+)
+          if (percentage < 50) colorTheme = "var(--error)";       
+          else if (percentage < 75) colorTheme = "#f39c12";       
+          else colorTheme = "var(--success)";                     
         }
 
         return `
@@ -1027,7 +990,6 @@ if (topicFilter) {
   });
 }
 
-// Intercept optional question type dropdown state switches safely
 const liveTypeFilter = el("typeFilter");
 if (liveTypeFilter) {
   liveTypeFilter.addEventListener("change", () => {
@@ -1045,7 +1007,6 @@ supabaseClient.auth.onAuthStateChange((event, session) => {
     loadWeeklyForecast();
     checkAndUpdateStreak();
     
-    // ✅ FIX: Only look for the dropdown element once authenticated and the card becomes visible in the DOM
     const runtimeTierSelect = el("tierFilter");
     if (runtimeTierSelect) {
       runtimeTierSelect.addEventListener("change", () => {
