@@ -619,11 +619,12 @@ function renderFeedback(marking) {
       }
       
       // ✅ MODIFIED: Fuzzy matches use 'match-fuzzy' background layout, corrections are wrapped in square brackets
-      if (highestType === 'exact') {
-        return `<span class="match-exact" title="Exact match for: ${escapeHtml(bestMatch)}">${escapeHtml(token)}</span>`;
-      } else if (highestType === 'fuzzy') {
-        return `<span class="match-fuzzy" title="Spelling correction target: ${escapeHtml(bestMatch)}">${escapeHtml(token)} <b style="font-weight:700;">[⚠️ spelling: ${escapeHtml(bestMatch)}]</b></span>`;
-      }
+if (highestType === 'exact') {
+  return `<span class="match-exact" title="Exact match for: ${escapeHtml(bestMatch)}">${escapeHtml(token)}</span>`;
+} else if (highestType === 'fuzzy') {
+  // ✅ FIXED: Explicit color overrides added to ensure student text matches the orange badge background perfectly
+  return `<span class="match-fuzzy" style="background-color: #fff7ed; color: #9a3412; border-bottom: 2px solid #f97316;" title="Spelling correction target: ${escapeHtml(bestMatch)}">${escapeHtml(token)} <b style="font-weight:700;">[⚠️ spell: ${escapeHtml(bestMatch)}]</b></span>`;
+}
       
       return escapeHtml(token);
     });
@@ -776,7 +777,7 @@ function setSignedOutUI() {
   if (authMsg) authMsg.textContent = "Not signed in.";
 }
 
-// ====== PROFILE PRE-LOAD UPDATE ======
+// ====== PRE-LOAD CORRECTION TRACK ======
 async function setSignedInUI(user) {
   if (btnSignOut) btnSignOut.classList.remove("hidden");
   if (authSection) authSection.classList.add("hidden");
@@ -785,25 +786,30 @@ async function setSignedInUI(user) {
   if (userChip) userChip.textContent = `${user.email || user.id}`;
   if (authMsg) authMsg.textContent = "Signed in ✅";
 
-  // 🔄 NEW: Fetch student profile preferences asynchronously upon entry
+  // 🔄 Step 1: Initialize baseline fallback instantly so the DOM element is NEVER empty
+  const runtimeTierSelect = el("tierFilter");
+  if (runtimeTierSelect && !runtimeTierSelect.value) {
+    runtimeTierSelect.value = "FT";
+  }
+
+  // 🔄 Step 2: Fetch student profile preferences asynchronously
   try {
-    const { data: profile } = await supabaseClient
+    const { data: profile, error } = await supabaseClient
       .from("profiles")
       .select("preferred_tier")
       .eq("user_id", user.id)
       .maybeSingle();
 
-    const runtimeTierSelect = el("tierFilter");
-    if (runtimeTierSelect) {
-      // Pre-load saved tier option, default to Foundation if unconfigured
-      runtimeTierSelect.value = profile?.preferred_tier || "FT";
+    if (profile?.preferred_tier && runtimeTierSelect) {
+      runtimeTierSelect.value = profile.preferred_tier;
+      console.log("✓ Profile Tier Pre-loaded Successfully:", profile.preferred_tier);
     }
   } catch (err) {
     console.error("Failed to recover persistent tier configuration profile:", err);
   }
 
-  // Sweep and draw dashboard counts using the pre-loaded tier constraint
-  loadTopics();
+  // 🔄 Step 3: Run your initial dashboard generation loop AFTER the values are securely anchored
+  await loadTopics();
 }
 
 async function loadTopics() {
