@@ -725,6 +725,7 @@ if (btnNext) {
   };
 }
 
+// ====== PRE-LOAD CORRECTION TRACK ======
 function getResponsePayload(q) {
   if (q.question_type === "mcq") {
     const picked = document.querySelector('input[name="mcq"]:checked')?.value ?? "";
