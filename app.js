@@ -58,6 +58,10 @@ let currentQ = null;
 let currentKey = null;
 let currentMarkPoints = [];
 
+// Timeout utility to protect execution contexts from infinite database stalls
+const timeoutPromise = (ms, message = "Database connection timed out") => 
+  new Promise((_, reject) => setTimeout(() => reject(new Error(message)), ms));
+
 // ====== HELPERS ======
 function getSelectedFilters() {
   const subject = subjectFilter?.value || "biology";
@@ -174,17 +178,25 @@ async function loadDashboard() {
   if (!currentUser) return;
   const today = todayISO();
   
-  const { data: due, error } = await supabaseClient
-    .from("srs_state")
-    .select("spec_point_id,due_date,interval_days,ease_factor,repetitions,lapses,last_quality, spec_points(id,subject,topic_name,spec_ref,spec_text)")
-    .eq("user_id", currentUser.id)
-    .lte("due_date", today)
-    .order("due_date", { ascending: true })
-    .order("ease_factor", { ascending: true });
+  console.log("DEBUG loadDashboard: Starting dashboard items load...");
+  let due = [];
+  try {
+    const query = supabaseClient
+      .from("srs_state")
+      .select("spec_point_id,due_date,interval_days,ease_factor,repetitions,lapses,last_quality, spec_points(id,subject,topic_name,spec_ref,spec_text)")
+      .eq("user_id", currentUser.id)
+      .lte("due_date", today)
+      .order("due_date", { ascending: true })
+      .order("ease_factor", { ascending: true });
 
-  if (error) {
+    const result = await Promise.race([query, timeoutPromise(2500, "Dashboard srs_state query timed out")]);
+    if (result.error) throw result.error;
+    due = result.data || [];
+    console.log("DEBUG loadDashboard: Dashboard loaded successfully.", due.length, "items due.");
+  } catch (err) {
+    console.error("DEBUG loadDashboard: Dashboard failed to load, applying empty state fallback:", err);
     if (dueCount) dueCount.textContent = "0";
-    if (dueList) dueList.innerHTML = `<div class="item"><span class="bad">Error:</span> ${error.message}</div>`;
+    if (dueList) dueList.innerHTML = `<div class="item text-orange"><span class="bad">Warning:</span> Connection slow or RLS blocked table. ${err.message || err}</div>`;
     return;
   }
 
@@ -208,14 +220,21 @@ if (btnStartDue) {
     const today = todayISO();
     const { subject, paper, topic, qType, tier } = getSelectedFilters(); 
 
-    const { data: due, error } = await supabaseClient
-      .from("srs_state")
-      .select(`spec_point_id, due_date, spec_points(subject, paper, topic_name)`)
-      .eq("user_id", currentUser.id)
-      .lte("due_date", today);
+    console.log("DEBUG btnStartDue: Querying due items to prepare practice queue...");
+    let due = [];
+    try {
+      const query = supabaseClient
+        .from("srs_state")
+        .select(`spec_point_id, due_date, spec_points(subject, paper, topic_name)`)
+        .eq("user_id", currentUser.id)
+        .lte("due_date", today);
 
-    if (error) {
-      alert("Error loading due items: " + error.message);
+      const result = await Promise.race([query, timeoutPromise(2500, "SRS questions preflight query timed out")]);
+      if (result.error) throw result.error;
+      due = result.data || [];
+    } catch (err) {
+      console.warn("DEBUG btnStartDue: Preflight crashed. Proceeding straight to random practice fallbacks:", err);
+      await startAnyPractice();
       return;
     }
 
@@ -245,7 +264,13 @@ if (btnStartDue) {
       qQuery = qQuery.eq("question_type", qType);
     }
 
-    const { data: matchingQs } = await qQuery;
+    let matchingQs = [];
+    try {
+      const result = await Promise.race([qQuery, timeoutPromise(2500, "Questions resolution query timed out")]);
+      matchingQs = result.data || [];
+    } catch (err) {
+      console.warn("DEBUG btnStartDue: Question filtering failed, dropping context safely:", err);
+    }
 
     if (matchingQs && matchingQs.length > 0) {
       targetedSpecPointId = matchingQs[0].spec_point_id;
@@ -285,14 +310,20 @@ async function loadWeeklyForecast() {
     countsMap[dateString] = 0;
   }
 
-  const { data: schedules, error } = await supabaseClient
-    .from("srs_state")
-    .select("due_date")
-    .eq("user_id", currentUser.id);
+  console.log("DEBUG loadWeeklyForecast: Loading schedules forecast...");
+  let schedules = [];
+  try {
+    const query = supabaseClient
+      .from("srs_state")
+      .select("due_date")
+      .eq("user_id", currentUser.id);
 
-  if (error) {
-    console.error("Forecast collection query failed:", error);
-    forecastWrapper.innerHTML = `<div class="bad" style="margin: auto;">Error loading workload forecast.</div>`;
+    const result = await Promise.race([query, timeoutPromise(2500, "Forecast query timed out")]);
+    if (result.error) throw result.error;
+    schedules = result.data || [];
+  } catch (err) {
+    console.error("DEBUG loadWeeklyForecast: Failed to gather due dates array:", err);
+    forecastWrapper.innerHTML = `<div class="muted" style="margin: auto; font-size: 0.8rem;">Forecast inactive (connection slow).</div>`;
     return;
   }
 
@@ -327,6 +358,7 @@ async function startAnyPractice() {
   const { subject, paper, topic, qType, tier } = getSelectedFilters();
   const targetTiers = tier === "HT" ? ["HT", "both"] : ["FT", "both"];
 
+  console.log("DEBUG startAnyPractice: Locating practice targets...");
   let query = supabaseClient
     .from("spec_points")
     .select("id, subject, paper, topic_name")
@@ -337,9 +369,16 @@ async function startAnyPractice() {
     query = query.eq("topic_name", topic);
   }
 
-  const { data: sp, error } = await query;
+  let sp = [];
+  try {
+    const result = await Promise.race([query, timeoutPromise(2500, "Syllabus items query timed out")]);
+    sp = result.data || [];
+  } catch (err) {
+    alert("Connection error loading syllabus definitions: " + err.message);
+    return;
+  }
 
-  if (error || !sp || sp.length === 0) {
+  if (!sp || sp.length === 0) {
     alert(`No matching specification items found for your selection choices.`);
     return;
   }
@@ -353,10 +392,12 @@ async function startAnyPractice() {
     qQuery = qQuery.eq("question_type", qType);
   }
     
-  const { data: activeQs, error: activeQError } = await qQuery;
-      
-  if (activeQError) {
-    console.error("Error fetching active question spec links:", activeQError);
+  let activeQs = [];
+  try {
+    const result = await Promise.race([qQuery, timeoutPromise(2500, "Practice pool matching timed out")]);
+    activeQs = result.data || [];
+  } catch (err) {
+    console.error("DEBUG startAnyPractice: Questions lookup failure context:", err);
   }
 
   const activeIds = new Set((activeQs || []).map(q => q.spec_point_id));
@@ -376,6 +417,7 @@ async function startSessionForSpecPoint(specPointId, qType = "") {
   const { tier } = getSelectedFilters();
   const targetTiers = tier === "HT" ? ["HT", "both"] : ["FT", "both"];
 
+  console.log("DEBUG startSessionForSpecPoint: Loading question payloads...");
   let query = supabaseClient
     .from("questions")
     .select("id,question_type,prompt,options,spec_point_id, resource_links")
@@ -386,9 +428,16 @@ async function startSessionForSpecPoint(specPointId, qType = "") {
     query = query.eq("question_type", qType);
   }
 
-  const { data: qs, error } = await query.limit(10);
+  let qs = [];
+  try {
+    const result = await Promise.race([query.limit(10), timeoutPromise(2500, "Questions loading query timed out")]);
+    qs = result.data || [];
+  } catch (err) {
+    alert("Error loading questions framework: " + err.message);
+    return;
+  }
 
-  if (error || !qs || qs.length === 0) {
+  if (!qs || qs.length === 0) {
     alert(`No structural questions found matching your filter rules for this topic folder.`);
     return;
   }
@@ -405,18 +454,19 @@ async function checkAndUpdateStreak() {
   if (!currentUser) return;
 
   const todayStr = todayISO(); 
+  console.log("DEBUG checkAndUpdateStreak: Processing calendar activity check...");
   
   try {
-    let { data: profile, error } = await supabaseClient
+    const query = supabaseClient
       .from("profiles")
       .select("current_streak, last_login_date")
       .eq("user_id", currentUser.id)
       .single();
 
-    if (error && error.code !== "PGRST116") { 
-      throw error;
-    }
-
+    const result = await Promise.race([query, timeoutPromise(2500, "Streak check timed out")]);
+    if (result.error && result.error.code !== "PGRST116") throw result.error;
+    
+    let profile = result.data;
     let currentStreak = profile?.current_streak || 0;
     const lastLoginStr = profile?.last_login_date;
 
@@ -428,7 +478,7 @@ async function checkAndUpdateStreak() {
         .eq("user_id", currentUser.id);
         
     } else if (lastLoginStr === todayStr) {
-      // Intact
+      // Already logged
     } else {
       const dateToday = new Date(todayStr);
       const dateLastLogin = new Date(lastLoginStr);
@@ -451,7 +501,7 @@ async function checkAndUpdateStreak() {
     if (counterEl) counterEl.textContent = currentStreak;
 
   } catch (err) {
-    console.error("Streak calculations module skipped:", err);
+    console.warn("Streak calculations module skipped securely on slow connection:", err);
   }
 }
 
@@ -463,6 +513,7 @@ async function loadQuestion() {
   if (btnNext) btnNext.classList.add("hidden");
   if (btnSubmit) btnSubmit.disabled = false;
 
+  console.log("DEBUG loadQuestion: Resolving markers maps asynchronously...");
   const [keyRes, markRes] = await Promise.all([
     supabaseClient.from("answer_keys").select("key_type,key_payload").eq("question_id", currentQ.id).maybeSingle(),
     supabaseClient.from("mark_points").select("ao,point_text,feedback_if_missing,max_marks").eq("question_id", currentQ.id)
@@ -802,9 +853,6 @@ async function setSignedInUI(user) {
     console.warn("DEBUG setSignedInUI: #tierFilter element NOT found in DOM!");
   }
 
-  // Define a timeout promise to protect queries from hanging forever (e.g. database RLS blockades)
-  const timeoutPromise = (ms) => new Promise((_, reject) => setTimeout(() => reject(new Error("Supabase profiles query timed out")), ms));
-
   let profile = null;
   try {
     console.log("DEBUG setSignedInUI: Preparing Supabase profile query for user ID:", user.id);
@@ -815,7 +863,7 @@ async function setSignedInUI(user) {
       .maybeSingle();
 
     // Race the database lookup against a 2.5-second timeout limit
-    const result = await Promise.race([dbQuery, timeoutPromise(2500)]);
+    const result = await Promise.race([dbQuery, timeoutPromise(2500, "Profiles check timed out")]);
     
     if (result && result.error) {
       console.error("DEBUG setSignedInUI: Supabase query returned an explicit error:", result.error);
@@ -854,7 +902,10 @@ async function setSignedInUI(user) {
 
 // ====== DEFINITIVE DECLARATION LAYER FOR THE THE TOPICS SYNC ENGINE ======
 async function loadTopics() {
-  if (!subjectFilter || !paperFilter || !topicFilter) return;
+  if (!subjectFilter || !paperFilter || !topicFilter) {
+    console.error("DEBUG loadTopics: Required DOM select elements not bound.");
+    return;
+  }
 
   const subject = subjectFilter.value;
   const paper = paperFilter.value;
@@ -863,20 +914,29 @@ async function loadTopics() {
   const { tier } = getSelectedFilters(); 
   const targetTiers = tier === "HT" ? ["HT", "both"] : ["FT", "both"];
 
-  const { data: specPoints, error: spError } = await supabaseClient
-    .from("spec_points")
-    .select("id, topic_name")
-    .eq("subject", subject)
-    .eq("paper", paper)
-    .order("topic_number", { ascending: true});
+  console.log(`DEBUG loadTopics: Querying spec_points for ${subject}, ${paper}...`);
+  let specPoints = [];
+  try {
+    const query = supabaseClient
+      .from("spec_points")
+      .select("id, topic_name")
+      .eq("subject", subject)
+      .eq("paper", paper)
+      .order("topic_number", { ascending: true});
 
-  if (spError) {
-    topicFilter.innerHTML = `<option value="">All topics (0)</option>`;
+    const result = await Promise.race([query, timeoutPromise(2500, "spec_points lookup timed out")]);
+    if (result.error) throw result.error;
+    specPoints = result.data || [];
+    console.log(`DEBUG loadTopics: Retrieved ${specPoints.length} spec points.`);
+  } catch (err) {
+    console.error("DEBUG loadTopics: spec_points resolution stalled or crashed:", err);
+    topicFilter.innerHTML = `<option value="">All topics (0) [Slow connection]</option>`;
     return;
   }
 
   const rows = specPoints || [];
   
+  console.log(`DEBUG loadTopics: Querying questions matching active tiers [${targetTiers}]...`);
   let qQuery = supabaseClient
     .from("questions")
     .select("id, spec_point_id, question_type, tier")
@@ -885,10 +945,15 @@ async function loadTopics() {
   if (qType) {
     qQuery = qQuery.eq("question_type", qType);
   }
-  const { data: questions, error: qError } = await qQuery;
 
-  if (qError) {
-    console.error("Error retrieving question counts:", qError);
+  let questions = [];
+  try {
+    const result = await Promise.race([qQuery, timeoutPromise(2500, "Questions registry query timed out")]);
+    if (result.error) throw result.error;
+    questions = result.data || [];
+    console.log(`DEBUG loadTopics: Retrieved ${questions.length} matching questions.`);
+  } catch (err) {
+    console.error("DEBUG loadTopics: questions table lookup crashed safely:", err);
   }
 
   const specToTopicMap = {};
@@ -932,15 +997,24 @@ async function loadTopics() {
   const dueBtn = el("btnStartDue");
   if (dueBtn) {
     const today = todayISO();
+    console.log("DEBUG loadTopics: Querying srs_state logs...");
     
-    const { data: rawDue } = await supabaseClient
-      .from("srs_state")
-      .select(`spec_point_id, due_date, spec_points(subject, paper, topic_name)`)
-      .eq("user_id", currentUser?.id)
-      .lte("due_date", today);
+    let rawDue = [];
+    try {
+      const query = supabaseClient
+        .from("srs_state")
+        .select(`spec_point_id, due_date, spec_points(subject, paper, topic_name)`)
+        .eq("user_id", currentUser?.id)
+        .lte("due_date", today);
+
+      const result = await Promise.race([query, timeoutPromise(2500, "SRS due registry query timed out")]);
+      rawDue = result.data || [];
+      console.log(`DEBUG loadTopics: Found ${rawDue.length} absolute due items.`);
+    } catch (err) {
+      console.warn("DEBUG loadTopics: srs_state table trace failed or timed out:", err);
+    }
 
     const dueSpecIds = new Set((rawDue || []).map(d => d.spec_point_id));
-
     let totalDueQuestionsAvailable = 0;
 
     (questions || []).forEach(q => {
@@ -965,13 +1039,20 @@ async function loadTopics() {
   }
   
   if (masteryWrapper && currentUser) {
+    console.log("DEBUG loadTopics: Building mastery percentages progress wrapper...");
+    let attempts = [];
     try {
-      const { data: attempts, error: attError } = await supabaseClient
+      const query = supabaseClient
         .from("attempts")
         .select("score_total, score_max, question_id");
 
-      if (attError) throw attError;
+      const result = await Promise.race([query, timeoutPromise(2500, "Attempts data query timed out")]);
+      attempts = result.data || [];
+    } catch (err) {
+      console.warn("DEBUG loadTopics: attempts statistics failed to resolve safely:", err);
+    }
 
+    try {
       const questionToSpecMap = {};
       (questions || []).forEach(q => {
         questionToSpecMap[q.id] = q.spec_point_id;
