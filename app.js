@@ -57,6 +57,7 @@ let idx = 0;
 let currentQ = null;
 let currentKey = null;
 let currentMarkPoints = [];
+let isInitializingPipeline = false; // State lock to prevent duplicate parallel auth triggers
 
 // Timeout utility to protect execution contexts from infinite database stalls
 const timeoutPromise = (ms, message = "Database connection timed out") => 
@@ -189,7 +190,7 @@ async function loadDashboard() {
       .order("due_date", { ascending: true })
       .order("ease_factor", { ascending: true });
 
-    const result = await Promise.race([query, timeoutPromise(2500, "Dashboard srs_state query timed out")]);
+    const result = await Promise.race([query, timeoutPromise(4000, "Dashboard srs_state query timed out")]);
     if (result.error) throw result.error;
     due = result.data || [];
     console.log("DEBUG loadDashboard: Dashboard loaded successfully.", due.length, "items due.");
@@ -229,7 +230,7 @@ if (btnStartDue) {
         .eq("user_id", currentUser.id)
         .lte("due_date", today);
 
-      const result = await Promise.race([query, timeoutPromise(2500, "SRS questions preflight query timed out")]);
+      const result = await Promise.race([query, timeoutPromise(4000, "SRS questions preflight query timed out")]);
       if (result.error) throw result.error;
       due = result.data || [];
     } catch (err) {
@@ -266,7 +267,7 @@ if (btnStartDue) {
 
     let matchingQs = [];
     try {
-      const result = await Promise.race([qQuery, timeoutPromise(2500, "Questions resolution query timed out")]);
+      const result = await Promise.race([qQuery, timeoutPromise(4000, "Questions resolution query timed out")]);
       matchingQs = result.data || [];
     } catch (err) {
       console.warn("DEBUG btnStartDue: Question filtering failed, dropping context safely:", err);
@@ -318,7 +319,7 @@ async function loadWeeklyForecast() {
       .select("due_date")
       .eq("user_id", currentUser.id);
 
-    const result = await Promise.race([query, timeoutPromise(2500, "Forecast query timed out")]);
+    const result = await Promise.race([query, timeoutPromise(4000, "Forecast query timed out")]);
     if (result.error) throw result.error;
     schedules = result.data || [];
   } catch (err) {
@@ -371,7 +372,7 @@ async function startAnyPractice() {
 
   let sp = [];
   try {
-    const result = await Promise.race([query, timeoutPromise(2500, "Syllabus items query timed out")]);
+    const result = await Promise.race([query, timeoutPromise(4000, "Syllabus items query timed out")]);
     sp = result.data || [];
   } catch (err) {
     alert("Connection error loading syllabus definitions: " + err.message);
@@ -394,7 +395,7 @@ async function startAnyPractice() {
     
   let activeQs = [];
   try {
-    const result = await Promise.race([qQuery, timeoutPromise(2500, "Practice pool matching timed out")]);
+    const result = await Promise.race([qQuery, timeoutPromise(4000, "Practice pool matching timed out")]);
     activeQs = result.data || [];
   } catch (err) {
     console.error("DEBUG startAnyPractice: Questions lookup failure context:", err);
@@ -430,7 +431,7 @@ async function startSessionForSpecPoint(specPointId, qType = "") {
 
   let qs = [];
   try {
-    const result = await Promise.race([query.limit(10), timeoutPromise(2500, "Questions loading query timed out")]);
+    const result = await Promise.race([query.limit(10), timeoutPromise(4000, "Questions loading query timed out")]);
     qs = result.data || [];
   } catch (err) {
     alert("Error loading questions framework: " + err.message);
@@ -463,7 +464,7 @@ async function checkAndUpdateStreak() {
       .eq("user_id", currentUser.id)
       .single();
 
-    const result = await Promise.race([query, timeoutPromise(2500, "Streak check timed out")]);
+    const result = await Promise.race([query, timeoutPromise(4000, "Streak check timed out")]);
     if (result.error && result.error.code !== "PGRST116") throw result.error;
     
     let profile = result.data;
@@ -862,8 +863,8 @@ async function setSignedInUI(user) {
       .eq("user_id", user.id)
       .maybeSingle();
 
-    // Race the database lookup against a 2.5-second timeout limit
-    const result = await Promise.race([dbQuery, timeoutPromise(2500, "Profiles check timed out")]);
+    // Race the database lookup against a 4-second timeout limit to accommodate free tier cold starts
+    const result = await Promise.race([dbQuery, timeoutPromise(4000, "Profiles check timed out")]);
     
     if (result && result.error) {
       console.error("DEBUG setSignedInUI: Supabase query returned an explicit error:", result.error);
@@ -924,7 +925,7 @@ async function loadTopics() {
       .eq("paper", paper)
       .order("topic_number", { ascending: true});
 
-    const result = await Promise.race([query, timeoutPromise(2500, "spec_points lookup timed out")]);
+    const result = await Promise.race([query, timeoutPromise(4000, "spec_points lookup timed out")]);
     if (result.error) throw result.error;
     specPoints = result.data || [];
     console.log(`DEBUG loadTopics: Retrieved ${specPoints.length} spec points.`);
@@ -948,7 +949,7 @@ async function loadTopics() {
 
   let questions = [];
   try {
-    const result = await Promise.race([qQuery, timeoutPromise(2500, "Questions registry query timed out")]);
+    const result = await Promise.race([qQuery, timeoutPromise(4000, "Questions registry query timed out")]);
     if (result.error) throw result.error;
     questions = result.data || [];
     console.log(`DEBUG loadTopics: Retrieved ${questions.length} matching questions.`);
@@ -1007,7 +1008,7 @@ async function loadTopics() {
         .eq("user_id", currentUser?.id)
         .lte("due_date", today);
 
-      const result = await Promise.race([query, timeoutPromise(2500, "SRS due registry query timed out")]);
+      const result = await Promise.race([query, timeoutPromise(4000, "SRS due registry query timed out")]);
       rawDue = result.data || [];
       console.log(`DEBUG loadTopics: Found ${rawDue.length} absolute due items.`);
     } catch (err) {
@@ -1046,7 +1047,7 @@ async function loadTopics() {
         .from("attempts")
         .select("score_total, score_max, question_id");
 
-      const result = await Promise.race([query, timeoutPromise(2500, "Attempts data query timed out")]);
+      const result = await Promise.race([query, timeoutPromise(4000, "Attempts data query timed out")]);
       attempts = result.data || [];
     } catch (err) {
       console.warn("DEBUG loadTopics: attempts statistics failed to resolve safely:", err);
@@ -1173,7 +1174,14 @@ supabaseClient.auth.onAuthStateChange(async (event, session) => {
   console.log(`DEBUG AUTH CHG: Event fired! [Event: ${event}]`, session ? `User ID: ${session.user.id}` : "No active session (session is null)");
   
   if (session?.user) {
+    // Block parallel execution of initialization loops for redundant auth event firings
+    if (currentUser && currentUser.id === session.user.id && isInitializingPipeline) {
+      console.log(`DEBUG AUTH CHG: Blocked parallel initialization pipeline for User ID: ${session.user.id}`);
+      return;
+    }
+
     currentUser = session.user;
+    isInitializingPipeline = true;
     console.log("DEBUG AUTH CHG: currentUser set. Initiating serial initialization pipeline...");
     
     try {
@@ -1196,6 +1204,8 @@ supabaseClient.auth.onAuthStateChange(async (event, session) => {
     } catch (pipelineError) {
       console.error("DEBUG CRITICAL: Initialization pipeline shattered with an error:", pipelineError);
       alert("Pipeline Error: " + pipelineError.message);
+    } finally {
+      isInitializingPipeline = false;
     }
     
     // Wire up or reset the tier configuration listener
