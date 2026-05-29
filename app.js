@@ -157,7 +157,7 @@ if (btnSignIn) {
       return;
     }
     currentUser = data.user;
-    setSignedInUI(currentUser);
+    await setSignedInUI(currentUser);
     await loadDashboard();       
   };
 }
@@ -781,7 +781,7 @@ function setSignedOutUI() {
   if (authMsg) authMsg.textContent = "Not signed in.";
 }
 
-// ====== PRE-LOAD CORRECTION TRACK ======
+// ====== PRE-LOAD SIGNED IN WORKFLOW SYSTEM ======
 async function setSignedInUI(user) {
   console.log("DEBUG setSignedInUI: Started function successfully.");
   if (btnSignOut) btnSignOut.classList.remove("hidden");
@@ -791,53 +791,67 @@ async function setSignedInUI(user) {
   if (userChip) userChip.textContent = `${user.email || user.id}`;
   if (authMsg) authMsg.textContent = "Signed in ✅";
 
-  console.log("DEBUG setSignedInUI: Checking #tierFilter element...");
   const runtimeTierSelect = el("tierFilter");
   if (runtimeTierSelect) {
     console.log("DEBUG setSignedInUI: #tierFilter found. Current value is:", runtimeTierSelect.value);
     if (!runtimeTierSelect.value) {
       runtimeTierSelect.value = "FT";
-      console.log("DEBUG setSignedInUI: Set fallback value to 'FT'");
+      console.log("DEBUG setSignedInUI: Set baseline fallback value to 'FT'");
     }
   } else {
     console.warn("DEBUG setSignedInUI: #tierFilter element NOT found in DOM!");
   }
 
-  console.log("DEBUG setSignedInUI: Preparing Supabase profile query for user ID:", user.id);
+  // Define a timeout promise to protect queries from hanging forever (e.g. database RLS blockades)
+  const timeoutPromise = (ms) => new Promise((_, reject) => setTimeout(() => reject(new Error("Supabase profiles query timed out")), ms));
+
+  let profile = null;
   try {
-    const { data: profile, error } = await supabaseClient
+    console.log("DEBUG setSignedInUI: Preparing Supabase profile query for user ID:", user.id);
+    const dbQuery = supabaseClient
       .from("profiles")
-      .select("*") // 💡 Temporarily select everything to check column names safely
+      .select("preferred_tier")
       .eq("user_id", user.id)
       .maybeSingle();
 
-    if (error) {
-      console.error("DEBUG setSignedInUI: Supabase returned an explicit query error:", error);
-    } else {
-      console.log("DEBUG setSignedInUI: Supabase query returned row data successfully:", profile);
-      if (profile && runtimeTierSelect) {
-        // Let's log every field returned to verify if preferred_tier exists
-        console.log("DEBUG setSignedInUI: Available columns in profile table row are:", Object.keys(profile));
-        if (profile.preferred_tier) {
-          runtimeTierSelect.value = profile.preferred_tier;
-          console.log("DEBUG setSignedInUI: Assigned dropdown value to:", profile.preferred_tier);
-        } else {
-          console.warn("DEBUG setSignedInUI: preferred_tier column is missing or empty in this row response!");
-        }
-      }
+    // Race the database lookup against a 2.5-second timeout limit
+    const result = await Promise.race([dbQuery, timeoutPromise(2500)]);
+    
+    if (result && result.error) {
+      console.error("DEBUG setSignedInUI: Supabase query returned an explicit error:", result.error);
+    } else if (result) {
+      profile = result.data;
+      console.log("DEBUG setSignedInUI: Supabase query completed successfully. Row data returned:", profile);
     }
   } catch (err) {
-    console.error("DEBUG setSignedInUI: CRITICAL EXCEPTION during Supabase profiles fetch:", err);
+    console.warn("DEBUG setSignedInUI: Profiles fetch failed or timed out. Applying fallback configuration safely. Error:", err.message || err);
   }
 
-  console.log("DEBUG setSignedInUI: Reached end of profile checking. Now calling loadTopics()...");
+  // Process the loaded profile metrics
+  if (profile && profile.preferred_tier && runtimeTierSelect) {
+    let mappedTier = profile.preferred_tier;
+    // Map full word schema values back to short codes just in case
+    if (mappedTier === "foundation") mappedTier = "FT";
+    if (mappedTier === "higher") mappedTier = "HT";
+    
+    runtimeTierSelect.value = mappedTier;
+    console.log("DEBUG setSignedInUI: Applied preferred tier config:", mappedTier);
+  } else {
+    console.log("DEBUG setSignedInUI: No persistent preferred tier config returned. Defaulting to standard 'FT'.");
+    if (runtimeTierSelect) {
+      runtimeTierSelect.value = "FT";
+    }
+  }
+
+  console.log("DEBUG setSignedInUI: Proceeding to call loadTopics()...");
   try {
     await loadTopics();
-    console.log("DEBUG setSignedInUI: loadTopics() executed completely without crashing.");
-  } catch(loadTopicsError) {
-    console.error("DEBUG setSignedInUI: CRITICAL CRASH INSIDE loadTopics():", loadTopicsError);
+    console.log("DEBUG setSignedInUI: loadTopics() finished running successfully.");
+  } catch (topicsError) {
+    console.error("DEBUG setSignedInUI: CRITICAL ERROR inside loadTopics():", topicsError);
   }
 }
+
 // ====== DEFINITIVE DECLARATION LAYER FOR THE THE TOPICS SYNC ENGINE ======
 async function loadTopics() {
   if (!subjectFilter || !paperFilter || !topicFilter) return;
