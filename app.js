@@ -10,7 +10,7 @@ window.addEventListener("unhandledrejection", (e) => {
   alert("PROMISE ERROR: " + (e.reason?.message || e.reason));
 });
 
-// ====== CONFIG ======
+// ====== CONFIG =======
 const SUPABASE_URL = "https://cbycwfhczyvzzhthpgsw.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_xD75RVd3kyvxs3IK_WsNag_eoCAZF4W";
 
