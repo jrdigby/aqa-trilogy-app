@@ -47,8 +47,8 @@ const btnNext = el("btnNext");
 const subjectFilter = el("subjectFilter");
 const paperFilter = el("paperFilter");
 const topicFilter = el("topicFilter");
-const forecastWrapper = el("forecastWrapper"); // ✅ Added lookahead chart tracker element
-const masteryWrapper = el("masteryWrapper"); // ✅ Track mastery list wrapper container
+const forecastWrapper = el("forecastWrapper"); // Lookahead chart tracker element
+const masteryWrapper = el("masteryWrapper"); // Track mastery list wrapper container
 
 // ====== SESSION STATE ======
 let currentUser = null;
@@ -488,6 +488,10 @@ function renderQuestion(q) {
   if (qBox) qBox.innerHTML = html;
 }
 
+function mixWordTokens(studentText) {
+  return studentText.split(/(\s+|[.,\/#!$%\^&\*;:{}=\-_`~()?])/);
+}
+
 function markResponse(q, resp, key, markPoints) {
   let total = 0, max = 1;
   let ao = { AO1: 0, AO2: 0, AO3: 0 };
@@ -599,7 +603,7 @@ function renderFeedback(marking) {
     const allTargetKeywords = [...required, ...optional];
     
     const studentRawText = (el("txtAns")?.value || "").trim();
-    const tokens = studentRawText.split(/(\s+|[.,\/#!$%\^&\*;:{}=\-_`~()?])/);
+    const tokens = mixWordTokens(studentRawText);
     
     const highlightedStudentTokens = tokens.map(token => {
       if (/^[\s.,\/#!$%\^&\*;:{}=\-_`~()?]+$/.test(token) || !token) return escapeHtml(token);
@@ -618,13 +622,11 @@ function renderFeedback(marking) {
         }
       }
       
-      // ✅ MODIFIED: Fuzzy matches use 'match-fuzzy' background layout, corrections are wrapped in square brackets
-if (highestType === 'exact') {
-  return `<span class="match-exact" title="Exact match for: ${escapeHtml(bestMatch)}">${escapeHtml(token)}</span>`;
-} else if (highestType === 'fuzzy') {
-  // ✅ FIXED: Explicit color overrides added to ensure student text matches the orange badge background perfectly
-  return `<span class="match-fuzzy" style="background-color: #fff7ed; color: #9a3412; border-bottom: 2px solid #f97316;" title="Spelling correction target: ${escapeHtml(bestMatch)}">${escapeHtml(token)} <b style="font-weight:700;">[⚠️ spell: ${escapeHtml(bestMatch)}]</b></span>`;
-}
+      if (highestType === 'exact') {
+        return `<span class="match-exact" title="Exact match for: ${escapeHtml(bestMatch)}">${escapeHtml(token)}</span>`;
+      } else if (highestType === 'fuzzy') {
+        return `<span class="match-fuzzy" style="background-color: #fff7ed; color: #9a3412; border-bottom: 2px solid #f97316;" title="Spelling correction target: ${escapeHtml(bestMatch)}">${escapeHtml(token)} <b style="font-weight:700;">[⚠️ spell: ${escapeHtml(bestMatch)}]</b></span>`;
+      }
       
       return escapeHtml(token);
     });
@@ -812,6 +814,7 @@ async function setSignedInUI(user) {
   await loadTopics();
 }
 
+// ====== DEFINITIVE DECLARATION LAYER FOR THE THE TOPICS SYNC ENGINE ======
 async function loadTopics() {
   if (!subjectFilter || !paperFilter || !topicFilter) return;
 
@@ -1031,7 +1034,7 @@ supabaseClient.auth.onAuthStateChange(async (event, session) => {
     
     const runtimeTierSelect = el("tierFilter");
     if (runtimeTierSelect) {
-      // Clean up duplicate old listeners by overwriting the click execution context safely
+      // Clean up duplicate old listeners by overwriting the change event context safely
       runtimeTierSelect.onchange = async () => {
         const newSelectedTier = runtimeTierSelect.value;
         console.log("Exam entry tier altered -> updating payload allocation:", newSelectedTier);
