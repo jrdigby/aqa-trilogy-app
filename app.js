@@ -157,7 +157,7 @@ if (btnSignIn) {
       return;
     }
     currentUser = data.user;
-    await setSignedInUI(currentUser);
+    setSignedInUI(currentUser);
     await loadDashboard();       
   };
 }
@@ -723,6 +723,62 @@ if (btnNext) {
       await loadQuestion();
     }
   };
+}
+
+// ====== PRE-LOAD CORRECTION TRACK ======
+function getResponsePayload(q) {
+  if (q.question_type === "mcq") {
+    const picked = document.querySelector('input[name="mcq"]:checked')?.value ?? "";
+    return { type: "mcq", answer: picked };
+  }
+  if (q.question_type === "numeric") {
+    const val = parseFloat(el("numAns")?.value);
+    const unit = (el("numUnit")?.value || "").trim();
+    return { type: "numeric", value: isNaN(val) ? null : val, unit };
+  }
+  const text = (el("txtAns")?.value || "").trim();
+  return { type: "short_text", text };
+}
+
+async function upsertSRS(specPointId, quality) {
+  const { data: existing } = await supabaseClient
+    .from("srs_state")
+    .select("interval_days,ease_factor,repetitions,lapses")
+    .eq("user_id", currentUser.id)
+    .eq("spec_point_id", specPointId)
+    .maybeSingle();
+
+  const ef = existing?.ease_factor ?? 2.5;
+  const reps = existing?.repetitions ?? 0;
+  const interval = existing?.interval_days ?? 1;
+  const lapses = existing?.lapses ?? 0;
+
+  const upd = updateSRS({ quality, ef, reps, interval });
+  const nextDue = addDaysISO(upd.newInterval);
+
+  const payload = {
+    user_id: currentUser.id,
+    spec_point_id: specPointId,
+    due_date: nextDue,
+    interval_days: upd.newInterval,
+    ease_factor: upd.newEF,
+    repetitions: upd.newReps,
+    lapses: lapses + upd.lapse,
+    last_quality: quality,
+    updated_at: new Date().toISOString()
+  };
+
+  await supabaseClient.from("srs_state").upsert(payload);
+}
+
+function setSignedOutUI() {
+  if (btnSignOut) btnSignOut.classList.add("hidden");      
+  if (authSection) authSection.classList.remove("hidden");  
+
+  if (dashSection) dashSection.classList.add("hidden");
+  if (sessionSection) sessionSection.classList.add("hidden");
+
+  if (authMsg) authMsg.textContent = "Not signed in.";
 }
 
 // ====== PRE-LOAD CORRECTION TRACK ======
