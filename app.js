@@ -125,6 +125,20 @@ function getLevenshteinDistance(s1, s2) {
   return track[s2.length][s1.length];
 }
 
+function isFuzzyMatch(userWord, targetKeyword, threshold = 0.85) {
+  const w1 = userWord.toLowerCase().trim();
+  const w2 = targetKeyword.toLowerCase().trim();
+  
+  if (w1 === w2) return true; 
+  if (w1.length === 0 || w2.length === 0) return false;
+  
+  const distance = getLevenshteinDistance(w1, w2);
+  const maxLength = Math.max(w1.length, w2.length);
+  const similarity = 1 - (distance / maxLength);
+  
+  return similarity >= threshold;
+}
+
 // ====== AUTH ======
 if (btnSignUp) {
   btnSignUp.onclick = async () => {
@@ -158,20 +172,6 @@ if (btnSignOut) {
     await supabaseClient.auth.signOut();
     setSignedOutUI();
   };
-}
-
-function isFuzzyMatch(userWord, targetKeyword, threshold = 0.85) {
-  const w1 = userWord.toLowerCase().trim();
-  const w2 = targetKeyword.toLowerCase().trim();
-  
-  if (w1 === w2) return true; 
-  if (w1.length === 0 || w2.length === 0) return false;
-  
-  const distance = getLevenshteinDistance(w1, w2);
-  const maxLength = Math.max(w1.length, w2.length);
-  const similarity = 1 - (distance / maxLength);
-  
-  return similarity >= threshold;
 }
 
 // ====== DASHBOARD ======
@@ -808,6 +808,32 @@ async function upsertSRS(specPointId, quality) {
   await supabaseClient.from("srs_state").upsert(payload);
 }
 
+// ====== PRE-LOAD RESOLUTION PLUGS ======
+function getResponsePayload(q) {
+  if (!q) return { type: "short_text", text: "" };
+  if (q.question_type === "mcq") {
+    const picked = document.querySelector('input[name="mcq"]:checked')?.value ?? "";
+    return { type: "mcq", answer: picked };
+  }
+  if (q.question_type === "numeric") {
+    const val = parseFloat(el("numAns")?.value);
+    const unit = (el("numUnit")?.value || "").trim();
+    return { type: "numeric", value: isNaN(val) ? null : val, unit };
+  }
+  const text = (el("txtAns")?.value || "").trim();
+  return { type: "short_text", text };
+}
+
+function setSignedOutUI() {
+  if (btnSignOut) btnSignOut.classList.add("hidden");      
+  if (authSection) authSection.classList.remove("hidden");  
+
+  if (dashSection) dashSection.classList.add("hidden");
+  if (sessionSection) sessionSection.classList.add("hidden");
+
+  if (authMsg) authMsg.textContent = "Not signed in.";
+}
+
 // ====== PRE-LOAD SIGNED IN WORKFLOW SYSTEM ======
 async function setSignedInUI(user) {
   console.log("DEBUG setSignedInUI: Started function successfully.");
@@ -890,47 +916,56 @@ async function loadTopics() {
   const { tier } = getSelectedFilters(); 
   const targetTiers = tier === "HT" ? ["HT", "both"] : ["FT", "both"];
 
-  console.log(`DEBUG loadTopics: Querying spec_points for ${subject}, ${paper}...`);
-  let specPoints = [];
-  try {
-    const query = supabaseClient
-      .from("spec_points")
-      .select("id, topic_name")
-      .eq("subject", subject)
-      .eq("paper", paper)
-      .order("topic_number", { ascending: true});
+  console.log(`DEBUG loadTopics: Launching parallel concurrent database query batch...`);
 
-    const result = await Promise.race([query, timeoutPromise(4000, "spec_points lookup timed out")]);
-    if (result.error) throw result.error;
-    specPoints = result.data || [];
-    console.log(`DEBUG loadTopics: Retrieved ${specPoints.length} spec points.`);
-  } catch (err) {
-    console.error("DEBUG loadTopics: spec_points resolution stalled or crashed:", err);
-    topicFilter.innerHTML = `<option value="">All topics (0) [Slow connection]</option>`;
-    return;
-  }
+  // Define each query target independently so they can resolve concurrently
+  const specPointsQuery = supabaseClient
+    .from("spec_points")
+    .select("id, topic_name")
+    .eq("subject", subject)
+    .eq("paper", paper)
+    .order("topic_number", { ascending: true });
 
-  const rows = specPoints || [];
-  
-  console.log(`DEBUG loadTopics: Querying questions matching active tiers [${targetTiers}]...`);
-  let qQuery = supabaseClient
+  let questionsQuery = supabaseClient
     .from("questions")
     .select("id, spec_point_id, question_type, tier")
     .in("tier", targetTiers);
 
   if (qType) {
-    qQuery = qQuery.eq("question_type", qType);
+    questionsQuery = questionsQuery.eq("question_type", qType);
   }
 
-  let questions = [];
-  try {
-    const result = await Promise.race([qQuery, timeoutPromise(4000, "Questions registry query timed out")]);
-    if (result.error) throw result.error;
-    questions = result.data || [];
-    console.log(`DEBUG loadTopics: Retrieved ${questions.length} matching questions.`);
-  } catch (err) {
-    console.error("DEBUG loadTopics: questions table lookup crashed safely:", err);
-  }
+  const today = todayISO();
+  const srsStateQuery = supabaseClient
+    .from("srs_state")
+    .select(`spec_point_id, due_date, spec_points(subject, paper, topic_name)`)
+    .eq("user_id", currentUser?.id)
+    .lte("due_date", today);
+
+  const attemptsQuery = supabaseClient
+    .from("attempts")
+    .select("score_total, score_max, question_id");
+
+  // Fire all queries simultaneously using Promise.all with explicit fallback catches
+  const [specPointsRes, questionsRes, srsStateRes, attemptsRes] = await Promise.all([
+    Promise.race([specPointsQuery, timeoutPromise(4000, "spec_points lookup timed out")]).catch(err => ({ error: err, data: [] })),
+    Promise.race([questionsQuery, timeoutPromise(4000, "questions lookup timed out")]).catch(err => ({ error: err, data: [] })),
+    Promise.race([srsStateQuery, timeoutPromise(4000, "srs_state lookup timed out")]).catch(err => ({ error: err, data: [] })),
+    Promise.race([attemptsQuery, timeoutPromise(4000, "attempts statistics lookup timed out")]).catch(err => ({ error: err, data: [] }))
+  ]);
+
+  // Log explicit error details for timeout visibility, without causing execution crashes
+  if (specPointsRes.error) console.error("DEBUG loadTopics: spec_points lookup stalled or crashed:", specPointsRes.error);
+  if (questionsRes.error) console.error("DEBUG loadTopics: questions lookup stalled or crashed:", questionsRes.error);
+  if (srsStateRes.error) console.warn("DEBUG loadTopics: srs_state logs fetch stalled or crashed:", srsStateRes.error);
+  if (attemptsRes.error) console.warn("DEBUG loadTopics: attempts statistics failed to resolve safely:", attemptsRes.error);
+
+  const rows = specPointsRes.data || [];
+  const questions = questionsRes.data || [];
+  const rawDue = srsStateRes.data || [];
+  const attempts = attemptsRes.data || [];
+
+  console.log(`DEBUG loadTopics: All queries completed. Processing payloads... [Points: ${rows.length}, Questions: ${questions.length}, Due: ${rawDue.length}]`);
 
   const specToTopicMap = {};
   rows.forEach(sp => {
@@ -962,7 +997,6 @@ async function loadTopics() {
 
   const summaryDiv = el("topicCountSummary");
   if (summaryDiv) {
-    // Correctly filter metric calculations to reflect selected topic scope count rather than grand-total
     const displayCount = topic ? (topicCounts[topic] || 0) : totalMatchingQuestions;
     const scopeLabel = topic ? `topic "${topic}" in ` : "all types for ";
     
@@ -976,24 +1010,6 @@ async function loadTopics() {
 
   const dueBtn = el("btnStartDue");
   if (dueBtn) {
-    const today = todayISO();
-    console.log("DEBUG loadTopics: Querying srs_state logs...");
-    
-    let rawDue = [];
-    try {
-      const query = supabaseClient
-        .from("srs_state")
-        .select(`spec_point_id, due_date, spec_points(subject, paper, topic_name)`)
-        .eq("user_id", currentUser?.id)
-        .lte("due_date", today);
-
-      const result = await Promise.race([query, timeoutPromise(4000, "SRS due registry query timed out")]);
-      rawDue = result.data || [];
-      console.log(`DEBUG loadTopics: Found ${rawDue.length} absolute due items.`);
-    } catch (err) {
-      console.warn("DEBUG loadTopics: srs_state table trace failed or timed out:", err);
-    }
-
     const dueSpecIds = new Set((rawDue || []).map(d => d.spec_point_id));
     let totalDueQuestionsAvailable = 0;
 
@@ -1019,19 +1035,6 @@ async function loadTopics() {
   }
   
   if (masteryWrapper && currentUser) {
-    console.log("DEBUG loadTopics: Building mastery percentages progress wrapper...");
-    let attempts = [];
-    try {
-      const query = supabaseClient
-        .from("attempts")
-        .select("score_total, score_max, question_id");
-
-      const result = await Promise.race([query, timeoutPromise(4000, "Attempts data query timed out")]);
-      attempts = result.data || [];
-    } catch (err) {
-      console.warn("DEBUG loadTopics: attempts statistics failed to resolve safely:", err);
-    }
-
     try {
       const questionToSpecMap = {};
       (questions || []).forEach(q => {
@@ -1161,24 +1164,18 @@ supabaseClient.auth.onAuthStateChange(async (event, session) => {
 
     currentUser = session.user;
     isInitializingPipeline = true;
-    console.log("DEBUG AUTH CHG: currentUser set. Initiating serial initialization pipeline...");
+    console.log("DEBUG AUTH CHG: currentUser set. Initiating parallel concurrent setup pipeline...");
     
     try {
-      console.log("DEBUG AUTH CHG: Pipeline Step 1 -> Calling setSignedInUI()...");
-      await setSignedInUI(currentUser);
-      console.log("DEBUG AUTH CHG: setSignedInUI() finished smoothly.");
-      
-      console.log("DEBUG AUTH CHG: Pipeline Step 2 -> Calling loadDashboard()...");
-      await loadDashboard();
-      console.log("DEBUG AUTH CHG: loadDashboard() finished smoothly.");
-      
-      console.log("DEBUG AUTH CHG: Pipeline Step 3 -> Calling loadWeeklyForecast()...");
-      await loadWeeklyForecast();
-      console.log("DEBUG AUTH CHG: loadWeeklyForecast() finished smoothly.");
-      
-      console.log("DEBUG AUTH CHG: Pipeline Step 4 -> Calling checkAndUpdateStreak()...");
-      await checkAndUpdateStreak();
-      console.log("DEBUG AUTH CHG: checkAndUpdateStreak() finished smoothly.");
+      // Execute all major dashboard tasks concurrently to dramatically speed up cold database starts
+      console.log("DEBUG AUTH CHG: Issuing concurrent Promises for signed in widgets...");
+      await Promise.all([
+        setSignedInUI(currentUser),
+        loadDashboard(),
+        loadWeeklyForecast(),
+        checkAndUpdateStreak()
+      ]);
+      console.log("DEBUG AUTH CHG: Concurrent startup pipelines resolved cleanly.");
       
     } catch (pipelineError) {
       console.error("DEBUG CRITICAL: Initialization pipeline shattered with an error:", pipelineError);
@@ -1211,7 +1208,7 @@ supabaseClient.auth.onAuthStateChange(async (event, session) => {
           if (updateError) throw updateError;
           console.log(`DEBUG DB SUCCESS: Preference saved permanently: ${newSelectedTier}`);
         } catch (saveErr) {
-          console.error("DEBUG DB ERROR: Could not commit profile preference modification:", saveErr);
+          console.error("DEBUG DB ERROR: Could not commit profile preferred_tier modification:", saveErr);
         }
 
         console.log("DEBUG EVENT: Toggling loadTopics() after database update check...");
