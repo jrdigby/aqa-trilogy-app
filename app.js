@@ -990,70 +990,133 @@ async function loadTopics() {
   }
 }
 
-// ====== FIXED INTERACTION HANDLERS (EVENT LISTENERS) ======
+// ====== FIXED INTERACTION HANDLERS (EVENT LISTENERS) WITH LIFECYCLE DEBUGGING ======
+console.log("DEBUG: Initializing top-level event listeners...");
+
 if (subjectFilter) {
   subjectFilter.addEventListener("change", () => {
-    console.log("Subject constraint altered -> refreshing layout...");
+    console.log("DEBUG EVENT: Subject changed ->", subjectFilter.value);
+    if (!currentUser) {
+      console.warn("DEBUG EVENT: Blocked loadTopics() change handler - No currentUser yet.");
+      return;
+    }
     loadTopics();
   });
+} else {
+  console.error("DEBUG CRITICAL: #subjectFilter element not found in DOM!");
 }
 
 if (paperFilter) {
   paperFilter.addEventListener("change", () => {
-    console.log("Paper constraint altered -> refreshing layout...");
+    console.log("DEBUG EVENT: Paper changed ->", paperFilter.value);
+    if (!currentUser) {
+      console.warn("DEBUG EVENT: Blocked loadTopics() change handler - No currentUser yet.");
+      return;
+    }
     loadTopics();
   });
+} else {
+  console.error("DEBUG CRITICAL: #paperFilter element not found in DOM!");
 }
 
 if (topicFilter) {
   topicFilter.addEventListener("change", () => {
-    console.log("Topic constraint altered -> recalculating due run counts...");
+    console.log("DEBUG EVENT: Topic changed ->", topicFilter.value);
+    if (!currentUser) {
+      console.warn("DEBUG EVENT: Blocked loadTopics() change handler - No currentUser yet.");
+      return;
+    }
     loadTopics();
   });
+} else {
+  console.error("DEBUG CRITICAL: #topicFilter element not found in DOM!");
 }
 
 const liveTypeFilter = el("typeFilter");
 if (liveTypeFilter) {
   liveTypeFilter.addEventListener("change", () => {
-    console.log("Typology query target modified -> re-tallying nodes...");
+    console.log("DEBUG EVENT: Type Filter changed ->", liveTypeFilter.value);
+    if (!currentUser) {
+      console.warn("DEBUG EVENT: Blocked loadTopics() change handler - No currentUser yet.");
+      return;
+    }
     loadTopics();
   });
+} else {
+  console.log("DEBUG INFO: Optional #typeFilter element not present.");
 }
 
 // ====== MONOLITHIC ENTRY ENGINE GATE ======
+console.log("DEBUG: Hooking up supabaseClient.auth.onAuthStateChange...");
+
 supabaseClient.auth.onAuthStateChange(async (event, session) => {
+  console.log(`DEBUG AUTH CHG: Event fired! [Event: ${event}]`, session ? `User ID: ${session.user.id}` : "No active session (session is null)");
+  
   if (session?.user) {
     currentUser = session.user;
+    console.log("DEBUG AUTH CHG: currentUser set. Initiating serial initialization pipeline...");
     
-    // Process profile and layout setups sequentially
-    await setSignedInUI(currentUser);
-    await loadDashboard();
-    await loadWeeklyForecast();
-    await checkAndUpdateStreak();
+    try {
+      console.log("DEBUG AUTH CHG: Pipeline Step 1 -> Calling setSignedInUI()...");
+      await setSignedInUI(currentUser);
+      console.log("DEBUG AUTH CHG: setSignedInUI() finished smoothly.");
+      
+      console.log("DEBUG AUTH CHG: Pipeline Step 2 -> Calling loadDashboard()...");
+      await loadDashboard();
+      console.log("DEBUG AUTH CHG: loadDashboard() finished smoothly.");
+      
+      console.log("DEBUG AUTH CHG: Pipeline Step 3 -> Calling loadWeeklyForecast()...");
+      await loadWeeklyForecast();
+      console.log("DEBUG AUTH CHG: loadWeeklyForecast() finished smoothly.");
+      
+      console.log("DEBUG AUTH CHG: Pipeline Step 4 -> Calling checkAndUpdateStreak()...");
+      await checkAndUpdateStreak();
+      console.log("DEBUG AUTH CHG: checkAndUpdateStreak() finished smoothly.");
+      
+    } catch (pipelineError) {
+      console.error("DEBUG CRITICAL: Initialization pipeline shattered with an error:", pipelineError);
+      alert("Pipeline Error: " + pipelineError.message);
+    }
     
+    // Wire up or reset the tier configuration listener
     const runtimeTierSelect = el("tierFilter");
     if (runtimeTierSelect) {
+      console.log("DEBUG AUTH CHG: #tierFilter identified. Binding dedicated .onchange override context safely.");
+      
       runtimeTierSelect.onchange = async () => {
         const newSelectedTier = runtimeTierSelect.value;
-        console.log("Exam entry tier altered -> updating payload allocation:", newSelectedTier);
+        console.log("DEBUG EVENT: Exam entry tier manual toggle detected ->", newSelectedTier);
+        
+        if (!currentUser) {
+          console.error("DEBUG EVENT ERROR: Triggered tier save attempt but currentUser is gone!");
+          return;
+        }
         
         try {
-          await supabaseClient
+          console.log(`DEBUG DB: Issuing profile preferred_tier update call to database row: ${currentUser.id} -> ${newSelectedTier}`);
+          const { error: updateError } = await supabaseClient
             .from("profiles")
             .update({ preferred_tier: newSelectedTier })
             .eq("user_id", currentUser.id);
           
-          console.log(`✓ Preference saved permanently to database: ${newSelectedTier}`);
+          if (updateError) throw updateError;
+          console.log(`DEBUG DB SUCCESS: Preference saved permanently: ${newSelectedTier}`);
         } catch (saveErr) {
-          console.error("Could not backup profile preference alteration:", saveErr);
+          console.error("DEBUG DB ERROR: Could not commit profile preference modification:", saveErr);
         }
 
-        // Re-render topic indicators matching new tier scope
+        console.log("DEBUG EVENT: Toggling loadTopics() after database update check...");
         await loadTopics();
       };
+    } else {
+      console.error("DEBUG CRITICAL: #tierFilter element not found in DOM inside Auth loop!");
     }
+    
   } else {
+    console.log("DEBUG AUTH CHG: No session identified or logging out. Cleaning boundaries...");
     currentUser = null;
     setSignedOutUI();
   }
 });
+
+console.log("DEBUG: End of app.js file reached. Engine parsing sequence completed successfully.");
