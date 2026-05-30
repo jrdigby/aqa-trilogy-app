@@ -1,21 +1,43 @@
 console.log("APP VERSION", "v-" + Date.now());
 
+// Handle errors gracefully without blocking browser thread with dialog popups
 window.addEventListener("error", (e) => {
   console.error("JS ERROR:", e.message, e.error);
-  alert("JS ERROR: " + e.message);
 });
 
 window.addEventListener("unhandledrejection", (e) => {
   console.error("PROMISE ERROR:", e.reason);
-  alert("PROMISE ERROR: " + (e.reason?.message || e.reason));
 });
 
+// ====== CONFIG ======
 const SUPABASE_URL = "https://cbycwfhczyvzzhthpgsw.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_xD75RVd3kyvxs3IK_WsNag_eoCAZF4W";
 
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// ====== GLOBAL UTILITIES ======
 const escapeHtml = (s) => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+// Custom notification banner helper to replace all prohibited alert() dialogs
+function showNotification(msg, isError = true) {
+  let banner = el("toastBanner");
+  if (!banner) {
+    banner = document.createElement("div");
+    banner.id = "toastBanner";
+    banner.style = "position: fixed; top: 16px; right: 16px; z-index: 9999; padding: 12px 24px; border-radius: 8px; font-weight: 600; font-size: 0.9rem; color: white; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); opacity: 0; transform: translateY(-20px); box-shadow: 0 4px 12px rgba(0,0,0,0.15);";
+    document.body.appendChild(banner);
+  }
+  banner.textContent = msg;
+  banner.style.background = isError ? "#ef4444" : "#10b981";
+  banner.style.opacity = "1";
+  banner.style.transform = "translateY(0)";
+  setTimeout(() => {
+    banner.style.opacity = "0";
+    banner.style.transform = "translateY(-20px)";
+  }, 4000);
+}
+
+// ====== UI ELEMENTS ======
 const el = (id) => document.getElementById(id);
 
 const authSection = el("auth");
@@ -46,6 +68,7 @@ const topicFilter = el("topicFilter");
 const forecastWrapper = el("forecastWrapper"); 
 const masteryWrapper = el("masteryWrapper"); 
 
+// ====== SESSION STATE ======
 let currentUser = null;
 let sessionQuestions = [];
 let idx = 0;
@@ -54,9 +77,11 @@ let currentKey = null;
 let currentMarkPoints = [];
 let isInitializingPipeline = false; 
 
+// Timeout utility to protect execution contexts from infinite database stalls
 const timeoutPromise = (ms, message = "Database connection timed out") => 
   new Promise((_, reject) => setTimeout(() => reject(new Error(message)), ms));
 
+// ====== HELPERS ======
 function getSelectedFilters() {
   const subject = subjectFilter?.value || "biology";
   const paper = paperFilter?.value || "paper1";
@@ -75,6 +100,7 @@ function addDaysISO(days) {
   return d.toISOString().slice(0,10);
 }
 
+// SM-2 style update (simple)
 function updateSRS({ quality, ef, reps, interval }) {
   let newEF = ef + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02));
   newEF = Math.max(1.3, newEF);
@@ -97,6 +123,7 @@ function updateSRS({ quality, ef, reps, interval }) {
   return { newEF, newReps, newInterval, lapse };
 }
 
+// ====== 🧠 FUZZY STRING MATCHING ENGINE (LEVENSHTEIN DISTANCE) ======
 function getLevenshteinDistance(s1, s2) {
   const track = Array(s2.length + 1).fill(null).map(() => Array(s1.length + 1).fill(null));
   
@@ -107,9 +134,9 @@ function getLevenshteinDistance(s1, s2) {
     for (let i = 1; i <= s1.length; i += 1) {
       const indicator = s1[i - 1] === s2[j - 1] ? 0 : 1;
       track[j][i] = Math.min(
-        track[j][i - 1] + 1, 
-        track[j - 1][i] + 1, 
-        track[j - 1][i - 1] + indicator 
+        track[j][i - 1] + 1, // deletion
+        track[j - 1][i] + 1, // insertion
+        track[j - 1][i - 1] + indicator // substitution
       );
     }
   }
@@ -130,6 +157,7 @@ function isFuzzyMatch(userWord, targetKeyword, threshold = 0.85) {
   return similarity >= threshold;
 }
 
+// ====== AUTH EVENT LOOPS ======
 if (btnSignUp) {
   btnSignUp.onclick = async () => {
     authMsg.textContent = "Creating account…";
@@ -152,8 +180,15 @@ if (btnSignIn) {
       return;
     }
     currentUser = data.user;
-    await setSignedInUI(currentUser);
-    await loadDashboard();       
+    showSignedInLayout();
+    
+    // Fire asynchronous fetches in background
+    Promise.all([
+      syncUserTierAndLoadTopics(currentUser),
+      loadDashboard(),
+      loadWeeklyForecast(),
+      checkAndUpdateStreak()
+    ]);
   };
 }
 
@@ -164,6 +199,7 @@ if (btnSignOut) {
   };
 }
 
+// ====== DASHBOARD LOADING SYSTEM ======
 async function loadDashboard() {
   if (!currentUser) return;
   const today = todayISO();
@@ -267,7 +303,7 @@ if (btnStartDue) {
     }
 
     if (!targetedSpecPointId) {
-      alert(`No questions found matching your specific tier/type parameters for this due topic.`);
+      showNotification("No questions found matching your specific tier/type parameters for this due topic.");
       return;
     }
 
@@ -281,6 +317,7 @@ if (btnStartAny) {
   };
 }
 
+// ====== 7-DAY WORKLOAD REVISION FORECAST ======
 async function loadWeeklyForecast() {
   if (!currentUser || !forecastWrapper) return;
 
@@ -363,12 +400,12 @@ async function startAnyPractice() {
     const result = await Promise.race([query, timeoutPromise(4000, "Syllabus items query timed out")]);
     sp = result.data || [];
   } catch (err) {
-    alert("Connection error loading syllabus definitions: " + err.message);
+    showNotification("Connection error loading syllabus definitions: " + err.message);
     return;
   }
 
   if (!sp || sp.length === 0) {
-    alert(`No matching specification items found for your selection choices.`);
+    showNotification(`No matching specification items found for your selection choices.`);
     return;
   }
 
@@ -394,7 +431,7 @@ async function startAnyPractice() {
 
   if (matchingSpecPoints.length === 0) {
     const typeLabel = qType === "short_text" ? "Short Text / Written" : (qType || "any");
-    alert(`No structural questions found of type "${typeLabel}" loaded for the selected ${tier} tier topics.`);
+    showNotification(`No structural questions found of type "${typeLabel}" loaded for the selected ${tier} tier topics.`);
     return;
   }
 
@@ -422,12 +459,12 @@ async function startSessionForSpecPoint(specPointId, qType = "") {
     const result = await Promise.race([query.limit(10), timeoutPromise(4000, "Questions loading query timed out")]);
     qs = result.data || [];
   } catch (err) {
-    alert("Error loading questions framework: " + err.message);
+    showNotification("Error loading questions framework: " + err.message);
     return;
   }
 
   if (!qs || qs.length === 0) {
-    alert(`No structural questions found matching your filter rules for this topic folder.`);
+    showNotification(`No structural questions found matching your filter rules for this topic folder.`);
     return;
   }
 
@@ -493,6 +530,7 @@ async function checkAndUpdateStreak() {
   }
 }
 
+// ====== QUESTION RENDERING + MARKING ======
 async function loadQuestion() {
   currentQ = sessionQuestions[idx];
   if (progress) progress.textContent = `Question ${idx + 1} of ${sessionQuestions.length}`;
@@ -850,77 +888,74 @@ function setSignedOutUI() {
   if (authMsg) authMsg.textContent = "Not signed in.";
 }
 
-async function setSignedInUI(user) {
-  console.log("DEBUG setSignedInUI: Started function successfully.");
+// Fast screen layout setup that swaps form panels instantly using cache lookups
+function showSignedInLayout() {
   if (btnSignOut) btnSignOut.classList.remove("hidden");
   if (authSection) authSection.classList.add("hidden");
   if (dashSection) dashSection.classList.remove("hidden");
 
-  if (userChip) userChip.textContent = `${user.email || user.id}`;
-  if (authMsg) authMsg.textContent = "Signed in ✅";
+  if (currentUser) {
+    if (userChip) userChip.textContent = `${currentUser.email || currentUser.id}`;
+    if (authMsg) authMsg.textContent = "Signed in ✅";
+  }
 
   const runtimeTierSelect = el("tierFilter");
   if (runtimeTierSelect) {
-    console.log("DEBUG setSignedInUI: #tierFilter found. Resolving configurations...");
-    
-    // Step 1: Instantly load cached tier from localStorage to render dynamic widgets with zero network lag
-    const cachedTier = localStorage.getItem("preferred_tier");
-    if (cachedTier) {
-      runtimeTierSelect.value = cachedTier;
-      console.log("DEBUG setSignedInUI: Applied CACHED tier preference instantly:", cachedTier);
-    } else if (!runtimeTierSelect.value) {
-      runtimeTierSelect.value = "FT";
-      console.log("DEBUG setSignedInUI: Local cache missing. Applied baseline fallback 'FT'.");
-    }
-  } else {
-    console.warn("DEBUG setSignedInUI: #tierFilter element NOT found in DOM!");
+    const cachedTier = localStorage.getItem("preferred_tier") || "FT";
+    runtimeTierSelect.value = cachedTier;
+    console.log("DEBUG showSignedInLayout: Rendered tier dropdown instantly via cache:", cachedTier);
   }
 
-  // Step 2: Instantly trigger topics loading in background using cached preferences
-  console.log("DEBUG setSignedInUI: Proceeding with instant rendering loadTopics()...");
+  // Inject temporary pending loaders into the metrics indicators
+  if (dueCount) dueCount.textContent = "…";
+  if (dueList) dueList.innerHTML = `<div class="item muted">Refreshing scheduled deck…</div>`;
+  if (forecastWrapper) forecastWrapper.innerHTML = `<div class="muted" style="margin: auto; font-size: 0.8rem;">Loading forecast chart…</div>`;
+  if (masteryWrapper) masteryWrapper.innerHTML = `<div class="muted" style="text-align: center; padding: 12px;">Crunching syllabus stats…</div>`;
+  
+  const aoMasteryWrapper = el("aoMasteryWrapper");
+  if (aoMasteryWrapper) {
+    aoMasteryWrapper.innerHTML = `<div class="muted" style="text-align: center; width: 100%; grid-column: 1/-1; padding: 12px;">Syncing cognitive performance indicators…</div>`;
+  }
+}
+
+// Silently resolve, compare, and cache the database preferences without blocking local display threads
+async function syncUserTierAndLoadTopics(user) {
+  console.log("DEBUG: Launching background syllabus loading thread...");
+  await loadTopics();
+
   try {
-    await loadTopics();
-    console.log("DEBUG setSignedInUI: Instant local loadTopics() completed successfully.");
-  } catch (topicsError) {
-    console.error("DEBUG setSignedInUI: Error during layout rendering sequence:", topicsError);
-  }
+    const dbQuery = supabaseClient
+      .from("profiles")
+      .select("preferred_tier")
+      .eq("user_id", user.id)
+      .maybeSingle();
 
-  // Step 3: Run database sync in the background entirely out of the UI render thread
-  (async () => {
-    let profile = null;
-    try {
-      console.log("DEBUG setSignedInUI: Querying DB for preferred tier synchronization...");
-      const dbQuery = supabaseClient
-        .from("profiles")
-        .select("preferred_tier")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      const result = await Promise.race([dbQuery, timeoutPromise(3000, "Profiles check timed out")]);
-      if (result && result.data) {
-        profile = result.data;
-        console.log("DEBUG setSignedInUI: DB check completed successfully. Row data:", profile);
-      }
-    } catch (err) {
-      console.warn("DEBUG setSignedInUI: Silent background database sync timed out. Relying safely on cached parameters:", err.message || err);
-    }
-
-    if (profile && profile.preferred_tier && runtimeTierSelect) {
-      let mappedTier = profile.preferred_tier;
+    const result = await Promise.race([dbQuery, timeoutPromise(3000, "Background sync timed out")]);
+    
+    if (result && result.data && result.data.preferred_tier) {
+      let mappedTier = result.data.preferred_tier;
       if (mappedTier === "foundation") mappedTier = "FT";
       if (mappedTier === "higher") mappedTier = "HT";
-      
-      // If the database preference differs from the cached value, overwrite and sync
-      if (runtimeTierSelect.value !== mappedTier) {
+
+      const runtimeTierSelect = el("tierFilter");
+      if (runtimeTierSelect && runtimeTierSelect.value !== mappedTier) {
         runtimeTierSelect.value = mappedTier;
         localStorage.setItem("preferred_tier", mappedTier);
-        console.log("DEBUG setSignedInUI: Remote database value differed. Dynamic local cache synchronized successfully with:", mappedTier);
+        console.log("DEBUG: Remote DB tier differs from cached tier. Local storage synchronized:", mappedTier);
         await loadTopics();
       }
     }
-  })();
+  } catch (err) {
+    console.warn("Silent preference sync skipped secure context:", err.message || err);
+  }
 }
 
+async function setSignedInUI(user) {
+  // Legacy handler wrapper preserved for API compatibility
+  showSignedInLayout();
+}
+
+// ====== DEFINITIVE DECLARATION LAYER FOR THE THE TOPICS SYNC ENGINE ======
 async function loadTopics() {
   if (!subjectFilter || !paperFilter || !topicFilter) {
     console.error("DEBUG loadTopics: Required DOM select elements not bound.");
@@ -963,6 +998,7 @@ async function loadTopics() {
     .from("attempts")
     .select("score_total, score_max, question_id, ao1_score, ao2_score, ao3_score");
 
+  // Fetching the mark_points schema in parallel to calculate total potential AO values for questions
   const markPointsQuery = supabaseClient
     .from("mark_points")
     .select("question_id, ao, max_marks");
@@ -1119,7 +1155,7 @@ async function loadTopics() {
     const parent = masteryWrapper.parentNode;
     
     const header = document.createElement("div");
-    header.innerHTML = `<h3 style="margin-top: 24px; margin-bottom: 12px; font-weight: 700; color: var(--text);">Assessment Objective (AO) Mastery for selected subject and topic(s)</h3>`;
+    header.innerHTML = `<h3 style="margin-top: 24px; margin-bottom: 12px; font-weight: 700; color: var(--text);">Assessment Objective (AO) Mastery</h3>`;
     
     aoMasteryWrapper = document.createElement("div");
     aoMasteryWrapper.id = "aoMasteryWrapper";
@@ -1136,11 +1172,11 @@ async function loadTopics() {
     try {
       const qMaxAOMap = {};
       
-      // Seed base AO max scores ONLY for questions belonging to the active subject, paper, and selected topic
+      // Filter base question set down to the active subject, paper, and topic scope dynamically
       questions.forEach(q => {
         const matchedTopic = specToTopicMap[q.spec_point_id];
-        if (matchedTopic === undefined) return; // Skip if question belongs to a different subject/paper
-        if (topic && matchedTopic !== topic) return; // Skip if a specific topic filter is active and it doesn't match
+        if (matchedTopic === undefined) return; 
+        if (topic && matchedTopic !== topic) return; 
 
         qMaxAOMap[q.id] = { AO1: 0, AO2: 0, AO3: 0 };
         if (q.question_type === "mcq") {
@@ -1150,7 +1186,7 @@ async function loadTopics() {
         }
       });
 
-      // Layer optional and required keyword mark points on top of matching base values
+      // Layer optional and required keyword mark points on top of matched question ids
       markPoints.forEach(mp => {
         if (qMaxAOMap[mp.question_id]) {
           const aoKey = mp.ao;
@@ -1166,19 +1202,14 @@ async function loadTopics() {
         AO3: { earned: 0, max: 0 }
       };
 
-      // Only evaluate score attempts matching the current subject-scoped filters
       attempts.forEach(att => {
         const qId = att.question_id;
         
-        // Dynamic sync: Ignore attempts from outside the current filtered subject/paper/topic scope
+        // Sum attempt metrics strictly belonging to the currently active filtered criteria
         if (qMaxAOMap[qId]) {
-          const ao1_earned = att.ao1_score || 0;
-          const ao2_earned = att.ao2_score || 0;
-          const ao3_earned = att.ao3_score || 0;
-
-          aoStats.AO1.earned += ao1_earned;
-          aoStats.AO2.earned += ao2_earned;
-          aoStats.AO3.earned += ao3_earned;
+          aoStats.AO1.earned += (att.ao1_score || 0);
+          aoStats.AO2.earned += (att.ao2_score || 0);
+          aoStats.AO3.earned += (att.ao3_score || 0);
 
           aoStats.AO1.max += qMaxAOMap[qId].AO1;
           aoStats.AO2.max += qMaxAOMap[qId].AO2;
@@ -1244,63 +1275,45 @@ async function loadTopics() {
   }
 }
 
+// ====== BIND INTERACTION HANDLERS ======
 console.log("DEBUG: Initializing top-level event listeners...");
 
 if (subjectFilter) {
   subjectFilter.addEventListener("change", () => {
     console.log("DEBUG EVENT: Subject changed ->", subjectFilter.value);
-    if (!currentUser) {
-      console.warn("DEBUG EVENT: Blocked loadTopics() change handler - No currentUser yet.");
-      return;
-    }
+    if (!currentUser) return;
     loadTopics();
   });
-} else {
-  console.error("DEBUG CRITICAL: #subjectFilter element not found in DOM!");
 }
 
 if (paperFilter) {
   paperFilter.addEventListener("change", () => {
     console.log("DEBUG EVENT: Paper changed ->", paperFilter.value);
-    if (!currentUser) {
-      console.warn("DEBUG EVENT: Blocked loadTopics() change handler - No currentUser yet.");
-      return;
-    }
+    if (!currentUser) return;
     loadTopics();
   });
-} else {
-  console.error("DEBUG CRITICAL: #paperFilter element not found in DOM!");
 }
 
 if (topicFilter) {
   topicFilter.addEventListener("change", () => {
     console.log("DEBUG EVENT: Topic changed ->", topicFilter.value);
-    if (!currentUser) {
-      console.warn("DEBUG EVENT: Blocked loadTopics() change handler - No currentUser yet.");
-      return;
-    }
+    if (!currentUser) return;
     loadTopics();
   });
-} else {
-  console.error("DEBUG CRITICAL: #topicFilter element not found in DOM!");
 }
 
 const liveTypeFilter = el("typeFilter");
 if (liveTypeFilter) {
   liveTypeFilter.addEventListener("change", () => {
     console.log("DEBUG EVENT: Type Filter changed ->", liveTypeFilter.value);
-    if (!currentUser) {
-      console.warn("DEBUG EVENT: Blocked loadTopics() change handler - No currentUser yet.");
-      return;
-    }
+    if (!currentUser) return;
     loadTopics();
   });
-} else {
-  console.log("DEBUG INFO: Optional #typeFilter element not present.");
 }
 
 console.log("DEBUG: Hooking up supabaseClient.auth.onAuthStateChange...");
 
+// ====== MONOLITHIC AUTH LOADER GATE ======
 supabaseClient.auth.onAuthStateChange(async (event, session) => {
   console.log(`DEBUG AUTH CHG: Event fired! [Event: ${event}]`, session ? `User ID: ${session.user.id}` : "No active session (session is null)");
   
@@ -1312,63 +1325,54 @@ supabaseClient.auth.onAuthStateChange(async (event, session) => {
 
     currentUser = session.user;
     isInitializingPipeline = true;
-    console.log("DEBUG AUTH CHG: currentUser set. Initiating parallel concurrent setup pipeline...");
+    console.log("DEBUG AUTH CHG: currentUser identified. Triggering instant layout switch...");
     
-    try {
-      console.log("DEBUG AUTH CHG: Issuing concurrent Promises for signed in widgets...");
-      await Promise.all([
-        setSignedInUI(currentUser),
-        loadDashboard(),
-        loadWeeklyForecast(),
-        checkAndUpdateStreak()
-      ]);
-      console.log("DEBUG AUTH CHG: Concurrent startup pipelines resolved cleanly.");
-      
-    } catch (pipelineError) {
-      console.error("DEBUG CRITICAL: Initialization pipeline shattered with an error:", pipelineError);
-      alert("Pipeline Error: " + pipelineError.message);
-    } finally {
+    // Instantly transition the DOM screens to avoid loading delays
+    showSignedInLayout();
+    
+    // Concurrently fire off asynchronous background database updates
+    Promise.all([
+      syncUserTierAndLoadTopics(currentUser),
+      loadDashboard(),
+      loadWeeklyForecast(),
+      checkAndUpdateStreak()
+    ]).then(() => {
+      console.log("DEBUG AUTH CHG: All background metrics loaded successfully.");
+    }).catch(err => {
+      console.error("DEBUG AUTH CHG: Background loading task encountered errors:", err);
+    }).finally(() => {
       isInitializingPipeline = false;
-    }
+    });
     
     const runtimeTierSelect = el("tierFilter");
     if (runtimeTierSelect) {
-      console.log("DEBUG AUTH CHG: #tierFilter identified. Binding dedicated .onchange override context safely.");
-      
       runtimeTierSelect.onchange = async () => {
         const newSelectedTier = runtimeTierSelect.value;
         console.log("DEBUG EVENT: Exam entry tier manual toggle detected ->", newSelectedTier);
         
-        // Save dynamically to local cache instantly on change
+        // Instantly save to local storage
         localStorage.setItem("preferred_tier", newSelectedTier);
 
-        if (!currentUser) {
-          console.error("DEBUG EVENT ERROR: Triggered tier save attempt but currentUser is gone!");
-          return;
-        }
+        if (!currentUser) return;
         
         try {
-          console.log(`DEBUG DB: Issuing profile preferred_tier update call to database row: ${currentUser.id} -> ${newSelectedTier}`);
+          console.log(`DEBUG DB: Syncing tier choice to Supabase profiles: ${currentUser.id} -> ${newSelectedTier}`);
           const { error: updateError } = await supabaseClient
             .from("profiles")
             .update({ preferred_tier: newSelectedTier })
             .eq("user_id", currentUser.id);
           
           if (updateError) throw updateError;
-          console.log(`DEBUG DB SUCCESS: Preference saved permanently: ${newSelectedTier}`);
+          console.log(`DEBUG DB SUCCESS: Sync saved.`);
         } catch (saveErr) {
-          console.error("DEBUG DB ERROR: Could not commit profile preferred_tier modification:", saveErr);
+          console.error("DEBUG DB ERROR: Profile synchronization skipped safely:", saveErr);
         }
 
-        console.log("DEBUG EVENT: Toggling loadTopics() after database update check...");
         await loadTopics();
       };
-    } else {
-      console.error("DEBUG CRITICAL: #tierFilter element not found in DOM inside Auth loop!");
     }
     
   } else {
-    console.log("DEBUG AUTH CHG: No session identified or logging out. Cleaning boundaries...");
     currentUser = null;
     setSignedOutUI();
   }
