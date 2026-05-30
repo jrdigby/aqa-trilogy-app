@@ -34,7 +34,7 @@ function showToastBanner(msg, isError = true) {
   setTimeout(() => {
     banner.style.opacity = "0";
     banner.style.transform = "translateY(-20px)";
-  }, 4000);
+  }, 5000); // 5 seconds display for easier reading
 }
 
 // ====== UI ELEMENTS ======
@@ -315,9 +315,12 @@ if (btnStartDue) {
     let matchingQs = [];
     try {
       const result = await Promise.race([qQuery, timeoutPromise(4000, "Questions resolution query timed out")]);
+      if (result.error) throw result.error;
       matchingQs = result.data || [];
     } catch (err) {
-      console.warn("DEBUG btnStartDue: Question filtering failed, dropping context safely:", err);
+      console.error("DEBUG btnStartDue: Question filtering failed:", err);
+      showToastBanner("Error matching due questions: " + err.message, true);
+      return;
     }
 
     if (matchingQs && matchingQs.length > 0) {
@@ -420,6 +423,7 @@ async function startAnyPractice() {
   let sp = [];
   try {
     const result = await Promise.race([query, timeoutPromise(4000, "Syllabus items query timed out")]);
+    if (result.error) throw result.error;
     sp = result.data || [];
   } catch (err) {
     showToastBanner("Connection error loading syllabus definitions: " + err.message, true);
@@ -443,9 +447,12 @@ async function startAnyPractice() {
   let activeQs = [];
   try {
     const result = await Promise.race([qQuery, timeoutPromise(4000, "Practice pool matching timed out")]);
+    if (result.error) throw result.error;
     activeQs = result.data || [];
   } catch (err) {
     console.error("DEBUG startAnyPractice: Questions lookup failure context:", err);
+    showToastBanner("Database error matching practice pool: " + err.message, true);
+    return;
   }
 
   const activeIds = new Set((activeQs || []).map(q => q.spec_point_id));
@@ -479,9 +486,11 @@ async function startSessionForSpecPoint(specPointId, qType = "") {
   let qs = [];
   try {
     const result = await Promise.race([query.limit(10), timeoutPromise(4000, "Questions loading query timed out")]);
+    if (result.error) throw result.error; // Force verification to block silent SQL errors
     qs = result.data || [];
   } catch (err) {
-    showToastBanner("Error loading questions framework: " + err.message, true);
+    console.error("DEBUG startSessionForSpecPoint: Questions loading error:", err);
+    showToastBanner("Database error loading questions list: " + err.message, true);
     return;
   }
 
@@ -565,6 +574,9 @@ async function loadQuestion() {
     supabaseClient.from("answer_keys").select("key_type,key_payload").eq("question_id", currentQ.id).maybeSingle(),
     supabaseClient.from("mark_points").select("ao,point_text,feedback_if_missing,max_marks").eq("question_id", currentQ.id)
   ]);
+
+  if (keyRes.error) console.error("DEBUG loadQuestion: Error resolving answer key:", keyRes.error);
+  if (markRes.error) console.error("DEBUG loadQuestion: Error resolving mark points:", markRes.error);
 
   currentKey = keyRes.data;
   currentMarkPoints = markRes.data || [];
@@ -916,7 +928,7 @@ if (btnSubmit) {
         
         feedback.innerHTML = renderAQAExtendedResponseFeedback(response.text, customRubric, localKeywords);
 
-        await supabaseClient.from("attempts").insert({
+        const result = await supabaseClient.from("attempts").insert({
           user_id: currentUser.id,
           question_id: currentQ.id,
           response_payload: response,
@@ -928,9 +940,12 @@ if (btnSubmit) {
           feedback_payload: { evaluated_locally: true }
         });
 
+        if (result.error) throw result.error;
+
         await upsertSRS(currentQ.spec_point_id, 4);
       } catch (err) {
         console.warn("Simulated Extended marking finished with data tracking warnings:", err);
+        showToastBanner("Warning: Failed to save attempt results permanently: " + err.message, true);
       }
 
     } else {
@@ -939,7 +954,7 @@ if (btnSubmit) {
       if (btnNext) btnNext.classList.remove("hidden");
 
       try {
-        await supabaseClient.from("attempts").insert({
+        const result = await supabaseClient.from("attempts").insert({
           user_id: currentUser.id,
           question_id: currentQ.id,
           response_payload: response,
@@ -951,9 +966,12 @@ if (btnSubmit) {
           feedback_payload: marking.feedbackPayload
         });
 
+        if (result.error) throw result.error;
+
         await upsertSRS(currentQ.spec_point_id, marking.quality);
       } catch(err) {
         console.error("Sync backup failure logged:", err);
+        showToastBanner("Warning: Failed to log performance metric: " + err.message, true);
       }
     }
   };
@@ -975,34 +993,42 @@ if (btnNext) {
 }
 
 async function upsertSRS(specPointId, quality) {
-  const { data: existing } = await supabaseClient
-    .from("srs_state")
-    .select("interval_days,ease_factor,repetitions,lapses")
-    .eq("user_id", currentUser.id)
-    .eq("spec_point_id", specPointId)
-    .maybeSingle();
+  try {
+    const { data: existing, error: existingErr } = await supabaseClient
+      .from("srs_state")
+      .select("interval_days,ease_factor,repetitions,lapses")
+      .eq("user_id", currentUser.id)
+      .eq("spec_point_id", specPointId)
+      .maybeSingle();
 
-  const ef = existing?.ease_factor ?? 2.5;
-  const reps = existing?.repetitions ?? 0;
-  const interval = existing?.interval_days ?? 1;
-  const lapses = existing?.lapses ?? 0;
+    if (existingErr) throw existingErr;
 
-  const upd = updateSRS({ quality, ef, reps, interval });
-  const nextDue = addDaysISO(upd.newInterval);
+    const ef = existing?.ease_factor ?? 2.5;
+    const reps = existing?.repetitions ?? 0;
+    const interval = existing?.interval_days ?? 1;
+    const lapses = existing?.lapses ?? 0;
 
-  const payload = {
-    user_id: currentUser.id,
-    spec_point_id: specPointId,
-    due_date: nextDue,
-    interval_days: upd.newInterval,
-    ease_factor: upd.newEF,
-    repetitions: upd.newReps,
-    lapses: lapses + upd.lapse,
-    last_quality: quality,
-    updated_at: new Date().toISOString()
-  };
+    const upd = updateSRS({ quality, ef, reps, interval });
+    const nextDue = addDaysISO(upd.newInterval);
 
-  await supabaseClient.from("srs_state").upsert(payload);
+    const payload = {
+      user_id: currentUser.id,
+      spec_point_id: specPointId,
+      due_date: nextDue,
+      interval_days: upd.newInterval,
+      ease_factor: upd.newEF,
+      repetitions: upd.newReps,
+      lapses: lapses + upd.lapse,
+      last_quality: quality,
+      updated_at: new Date().toISOString()
+    };
+
+    const { error: upsertErr } = await supabaseClient.from("srs_state").upsert(payload);
+    if (upsertErr) throw upsertErr;
+  } catch (err) {
+    console.error("Spaced repetition schedule update failed:", err);
+    showToastBanner("SRS error saving Spaced Repetition schedule: " + err.message, true);
+  }
 }
 
 // ====== PRE-LOAD RESOLUTION PLUGS ======
@@ -1331,7 +1357,6 @@ async function loadTopics() {
         } else if (q.question_type === "numeric") {
           qMaxAOMap[q.id].AO2 = 1;
         } else if (q.question_type === "extended_response") {
-          // AQA 6-mark Extended responses generally test: 2 AO1 (recall), 2 AO2 (application), 2 AO3 (analysis/evaluation)
           qMaxAOMap[q.id].AO1 = 2;
           qMaxAOMap[q.id].AO2 = 2;
           qMaxAOMap[q.id].AO3 = 2;
