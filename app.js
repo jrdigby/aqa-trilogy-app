@@ -861,57 +861,64 @@ async function setSignedInUI(user) {
 
   const runtimeTierSelect = el("tierFilter");
   if (runtimeTierSelect) {
-    console.log("DEBUG setSignedInUI: #tierFilter found. Current value is:", runtimeTierSelect.value);
-    if (!runtimeTierSelect.value) {
+    console.log("DEBUG setSignedInUI: #tierFilter found. Resolving configurations...");
+    
+    // Step 1: Instantly load cached tier from localStorage to render dynamic widgets with zero network lag
+    const cachedTier = localStorage.getItem("preferred_tier");
+    if (cachedTier) {
+      runtimeTierSelect.value = cachedTier;
+      console.log("DEBUG setSignedInUI: Applied CACHED tier preference instantly:", cachedTier);
+    } else if (!runtimeTierSelect.value) {
       runtimeTierSelect.value = "FT";
-      console.log("DEBUG setSignedInUI: Set baseline fallback value to 'FT'");
+      console.log("DEBUG setSignedInUI: Local cache missing. Applied baseline fallback 'FT'.");
     }
   } else {
     console.warn("DEBUG setSignedInUI: #tierFilter element NOT found in DOM!");
   }
 
-  let profile = null;
-  try {
-    console.log("DEBUG setSignedInUI: Preparing Supabase profile query for user ID:", user.id);
-    const dbQuery = supabaseClient
-      .from("profiles")
-      .select("preferred_tier")
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    const result = await Promise.race([dbQuery, timeoutPromise(4000, "Profiles check timed out")]);
-    
-    if (result && result.error) {
-      console.error("DEBUG setSignedInUI: Supabase query returned an explicit error:", result.error);
-    } else if (result) {
-      profile = result.data;
-      console.log("DEBUG setSignedInUI: Supabase query completed successfully. Row data returned:", profile);
-    }
-  } catch (err) {
-    console.warn("DEBUG setSignedInUI: Profiles fetch failed or timed out. Applying fallback configuration safely. Error:", err.message || err);
-  }
-
-  if (profile && profile.preferred_tier && runtimeTierSelect) {
-    let mappedTier = profile.preferred_tier;
-    if (mappedTier === "foundation") mappedTier = "FT";
-    if (mappedTier === "higher") mappedTier = "HT";
-    
-    runtimeTierSelect.value = mappedTier;
-    console.log("DEBUG setSignedInUI: Applied preferred tier config:", mappedTier);
-  } else {
-    console.log("DEBUG setSignedInUI: No persistent preferred tier config returned. Defaulting to standard 'FT'.");
-    if (runtimeTierSelect) {
-      runtimeTierSelect.value = "FT";
-    }
-  }
-
-  console.log("DEBUG setSignedInUI: Proceeding to call loadTopics()...");
+  // Step 2: Instantly trigger topics loading in background using cached preferences
+  console.log("DEBUG setSignedInUI: Proceeding with instant rendering loadTopics()...");
   try {
     await loadTopics();
-    console.log("DEBUG setSignedInUI: loadTopics() finished running successfully.");
+    console.log("DEBUG setSignedInUI: Instant local loadTopics() completed successfully.");
   } catch (topicsError) {
-    console.error("DEBUG setSignedInUI: CRITICAL ERROR inside loadTopics():", topicsError);
+    console.error("DEBUG setSignedInUI: Error during layout rendering sequence:", topicsError);
   }
+
+  // Step 3: Run database sync in the background entirely out of the UI render thread
+  (async () => {
+    let profile = null;
+    try {
+      console.log("DEBUG setSignedInUI: Querying DB for preferred tier synchronization...");
+      const dbQuery = supabaseClient
+        .from("profiles")
+        .select("preferred_tier")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      const result = await Promise.race([dbQuery, timeoutPromise(3000, "Profiles check timed out")]);
+      if (result && result.data) {
+        profile = result.data;
+        console.log("DEBUG setSignedInUI: DB check completed successfully. Row data:", profile);
+      }
+    } catch (err) {
+      console.warn("DEBUG setSignedInUI: Silent background database sync timed out. Relying safely on cached parameters:", err.message || err);
+    }
+
+    if (profile && profile.preferred_tier && runtimeTierSelect) {
+      let mappedTier = profile.preferred_tier;
+      if (mappedTier === "foundation") mappedTier = "FT";
+      if (mappedTier === "higher") mappedTier = "HT";
+      
+      // If the database preference differs from the cached value, overwrite and sync
+      if (runtimeTierSelect.value !== mappedTier) {
+        runtimeTierSelect.value = mappedTier;
+        localStorage.setItem("preferred_tier", mappedTier);
+        console.log("DEBUG setSignedInUI: Remote database value differed. Dynamic local cache synchronized successfully with:", mappedTier);
+        await loadTopics();
+      }
+    }
+  })();
 }
 
 async function loadTopics() {
@@ -956,7 +963,6 @@ async function loadTopics() {
     .from("attempts")
     .select("score_total, score_max, question_id, ao1_score, ao2_score, ao3_score");
 
-  // Fetching the mark_points schema in parallel to calculate total potential AO values for questions
   const markPointsQuery = supabaseClient
     .from("mark_points")
     .select("question_id, ao, max_marks");
@@ -1130,7 +1136,6 @@ async function loadTopics() {
     try {
       const qMaxAOMap = {};
       
-      // Seed base AO max scores based on active loaded question configurations
       questions.forEach(q => {
         qMaxAOMap[q.id] = { AO1: 0, AO2: 0, AO3: 0 };
         if (q.question_type === "mcq") {
@@ -1140,7 +1145,6 @@ async function loadTopics() {
         }
       });
 
-      // Layer optional and required keyword mark points on top of base values
       markPoints.forEach(mp => {
         if (qMaxAOMap[mp.question_id]) {
           const aoKey = mp.ao;
@@ -1330,6 +1334,9 @@ supabaseClient.auth.onAuthStateChange(async (event, session) => {
         const newSelectedTier = runtimeTierSelect.value;
         console.log("DEBUG EVENT: Exam entry tier manual toggle detected ->", newSelectedTier);
         
+        // Save dynamically to local cache instantly on change
+        localStorage.setItem("preferred_tier", newSelectedTier);
+
         if (!currentUser) {
           console.error("DEBUG EVENT ERROR: Triggered tier save attempt but currentUser is gone!");
           return;
