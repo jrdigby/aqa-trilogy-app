@@ -1,5 +1,6 @@
 console.log("APP VERSION", "v-" + Date.now());
 
+// Overriding default browser modal warnings with premium non-blocking overlay alerts
 window.addEventListener("error", (e) => {
   console.error("JS ERROR:", e.message, e.error);
   showToastBanner("JS ERROR: " + e.message, true);
@@ -486,7 +487,7 @@ async function startSessionForSpecPoint(specPointId, qType = "") {
   let qs = [];
   try {
     const result = await Promise.race([query.limit(10), timeoutPromise(4000, "Questions loading query timed out")]);
-    if (result.error) throw result.error; // Force verification to block silent SQL errors
+    if (result.error) throw result.error; 
     qs = result.data || [];
   } catch (err) {
     console.error("DEBUG startSessionForSpecPoint: Questions loading error:", err);
@@ -595,7 +596,16 @@ function renderQuestion(q) {
 
   if (q.question_type === "mcq") {
     const opts = Array.isArray(q.options) ? q.options : [];
-    html += `<div class="mcq-container">${opts.map(o => `<label class="mcq-option"><input type="radio" name="mcq" value="${escapeHtml(o)}"/><span>${escapeHtml(o)}</span></label>`).join("")}</div>`;
+    html += `
+      <div class="mcq-container" style="display: flex; flex-direction: column; gap: 10px; margin-top: 12px;">
+        ${opts.map(o => `
+          <label class="mcq-option" style="display: flex; align-items: center; gap: 10px; padding: 12px 16px; border: 1px solid #e2e8f0; border-radius: 8px; cursor: pointer; transition: all 0.2s; background: #ffffff;">
+            <input type="radio" name="mcq" value="${escapeHtml(o)}" style="cursor: pointer; accent-color: var(--primary);"/>
+            <span>${escapeHtml(o)}</span>
+          </label>
+        `).join("")}
+      </div>
+    `;
   } else if (q.question_type === "numeric") {
     html += `<div class="item"><label>Answer: <input id="numAns" type="number" step="any"/></label><label style="margin-left:10px;">Units: <input id="numUnit" type="text"/></label></div>`;
   } else if (q.question_type === "extended_response") {
@@ -637,23 +647,60 @@ function mixWordTokens(studentText) {
 function markResponse(q, resp, key, markPoints) {
   let total = 0, max = 1;
   let ao = { AO1: 0, AO2: 0, AO3: 0 };
+  let maxAo = { AO1: 0, AO2: 0, AO3: 0 };
   let missing = [], quality = 0;
 
-  if (!key) return { total: 0, max: 1, ao, missing, quality: 0, feedbackPayload: {} };
+  if (!key) return { total: 0, max: 1, ao, maxAo, missing, quality: 0, feedbackPayload: {} };
 
   const cleanUrl = (q && typeof q.resource_links === "string" && q.resource_links.trim().toLowerCase().startsWith('http')) 
     ? q.resource_links.trim() 
     : null;
+
+  // Determine potential Assessment Objective limits dynamically based on spec profiles
+  if (markPoints && markPoints.length > 0) {
+    markPoints.forEach(mp => {
+      maxAo[mp.ao] = (maxAo[mp.ao] || 0) + (mp.max_marks || 1);
+    });
+  } else {
+    if (q.question_type === "mcq") {
+      maxAo.AO1 = 1;
+    } else if (q.question_type === "numeric") {
+      maxAo.AO2 = 1;
+    } else if (q.question_type === "extended_response") {
+      maxAo.AO1 = 2;
+      maxAo.AO2 = 2;
+      maxAo.AO3 = 2;
+    } else {
+      maxAo.AO1 = 1;
+    }
+  }
       
   if (key.key_type === "mcq") {
     max = 1;
     total = resp.answer === key.key_payload.correct ? 1 : 0;
     quality = total ? 5 : 1;
-    if (total === 1) ao.AO1 = 1;
-    else {
+
+    // Use AO1 as standard MCQ fallback unless specified in markPoints schema
+    const targetAo = markPoints?.[0]?.ao || "AO1";
+    if (total === 1) {
+      ao[targetAo] = 1;
+    } else {
+      // Pedagogues demand actual feedback instead of rigid static lists
+      let feedbackText = "";
+      if (markPoints && markPoints.length > 0) {
+        const mpFeedback = markPoints.find(mp => mp.feedback_if_missing)?.feedback_if_missing;
+        if (mpFeedback) feedbackText = mpFeedback;
+      }
+      if (!feedbackText && key.key_payload?.feedback) {
+        feedbackText = key.key_payload.feedback;
+      }
+      if (!feedbackText) {
+        feedbackText = `Expected answer: "${key.key_payload.correct}". Check your understanding of this topic context.`;
+      }
+
       missing.push({ 
-        ao: "AO1", 
-        text: `Expected choice: "${key.key_payload.correct}".`,
+        ao: targetAo, 
+        text: feedbackText,
         url: cleanUrl 
       });
     }
@@ -727,7 +774,7 @@ function markResponse(q, resp, key, markPoints) {
     else quality = 5;
   }
 
-  return { total, max, ao, missing, quality, feedbackPayload: { missing } };
+  return { total, max, ao, maxAo, missing, quality, feedbackPayload: { missing } };
 }
 
 function renderFeedback(marking) {
@@ -737,37 +784,64 @@ function renderFeedback(marking) {
   let html = `<div><span class="${isPerfect ? "good" : "bad"}">${isPerfect ? "Correct" : "Not quite"}</span> — ${marking.total}/${marking.max} (${pct}%)</div>`;
   html += `<hr/>`;
   
-  // Highlighting each AO on a separate line with a comprehensive scientific definition
+  // Highlight each AO on a separate line with dynamic limits and definitions
   html += `<div style="margin-top: 10px; margin-bottom: 5px;"><strong>GCSE Assessment Objectives (AO) Breakdown</strong></div>`;
   html += `<div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">`;
   
-  const ao1Awarded = marking.ao.AO1 || 0;
-  const ao2Awarded = marking.ao.AO2 || 0;
-  const ao3Awarded = marking.ao.AO3 || 0;
+  const aosConfig = [
+    {
+      id: "AO1",
+      name: "AO1: Knowledge & Understanding",
+      desc: "Demonstrate knowledge and understanding of scientific ideas, processes, techniques, and procedures.",
+      color: "#3b82f6", 
+      border: "#bfdbfe",
+      bg: "#f8fafc",
+      textCol: "#1e3a8a",
+      badgeBg: "#10b981",
+      badgeBgZero: "#cbd5e1"
+    },
+    {
+      id: "AO2",
+      name: "AO2: Application of Science",
+      desc: "Apply knowledge and understanding of scientific ideas, processes, techniques, and procedures in theoretical and practical contexts.",
+      color: "#10b981", 
+      border: "#a7f3d0",
+      bg: "#f8fafc",
+      textCol: "#065f46",
+      badgeBg: "#10b981",
+      badgeBgZero: "#cbd5e1"
+    },
+    {
+      id: "AO3",
+      name: "AO3: Analysis & Evaluation",
+      desc: "Analyse, interpret, and evaluate scientific information, ideas, and evidence to make judgements, draw conclusions, and develop procedures.",
+      color: "#f59e0b", 
+      border: "#fde68a",
+      bg: "#f8fafc",
+      textCol: "#78350f",
+      badgeBg: "#10b981",
+      badgeBgZero: "#cbd5e1"
+    }
+  ];
 
-  html += `
-    <div style="font-size: 0.85rem; padding: 8px 12px; background: #f8fafc; border-left: 4px solid #3b82f6; border-radius: 0 6px 6px 0; box-shadow: 0 1px 2px rgba(0,0,0,0.02);">
-      <div style="display: flex; justify-content: space-between; align-items: center;">
-        <span style="font-weight: 700; color: #1e3a8a;">AO1: Knowledge & Understanding</span> 
-        <span class="chip" style="font-weight: 700; background: ${ao1Awarded > 0 ? '#10b981' : '#cbd5e1'}; color: white; padding: 2px 6px; border-radius: 4px;">${ao1Awarded} marks</span>
-      </div>
-      <div style="font-size: 0.76rem; color: #475569; margin-top: 4px; line-height: 1.3;">Demonstrate knowledge and understanding of scientific ideas, processes, techniques, and procedures.</div>
-    </div>
-    <div style="font-size: 0.85rem; padding: 8px 12px; background: #f8fafc; border-left: 4px solid #10b981; border-radius: 0 6px 6px 0; box-shadow: 0 1px 2px rgba(0,0,0,0.02);">
-      <div style="display: flex; justify-content: space-between; align-items: center;">
-        <span style="font-weight: 700; color: #065f46;">AO2: Application of Science</span> 
-        <span class="chip" style="font-weight: 700; background: ${ao2Awarded > 0 ? '#10b981' : '#cbd5e1'}; color: white; padding: 2px 6px; border-radius: 4px;">${ao2Awarded} marks</span>
-      </div>
-      <div style="font-size: 0.76rem; color: #475569; margin-top: 4px; line-height: 1.3;">Apply knowledge and understanding of scientific ideas, processes, techniques, and procedures in theoretical and practical contexts.</div>
-    </div>
-    <div style="font-size: 0.85rem; padding: 8px 12px; background: #f8fafc; border-left: 4px solid #f59e0b; border-radius: 0 6px 6px 0; box-shadow: 0 1px 2px rgba(0,0,0,0.02);">
-      <div style="display: flex; justify-content: space-between; align-items: center;">
-        <span style="font-weight: 700; color: #78350f;">AO3: Analysis & Evaluation</span> 
-        <span class="chip" style="font-weight: 700; background: ${ao3Awarded > 0 ? '#10b981' : '#cbd5e1'}; color: white; padding: 2px 6px; border-radius: 4px;">${ao3Awarded} marks</span>
-      </div>
-      <div style="font-size: 0.76rem; color: #475569; margin-top: 4px; line-height: 1.3;">Analyse, interpret, and evaluate scientific information, ideas, and evidence to make judgements, draw conclusions, and develop procedures.</div>
-    </div>
-  `;
+  aosConfig.forEach(ao => {
+    const maxVal = marking.maxAo?.[ao.id] || 0;
+    if (maxVal > 0) { // Only render if the AO is relevant to this specific question!
+      const earnedVal = marking.ao?.[ao.id] || 0;
+      const badgeColor = earnedVal > 0 ? ao.badgeBg : ao.badgeBgZero;
+      
+      html += `
+        <div style="font-size: 0.85rem; padding: 8px 12px; background: ${ao.bg}; border-left: 4px solid ${ao.color}; border-radius: 0 6px 6px 0; box-shadow: 0 1px 2px rgba(0,0,0,0.02); border-top: 1px solid #f1f5f9; border-bottom: 1px solid #f1f5f9; border-right: 1px solid #f1f5f9;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-weight: 700; color: ${ao.textCol};">${ao.name}</span> 
+            <span class="chip" style="font-weight: 700; background: ${badgeColor}; color: white; padding: 2px 6px; border-radius: 4px;">${earnedVal}/${maxVal} marks</span>
+          </div>
+          <div style="font-size: 0.76rem; color: #475569; margin-top: 4px; line-height: 1.3;">${ao.desc}</div>
+        </div>
+      `;
+    }
+  });
+
   html += `</div>`;
 
   if (currentQ.question_type === "short_text" && currentKey && currentKey.key_type === "keywords") {
@@ -918,6 +992,34 @@ if (btnSubmit) {
 
     const response = getResponsePayload(currentQ);
 
+    // Interactive MCQ styling highlighting correct (green) and selected incorrect (red)
+    if (currentQ.question_type === "mcq") {
+      const selectedInput = document.querySelector('input[name="mcq"]:checked');
+      const correctVal = currentKey?.key_payload?.correct;
+      const inputs = document.querySelectorAll('input[name="mcq"]');
+      
+      inputs.forEach(input => {
+        const label = input.closest('label');
+        if (label) {
+          const val = input.value;
+          input.disabled = true; // prevent any clicking after submission
+          if (val === correctVal) {
+            label.style.borderColor = "#10b981";
+            label.style.backgroundColor = "#ecfdf5";
+            label.style.color = "#065f46";
+            label.style.borderWidth = "2px";
+            label.style.boxShadow = "0 0 0 3px rgba(16, 185, 129, 0.15)";
+          } else if (selectedInput && input === selectedInput) {
+            label.style.borderColor = "#ef4444";
+            label.style.backgroundColor = "#fef2f2";
+            label.style.color = "#991b1b";
+            label.style.borderWidth = "2px";
+            label.style.boxShadow = "0 0 0 3px rgba(239, 68, 68, 0.15)";
+          }
+        }
+      });
+    }
+
     if (currentQ.question_type === "extended_response") {
       feedback.innerHTML = `<div class="item text-center">🤖 Simulated AQA Examiner is evaluating response logic...</div>`;
       if (btnNext) btnNext.classList.remove("hidden");
@@ -932,7 +1034,7 @@ if (btnSubmit) {
           user_id: currentUser.id,
           question_id: currentQ.id,
           response_payload: response,
-          score_total: 5, // Simulated value
+          score_total: 5, 
           score_max: 6,
           ao1_score: 2,
           ao2_score: 2,
@@ -1452,7 +1554,6 @@ async function loadTopics() {
   }
 }
 
-// ====== FIXED INTERACTION HANDLERS (EVENT LISTENERS) WITH LIFECYCLE DEBUGGING ======
 console.log("DEBUG: Initializing top-level event listeners...");
 
 if (subjectFilter) {
@@ -1516,7 +1617,6 @@ if (liveTypeFilter) {
   console.log("DEBUG INFO: Optional #typeFilter element not present.");
 }
 
-// ====== MONOLITHIC ENTRY ENGINE GATE ======
 console.log("DEBUG: Hooking up supabaseClient.auth.onAuthStateChange...");
 
 supabaseClient.auth.onAuthStateChange(async (event, session) => {
