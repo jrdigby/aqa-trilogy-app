@@ -685,7 +685,6 @@ function markResponse(q, resp, key, markPoints) {
     if (total === 1) {
       ao[targetAo] = 1;
     } else {
-      // Pedagogues demand actual feedback instead of rigid static lists
       let feedbackText = "";
       if (markPoints && markPoints.length > 0) {
         const mpFeedback = markPoints.find(mp => mp.feedback_if_missing)?.feedback_if_missing;
@@ -784,7 +783,6 @@ function renderFeedback(marking) {
   let html = `<div><span class="${isPerfect ? "good" : "bad"}">${isPerfect ? "Correct" : "Not quite"}</span> — ${marking.total}/${marking.max} (${pct}%)</div>`;
   html += `<hr/>`;
   
-  // Highlight each AO on a separate line with dynamic limits and definitions
   html += `<div style="margin-top: 10px; margin-bottom: 5px;"><strong>GCSE Assessment Objectives (AO) Breakdown</strong></div>`;
   html += `<div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">`;
   
@@ -925,6 +923,74 @@ function renderFeedback(marking) {
   return html;
 }
 
+// ====== RENDER LIVE AI EVALUATOR RESPONSE PACKAGE ======
+function renderLiveAIFeedback(evaluation) {
+  const score = evaluation.score_total || 0;
+  const max = evaluation.score_max || 6;
+  const level = evaluation.level_achieved || "Level 1";
+  const pct = Math.round((score / max) * 100);
+
+  let html = `
+    <div style="background: #fafbfc; padding: 18px; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid #f1f5f9; padding-bottom: 12px;">
+        <div>
+          <span style="font-size: 1.1rem; font-weight: 800; color: #1e293b;">🤖 AI GCSE Examiner Evaluation</span>
+          <div style="font-size: 0.74rem; color: #64748b; font-weight: 600; margin-top: 2px;">GRADED IN SECURE SANDBOX AGAINST AQA SCIENTIFIC BLUEPRINTS</div>
+        </div>
+        <div style="text-align: right;">
+          <div style="background: var(--primary); color: white; padding: 4px 10px; border-radius: 6px; font-weight: 700; font-size: 0.85rem;">
+            ${level} (${score}/${max} Marks)
+          </div>
+          <div style="font-size: 0.72rem; font-weight: 700; color: var(--primary); margin-top: 3px;">${pct}% Success</div>
+        </div>
+      </div>
+
+      <div style="margin-top: 15px; margin-bottom: 15px;">
+        <strong style="font-size: 0.82rem; color: #1e293b; display: block; margin-bottom: 8px;">Cognitive Mark Split:</strong>
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <div style="font-size: 0.78rem; padding: 6px 10px; background: #f8fafc; border-left: 3px solid #3b82f6; border-radius: 0 4px 4px 0; display: flex; justify-content: space-between;">
+            <span style="font-weight: 700; color: #1e3a8a;">AO1: Knowledge & Procedural Recall</span>
+            <span style="font-weight: 700;">${evaluation.ao_breakdown?.AO1 || 0}/2 marks</span>
+          </div>
+          <div style="font-size: 0.78rem; padding: 6px 10px; background: #f8fafc; border-left: 3px solid #10b981; border-radius: 0 4px 4px 0; display: flex; justify-content: space-between;">
+            <span style="font-weight: 700; color: #065f46;">AO2: Application to Experimental Method</span>
+            <span style="font-weight: 700;">${evaluation.ao_breakdown?.AO2 || 0}/2 marks</span>
+          </div>
+          <div style="font-size: 0.78rem; padding: 6px 10px; background: #f8fafc; border-left: 3px solid #f59e0b; border-radius: 0 4px 4px 0; display: flex; justify-content: space-between;">
+            <span style="font-weight: 700; color: #78350f;">AO3: Error Mitigation & Parallax Evaluation</span>
+            <span style="font-weight: 700;">${evaluation.ao_breakdown?.AO3 || 0}/2 marks</span>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <strong style="font-size: 0.82rem; color: #0f172a; display: block; margin-bottom: 4px;">🟢 Demonstrated Scientific Concepts:</strong>
+        <ul style="margin: 0; padding-left: 20px; font-size: 0.82rem; color: #334155; line-height: 1.4;">
+          ${evaluation.analysis_highlights?.map(h => `<li style="margin-bottom: 3px;">${escapeHtml(h)}</li>`).join("")}
+        </ul>
+      </div>
+
+      <div style="margin-top: 14px;">
+        <strong style="font-size: 0.82rem; color: #991b1b; display: block; margin-bottom: 4px;">⚠️ Missing Details or Misconceptions:</strong>
+        <ul style="margin: 0; padding-left: 20px; font-size: 0.82rem; color: #334155; line-height: 1.4;">
+          ${evaluation.missing_or_incorrect?.length 
+            ? evaluation.missing_or_incorrect.map(m => `<li style="margin-bottom: 3px; color: #991b1b;">${escapeHtml(m)}</li>`).join("")
+            : `<li style="color: #15803d; list-style-type: none; padding-left:0;">No scientific gaps identified. Exceptional work!</li>`}
+        </ul>
+      </div>
+
+      <div style="margin-top: 18px; padding: 12px 14px; background: #eff6ff; border-left: 4px solid #2563eb; border-radius: 4px; box-shadow: inset 0 1px 2px rgba(0,0,0,0.02);">
+        <strong style="font-size: 0.8rem; color: #1e40af; display: block; margin-bottom: 4px;">🎯 Actionable Coach Recommendation to move up a grade:</strong>
+        <p style="font-size: 0.78rem; color: #1e3a8a; line-height: 1.4; margin: 0;">
+          ${escapeHtml(evaluation.actionable_improvement_advice)}
+        </p>
+      </div>
+    </div>
+  `;
+  return html;
+}
+
+// ====== COMPLETELY DYNAMIC LOCAL SELF-ASSESSMENT EVALUATOR ======
 function renderAQAExtendedResponseFeedback(studentText, rubric, localKeywords) {
   const textRaw = studentText.toLowerCase();
   const cleanStudentText = textRaw.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "");
@@ -939,35 +1005,42 @@ function renderAQAExtendedResponseFeedback(studentText, rubric, localKeywords) {
   let score = 1;
   let summary = "isolated scientific points made. Strategy lacks clear experimental cohesion.";
 
-  if (keywordHits >= 5) {
+  // Dynamically calibrate grade level based on the percentage of target concept words hit
+  const hitFraction = localKeywords.length > 0 ? (keywordHits / localKeywords.length) : 0;
+  if (hitFraction >= 0.5) {
     level = "Level 3";
     score = 6;
     summary = "coherent, detailed, logically structured explanation covering key scientific steps with precise physical context.";
-  } else if (keywordHits >= 3) {
+  } else if (hitFraction >= 0.25) {
     level = "Level 2";
     score = 4;
     summary = "most steps identified, but plan lacks clear sequencing or omissions exist in specific details.";
   }
 
+  // Generate dynamic self-assessment checklists straight from the active database question
+  const pointsList = rubric?.key_scientific_points || [];
+  let checklistHtml = "";
+  if (pointsList.length > 0) {
+    checklistHtml = pointsList.map((pt, i) => `<strong>${i + 1}.</strong> ${escapeHtml(pt)}`).join("<br/><br/>");
+  } else {
+    checklistHtml = "Compare your answer directly with standard AQA Level mark scheme guidelines to evaluate your progress.";
+  }
+
   let html = `
-    <div style="background: #fafbfc; padding: 16px; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+    <div style="background: #fafbfc; padding: 18px; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-        <span style="font-size: 1.1rem; font-weight: 800; color: #1e293b;">📊 GCSE Level of Response Evaluation</span>
+        <span style="font-size: 1.1rem; font-weight: 800; color: #1e293b;">📊 GCSE Level of Response Evaluation (Local Fallback)</span>
         <span style="background: #3b82f6; color: white; padding: 4px 10px; border-radius: 6px; font-weight: 700; font-size: 0.85rem;">${level} (${score}/6 Marks)</span>
       </div>
       
       <p style="font-size: 0.85rem; color: #475569; line-height: 1.4; margin-bottom: 14px;">
-        Evaluated against <strong>AQA Science Assessment Framework rules</strong>. The response demonstrates <em>${summary}</em>
+        Evaluated locally against <strong>AQA Science Assessment Framework rules</strong>. The response demonstrates <em>${summary}</em>
       </p>
 
-      <div style="margin-top: 15px; margin-bottom: 15px; padding: 12px; background: #f8fafc; border-left: 4px solid #f59e0b; border-radius: 0 6px 6px 0;">
-        <strong style="font-size: 0.8rem; color: #78350f; display: block; margin-bottom: 4px;">⚠️ GCSE self-assessment checklist (Compare your text):</strong>
-        <p style="font-size: 0.78rem; color: #475569; line-height: 1.4; margin-bottom: 0;">
-          Ensure you have: 
-          1. Digital balance (mass verification) 
-          2. Eureka can spout filled to water level 
-          3. Empty measuring cylinder placement 
-          4. Meniscus reading at eye level to prevent parallax errors.
+      <div style="margin-top: 15px; margin-bottom: 15px; padding: 14px; background: #fffdf5; border-left: 4px solid #f59e0b; border-radius: 4px;">
+        <strong style="font-size: 0.82rem; color: #78350f; display: block; margin-bottom: 8px;">⚠️ GCSE self-assessment checklist (Compare your text):</strong>
+        <p style="font-size: 0.8rem; color: #475569; line-height: 1.45; margin-bottom: 0;">
+          ${checklistHtml}
         </p>
       </div>
 
@@ -1020,34 +1093,82 @@ if (btnSubmit) {
       });
     }
 
-    if (currentQ.question_type === "extended_response") {
-      feedback.innerHTML = `<div class="item text-center">🤖 Simulated AQA Examiner is evaluating response logic...</div>`;
+    if (currentQ.question_type === "extended_response" || currentQ.marking_method === "ai_rubric") {
+      feedback.innerHTML = `
+        <div style="text-align: center; padding: 24px 12px;">
+          <div class="loader-spinner" style="margin: 0 auto 12px auto; width: 32px; height: 32px; border: 4px solid #f3f3f3; border-top: 4px solid var(--primary); border-radius: 50%; animation: spin 1s linear infinite;"></div>
+          <strong style="color: var(--text); font-size: 0.92rem; display: block; margin-bottom: 4px;">🤖 AI GCSE Examiner Evaluating...</strong>
+          <p style="font-size: 0.78rem; color: var(--text-muted); max-width: 250px; margin: 0 auto; line-height: 1.3;">Analyzing experimental descriptions, sequencing, error controls, and scientific terminology against official AQA grids.</p>
+        </div>
+        <style>
+          @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        </style>
+      `;
       if (btnNext) btnNext.classList.remove("hidden");
 
       try {
-        const localKeywords = ["meniscus", "balance", "spout", "cylinder", "spout", "mass", "volume", "density"];
-        const customRubric = currentKey?.key_payload?.level_descriptors ?? {};
-        
-        feedback.innerHTML = renderAQAExtendedResponseFeedback(response.text, customRubric, localKeywords);
+        console.log("Invoking Edge Function 'mark-long-answer' for Question ID:", currentQ.id);
 
+        const { data, error } = await supabaseClient.functions.invoke('mark-long-answer', {
+          body: { 
+            question_id: currentQ.id, 
+            student_text: response.text 
+          }
+        });
+
+        if (error) throw error;
+
+        // Render premium live AI examiner evaluation feedback layout
+        feedback.innerHTML = renderLiveAIFeedback(data);
+
+        // Store attempt metrics directly to tracking schemas
         const result = await supabaseClient.from("attempts").insert({
           user_id: currentUser.id,
           question_id: currentQ.id,
           response_payload: response,
-          score_total: 5, 
-          score_max: 6,
-          ao1_score: 2,
-          ao2_score: 2,
-          ao3_score: 1,
-          feedback_payload: { evaluated_locally: true }
+          score_total: data.score_total, 
+          score_max: data.score_max,
+          ao1_score: data.ao_breakdown?.AO1 || 0,
+          ao2_score: data.ao_breakdown?.AO2 || 0,
+          ao3_score: data.ao_breakdown?.AO3 || 0,
+          feedback_payload: data
         });
 
         if (result.error) throw result.error;
 
-        await upsertSRS(currentQ.spec_point_id, 4);
+        // Programmatically convert holistic AI marks into SM-2 schedule quality parameters
+        let srsQuality = 0;
+        if (data.score_total >= 5) srsQuality = 5;      // Excellent response structure
+        else if (data.score_total >= 3) srsQuality = 3; // Passing/Good with gaps
+        else if (data.score_total >= 1) srsQuality = 1; // Major concepts missed
+        else srsQuality = 0;                            // Total fail/irrelevant response
+
+        await upsertSRS(currentQ.spec_point_id, srsQuality);
+
       } catch (err) {
-        console.warn("Simulated Extended marking finished with data tracking warnings:", err);
-        showToastBanner("Warning: Failed to save attempt results permanently: " + err.message, true);
+        console.error("AI Marking route failed, applying local self-assessment failover:", err);
+        showToastBanner("AI Grader slow or offline. Displaying local grading rubric schema.", true);
+        
+        const customPayload = currentKey?.key_payload || {};
+        
+        // Dynamically extract core scientific keywords to check based on the actual question targets
+        let localKeywords = [];
+        if (customPayload.key_scientific_points) {
+          const stopWords = new Set(["about", "above", "after", "again", "against", "all", "am", "an", "and", "any", "are", "arent", "as", "at", "be", "because", "been", "before", "being", "below", "between", "both", "but", "by", "cant", "cannot", "could", "couldnt", "did", "didnt", "do", "does", "doesnt", "doing", "dont", "down", "during", "each", "few", "for", "from", "further", "had", "hadnt", "has", "hasnt", "have", "havent", "having", "he", "hed", "hell", "hes", "her", "here", "heres", "hers", "herself", "him", "himself", "his", "how", "hows", "i", "id", "ill", "im", "ive", "if", "in", "into", "is", "isnt", "it", "its", "itself", "lets", "me", "more", "most", "mustnt", "my", "myself", "no", "nor", "not", "of", "off", "on", "once", "only", "or", "other", "ought", "our", "ours", "ourselves", "out", "over", "own", "same", "shant", "she", "shed", "shell", "shes", "should", "shouldnt", "so", "some", "such", "than", "that", "thats", "the", "their", "theirs", "them", "themselves", "then", "there", "theres", "these", "they", "theyd", "theyll", "theyre", "theyve", "this", "those", "through", "to", "too", "under", "until", "up", "very", "was", "wasnt", "we", "wed", "well", "were", "weve", "werent", "what", "whats", "when", "whens", "where", "wheres", "which", "while", "who", "whos", "whom", "why", "whys", "with", "wont", "would", "wouldnt", "you", "youd", "youll", "youre", "youve", "your", "yours", "yourself", "yourselves", "using", "with", "each", "other", "some", "more", "from", "into", "over"]);
+          const words = customPayload.key_scientific_points.join(" ").toLowerCase()
+            .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, " ")
+            .split(/\s+/)
+            .filter(w => w.length > 3 && !stopWords.has(w));
+          localKeywords = [...new Set(words)];
+        } else {
+          localKeywords = ["describe", "explain", "method", "results"];
+        }
+
+        // Display completely dynamic self-assessment criteria
+        feedback.innerHTML = renderAQAExtendedResponseFeedback(response.text, customPayload, localKeywords);
+
+        // Fallback local scheduling update
+        await upsertSRS(currentQ.spec_point_id, 3);
       }
 
     } else {
