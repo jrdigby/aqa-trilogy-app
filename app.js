@@ -1136,7 +1136,12 @@ async function loadTopics() {
     try {
       const qMaxAOMap = {};
       
+      // Seed base AO max scores ONLY for questions belonging to the active subject, paper, and selected topic
       questions.forEach(q => {
+        const matchedTopic = specToTopicMap[q.spec_point_id];
+        if (matchedTopic === undefined) return; // Skip if question belongs to a different subject/paper
+        if (topic && matchedTopic !== topic) return; // Skip if a specific topic filter is active and it doesn't match
+
         qMaxAOMap[q.id] = { AO1: 0, AO2: 0, AO3: 0 };
         if (q.question_type === "mcq") {
           qMaxAOMap[q.id].AO1 = 1;
@@ -1145,6 +1150,7 @@ async function loadTopics() {
         }
       });
 
+      // Layer optional and required keyword mark points on top of matching base values
       markPoints.forEach(mp => {
         if (qMaxAOMap[mp.question_id]) {
           const aoKey = mp.ao;
@@ -1160,24 +1166,23 @@ async function loadTopics() {
         AO3: { earned: 0, max: 0 }
       };
 
+      // Only evaluate score attempts matching the current subject-scoped filters
       attempts.forEach(att => {
         const qId = att.question_id;
-        const ao1_earned = att.ao1_score || 0;
-        const ao2_earned = att.ao2_score || 0;
-        const ao3_earned = att.ao3_score || 0;
-
-        aoStats.AO1.earned += ao1_earned;
-        aoStats.AO2.earned += ao2_earned;
-        aoStats.AO3.earned += ao3_earned;
-
+        
+        // Dynamic sync: Ignore attempts from outside the current filtered subject/paper/topic scope
         if (qMaxAOMap[qId]) {
+          const ao1_earned = att.ao1_score || 0;
+          const ao2_earned = att.ao2_score || 0;
+          const ao3_earned = att.ao3_score || 0;
+
+          aoStats.AO1.earned += ao1_earned;
+          aoStats.AO2.earned += ao2_earned;
+          aoStats.AO3.earned += ao3_earned;
+
           aoStats.AO1.max += qMaxAOMap[qId].AO1;
           aoStats.AO2.max += qMaxAOMap[qId].AO2;
           aoStats.AO3.max += qMaxAOMap[qId].AO3;
-        } else {
-          aoStats.AO1.max += ao1_earned;
-          aoStats.AO2.max += ao2_earned;
-          aoStats.AO3.max += ao3_earned;
         }
       });
 
