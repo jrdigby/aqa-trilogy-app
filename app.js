@@ -1119,7 +1119,7 @@ async function loadTopics() {
     const parent = masteryWrapper.parentNode;
     
     const header = document.createElement("div");
-    header.innerHTML = `<h3 style="margin-top: 24px; margin-bottom: 12px; font-weight: 700; color: var(--text);">Assessment Objective (AO) Mastery</h3>`;
+    header.innerHTML = `<h3 style="margin-top: 24px; margin-bottom: 12px; font-weight: 700; color: var(--text);">Assessment Objective (AO) Mastery for selected subject and topic(s)</h3>`;
     
     aoMasteryWrapper = document.createElement("div");
     aoMasteryWrapper.id = "aoMasteryWrapper";
