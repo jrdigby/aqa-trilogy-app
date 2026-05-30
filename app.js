@@ -35,7 +35,7 @@ function showToastBanner(msg, isError = true) {
   setTimeout(() => {
     banner.style.opacity = "0";
     banner.style.transform = "translateY(-20px)";
-  }, 5000); // 5 seconds display for easier reading
+  }, 5000);
 }
 
 // ====== UI ELEMENTS ======
@@ -824,7 +824,7 @@ function renderFeedback(marking) {
 
   aosConfig.forEach(ao => {
     const maxVal = marking.maxAo?.[ao.id] || 0;
-    if (maxVal > 0) { // Only render if the AO is relevant to this specific question!
+    if (maxVal > 0) {
       const earnedVal = marking.ao?.[ao.id] || 0;
       const badgeColor = earnedVal > 0 ? ao.badgeBg : ao.badgeBgZero;
       
@@ -851,7 +851,7 @@ function renderFeedback(marking) {
     const tokens = mixWordTokens(studentRawText);
     
     const highlightedStudentTokens = tokens.map(token => {
-      if (/^[\s.,\/#!$%\^&\*;:{}=\-_`~()?]+$/.test(token) || !token) return escapeHtml(token);
+      if (/^[\s.,\/#!$%\^&\*;:{}=\-_`~()?]/g.test(token) || !token) return escapeHtml(token);
       
       let bestMatch = null;
       let highestType = null; 
@@ -1005,7 +1005,6 @@ function renderAQAExtendedResponseFeedback(studentText, rubric, localKeywords) {
   let score = 1;
   let summary = "isolated scientific points made. Strategy lacks clear experimental cohesion.";
 
-  // Dynamically calibrate grade level based on the percentage of target concept words hit
   const hitFraction = localKeywords.length > 0 ? (keywordHits / localKeywords.length) : 0;
   if (hitFraction >= 0.5) {
     level = "Level 3";
@@ -1017,7 +1016,6 @@ function renderAQAExtendedResponseFeedback(studentText, rubric, localKeywords) {
     summary = "most steps identified, but plan lacks clear sequencing or omissions exist in specific details.";
   }
 
-  // Generate dynamic self-assessment checklists straight from the active database question
   const pointsList = rubric?.key_scientific_points || [];
   let checklistHtml = "";
   if (pointsList.length > 0) {
@@ -1061,9 +1059,18 @@ function renderAQAExtendedResponseFeedback(studentText, rubric, localKeywords) {
 if (btnSubmit) {
   btnSubmit.onclick = async () => {
     if (!currentUser) return;
-    btnSubmit.disabled = true;
-
+    
     const response = getResponsePayload(currentQ);
+
+    // Front-end Validation Block: Halt empty answer submissions from reaching and breaking API handshakes
+    if (currentQ.question_type === "extended_response" || currentQ.marking_method === "ai_rubric") {
+      if (!response.text || response.text.trim().length === 0) {
+        showToastBanner("Please write a detailed response before clicking Submit!", true);
+        return;
+      }
+    }
+
+    btnSubmit.disabled = true;
 
     // Interactive MCQ styling highlighting correct (green) and selected incorrect (red)
     if (currentQ.question_type === "mcq") {
@@ -1138,10 +1145,10 @@ if (btnSubmit) {
 
         // Programmatically convert holistic AI marks into SM-2 schedule quality parameters
         let srsQuality = 0;
-        if (data.score_total >= 5) srsQuality = 5;      // Excellent response structure
-        else if (data.score_total >= 3) srsQuality = 3; // Passing/Good with gaps
-        else if (data.score_total >= 1) srsQuality = 1; // Major concepts missed
-        else srsQuality = 0;                            // Total fail/irrelevant response
+        if (data.score_total >= 5) srsQuality = 5;
+        else if (data.score_total >= 3) srsQuality = 3;
+        else if (data.score_total >= 1) srsQuality = 1;
+        else srsQuality = 0;
 
         await upsertSRS(currentQ.spec_point_id, srsQuality);
 
@@ -1151,7 +1158,6 @@ if (btnSubmit) {
         
         const customPayload = currentKey?.key_payload || {};
         
-        // Dynamically extract core scientific keywords to check based on the actual question targets
         let localKeywords = [];
         if (customPayload.key_scientific_points) {
           const stopWords = new Set(["about", "above", "after", "again", "against", "all", "am", "an", "and", "any", "are", "arent", "as", "at", "be", "because", "been", "before", "being", "below", "between", "both", "but", "by", "cant", "cannot", "could", "couldnt", "did", "didnt", "do", "does", "doesnt", "doing", "dont", "down", "during", "each", "few", "for", "from", "further", "had", "hadnt", "has", "hasnt", "have", "havent", "having", "he", "hed", "hell", "hes", "her", "here", "heres", "hers", "herself", "him", "himself", "his", "how", "hows", "i", "id", "ill", "im", "ive", "if", "in", "into", "is", "isnt", "it", "its", "itself", "lets", "me", "more", "most", "mustnt", "my", "myself", "no", "nor", "not", "of", "off", "on", "once", "only", "or", "other", "ought", "our", "ours", "ourselves", "out", "over", "own", "same", "shant", "she", "shed", "shell", "shes", "should", "shouldnt", "so", "some", "such", "than", "that", "thats", "the", "their", "theirs", "them", "themselves", "then", "there", "theres", "these", "they", "theyd", "theyll", "theyre", "theyve", "this", "those", "through", "to", "too", "under", "until", "up", "very", "was", "wasnt", "we", "wed", "well", "were", "weve", "werent", "what", "whats", "when", "whens", "where", "wheres", "which", "while", "who", "whos", "whom", "why", "whys", "with", "wont", "would", "wouldnt", "you", "youd", "youll", "youre", "youve", "your", "yours", "yourself", "yourselves", "using", "with", "each", "other", "some", "more", "from", "into", "over"]);
@@ -1164,10 +1170,7 @@ if (btnSubmit) {
           localKeywords = ["describe", "explain", "method", "results"];
         }
 
-        // Display completely dynamic self-assessment criteria
         feedback.innerHTML = renderAQAExtendedResponseFeedback(response.text, customPayload, localKeywords);
-
-        // Fallback local scheduling update
         await upsertSRS(currentQ.spec_point_id, 3);
       }
 
@@ -1190,7 +1193,6 @@ if (btnSubmit) {
         });
 
         if (result.error) throw result.error;
-
         await upsertSRS(currentQ.spec_point_id, marking.quality);
       } catch(err) {
         console.error("Sync backup failure logged:", err);
@@ -1280,35 +1282,6 @@ function setSignedOutUI() {
   if (authMsg) authMsg.textContent = "Not signed in.";
 }
 
-function showSignedInLayout() {
-  if (btnSignOut) btnSignOut.classList.remove("hidden");
-  if (authSection) authSection.classList.add("hidden");
-  if (dashSection) dashSection.classList.remove("hidden");
-
-  if (currentUser) {
-    if (userChip) userChip.textContent = `${currentUser.email || currentUser.id}`;
-    if (authMsg) authMsg.textContent = "Signed in ✅";
-  }
-
-  const runtimeTierSelect = el("tierFilter");
-  if (runtimeTierSelect) {
-    const cachedTier = localStorage.getItem("preferred_tier") || "FT";
-    runtimeTierSelect.value = cachedTier;
-    console.log("DEBUG: Rendered tier dropdown instantly via cache:", cachedTier);
-  }
-
-  if (dueCount) dueCount.textContent = "…";
-  if (dueList) dueList.innerHTML = `<div class="item muted">Refreshing scheduled deck…</div>`;
-  if (forecastWrapper) forecastWrapper.innerHTML = `<div class="muted" style="margin: auto; font-size: 0.8rem;">Loading forecast chart…</div>`;
-  if (masteryWrapper) masteryWrapper.innerHTML = `<div class="muted" style="text-align: center; padding: 12px;">Crunching syllabus stats…</div>`;
-  
-  const aoMasteryWrapper = el("aoMasteryWrapper");
-  if (aoMasteryWrapper) {
-    aoMasteryWrapper.innerHTML = `<div class="muted" style="text-align: center; width: 100%; grid-column: 1/-1; padding: 12px;">Syncing cognitive performance indicators…</div>`;
-  }
-}
-
-// Silently resolve, compare, and cache database preferences without blocking local display threads
 async function syncUserTierAndLoadTopics(user) {
   console.log("DEBUG: Launching background syllabus loading thread...");
   await loadTopics();
@@ -1340,9 +1313,36 @@ async function syncUserTierAndLoadTopics(user) {
   }
 }
 
+function showSignedInLayout() {
+  if (btnSignOut) btnSignOut.classList.remove("hidden");
+  if (authSection) authSection.classList.add("hidden");
+  if (dashSection) dashSection.classList.remove("hidden");
+
+  if (currentUser) {
+    if (userChip) userChip.textContent = `${currentUser.email || currentUser.id}`;
+    if (authMsg) authMsg.textContent = "Signed in ✅";
+  }
+
+  const runtimeTierSelect = el("tierFilter");
+  if (runtimeTierSelect) {
+    const cachedTier = localStorage.getItem("preferred_tier") || "FT";
+    runtimeTierSelect.value = cachedTier;
+    console.log("DEBUG: Rendered tier dropdown instantly via cache:", cachedTier);
+  }
+
+  if (dueCount) dueCount.textContent = "…";
+  if (dueList) dueList.innerHTML = `<div class="item muted">Refreshing scheduled deck…</div>`;
+  if (forecastWrapper) forecastWrapper.innerHTML = `<div class="muted" style="margin: auto; font-size: 0.8rem;">Loading forecast chart…</div>`;
+  if (masteryWrapper) masteryWrapper.innerHTML = `<div class="muted" style="text-align: center; padding: 12px;">Crunching syllabus stats…</div>`;
+  
+  const aoMasteryWrapper = el("aoMasteryWrapper");
+  if (aoMasteryWrapper) {
+    aoMasteryWrapper.innerHTML = `<div class="muted" style="text-align: center; width: 100%; grid-column: 1/-1; padding: 12px;">Syncing cognitive performance indicators…</div>`;
+  }
+}
+
 async function setSignedInUI(user) {
   showSignedInLayout();
-  // Fire asynchronous fetches in background without holding up screen load
   Promise.all([
     syncUserTierAndLoadTopics(user),
     loadDashboard(),
@@ -1568,7 +1568,6 @@ async function loadTopics() {
     try {
       const qMaxAOMap = {};
       
-      // Filter base question set down to the active subject, paper, and topic scope dynamically
       questions.forEach(q => {
         const matchedTopic = specToTopicMap[q.spec_point_id];
         if (matchedTopic === undefined) return; 
@@ -1586,7 +1585,6 @@ async function loadTopics() {
         }
       });
 
-      // Layer optional and required keyword mark points on top of matched question ids
       markPoints.forEach(mp => {
         if (qMaxAOMap[mp.question_id]) {
           const aoKey = mp.ao;
@@ -1604,8 +1602,6 @@ async function loadTopics() {
 
       attempts.forEach(att => {
         const qId = att.question_id;
-        
-        // Sum attempt metrics strictly belonging to the currently active filtered criteria
         if (qMaxAOMap[qId]) {
           aoStats.AO1.earned += (att.ao1_score || 0);
           aoStats.AO2.earned += (att.ao2_score || 0);
@@ -1680,45 +1676,29 @@ console.log("DEBUG: Initializing top-level event listeners...");
 if (subjectFilter) {
   subjectFilter.addEventListener("change", () => {
     console.log("DEBUG EVENT: Subject changed ->", subjectFilter.value);
-    if (!currentUser) {
-      console.warn("DEBUG EVENT: Blocked loadTopics() change handler - No currentUser yet.");
-      return;
-    }
+    if (!currentUser) return;
     loadTopics();
   });
-} else {
-  console.error("DEBUG CRITICAL: #subjectFilter element not found in DOM!");
 }
 
 if (paperFilter) {
   paperFilter.addEventListener("change", () => {
     console.log("DEBUG EVENT: Paper changed ->", paperFilter.value);
-    if (!currentUser) {
-      console.warn("DEBUG EVENT: Blocked loadTopics() change handler - No currentUser yet.");
-      return;
-    }
+    if (!currentUser) return;
     loadTopics();
   });
-} else {
-  console.error("DEBUG CRITICAL: #paperFilter element not found in DOM!");
 }
 
 if (topicFilter) {
   topicFilter.addEventListener("change", () => {
     console.log("DEBUG EVENT: Topic changed ->", topicFilter.value);
-    if (!currentUser) {
-      console.warn("DEBUG EVENT: Blocked loadTopics() change handler - No currentUser yet.");
-      return;
-    }
+    if (!currentUser) return;
     loadTopics();
   });
-} else {
-  console.error("DEBUG CRITICAL: #topicFilter element not found in DOM!");
 }
 
 const liveTypeFilter = el("typeFilter");
 if (liveTypeFilter) {
-  // Inject the Extended Response (6-Mark) selector category dynamically on boot
   if (!liveTypeFilter.querySelector('option[value="extended_response"]')) {
     const opt = document.createElement("option");
     opt.value = "extended_response";
@@ -1728,83 +1708,60 @@ if (liveTypeFilter) {
 
   liveTypeFilter.addEventListener("change", () => {
     console.log("DEBUG EVENT: Type Filter changed ->", liveTypeFilter.value);
-    if (!currentUser) {
-      console.warn("DEBUG EVENT: Blocked loadTopics() change handler - No currentUser yet.");
-      return;
-    }
+    if (!currentUser) return;
     loadTopics();
   });
-} else {
-  console.log("DEBUG INFO: Optional #typeFilter element not present.");
 }
 
 console.log("DEBUG: Hooking up supabaseClient.auth.onAuthStateChange...");
 
 supabaseClient.auth.onAuthStateChange(async (event, session) => {
-  console.log(`DEBUG AUTH CHG: Event fired! [Event: ${event}]`, session ? `User ID: ${session.user.id}` : "No active session (session is null)");
+  console.log(`DEBUG AUTH CHG: Event fired! [Event: ${event}]`, session ? `User ID: ${session.user.id}` : "No active session");
   
   if (session?.user) {
     if (currentUser && currentUser.id === session.user.id && isInitializingPipeline) {
-      console.log(`DEBUG AUTH CHG: Blocked parallel initialization pipeline for User ID: ${session.user.id}`);
       return;
     }
 
     currentUser = session.user;
     isInitializingPipeline = true;
-    console.log("DEBUG AUTH CHG: currentUser set. Initiating parallel concurrent setup pipeline...");
     
     try {
       await setSignedInUI(currentUser);
-      console.log("DEBUG AUTH CHG: Concurrent startup pipelines resolved cleanly.");
-      
     } catch (pipelineError) {
-      console.error("DEBUG CRITICAL: Initialization pipeline shattered with an error:", pipelineError);
+      console.error("DEBUG CRITICAL: Initialization pipeline shattered:", pipelineError);
       showToastBanner("Pipeline Error: " + pipelineError.message, true);
     } finally {
       isInitializingPipeline = false;
     }
     
-    // Wire up or reset the tier configuration listener
     const runtimeTierSelect = el("tierFilter");
     if (runtimeTierSelect) {
-      console.log("DEBUG AUTH CHG: #tierFilter identified. Binding dedicated .onchange override context safely.");
-      
       runtimeTierSelect.onchange = async () => {
         const newSelectedTier = runtimeTierSelect.value;
-        console.log("DEBUG EVENT: Exam entry tier manual toggle detected ->", newSelectedTier);
-        
         localStorage.setItem("preferred_tier", newSelectedTier);
 
-        if (!currentUser) {
-          console.error("DEBUG EVENT ERROR: Triggered tier save attempt but currentUser is gone!");
-          return;
-        }
+        if (!currentUser) return;
         
         try {
-          console.log(`DEBUG DB: Issuing profile preferred_tier update call to database row: ${currentUser.id} -> ${newSelectedTier}`);
           const { error: updateError } = await supabaseClient
             .from("profiles")
             .update({ preferred_tier: newSelectedTier })
             .eq("user_id", currentUser.id);
           
           if (updateError) throw updateError;
-          console.log(`DEBUG DB SUCCESS: Preference saved permanently: ${newSelectedTier}`);
         } catch (saveErr) {
-          console.error("DEBUG DB ERROR: Could not commit profile preferred_tier modification:", saveErr);
+          console.error("DEBUG DB ERROR: Could not commit preferred_tier:", saveErr);
         }
 
-        console.log("DEBUG EVENT: Toggling loadTopics() after database update check...");
         await loadTopics();
       };
-    } else {
-      console.error("DEBUG CRITICAL: #tierFilter element not found in DOM inside Auth loop!");
     }
     
   } else {
-    console.log("DEBUG AUTH CHG: No session identified or logging out. Cleaning boundaries...");
     currentUser = null;
     setSignedOutUI();
   }
 });
 
-console.log("DEBUG: End of app.js file reached. Engine parsing sequence completed successfully.");
+console.log("DEBUG: app.js engine parsing completed.");
