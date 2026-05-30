@@ -15,6 +15,8 @@
       --primary: #00a86b; /* Green for teacher/admin dashboard styling */
       --border: #dddddd;
       --text-muted: #666666;
+      --error: #ef4444;
+      --success: #10b981;
     }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -99,6 +101,8 @@
       padding: 8px 16px;
       font-size: 0.9rem;
       border-radius: 20px;
+      border: none;
+      cursor: pointer;
     }
     .tab-btn.active {
       background: var(--primary);
@@ -205,13 +209,22 @@
         </div>
       </div>
 
+      <div class="row">
+        <div>
+          <label for="qResourceLink">Syllabus Video / Revision URL (Optional)</label>
+          <input id="qResourceLink" type="text" placeholder="e.g. https://www.youtube.com/watch?v=dQw4w9WgXcQ" />
+        </div>
+      </div>
+
       <label for="qType">Question Typology Structure</label>
       <select id="qType" style="margin-top: 5px;">
         <option value="short_text" selected>Short Text / Keyword Recognition</option>
         <option value="mcq">Multiple Choice Question (MCQ)</option>
         <option value="numeric">Mathematical / Numeric Input</option>
+        <option value="extended_response">Extended Response (6-Mark AI Rubric)</option>
       </select>
 
+      <!-- MCQ PANEL -->
       <div id="panelMcq" class="box hidden">
         <h3>MCQ Configuration Options</h3>
         <label for="mcqOptions">Options (One option per line)</label>
@@ -221,6 +234,7 @@
         <input id="mcqCorrect" type="text" placeholder="Must match one of the choices exactly"/>
       </div>
 
+      <!-- NUMERIC PANEL -->
       <div id="panelNumeric" class="box hidden">
         <h3>Numeric Target Configuration</h3>
         <div class="row">
@@ -235,6 +249,7 @@
         </div>
       </div>
 
+      <!-- KEYWORDS PANEL -->
       <div id="panelKeywords" class="box">
         <h3>Keyword Evaluation Architecture</h3>
         <p style="font-size: 0.85rem; margin: 0 0 10px; color: #666;">
@@ -249,9 +264,35 @@
         <label for="minOptional">Minimum Optional Count Threshold</label>
         <input id="minOptional" type="number" value="1" min="0"/>
       </div>
+
+      <!-- AI EXTENDED RESPONSE PANEL -->
+      <div id="panelExtended" class="box hidden">
+        <h3>🤖 AQA Levels of Response (AI Evaluation Rubric)</h3>
+        <p style="font-size: 0.85rem; margin: 0 0 12px; color: #666;">
+          These fields compile directly into the AI Examiner prompt for grading and generate the student self-assessment checklists.
+        </p>
+
+        <label for="extGuidelines">Marking Guidelines Summary</label>
+        <textarea id="extGuidelines" rows="3" placeholder="Provide a summary of the experimental protocol or physical concepts the student must describe (e.g. Newton's Second Law setup using linear tracks and constant mass)."></textarea>
+
+        <h4 style="margin: 16px 0 6px 0; border-bottom: 1px solid var(--border); padding-bottom: 4px;">Level Boundaries Descriptors</h4>
+        
+        <label for="extLevel3">Level 3 (5-6 Marks) Descriptor</label>
+        <textarea id="extLevel3" rows="2" placeholder="e.g. Detailed, coherent, logically structured description detailing how to measure acceleration and vary force, keeping system mass constant."></textarea>
+
+        <label for="extLevel2">Level 2 (3-4 Marks) Descriptor</label>
+        <textarea id="extLevel2" rows="2" placeholder="e.g. Mostly clear, outlines steps to vary force and measure acceleration, but omits critical control measures."></textarea>
+
+        <label for="extLevel1">Level 1 (1-2 Marks) Descriptor</label>
+        <textarea id="extLevel1" rows="2" placeholder="e.g. Isolated scientific points or components mentioned, but no clear method."></textarea>
+
+        <label for="extScientificPoints" style="margin-top: 14px;">AQA Checklist points expected (One point per line)</label>
+        <textarea id="extScientificPoints" rows="5" placeholder="Set up a trolley on a linear track connected to string over a pulley.&#10;Measure acceleration using light gates.&#10;Vary force by adding masses to hanger.&#10;Keep total system mass constant by storing weights on the trolley.&#10;Repeat settings, calculate mean, and plot graph."></textarea>
+      </div>
     </section>
 
-    <section class="card">
+    <!-- MANUAL ASSESSMENT OBJECTIVES (HIDDEN IN AI EXTENDED RESPONSE PORTAL) -->
+    <section id="sectionFeedback" class="card">
       <h2>3. AQA Assessment Objective Feedback Mapping</h2>
       <p style="font-size: 0.85rem; margin: 0 0 15px; color: #666;">
         Provide targeted instructional remedies that display if a specific Assessment Objective condition is dropped.
@@ -351,6 +392,9 @@
   const panelMcq = document.getElementById("panelMcq");
   const panelNumeric = document.getElementById("panelNumeric");
   const panelKeywords = document.getElementById("panelKeywords");
+  const panelExtended = document.getElementById("panelExtended");
+  const sectionFeedback = document.getElementById("sectionFeedback");
+  
   const btnCommit = document.getElementById("btnCommit");
   const statusOutput = document.getElementById("statusOutput");
 
@@ -470,10 +514,19 @@
     panelMcq.classList.add("hidden");
     panelNumeric.classList.add("hidden");
     panelKeywords.classList.add("hidden");
+    panelExtended.classList.add("hidden");
+    sectionFeedback.classList.remove("hidden");
 
-    if (qType.value === "mcq") panelMcq.classList.remove("hidden");
-    else if (qType.value === "numeric") panelNumeric.classList.remove("hidden");
-    else if (qType.value === "short_text") panelKeywords.classList.remove("hidden");
+    if (qType.value === "mcq") {
+      panelMcq.classList.remove("hidden");
+    } else if (qType.value === "numeric") {
+      panelNumeric.classList.remove("hidden");
+    } else if (qType.value === "short_text") {
+      panelKeywords.classList.remove("hidden");
+    } else if (qType.value === "extended_response") {
+      panelExtended.classList.remove("hidden");
+      sectionFeedback.classList.add("hidden"); // Hide manual feedback mapping since AI evaluates metrics dynamically
+    }
   });
 
   function splitClean(val) {
@@ -495,6 +548,7 @@
     const questionType = qType.value;
     const tier = document.getElementById("qTier").value;
     const difficulty = parseInt(document.getElementById("qDifficulty").value, 10);
+    const resourceLink = document.getElementById("qResourceLink").value.trim();
 
     if (!specPointId || !prompt) {
       showStatus("Aborted: You must complete the syllabus target mapping and prompt text.", true);
@@ -518,6 +572,29 @@
         tolerance: parseFloat(document.getElementById("numTolerance").value || 0)
       };
     } 
+    else if (questionType === "extended_response") {
+      keyTypeTarget = "ai_rubric";
+      const guidelines = document.getElementById("extGuidelines").value.trim();
+      const l3 = document.getElementById("extLevel3").value.trim();
+      const l2 = document.getElementById("extLevel2").value.trim();
+      const l1 = document.getElementById("extLevel1").value.trim();
+      const scientificPoints = document.getElementById("extScientificPoints").value.split('\n').map(p => p.trim()).filter(Boolean);
+
+      if (!guidelines || scientificPoints.length === 0) {
+        showStatus("Aborted: Please fill in the Marking Guidelines and Expected Scientific Points for the AI Rubric.", true);
+        return;
+      }
+
+      keyPayloadConstructor = {
+        marking_guidelines: guidelines,
+        level_descriptors: {
+          "Level 3 (5-6 marks)": l3 || "Detailed, coherent description covering key steps.",
+          "Level 2 (3-4 marks)": l2 || "Mostly clear method, but contains omissions.",
+          "Level 1 (1-2 marks)": l1 || "Isolated scientific points are made."
+        },
+        key_scientific_points: scientificPoints
+      };
+    }
     else {
       keyTypeTarget = "keywords";
       keyPayloadConstructor = {
@@ -537,7 +614,10 @@
           prompt: prompt,
           options: optionsPayload,
           difficulty: difficulty,
-          tier: tier
+          tier: tier,
+          marking_method: questionType === "extended_response" ? "ai_rubric" : (questionType === "numeric" ? "numeric" : "keyword"),
+          max_marks: questionType === "extended_response" ? 6 : 1,
+          resource_links: resourceLink || null
         })
         .select().single();
 
@@ -555,31 +635,34 @@
 
       if (keyErr) throw keyErr;
 
-      // 3. Insert Mark Points Rows
-      const markPointsBatch = [];
-      for(let m = 1; m <= 2; m++) {
-        const text = document.getElementById(`mpText${m}`).value.trim();
-        const feedback = document.getElementById(`mpFeedback${m}`).value.trim();
-        if (text && feedback) {
-          markPointsBatch.push({
-            question_id: targetQuestionId,
-            ao: document.getElementById(`aoTarget${m}`).value,
-            point_text: text,
-            feedback_if_missing: feedback,
-            max_marks: 1
-          });
+      // 3. Insert Mark Points Rows (Skip if Extended Response as AI processes AOs holistically)
+      if (questionType !== "extended_response") {
+        const markPointsBatch = [];
+        for(let m = 1; m <= 2; m++) {
+          const text = document.getElementById(`mpText${m}`).value.trim();
+          const feedback = document.getElementById(`mpFeedback${m}`).value.trim();
+          if (text && feedback) {
+            markPointsBatch.push({
+              question_id: targetQuestionId,
+              ao: document.getElementById(`aoTarget${m}`).value,
+              point_text: text,
+              feedback_if_missing: feedback,
+              max_marks: 1
+            });
+          }
         }
-      }
 
-      if (markPointsBatch.length > 0) {
-        const { error: mpErr } = await supabaseClient.from("mark_points").insert(markPointsBatch);
-        if (mpErr) throw mpErr;
+        if (markPointsBatch.length > 0) {
+          const { error: mpErr } = await supabaseClient.from("mark_points").insert(markPointsBatch);
+          if (mpErr) throw mpErr;
+        }
       }
 
       showStatus(`Success! Question node successfully initialized. ID: ${targetQuestionId}`);
       
       // Reset textareas safely
       document.getElementById("qPrompt").value = "";
+      document.getElementById("qResourceLink").value = "";
       document.getElementById("mcqOptions").value = "";
       document.getElementById("mcqCorrect").value = "";
       document.getElementById("numAnswer").value = "";
@@ -589,6 +672,11 @@
       document.getElementById("mpText2").value = "";
       document.getElementById("mpFeedback1").value = "";
       document.getElementById("mpFeedback2").value = "";
+      document.getElementById("extGuidelines").value = "";
+      document.getElementById("extLevel3").value = "";
+      document.getElementById("extLevel2").value = "";
+      document.getElementById("extLevel1").value = "";
+      document.getElementById("extScientificPoints").value = "";
 
     } catch (err) {
       console.error(err);
