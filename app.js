@@ -476,7 +476,7 @@ async function startSessionForSpecPoint(specPointId, qType = "") {
   console.log("DEBUG startSessionForSpecPoint: Loading question payloads...");
   let query = supabaseClient
     .from("questions")
-    .select("id,question_type,prompt,options,spec_point_id, resource_links, marking_method")
+    .select("id,question_type,prompt,options,spec_point_id, resource_links, marking_method, max_marks")
     .eq("spec_point_id", specPointId)
     .in("tier", targetTiers);
 
@@ -587,9 +587,19 @@ async function loadQuestion() {
 
 function renderQuestion(q) {
   let commandWordBanner = getAQACommandWordHelper(q.prompt);
+  
+  // Calculate total marks available for the question
+  const totalMarks = q.max_marks || (q.question_type === "extended_response" ? 6 : 1);
+  const marksLabel = totalMarks === 1 ? "1 mark" : `${totalMarks} marks`;
+
   let html = `
     <div class="item">
-      <div><strong>${escapeHtml(q.prompt)}</strong></div>
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 15px; margin-bottom: 8px;">
+        <div style="font-weight: 700; font-size: 1rem; line-height: 1.4; color: var(--text);">${escapeHtml(q.prompt)}</div>
+        <span class="chip" style="background: #e2e8f0; color: #475569; font-weight: 700; font-size: 0.76rem; padding: 3px 8px; border-radius: 6px; white-space: nowrap; flex-shrink: 0; align-self: flex-start; border: 1px solid #cbd5e1;">
+          ${marksLabel}
+        </span>
+      </div>
       ${commandWordBanner}
     </div>
   `;
@@ -676,14 +686,14 @@ function markResponse(q, resp, key, markPoints) {
   }
       
   if (key.key_type === "mcq") {
-    max = 1;
-    total = resp.answer === key.key_payload.correct ? 1 : 0;
+    max = q.max_marks || 1;
+    total = resp.answer === key.key_payload.correct ? max : 0;
     quality = total ? 5 : 1;
 
     // Use AO1 as standard MCQ fallback unless specified in markPoints schema
     const targetAo = markPoints?.[0]?.ao || "AO1";
-    if (total === 1) {
-      ao[targetAo] = 1;
+    if (total > 0) {
+      ao[targetAo] = max;
     } else {
       let feedbackText = "";
       if (markPoints && markPoints.length > 0) {
@@ -705,12 +715,12 @@ function markResponse(q, resp, key, markPoints) {
     }
   } 
   else if (key.key_type === "numeric") {
-    max = 1;
+    max = q.max_marks || 1;
     const ans = key.key_payload.answer;
     const tol = key.key_payload.tolerance ?? 0;
-    total = (resp.value !== null && Math.abs(resp.value - ans) <= tol) ? 1 : 0;
+    total = (resp.value !== null && Math.abs(resp.value - ans) <= tol) ? max : 0;
     quality = total ? 5 : 1;
-    if (total === 1) ao.AO2 = 1;
+    if (total > 0) ao.AO2 = max;
     else {
       missing.push({ 
         ao: "AO2", 
@@ -763,9 +773,9 @@ function markResponse(q, resp, key, markPoints) {
         }
       });
     } else {
-      max = 1;
-      total = (hasAllRequired && optionalHits >= minOptional) ? 1 : 0;
-      if (total === 1) ao.AO1 = 1;
+      max = q.max_marks || 1;
+      total = (hasAllRequired && optionalHits >= minOptional) ? max : 0;
+      if (total > 0) ao.AO1 = max;
     }
 
     if (total === 0) quality = 0;
