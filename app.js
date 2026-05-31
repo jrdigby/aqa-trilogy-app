@@ -667,7 +667,7 @@ function renderQuestion(q) {
 }
 
 function mixWordTokens(studentText) {
-  return studentText.split(/(\s+|[.,\/#!$%\^&\*;:{}=\-_`~()?]/);
+  return studentText.split(/(\s+|[.,\/#!$%\^&\*;:{}=\-_`~()?])/);
 }
 
 function markResponse(q, resp, key, markPoints) {
