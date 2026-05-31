@@ -476,7 +476,7 @@ async function startSessionForSpecPoint(specPointId, qType = "") {
   console.log("DEBUG startSessionForSpecPoint: Loading question payloads...");
   let query = supabaseClient
     .from("questions")
-    .select("id,question_type,prompt,options,spec_point_id, resource_links, marking_method, max_marks")
+    .select("id,question_type,prompt,options,spec_point_id, resource_links, marking_method, max_marks, image_url")
     .eq("spec_point_id", specPointId)
     .in("tier", targetTiers);
 
@@ -573,7 +573,7 @@ async function loadQuestion() {
   console.log("DEBUG loadQuestion: Resolving markers maps asynchronously...");
   const [keyRes, markRes] = await Promise.all([
     supabaseClient.from("answer_keys").select("key_type,key_payload").eq("question_id", currentQ.id).maybeSingle(),
-    supabaseClient.from("mark_points").select("ao,point_text,feedback_if_missing,max_marks").eq("question_id", currentQ.id)
+    supabaseClient.from("mark_points").select("ao,point_text,feedback_if_missing,max_marks,image_url").eq("question_id", currentQ.id)
   ]);
 
   if (keyRes.error) console.error("DEBUG loadQuestion: Error resolving answer key:", keyRes.error);
@@ -592,6 +592,13 @@ function renderQuestion(q) {
   const totalMarks = q.max_marks || (q.question_type === "extended_response" ? 6 : 1);
   const marksLabel = totalMarks === 1 ? "1 mark" : `${totalMarks} marks`;
 
+  // Supporting responsive picture/diagram overlays inside the practice card
+  let imageHtml = q.image_url 
+    ? `<div style="margin-top: 10px; margin-bottom: 14px; display: block; text-align: center; background: #fafbfc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; max-width: 100%;">
+         <img src="${q.image_url}" style="max-width: 100%; max-height: 280px; object-fit: contain; border-radius: 6px; display: block; margin: 0 auto;" alt="Syllabus visual layout descriptor" onerror="this.parentNode.style.display='none';"/>
+       </div>` 
+    : "";
+
   let html = `
     <div class="item">
       <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 15px; margin-bottom: 8px;">
@@ -600,6 +607,7 @@ function renderQuestion(q) {
           ${marksLabel}
         </span>
       </div>
+      ${imageHtml}
       ${commandWordBanner}
     </div>
   `;
@@ -696,9 +704,13 @@ function markResponse(q, resp, key, markPoints) {
       ao[targetAo] = max;
     } else {
       let feedbackText = "";
+      let feedbackImg = "";
       if (markPoints && markPoints.length > 0) {
-        const mpFeedback = markPoints.find(mp => mp.feedback_if_missing)?.feedback_if_missing;
-        if (mpFeedback) feedbackText = mpFeedback;
+        const mp = markPoints.find(mp => mp.feedback_if_missing);
+        if (mp) {
+          feedbackText = mp.feedback_if_missing;
+          feedbackImg = mp.image_url || "";
+        }
       }
       if (!feedbackText && key.key_payload?.feedback) {
         feedbackText = key.key_payload.feedback;
@@ -710,7 +722,8 @@ function markResponse(q, resp, key, markPoints) {
       missing.push({ 
         ao: targetAo, 
         text: feedbackText,
-        url: cleanUrl 
+        url: cleanUrl,
+        image_url: feedbackImg
       });
     }
   } 
@@ -722,10 +735,16 @@ function markResponse(q, resp, key, markPoints) {
     quality = total ? 5 : 1;
     if (total > 0) ao.AO2 = max;
     else {
+      let numImg = "";
+      if (markPoints && markPoints.length > 0) {
+        const mp = markPoints.find(mp => mp.feedback_if_missing);
+        if (mp) numImg = mp.image_url || "";
+      }
       missing.push({ 
         ao: "AO2", 
         text: `Target value calculation was: ${ans} (±${tol}).`,
-        url: cleanUrl 
+        url: cleanUrl,
+        image_url: numImg
       });
     }
   } 
@@ -767,7 +786,8 @@ function markResponse(q, resp, key, markPoints) {
             missing.push({ 
               ao: mp.ao, 
               text: mp.feedback_if_missing,
-              url: cleanUrl 
+              url: cleanUrl,
+              image_url: mp.image_url || ""
             });
           }
         }
@@ -911,22 +931,32 @@ function renderFeedback(marking) {
 
   if (marking.missing && marking.missing.length > 0) {
     html += `<hr/><div><strong>How to improve</strong></div>`;
-    html += marking.missing.map(m => `
-      <div class="item" style="margin: 5px 0; padding: 12px; background: #fff5f5; border-left: 3px solid #ff4d4d;">
-        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px;">
-          <div>
-            <span class="chip" style="background:#ff4d4d; color:white; padding:2px 6px; border-radius:4px; font-size:0.8rem; margin-right: 5px;">${m.ao}</span> 
-            ${escapeHtml(m.text)}
+    html += marking.missing.map(m => {
+      // Inline rendering of remediation images on incorrect answer states
+      let feedbackImgHtml = m.image_url 
+        ? `<div style="margin-top: 8px; max-width: 100%;">
+             <img src="${m.image_url}" style="max-width: 100%; max-height: 180px; object-fit: contain; border: 1px solid #fed7d7; border-radius: 6px; display: block;" alt="Feedback diagram" />
+           </div>` 
+        : "";
+
+      return `
+        <div class="item" style="margin: 5px 0; padding: 12px; background: #fff5f5; border-left: 3px solid #ff4d4d;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px;">
+            <div>
+              <span class="chip" style="background:#ff4d4d; color:white; padding:2px 6px; border-radius:4px; font-size:0.8rem; margin-right: 5px;">${m.ao}</span> 
+              ${escapeHtml(m.text)}
+              ${feedbackImgHtml}
+            </div>
+            ${m.url ? `
+              <a href="${m.url}" target="_blank" rel="noopener noreferrer" 
+                 style="flex-shrink: 0; display: inline-block; padding: 4px 10px; background: var(--primary); color: white; text-decoration: none; font-size: 0.8rem; font-weight: 600; border-radius: 6px; transition: background 0.15s;">
+                Review Resource ↗
+              </a>
+            ` : ''}
           </div>
-          ${m.url ? `
-            <a href="${m.url}" target="_blank" rel="noopener noreferrer" 
-               style="flex-shrink: 0; display: inline-block; padding: 4px 10px; background: var(--primary); color: white; text-decoration: none; font-size: 0.8rem; font-weight: 600; border-radius: 6px; transition: background 0.15s;">
-              Review Resource ↗
-            </a>
-          ` : ''}
         </div>
-      </div>
-    `).join("");
+      `;
+    }).join("");
   } else {
     html += `<hr/><div class="good">Nice — perfect marks on this specification point!</div>`;
   }
@@ -1385,7 +1415,7 @@ async function loadTopics() {
 
   let questionsQuery = supabaseClient
     .from("questions")
-    .select("id, spec_point_id, question_type, tier")
+    .select("id, spec_point_id, question_type, tier, image_url")
     .in("tier", targetTiers);
 
   if (qType) {
@@ -1405,7 +1435,7 @@ async function loadTopics() {
 
   const markPointsQuery = supabaseClient
     .from("mark_points")
-    .select("question_id, ao, max_marks");
+    .select("question_id, ao, max_marks, image_url");
 
   const [specPointsRes, questionsRes, srsStateRes, attemptsRes, markPointsRes] = await Promise.all([
     Promise.race([specPointsQuery, timeoutPromise(4000, "spec_points lookup timed out")]).catch(err => ({ error: err, data: [] })),
