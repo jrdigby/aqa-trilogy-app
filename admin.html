@@ -81,7 +81,10 @@
       transition: all 0.2s;
     }
     button:hover { background-color: var(--primary-dark); }
-    .hidden { display: none; }
+    
+    /* CRITICAL FIX: Ensure utility hidden rules always win over specific layout display rules */
+    .hidden { display: none !important; }
+    
     .status-msg {
       margin-top: 15px;
       padding: 12px;
@@ -410,7 +413,7 @@
       </div>
     </section>
 
-    <!-- MANUAL ASSESSMENT OBJECTIVES (HIDDEN IN AI EXTENDED RESPONSE PORTAL) -->
+    <!-- MANUAL ASSESSMENT OBJECTIVES -->
     <section id="sectionFeedback" class="card">
       <h2>3. AQA Assessment Objective Feedback Mapping</h2>
       <p style="font-size: 0.85rem; margin: 0 0 15px; color: #666;">
@@ -470,7 +473,7 @@
       <h2>Excel Spreadsheet Bulk Import Panel</h2>
       <p style="font-size: 0.85rem; color: #666; margin-bottom: 15px;">
         Paste raw comma-separated text from your Excel backup master tracker. Ensure column headers match: 
-        <code style="background:#e8ecf0; padding:2px 4px; border-radius:4px; font-size:0.8rem;">spec_point_id, question_type, prompt, options, difficulty, tier, key_type, key_payload, mp1_ao, mp1_text, mp2_ao, mp2_text, mp3_ao, mp3_text...</code>
+        <code style="background:#e8ecf0; padding:2px 4px; border-radius:4px; font-size:0.8rem;">spec_point_id, question_type, prompt, options, difficulty, tier, key_type, key_payload, mp1_ao, mp1_text, mp2_ao, mp2_text...</code>
       </p>
       
       <label for="csvInput">Raw CSV Data Input Area</label>
@@ -484,7 +487,7 @@
     </section>
   </div>
 
-  <!-- ======================== STREAMING_CHUNK: TAB 3: AUDIT & EDIT PORTAL ======================== -->
+  <!-- ======================== TAB 3: AUDIT & EDIT PORTAL ======================== -->
   <div id="adminReviewForm" class="hidden">
     <section class="card">
       <h2>🔍 Review & Audit Questions</h2>
@@ -517,7 +520,7 @@
     <!-- Question Cards List Container -->
     <div id="reviewedQuestionsList"></div>
 
-    <!-- Active Edit Editor Drawer (Inlined safely) -->
+    <!-- Active Edit Editor Drawer -->
     <div id="inlineEditPanel" class="card hidden" style="border: 2px solid var(--primary);">
       <h2 id="editFormHeader" style="color: var(--primary);">✏️ Edit Existing Question</h2>
       <input id="editQuestionId" type="hidden" />
@@ -679,7 +682,6 @@
   tabBulkBtn.onclick = () => showSection(tabBulkBtn, adminBulkForm);
   tabReviewBtn.onclick = () => {
     showSection(tabReviewBtn, adminReviewForm);
-    loadTopicsForReviewTab();
   };
 
   // ====== STREAMING_CHUNK: Authentication handling... ======
@@ -800,7 +802,6 @@
   paperFilter.addEventListener("change", syncTopics);
   topicFilter.addEventListener("change", syncSpecPoints);
 
-  // ====== STREAMING_CHUNK: Setup form events... ======
   qType.addEventListener("change", () => {
     panelMcq.classList.add("hidden");
     panelNumeric.classList.add("hidden");
@@ -1002,7 +1003,7 @@
     document.getElementById("extScientificPoints").value = "";
   }
 
-  // ====== STREAMING_CHUNK: Bulk import tools... ======
+  // ====== Excel Bulk Spreadsheet Parser Utility ======
   function parseCSVToObjects(csvText) {
     const lines = csvText.split(/\r?\n/);
     if (lines.length < 2) return [];
@@ -1108,13 +1109,9 @@
     bulkStatusOutput.innerHTML += `<br><b>🏁 Run completed. Successfully imported: ${successCount}. Failed entries: ${failCount}.</b>`;
   };
 
-  // ====== STREAMING_CHUNK: REVIEW & AUDIT CONTEXT ENGINE ======
+  // ====== REVIEW & AUDIT CONTEXT ENGINE ======
   let loadedQuestionsCache = [];
   let currentDeletionTargetId = null;
-
-  async function loadTopicsForReviewTab() {
-    // Sync review tab topics dropdown or fetch on click
-  }
 
   function showReviewStatus(text, isError = false) {
     const reviewAuditStatus = document.getElementById("reviewAuditStatus");
@@ -1134,7 +1131,6 @@
     const paperVal = document.getElementById("revPaper").value;
 
     try {
-      // Step 1: Query spec points for the selected subject and paper
       const { data: specPoints, error: specError } = await supabaseClient
         .from("spec_points")
         .select("id, spec_ref, topic_name, spec_text")
@@ -1150,7 +1146,6 @@
 
       const specIds = specPoints.map(s => s.id);
 
-      // Step 2: Fetch corresponding questions
       const { data: questions, error: qError } = await supabaseClient
         .from("questions")
         .select("id, spec_point_id, question_type, prompt, options, difficulty, tier, resource_links, image_url")
@@ -1163,7 +1158,6 @@
         return;
       }
 
-      // Step 3: Fetch answer keys for audited highlights
       const qIds = questions.map(q => q.id);
       const { data: keys, error: keyError } = await supabaseClient
         .from("answer_keys")
@@ -1186,7 +1180,7 @@
     }
   };
 
-  // ====== STREAMING_CHUNK: Auditing rules engine... ======
+  // ====== Auditing structural rules engine ======
   function performAuditAnalysis(q) {
     const issues = { critical: [], warnings: [] };
     
@@ -1218,14 +1212,13 @@
         issues.critical.push("Missing Expected scientific points list");
       }
     } 
-    else { // short_text
+    else {
       const keyPayload = q.key?.key_payload || {};
       if ((!keyPayload.required || keyPayload.required.length === 0) && (!keyPayload.optional || keyPayload.optional.length === 0)) {
         issues.critical.push("No verification keywords targeted");
       }
     }
 
-    // Warnings (Non-blocking but vital)
     if (!q.resource_links || q.resource_links.trim() === "") {
       issues.warnings.push("No revision resource or YouTube URL assigned");
     }
@@ -1236,7 +1229,7 @@
     return issues;
   }
 
-  // ====== STREAMING_CHUNK: UI Card Rendering... ======
+  // ====== UI Card Rendering ======
   function renderAuditedQuestions(questions) {
     const container = document.getElementById("reviewedQuestionsList");
     container.innerHTML = `<h3 style="margin-bottom:15px;">Questions Found (${questions.length})</h3>`;
@@ -1294,7 +1287,7 @@
     });
   }
 
-  // ====== STREAMING_CHUNK: Inline Edit Trigger Logic... ======
+  // ====== Inline Edit Trigger Logic ======
   window.editQuestionInline = (id) => {
     const q = loadedQuestionsCache.find(item => item.id === id);
     if (!q) return;
@@ -1309,7 +1302,6 @@
     document.getElementById("editDifficulty").value = q.difficulty || "1";
     document.getElementById("editResourceLink").value = q.resource_links || "";
 
-    // Hide all subtype drawers initially
     document.getElementById("editMcqContainer").classList.add("hidden");
     document.getElementById("editNumericContainer").classList.add("hidden");
     document.getElementById("editKeywordsContainer").classList.add("hidden");
@@ -1339,7 +1331,7 @@
       const sps = payload.key_scientific_points || [];
       document.getElementById("editExtScientificPoints").value = sps.join("\n");
     } 
-    else { // short_text
+    else {
       document.getElementById("editKeywordsContainer").classList.remove("hidden");
       document.getElementById("editKeyRequired").value = Array.isArray(payload.required) ? payload.required.join(", ") : "";
       document.getElementById("editKeyOptional").value = Array.isArray(payload.optional) ? payload.optional.join(", ") : "";
@@ -1347,7 +1339,7 @@
     }
   };
 
-  // ====== STREAMING_CHUNK: Save Edit Handler... ======
+  // ====== Save Edit Handler ======
   document.getElementById("btnSaveEdit").onclick = async () => {
     const editStatusMessage = document.getElementById("editStatusMessage");
     editStatusMessage.classList.add("hidden");
@@ -1398,7 +1390,7 @@
         key_scientific_points: scientificPoints
       };
     } 
-    else { // short_text
+    else {
       keyPayload = {
         required: splitClean(document.getElementById("editKeyRequired").value),
         optional: splitClean(document.getElementById("editKeyOptional").value),
@@ -1407,7 +1399,6 @@
     }
 
     try {
-      // 1. Update Questions table
       const { error: qUpdateError } = await supabaseClient
         .from("questions")
         .update({
@@ -1421,7 +1412,6 @@
 
       if (qUpdateError) throw qUpdateError;
 
-      // 2. Update Answer Keys
       if (originalQ.key) {
         const { error: keyUpdateError } = await supabaseClient
           .from("answer_keys")
@@ -1430,7 +1420,6 @@
 
         if (keyUpdateError) throw keyUpdateError;
       } else {
-        // Fallback insertion of missing key
         const { error: keyInsertError } = await supabaseClient
           .from("answer_keys")
           .insert({
@@ -1446,7 +1435,6 @@
       editStatusMessage.className = "status-msg success";
       editStatusMessage.classList.remove("hidden");
 
-      // Auto refresh list
       setTimeout(() => {
         document.getElementById("inlineEditPanel").classList.add("hidden");
         document.getElementById("btnQueryQuestions").click();
@@ -1464,7 +1452,7 @@
     document.getElementById("inlineEditPanel").classList.add("hidden");
   };
 
-  // ====== STREAMING_CHUNK: Secure Delete Confirm Dialog... ======
+  // ====== Secure Delete Confirm Dialog ======
   const customConfirmModal = document.getElementById("customConfirmModal");
 
   window.requestSafeDelete = (id) => {
@@ -1497,7 +1485,6 @@
       customConfirmModal.classList.add("hidden");
       currentDeletionTargetId = null;
       
-      // Refresh the query results list instantly
       document.getElementById("btnQueryQuestions").click();
 
     } catch (err) {
