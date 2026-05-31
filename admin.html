@@ -108,6 +108,32 @@
       background: var(--primary);
       color: white;
     }
+
+    /* 📧 Admin User status styling */
+    .admin-header-flex {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      flex-wrap: wrap;
+      gap: 15px;
+    }
+    .user-badge {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: #e2e8f0;
+      padding: 6px 12px;
+      border-radius: 30px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #334155;
+    }
+    .btn-signout {
+      background: var(--error);
+      padding: 4px 10px;
+      font-size: 0.78rem;
+      border-radius: 20px;
+    }
   </style>
 </head>
 <body>
@@ -134,10 +160,18 @@
     </section>
 
     <div id="adminHeaderBlock" class="hidden">
-      <h1>AQA Trilogy Question Creator Dashboard</h1>
-      <p>Upload Biology, Chemistry, or Physics items targeted directly to syllabus specification nodes.</p>
+      <div class="admin-header-flex">
+        <div style="flex: 1; min-width: 250px;">
+          <h1 style="margin-bottom: 6px;">AQA Trilogy Question Creator Dashboard</h1>
+          <p style="margin: 0; color: var(--text-muted);">Upload Biology, Chemistry, or Physics items targeted directly to syllabus specification nodes.</p>
+        </div>
+        <div class="user-badge">
+          <span>📧 <span id="adminUserEmail">admin@school.com</span></span>
+          <button id="btnAdminSignOut" class="btn-signout">Sign Out</button>
+        </div>
+      </div>
       
-      <div class="tab-bar">
+      <div class="tab-bar" style="margin-top: 20px;">
         <button id="tabIndivBtn" class="tab-btn active">Individual Form Mode</button>
         <button id="tabBulkBtn" class="tab-btn">Excel CSV Bulk Import</button>
       </div>
@@ -389,7 +423,9 @@
   const tabBulkBtn = document.getElementById("tabBulkBtn");
   
   const btnAdminSignIn = document.getElementById("btnAdminSignIn");
+  const btnAdminSignOut = document.getElementById("btnAdminSignOut");
   const authStatus = document.getElementById("authStatus");
+  const adminUserEmail = document.getElementById("adminUserEmail");
 
   const subjectFilter = document.getElementById("subjectFilter");
   const paperFilter = document.getElementById("paperFilter");
@@ -450,21 +486,49 @@
     }
 
     showAuthStatus("Authenticated successfully.");
-    revealAdminPortal();
+    revealAdminPortal(data.user);
+  };
+
+  // Sign out engine hook
+  btnAdminSignOut.onclick = async () => {
+    const { error } = await supabaseClient.auth.signOut();
+    if (error) {
+      alert("Error logging out session: " + error.message);
+      return;
+    }
+    setSignedOutUI();
   };
 
   async function checkExistingAdminSession() {
     const { data: { session } } = await supabaseClient.auth.getSession();
     if (session?.user) {
-      revealAdminPortal();
+      revealAdminPortal(session.user);
     }
   }
 
-  function revealAdminPortal() {
+  function revealAdminPortal(user) {
     adminAuthSection.classList.add("hidden");
     adminHeaderBlock.classList.remove("hidden");
     adminCoreForm.classList.remove("hidden"); // Default to Form View
+    
+    // Bind authenticated metadata
+    if (user && user.email) {
+      adminUserEmail.textContent = user.email;
+    }
+    
     syncTopics();
+  }
+
+  function setSignedOutUI() {
+    adminAuthSection.classList.remove("hidden");
+    adminHeaderBlock.classList.add("hidden");
+    adminCoreForm.classList.add("hidden");
+    adminBulkForm.classList.add("hidden");
+    
+    // Clean fields
+    document.getElementById("adminEmail").value = "";
+    document.getElementById("adminPassword").value = "";
+    authStatus.classList.add("hidden");
   }
 
   // ====== DYNAMIC DROPDOWN CASCADING SYSTEM ======
