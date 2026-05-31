@@ -511,7 +511,18 @@
           </select>
         </div>
       </div>
-      <div style="text-align: right; margin-top: 10px;">
+      
+      <!-- -->
+      <div class="row" style="margin-top: 10px;">
+        <div>
+          <label for="revTopic">Topic Area</label>
+          <select id="revTopic">
+            <option value="">All Topics</option>
+          </select>
+        </div>
+      </div>
+      
+      <div style="text-align: right; margin-top: 15px;">
         <button id="btnQueryQuestions" style="background: #2563eb;">Search & Audit Database</button>
       </div>
       <div id="reviewAuditStatus" class="status-msg hidden"></div>
@@ -682,6 +693,7 @@
   tabBulkBtn.onclick = () => showSection(tabBulkBtn, adminBulkForm);
   tabReviewBtn.onclick = () => {
     showSection(tabReviewBtn, adminReviewForm);
+    syncReviewTopics();
   };
 
   // ====== STREAMING_CHUNK: Authentication handling... ======
@@ -737,6 +749,7 @@
       adminUserEmail.textContent = user.email;
     }
     syncTopics();
+    syncReviewTopics();
   }
 
   function setSignedOutUI() {
@@ -801,6 +814,35 @@
   subjectFilter.addEventListener("change", syncTopics);
   paperFilter.addEventListener("change", syncTopics);
   topicFilter.addEventListener("change", syncSpecPoints);
+
+  // ====== DYNAMIC TOPIC FILTER DROPDOWN MAP FOR AUDIT PANEL ======
+  const revSubject = document.getElementById("revSubject");
+  const revPaper = document.getElementById("revPaper");
+  const revTopic = document.getElementById("revTopic");
+
+  async function syncReviewTopics() {
+    revTopic.innerHTML = '<option value="">Loading topics...</option>';
+    const { data, error } = await supabaseClient
+      .from("spec_points")
+      .select("topic_name")
+      .eq("subject", revSubject.value)
+      .eq("paper", revPaper.value);
+
+    if (error || !data) {
+      revTopic.innerHTML = '<option value="">Error loading topics</option>';
+      return;
+    }
+
+    const uniqueTopics = [...new Set(data.map(r => r.topic_name).filter(Boolean))];
+    revTopic.innerHTML = '<option value="">All Topics</option>' + 
+      uniqueTopics.map(t => `<option value="${t}">${t}</option>`).join("");
+  }
+
+  revSubject.addEventListener("change", syncReviewTopics);
+  revPaper.addEventListener("change", syncReviewTopics);
+
+  // Instantly apply visual updates client-side on dropdown changes without database overhead
+  revTopic.addEventListener("change", applyQueryFiltersAndRender);
 
   qType.addEventListener("change", () => {
     panelMcq.classList.add("hidden");
@@ -1172,30 +1214,46 @@
         return { ...q, key: associatedKey, spec: associatedSpec };
       });
 
-      loadedQuestionsCache.sort((a, b) => {
-        const auditA = performAuditAnalysis(a);
-        const auditB = performAuditAnalysis(b);
-        const critA = auditA.critical.length;
-        const critB = auditB.critical.length;
-
-        // Primary sort: Push critical gaps to the top (descending order by gap count)
-        if (critA !== critB) {
-          return critB - critA;
-        }
-
-        // Secondary sort: Sort by Spec Reference ascending (natural alphanumeric sorting)
-        const refA = a.spec?.spec_ref || "";
-        const refB = b.spec?.spec_ref || "";
-        return refA.localeCompare(refB, undefined, { numeric: true, sensitivity: 'base' });
-      });
-
-      renderAuditedQuestions(loadedQuestionsCache);
+      applyQueryFiltersAndRender();
 
     } catch (err) {
       console.error(err);
       reviewedQuestionsList.innerHTML = `<div class="card error">Error occurred while retrieving questions: ${err.message}</div>`;
     }
   };
+
+  // ====== MODULAR FILTERING & SORTING PIPELINES ======
+  function applyQueryFiltersAndRender() {
+    const selectedTopic = revTopic.value;
+    let filtered = loadedQuestionsCache;
+    
+    if (selectedTopic) {
+      filtered = loadedQuestionsCache.filter(q => q.spec?.topic_name === selectedTopic);
+    }
+    
+    sortAndRenderQuestions(filtered);
+  }
+
+  function sortAndRenderQuestions(list) {
+    list.sort((a, b) => {
+      const auditA = performAuditAnalysis(a);
+      const auditB = performAuditAnalysis(b);
+      const critA = auditA.critical.length;
+      const critB = auditB.critical.length;
+
+      // Primary sort: Push critical gaps to the top
+      if (critA !== critB) {
+        return critB - critA;
+      }
+
+      // Secondary sort: Alphanumeric specification reference ascending
+      const refA = a.spec?.spec_ref || "";
+      const refB = b.spec?.spec_ref || "";
+      return refA.localeCompare(refB, undefined, { numeric: true, sensitivity: 'base' });
+    });
+
+    renderAuditedQuestions(list);
+  }
 
   // ====== Auditing structural rules engine ======
   function performAuditAnalysis(q) {
