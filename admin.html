@@ -1172,6 +1172,23 @@
         return { ...q, key: associatedKey, spec: associatedSpec };
       });
 
+      loadedQuestionsCache.sort((a, b) => {
+        const auditA = performAuditAnalysis(a);
+        const auditB = performAuditAnalysis(b);
+        const critA = auditA.critical.length;
+        const critB = auditB.critical.length;
+
+        // Primary sort: Push critical gaps to the top (descending order by gap count)
+        if (critA !== critB) {
+          return critB - critA;
+        }
+
+        // Secondary sort: Sort by Spec Reference ascending (natural alphanumeric sorting)
+        const refA = a.spec?.spec_ref || "";
+        const refB = b.spec?.spec_ref || "";
+        return refA.localeCompare(refB, undefined, { numeric: true, sensitivity: 'base' });
+      });
+
       renderAuditedQuestions(loadedQuestionsCache);
 
     } catch (err) {
