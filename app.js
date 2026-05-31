@@ -568,7 +568,15 @@ async function loadQuestion() {
   if (progress) progress.textContent = `Question ${idx + 1} of ${sessionQuestions.length}`;
   if (feedback) feedback.innerHTML = "";
   if (btnNext) btnNext.classList.add("hidden");
-  if (btnSubmit) btnSubmit.disabled = false;
+  
+  // Clean revision guides or banners from edit contexts
+  const banner = el("improveBanner");
+  if (banner) banner.remove();
+
+  if (btnSubmit) {
+    btnSubmit.textContent = "Submit Answer";
+    btnSubmit.disabled = false;
+  }
 
   console.log("DEBUG loadQuestion: Resolving markers maps asynchronously...");
   const [keyRes, markRes] = await Promise.all([
@@ -659,7 +667,7 @@ function renderQuestion(q) {
 }
 
 function mixWordTokens(studentText) {
-  return studentText.split(/(\s+|[.,\/#!$%\^&\*;:{}=\-_`~()?])/);
+  return studentText.split(/(\s+|[.,\/#!$%\^&\*;:{}=\-_`~()?]/);
 }
 
 function markResponse(q, resp, key, markPoints) {
@@ -716,7 +724,8 @@ function markResponse(q, resp, key, markPoints) {
         feedbackText = key.key_payload.feedback;
       }
       if (!feedbackText) {
-        feedbackText = `Expected answer: "${key.key_payload.correct}". Check your understanding of this topic context.`;
+        const correctDisplay = key.key_payload?.correct || key.key_payload?.answer || "";
+        feedbackText = `The correct answer is "${correctDisplay}". Review your flashcards for this specific unit or definition.`;
       }
 
       missing.push({ 
@@ -740,9 +749,13 @@ function markResponse(q, resp, key, markPoints) {
         const mp = markPoints.find(mp => mp.feedback_if_missing);
         if (mp) numImg = mp.image_url || "";
       }
+      const correctDisplay = key.key_payload?.answer || "";
+      const correctUnit = key.key_payload?.unit || "";
+      let feedbackText = `The correct answer is "${correctDisplay}${correctUnit ? ' ' + correctUnit : ''}". Review your calculations or flashcards for this specific unit.`;
+      
       missing.push({ 
         ao: "AO2", 
-        text: `Target value calculation was: ${ans} (±${tol}).`,
+        text: feedbackText,
         url: cleanUrl,
         image_url: numImg
       });
@@ -782,14 +795,16 @@ function markResponse(q, resp, key, markPoints) {
           total += awarded;
           ao[mp.ao] += awarded; 
         } else {
-          if (mp.feedback_if_missing) {
-            missing.push({ 
-              ao: mp.ao, 
-              text: mp.feedback_if_missing,
-              url: cleanUrl,
-              image_url: mp.image_url || ""
-            });
+          let fbText = mp.feedback_if_missing;
+          if (!fbText) {
+            fbText = `Missing keyword concept: "${mp.point_text || 'required definition'}". Review your flashcards for this specific topic.`;
           }
+          missing.push({ 
+            ao: mp.ao, 
+            text: fbText,
+            url: cleanUrl,
+            image_url: mp.image_url || ""
+          });
         }
       });
     } else {
@@ -1025,6 +1040,21 @@ function renderLiveAIFeedback(evaluation) {
           ${escapeHtml(evaluation.actionable_improvement_advice)}
         </p>
       </div>
+
+      ${evaluation.improved_answer ? `
+        <div style="margin-top: 18px; padding: 14px; background: #f0fdf4; border-left: 4px solid #16a34a; border-radius: 8px; box-shadow: inset 0 1px 2px rgba(0,0,0,0.02); border: 1px solid #dcfce7;">
+          <strong style="font-size: 0.82rem; color: #14532d; display: block; margin-bottom: 6px;">✨ AI Coach's Model Answer Suggestion:</strong>
+          <p style="font-size: 0.8rem; color: #166534; line-height: 1.5; margin: 0; white-space: pre-wrap; font-family: inherit;">
+            ${escapeHtml(evaluation.improved_answer)}
+          </p>
+        </div>
+      ` : ''}
+
+      ${(score < max) ? `
+        <button id="btnImprove" style="margin-top: 18px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; background: #4f46e5; color: white; border: none; border-radius: 8px; font-weight: 700; font-size: 0.9rem; cursor: pointer; transition: background 0.2s; box-shadow: 0 2px 4px rgba(79, 70, 229, 0.2);">
+          ✏️ Edit & Resubmit to Improve My Answer
+        </button>
+      ` : ''}
     </div>
   `;
   return html;
@@ -1112,6 +1142,10 @@ if (btnSubmit) {
 
     btnSubmit.disabled = true;
 
+    // Remove the guidance banner immediately on submitting a new revision draft
+    const existingBanner = el("improveBanner");
+    if (existingBanner) existingBanner.remove();
+
     // Interactive MCQ styling highlighting correct (green) and selected incorrect (red)
     if (currentQ.question_type === "mcq") {
       const selectedInput = document.querySelector('input[name="mcq"]:checked');
@@ -1167,6 +1201,31 @@ if (btnSubmit) {
 
         // Render premium live AI examiner evaluation feedback layout
         feedback.innerHTML = renderLiveAIFeedback(data);
+
+        // Interactive "Improve My Answer" click delegator setup
+        const btnImprove = el("btnImprove");
+        if (btnImprove) {
+          btnImprove.onclick = () => {
+            const textarea = el("txtAns");
+            if (textarea) {
+              textarea.value = response.text; // Load previous draft for active editing
+              textarea.focus();
+              textarea.scrollIntoView({ behavior: "smooth" });
+
+              btnSubmit.textContent = "Submit Improved Answer";
+              btnSubmit.disabled = false;
+
+              let banner = el("improveBanner");
+              if (!banner) {
+                banner = document.createElement("div");
+                banner.id = "improveBanner";
+                banner.style = "background: #fffbeb; color: #b45309; padding: 12px 14px; border-radius: 8px; font-size: 0.84rem; font-weight: 600; margin-bottom: 14px; border: 1px solid #fef3c7; line-height: 1.4;";
+                textarea.parentNode.insertBefore(banner, textarea);
+              }
+              banner.innerHTML = "💡 <strong>Drafting Improved Version:</strong> Reference the AI's model answer and actionable recommendation inside the feedback panel below to complete any missing concepts!";
+            }
+          };
+        }
 
         // Store attempt metrics directly to tracking schemas
         const result = await supabaseClient.from("attempts").insert({
