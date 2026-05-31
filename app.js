@@ -77,6 +77,7 @@ let currentQ = null;
 let currentKey = null;
 let currentMarkPoints = [];
 let isInitializingPipeline = false; 
+let hasImprovedCurrentQ = false; 
 
 const timeoutPromise = (ms, message = "Database connection timed out") => 
   new Promise((_, reject) => setTimeout(() => reject(new Error(message)), ms));
@@ -569,6 +570,8 @@ async function loadQuestion() {
   if (feedback) feedback.innerHTML = "";
   if (btnNext) btnNext.classList.add("hidden");
   
+  hasImprovedCurrentQ = false;
+
   // Clean revision guides or banners from edit contexts
   const banner = el("improveBanner");
   if (banner) banner.remove();
@@ -1050,7 +1053,7 @@ function renderLiveAIFeedback(evaluation) {
         </div>
       ` : ''}
 
-      ${(score < max) ? `
+      ${(score < max && !hasImprovedCurrentQ) ? `
         <button id="btnImprove" style="margin-top: 18px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; background: #4f46e5; color: white; border: none; border-radius: 8px; font-weight: 700; font-size: 0.9rem; cursor: pointer; transition: background 0.2s; box-shadow: 0 2px 4px rgba(79, 70, 229, 0.2);">
           ✏️ Edit & Resubmit to Improve My Answer
         </button>
@@ -1206,6 +1209,7 @@ if (btnSubmit) {
         const btnImprove = el("btnImprove");
         if (btnImprove) {
           btnImprove.onclick = () => {
+            hasImprovedCurrentQ = true; 
             const textarea = el("txtAns");
             if (textarea) {
               textarea.value = response.text; // Load previous draft for active editing
