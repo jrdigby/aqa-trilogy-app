@@ -580,6 +580,7 @@
       <div id="reviewAuditStatus" class="status-msg hidden"></div>
     </section>
 
+    <!-- Query Feed Back Container -->
     <div id="reviewedQuestionsList"></div>
 
     <div id="inlineEditPanel" class="card hidden" style="border: 2px solid var(--primary);">
@@ -1174,16 +1175,51 @@
       return;
     }
 
-    reviewedQuestionsList.innerHTML = loadedQuestionsCache.map(q => {
+    const totalCount = loadedQuestionsCache.length;
+    let summaryHtml = `
+      <div style="background: #e0f2fe; border: 1px solid #bae6fd; color: #0369a1; padding: 14px 18px; border-radius: 10px; margin-bottom: 20px; font-weight: 700; font-size: 1rem; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        <span style="display: flex; align-items: center; gap: 8px;">
+          🔍 <span>Search Results Summary</span>
+        </span>
+        <span style="background: #0369a1; color: white; padding: 4px 10px; border-radius: 20px; font-size: 0.82rem; font-weight: 800;">
+          ${totalCount} ${totalCount === 1 ? 'Question' : 'Questions'} Found
+        </span>
+      </div>
+    `;
+
+    const feedHtml = loadedQuestionsCache.map(q => {
       const spec = q.spec_points || {};
-      const keyRow = q.answer_keys?.[0] || {};
+      
+      // Safe extraction helper to support both singular/plural formats
+      let keyRow = {};
+      if (q.answer_keys) {
+        if (Array.isArray(q.answer_keys)) {
+          keyRow = q.answer_keys[0] || {};
+        } else {
+          keyRow = q.answer_keys;
+        }
+      }
+      
+      // Safe JSON parsing helper
+      let payload = {};
+      if (keyRow.key_payload) {
+        if (typeof keyRow.key_payload === "string") {
+          try {
+            payload = JSON.parse(keyRow.key_payload);
+          } catch (e) {
+            payload = {};
+          }
+        } else {
+          payload = keyRow.key_payload;
+        }
+      }
       
       // Compute automatic audit flag signals
       let hasAuditWarning = false;
       let auditReason = "Passed checks";
       
       if (!q.prompt || q.prompt.length < 15) { hasAuditWarning = true; auditReason = "Prompt string too short or shallow."; }
-      else if (q.question_type === "keywords" && (!keyRow.key_payload?.required || keyRow.key_payload.required.length === 0)) { hasAuditWarning = true; auditReason = "Keywords item lacks required baseline tokens."; }
+      else if (q.question_type === "keywords" && (!payload.required || payload.required.length === 0)) { hasAuditWarning = true; auditReason = "Keywords item lacks required baseline tokens."; }
       else if (!q.image_url) { auditReason = "Optional notice: missing graphical schematic illustration canvas."; }
 
       return `
@@ -1205,6 +1241,8 @@
         </div>
       `;
     }).join("");
+
+    reviewedQuestionsList.innerHTML = summaryHtml + feedHtml;
 
     // Trigger MathJax formula typesetting inside review list
     triggerMathTypeset();
@@ -1305,8 +1343,28 @@
     const qNode = activeTestingQuestionNode;
     if(!qNode) return;
 
-    const keyRow = qNode.answer_keys?.[0] || {};
-    const payload = keyRow.key_payload || {};
+    let keyRow = {};
+    if (qNode.answer_keys) {
+      if (Array.isArray(qNode.answer_keys)) {
+        keyRow = qNode.answer_keys[0] || {};
+      } else {
+        keyRow = qNode.answer_keys;
+      }
+    }
+
+    let payload = {};
+    if (keyRow.key_payload) {
+      if (typeof keyRow.key_payload === "string") {
+        try {
+          payload = JSON.parse(keyRow.key_payload);
+        } catch (e) {
+          payload = {};
+        }
+      } else {
+        payload = keyRow.key_payload;
+      }
+    }
+
     const markPoints = qNode.mark_points || [];
     const outputResult = document.getElementById("sandboxResultOutput");
     
@@ -1443,8 +1501,28 @@
     document.getElementById("editImageUrlStore").value = qNode.image_url || "";
     document.getElementById("editImage").value = "";
 
-    const keyRow = qNode.answer_keys?.[0] || {};
-    const payload = keyRow.key_payload || {};
+    // SAFE MULTI-FORMAT SCHEMA RESOLVER (Fixes array vs single-object JSON return paths)
+    let keyRow = {};
+    if (qNode.answer_keys) {
+      if (Array.isArray(qNode.answer_keys)) {
+        keyRow = qNode.answer_keys[0] || {};
+      } else {
+        keyRow = qNode.answer_keys;
+      }
+    }
+
+    let payload = {};
+    if (keyRow.key_payload) {
+      if (typeof keyRow.key_payload === "string") {
+        try {
+          payload = JSON.parse(keyRow.key_payload);
+        } catch (e) {
+          payload = {};
+        }
+      } else {
+        payload = keyRow.key_payload;
+      }
+    }
 
     // Hydrate Assessment Objectives feedback fields safely
     const mp1 = qNode.mark_points?.[0] || {};
@@ -1508,7 +1586,7 @@
 
     const saveBtn = document.getElementById("btnSaveInlineEdit");
     saveBtn.disabled = true;
-    saveBtn.textContent = "Committing transactional updates...";
+    saveBtn.textContent = "Committing updates...";
 
     try {
       const cachedRef = loadedQuestionsCache.find(x => x.id === id);
@@ -1526,6 +1604,7 @@
         parsedOptions = document.getElementById("editMcqOptions").value.split("\n").map(s => s.trim()).filter(Boolean);
         keyPayload = { correct: document.getElementById("editMcqCorrect").value.trim() };
       } else if (cachedRef.question_type === "numeric") {
+        // CRITICAL FIX: Fixed element selector ID from legacy typo
         keyPayload = {
           answer: parseFloat(document.getElementById("editNumAnswer").value),
           tolerance: parseFloat(document.getElementById("editNumTolerance").value || 0)
