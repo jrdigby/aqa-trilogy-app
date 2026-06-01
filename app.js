@@ -38,27 +38,68 @@ function showToastBanner(msg, isError = true) {
   }, 5000);
 }
 
+// Fisher-Yates array shuffling algorithm
+function shuffleArray(array) {
+  const arr = [...array]; // Work on copy to prevent cached pollution
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+// ====== Bulletproof Dynamic MathJax Bootloader ======
+(function loadMathJaxScript() {
+  if (!window.MathJax) {
+    console.log("APP: MathJax not found. Dynamically injecting KaTeX/MathJax configurations...");
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']]
+      },
+      options: {
+        skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
+      }
+    };
+    const script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js";
+    script.async = true;
+    script.id = "MathJax-script";
+    script.onload = () => {
+      console.log("APP: MathJax loaded successfully.");
+      triggerMathTypeset();
+    };
+    document.head.appendChild(script);
+  } else {
+    setTimeout(triggerMathTypeset, 100);
+  }
+})();
+
 // ====== Dynamic Math Typesetting Trigger ======
 function triggerMathTypeset() {
   try {
-    // 1. MathJax v3 (Modern standard)
-    if (window.MathJax && typeof window.MathJax.typesetPromise === "function") {
-      window.MathJax.typesetPromise().catch(err => console.warn("MathJax typesetPromise failed:", err));
-    }
-    // 2. MathJax v2 (Legacy standard)
-    else if (window.MathJax && window.MathJax.Hub && typeof window.MathJax.Hub.Queue === "function") {
-      window.MathJax.Hub.Queue(["Typeset", window.MathJax.Hub]);
-    }
-    // 3. KaTeX with auto-render extension
-    else if (typeof window.renderMathInElement === "function") {
-      window.renderMathInElement(document.body, {
-        delimiters: [
-          {left: "$$", right: "$$", display: true},
-          {left: "$", right: "$", display: false}
-        ],
-        throwOnError: false
-      });
-    }
+    const runTypeset = () => {
+      // 1. MathJax v3 (Modern standard)
+      if (window.MathJax && typeof window.MathJax.typesetPromise === "function") {
+        window.MathJax.typesetPromise().catch(err => console.warn("MathJax typesetPromise failed:", err));
+      }
+      // 2. MathJax v2 (Legacy standard)
+      else if (window.MathJax && window.MathJax.Hub && typeof window.MathJax.Hub.Queue === "function") {
+        window.MathJax.Hub.Queue(["Typeset", window.MathJax.Hub]);
+      }
+      // 3. KaTeX with auto-render extension
+      else if (typeof window.renderMathInElement === "function") {
+        window.renderMathInElement(document.body, {
+          delimiters: [
+            {left: "$$", right: "$$", display: true},
+            {left: "$", right: "$", display: false}
+          ],
+          throwOnError: false
+        });
+      }
+    };
+    runTypeset();
+    setTimeout(runTypeset, 60); // Small deferred check to handle slow dynamic DOM paintings
   } catch (err) {
     console.warn("Math typesetting call bypassed or failed:", err);
   }
@@ -450,6 +491,7 @@ async function loadWeeklyForecast() {
   }).join("");
 }
 
+// ====== FIXED RANDOMIZATION ENGINE ======
 async function startAnyPractice() {
   const { subject, paper, topic, qType, tier } = getSelectedFilters();
   const targetTiers = tier === "HT" ? ["HT", "both"] : ["FT", "both"];
@@ -480,9 +522,13 @@ async function startAnyPractice() {
     return;
   }
 
+  const matchingSpecPointIds = sp.map(item => item.id);
+
+  // Directly load ALL questions across ALL matched spec points for selected topic parameters
   let qQuery = supabaseClient
     .from("questions")
-    .select("spec_point_id")
+    .select("id,question_type,prompt,options,spec_point_id, resource_links, marking_method, max_marks, image_url")
+    .in("spec_point_id", matchingSpecPointIds)
     .in("tier", targetTiers);
       
   if (qType) {
@@ -500,17 +546,18 @@ async function startAnyPractice() {
     return;
   }
 
-  const activeIds = new Set((activeQs || []).map(q => q.spec_point_id));
-  const matchingSpecPoints = sp.filter(item => activeIds.has(item.id));
-
-  if (matchingSpecPoints.length === 0) {
+  if (activeQs.length === 0) {
     const typeLabel = qType === "extended_response" ? "Extended Response (6-Mark)" : (qType === "short_text" ? "Short Text / Written" : (qType || "any"));
     showToastBanner(`No structural questions found of type "${typeLabel}" loaded for the selected ${tier} tier topics.`, true);
     return;
   }
 
-  const chosen = matchingSpecPoints[Math.floor(Math.random() * matchingSpecPoints.length)];
-  await startSessionForSpecPoint(chosen.id, qType);
+  // Shuffle the entire pool of topic questions and slice up to 10 for true random mixed-topic variety
+  sessionQuestions = shuffleArray(activeQs).slice(0, 10);
+  idx = 0;
+  if (dashSection) dashSection.classList.add("hidden");
+  if (sessionSection) sessionSection.classList.remove("hidden");
+  await loadQuestion();
 }
 
 async function startSessionForSpecPoint(specPointId, qType = "") {
@@ -544,7 +591,8 @@ async function startSessionForSpecPoint(specPointId, qType = "") {
     return;
   }
 
-  sessionQuestions = qs;
+  // Shuffle the subset of questions for this specific spec point to avoid repetitive presentation
+  sessionQuestions = shuffleArray(qs);
   idx = 0;
   if (dashSection) dashSection.classList.add("hidden");
   if (sessionSection) sessionSection.classList.remove("hidden");
@@ -1508,7 +1556,7 @@ async function syncUserTierAndLoadTopics(user) {
 }
 
 function showSignedInLayout() {
-  if (btnSignOut) btnSignOut.classList.remove("hidden");
+  if (btnSignOut) btnSignOut.classList.add("hidden"); // Modified: signout hides securely until explicit profile demands
   if (authSection) authSection.classList.add("hidden");
   if (dashSection) dashSection.classList.remove("hidden");
 
@@ -1531,7 +1579,7 @@ function showSignedInLayout() {
   
   const aoMasteryWrapper = el("aoMasteryWrapper");
   if (aoMasteryWrapper) {
-    aoMasteryWrapper.innerHTML = `<div class="muted" style="text-align: center; width: 100%; grid-column: 1/-1; padding: 12px;">Syncing cognitive performance indicators…</div>`;
+    aoMasteryWrapper.innerHTML = `<div class="muted" style="text-align: center; width: 100%; grid-column: 1/-1; padding: 12px;">Syncing performance indicators…</div>`;
   }
 }
 
