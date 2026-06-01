@@ -38,6 +38,32 @@ function showToastBanner(msg, isError = true) {
   }, 5000);
 }
 
+// ====== Dynamic Math Typesetting Trigger ======
+function triggerMathTypeset() {
+  try {
+    // 1. MathJax v3 (Modern standard)
+    if (window.MathJax && typeof window.MathJax.typesetPromise === "function") {
+      window.MathJax.typesetPromise().catch(err => console.warn("MathJax typesetPromise failed:", err));
+    }
+    // 2. MathJax v2 (Legacy standard)
+    else if (window.MathJax && window.MathJax.Hub && typeof window.MathJax.Hub.Queue === "function") {
+      window.MathJax.Hub.Queue(["Typeset", window.MathJax.Hub]);
+    }
+    // 3. KaTeX with auto-render extension
+    else if (typeof window.renderMathInElement === "function") {
+      window.renderMathInElement(document.body, {
+        delimiters: [
+          {left: "$$", right: "$$", display: true},
+          {left: "$", right: "$", display: false}
+        ],
+        throwOnError: false
+      });
+    }
+  } catch (err) {
+    console.warn("Math typesetting call bypassed or failed:", err);
+  }
+}
+
 // ====== UI ELEMENTS ======
 const el = (id) => document.getElementById(id);
 
@@ -155,6 +181,23 @@ function isFuzzyMatch(userWord, targetKeyword, threshold = 0.85) {
   const similarity = 1 - (distance / maxLength);
   
   return similarity >= threshold;
+}
+
+// Core helper to check if a specific target concept/word or its synonyms match the student answer
+function checkKeywordOrSynonymsMatch(targetExpr, studentWords, rawText) {
+  if (!targetExpr) return false;
+  
+  // Split synonyms by the pipe "|" character
+  const synonyms = targetExpr.split('|').map(s => s.trim().toLowerCase());
+  
+  return synonyms.some(syn => {
+    // 1. Direct phrase matching in cleaned raw student text (handles multi-word terms)
+    const cleanRaw = rawText.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, " ").replace(/\s+/g, " ").trim();
+    if (cleanRaw.includes(syn)) return true;
+    
+    // 2. Fall back to fuzzy matching on individual word tokens
+    return studentWords.some(userWord => isFuzzyMatch(userWord, syn, 0.85));
+  });
 }
 
 function getAQACommandWordHelper(promptText) {
@@ -603,11 +646,9 @@ function renderQuestion(q) {
   const totalMarks = q.max_marks || (q.question_type === "extended_response" ? 6 : 1);
   const marksLabel = totalMarks === 1 ? "1 mark" : `${totalMarks} marks`;
 
-  // Supporting responsive picture/diagram overlays inside the practice card
+  // New Image Rendering Logic
   let imageHtml = q.image_url 
-    ? `<div style="margin-top: 10px; margin-bottom: 14px; display: block; text-align: center; background: #fafbfc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; max-width: 100%;">
-         <img src="${q.image_url}" style="max-width: 100%; max-height: 280px; object-fit: contain; border-radius: 6px; display: block; margin: 0 auto;" alt="Syllabus visual layout descriptor" onerror="this.parentNode.style.display='none';"/>
-       </div>` 
+    ? `<img src="${q.image_url}" style="max-width: 100%; border-radius: 8px; margin-bottom: 12px; border: 1px solid #e2e8f0; display: block;">` 
     : "";
 
   let html = `
@@ -666,7 +707,10 @@ function renderQuestion(q) {
     html += `<div class="item"><textarea id="txtAns" rows="4" style="width:100%;padding:10px;border-radius:10px;border:1px solid #ccc;background:#ffffff;color:#000000" placeholder="Type your text response here..."></textarea></div>`;
   }
 
-  if (qBox) qBox.innerHTML = html;
+  if (qBox) {
+    qBox.innerHTML = html;
+    triggerMathTypeset(); // Re-typeset the formula layout dynamically on new question load
+  }
 }
 
 function mixWordTokens(studentText) {
@@ -773,25 +817,13 @@ function markResponse(q, resp, key, markPoints) {
     const cleanStudentText = textRaw.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "");
     const studentWords = cleanStudentText.split(/\s+/).filter(Boolean);
 
-    const hasAllRequired = required.every(targetKeyword => 
-      studentWords.some(userWord => isFuzzyMatch(userWord, targetKeyword, 0.85))
-    );
-
-    const optionalHits = optional.filter(targetKeyword => 
-      studentWords.some(userWord => isFuzzyMatch(userWord, targetKeyword, 0.85))
-    ).length;
-
-    if (markPoints.length) {
+    // SMARTEST MULTI-MARK ROUTE: If Mark Points are configured, evaluate them individually as targets!
+    if (markPoints && markPoints.length > 0) {
       max = markPoints.reduce((sum, mp) => sum + (mp.max_marks || 1), 0);
 
       markPoints.forEach((mp) => {
-        let pointEarned = false;
-
-        if (mp.ao === "AO1") {
-          pointEarned = hasAllRequired;
-        } else {
-          pointEarned = optionalHits >= minOptional;
-        }
+        // Evaluate the "point_text" of this mark point as a synonym-aware required expression
+        const pointEarned = checkKeywordOrSynonymsMatch(mp.point_text, studentWords, textRaw);
 
         if (pointEarned) {
           const awarded = (mp.max_marks || 1);
@@ -811,9 +843,43 @@ function markResponse(q, resp, key, markPoints) {
         }
       });
     } else {
+      // Standard backward-compatible fallback checks
+      const hasAllRequired = required.every(targetKeyword => 
+        checkKeywordOrSynonymsMatch(targetKeyword, studentWords, textRaw)
+      );
+
+      const optionalHits = optional.filter(targetKeyword => 
+        checkKeywordOrSynonymsMatch(targetKeyword, studentWords, textRaw)
+      ).length;
+
       max = q.max_marks || 1;
       total = (hasAllRequired && optionalHits >= minOptional) ? max : 0;
-      if (total > 0) ao.AO1 = max;
+      
+      if (total > 0) {
+        ao.AO1 = max;
+      } else {
+        // FIX: Ensure 'missing' feedback array is populated so incorrect answers don't render as 'perfect'
+        let missingTerms = [];
+        required.forEach(r => {
+          const hit = checkKeywordOrSynonymsMatch(r, studentWords, textRaw);
+          if (!hit) {
+            // Simplify display of pipe synonyms
+            missingTerms.push(r.replace(/\|/g, " / "));
+          }
+        });
+        
+        let feedbackText = "Your answer is missing some required keywords.";
+        if (missingTerms.length > 0) {
+          feedbackText = `Your answer is missing these required terms: **${missingTerms.join(", ")}**.`;
+        }
+        
+        missing.push({
+          ao: "AO1",
+          text: feedbackText,
+          url: cleanUrl,
+          image_url: ""
+        });
+      }
     }
 
     if (total === 0) quality = 0;
@@ -891,9 +957,15 @@ function renderFeedback(marking) {
   html += `</div>`;
 
   if (currentQ.question_type === "short_text" && currentKey && currentKey.key_type === "keywords") {
-    const required = currentKey.key_payload.required || [];
-    const optional = currentKey.key_payload.optional || [];
-    const allTargetKeywords = [...required, ...optional];
+    // Determine syllabus targets dynamically depending on whether custom independent mark points exist
+    let allTargetKeywords = [];
+    if (currentMarkPoints && currentMarkPoints.length > 0) {
+      allTargetKeywords = currentMarkPoints.map(mp => mp.point_text).filter(Boolean);
+    } else {
+      const required = currentKey.key_payload.required || [];
+      const optional = currentKey.key_payload.optional || [];
+      allTargetKeywords = [...required, ...optional];
+    }
     
     const studentRawText = (el("txtAns")?.value || "").trim();
     const tokens = mixWordTokens(studentRawText);
@@ -904,38 +976,52 @@ function renderFeedback(marking) {
       let bestMatch = null;
       let highestType = null; 
       
-      for (const target of allTargetKeywords) {
-        if (token.toLowerCase() === target.toLowerCase()) {
-          bestMatch = target;
-          highestType = 'exact';
-          break; 
-        } else if (isFuzzyMatch(token, target, 0.85)) {
-          bestMatch = target;
-          highestType = 'fuzzy';
+      for (const targetExpr of allTargetKeywords) {
+        // Evaluate each token across synonym choices
+        const synonyms = targetExpr.split('|').map(s => s.trim().toLowerCase());
+        for (const syn of synonyms) {
+          if (token.toLowerCase() === syn) {
+            bestMatch = syn;
+            highestType = 'exact';
+            break; 
+          } else if (isFuzzyMatch(token, syn, 0.85)) {
+            bestMatch = syn;
+            highestType = 'fuzzy';
+          }
         }
+        if (highestType === 'exact') break;
       }
       
       if (highestType === 'exact') {
         return `<span class="match-exact" title="Exact match for: ${escapeHtml(bestMatch)}">${escapeHtml(token)}</span>`;
       } else if (highestType === 'fuzzy') {
-        return `<span class="match-fuzzy" style="background-color: #fff7ed; color: #9a3412; border-bottom: 2px solid #f97316;" title="Spelling correction target: ${escapeHtml(bestMatch)}">${escapeHtml(token)} <b style="font-weight:700;">[⚠️ spell: ${escapeHtml(bestMatch)}]</b></span>`;
+        return `<span class="match-fuzzy" style="background-color: #fff7ed; color: #9a3412; border-bottom: 2px solid #f97316;" title="Spelling correction target: ${escapeHtml(bestMatch)}">${escapeHtml(token)} <b style="font-weight:700;">[spell: ${escapeHtml(bestMatch)}]</b></span>`;
       }
       
       return escapeHtml(token);
     });
 
-    const highlightedTargetsHTML = allTargetKeywords.map(target => {
+    const highlightedTargetsHTML = allTargetKeywords.map(targetExpr => {
       const studentWords = studentRawText.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "").split(/\s+/);
+      const synonyms = targetExpr.split('|').map(s => s.trim().toLowerCase());
       
-      const hasExact = studentWords.some(w => w === target.toLowerCase());
-      const hasFuzzy = !hasExact && studentWords.some(w => isFuzzyMatch(w, target, 0.85));
+      const hasExact = synonyms.some(syn => {
+        const cleanRaw = studentRawText.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, " ").replace(/\s+/g, " ").trim();
+        return cleanRaw.includes(syn) || studentWords.some(w => w === syn);
+      });
+      
+      const hasFuzzy = !hasExact && synonyms.some(syn => 
+        studentWords.some(w => isFuzzyMatch(w, syn, 0.85))
+      );
+      
+      const displayLabel = targetExpr.replace(/\|/g, " / ");
       
       if (hasExact) {
-        return `<span class="keyword-badge" style="border-color: #10b981; background: #e6f4ea; color: #137333;">🟢 ${escapeHtml(target)}</span>`;
+        return `<span class="keyword-badge" style="border-color: #10b981; background: #e6f4ea; color: #137333;">🟢 ${escapeHtml(displayLabel)}</span>`;
       } else if (hasFuzzy) {
-        return `<span class="keyword-badge" style="border-color: #f97316; background: #fff7ed; color: #9a3412;">🟠 ${escapeHtml(target)}</span>`;
+        return `<span class="keyword-badge" style="border-color: #f97316; background: #fff7ed; color: #9a3412;">🟠 ${escapeHtml(displayLabel)}</span>`;
       } else {
-        return `<span class="keyword-badge" style="opacity: 0.6;">⚪ ${escapeHtml(target)}</span>`;
+        return `<span class="keyword-badge" style="opacity: 0.6;">⚪ ${escapeHtml(displayLabel)}</span>`;
       }
     }).join(" ");
 
@@ -1204,6 +1290,7 @@ if (btnSubmit) {
 
         // Render premium live AI examiner evaluation feedback layout
         feedback.innerHTML = renderLiveAIFeedback(data);
+        triggerMathTypeset(); // Refresh formulas in AI Feedback block
 
         // Interactive "Improve My Answer" click delegator setup
         const btnImprove = el("btnImprove");
@@ -1263,7 +1350,7 @@ if (btnSubmit) {
         
         let localKeywords = [];
         if (customPayload.key_scientific_points) {
-          const stopWords = new Set(["about", "above", "after", "again", "against", "all", "am", "an", "and", "any", "are", "arent", "as", "at", "be", "because", "been", "before", "being", "below", "between", "both", "but", "by", "cant", "cannot", "could", "couldnt", "did", "didnt", "do", "does", "doesnt", "doing", "dont", "down", "during", "each", "few", "for", "from", "further", "had", "hadnt", "has", "hasnt", "have", "havent", "having", "he", "hed", "hell", "hes", "her", "here", "heres", "hers", "herself", "him", "himself", "his", "how", "hows", "i", "id", "ill", "im", "ive", "if", "in", "into", "is", "isnt", "it", "its", "itself", "lets", "me", "more", "most", "mustnt", "my", "myself", "no", "nor", "not", "of", "off", "on", "once", "only", "or", "other", "ought", "our", "ours", "ourselves", "out", "over", "own", "same", "shant", "she", "shed", "shell", "shes", "should", "shouldnt", "so", "some", "such", "than", "that", "thats", "the", "their", "theirs", "them", "themselves", "then", "there", "theres", "these", "they", "theyd", "theyll", "theyre", "theyve", "this", "those", "through", "to", "too", "under", "until", "up", "very", "was", "wasnt", "we", "wed", "well", "were", "weve", "werent", "what", "whats", "when", "whens", "where", "wheres", "which", "while", "who", "whos", "whom", "why", "whys", "with", "wont", "would", "wouldnt", "you", "youd", "youll", "youre", "youve", "your", "yours", "yourself", "yourselves", "using", "with", "each", "other", "some", "more", "from", "into", "over"]);
+          const stopWords = new Set(["about", "above", "after", "again", "against", "all", "am", "an", "and", "any", "are", "arent", "as", "at", "be", "because", "been", "before", "being", "below", "between", "both", "but", "by", "cant", "cannot", "could", "couldnt", "did", "didnt", "do", "does", "doesnt", "doing", "dont", "down", "during", "each", "few", "for", "from", "further", "had", "hadnt", "has", "hasnt", "have", "havent", "having", "he", "hed", "hell", "hes", "her", "here", "heres", "herself", "him", "himself", "his", "how", "hows", "i", "id", "ill", "im", "ive", "if", "in", "into", "is", "isnt", "it", "its", "itself", "lets", "me", "more", "most", "mustnt", "my", "myself", "no", "nor", "not", "of", "off", "on", "once", "only", "or", "other", "ought", "our", "ours", "ourselves", "out", "over", "own", "same", "shant", "she", "shed", "shell", "shes", "should", "shouldnt", "so", "some", "such", "than", "that", "thats", "the", "their", "theirs", "them", "themselves", "then", "there", "theres", "these", "they", "theyd", "theyll", "theyre", "theyve", "this", "those", "through", "to", "too", "under", "until", "up", "very", "was", "wasnt", "we", "wed", "well", "were", "weve", "werent", "what", "whats", "when", "whens", "where", "wheres", "which", "while", "who", "whos", "whom", "why", "whys", "with", "wont", "would", "wouldnt", "you", "youd", "youll", "youre", "youve", "your", "yours", "yourself", "yourselves", "using", "with", "each", "other", "some", "more", "from", "into", "over"]);
           const words = customPayload.key_scientific_points.join(" ").toLowerCase()
             .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, " ")
             .split(/\s+/)
@@ -1274,12 +1361,16 @@ if (btnSubmit) {
         }
 
         feedback.innerHTML = renderAQAExtendedResponseFeedback(response.text, customPayload, localKeywords);
+        triggerMathTypeset(); // Refresh formulas in local fallback markup
         await upsertSRS(currentQ.spec_point_id, 3);
       }
 
     } else {
       const marking = markResponse(currentQ, response, currentKey, currentMarkPoints);
-      if (feedback) feedback.innerHTML = renderFeedback(marking);
+      if (feedback) {
+        feedback.innerHTML = renderFeedback(marking);
+        triggerMathTypeset(); // Refresh formulas in standard feedback layout
+      }
       if (btnNext) btnNext.classList.remove("hidden");
 
       try {
