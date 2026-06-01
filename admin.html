@@ -21,7 +21,7 @@
       --primary-dark: #008f5a;
     }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       background: var(--bg);
       color: var(--text);
       margin: 0;
@@ -35,41 +35,14 @@
       background: var(--card-bg);
       padding: 25px;
       border-radius: 12px;
-      box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+      box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03);
       margin-bottom: 20px;
       border: 1px solid var(--border);
     }
-    h1, h2, h3 {
-      margin-top: 0;
-      color: var(--text);
-    }
-    .tabs {
-      display: flex;
-      gap: 10px;
-      margin-bottom: 20px;
-      border-bottom: 2px solid var(--border);
-      padding-bottom: 10px;
-    }
-    .tab-btn {
-      padding: 10px 20px;
-      background: #e2e8f0;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
-      font-weight: 600;
-      color: var(--text-muted);
-      transition: all 0.2s;
-    }
-    .tab-btn.active {
-      background: var(--primary);
-      color: white;
-    }
-    .hidden {
-      display: none !important;
-    }
+    h1, h2, h3, h4 { margin-top: 0; color: #0f172a; }
     label {
       display: block;
-      margin-bottom: 6px;
+      margin: 12px 0 6px;
       font-weight: 600;
       font-size: 0.9rem;
     }
@@ -79,639 +52,970 @@
       border: 1px solid var(--border);
       border-radius: 6px;
       box-sizing: border-box;
-      margin-bottom: 15px;
-      font-family: inherit;
       font-size: 0.95rem;
-      background: #f8fafc;
+      background: #fafafa;
       color: var(--text);
     }
     input:focus, select:focus, textarea:focus {
       outline: none;
       border-color: var(--primary);
       background: #ffffff;
+      box-shadow: 0 0 0 3px rgba(0, 168, 107, 0.1);
     }
+    textarea { resize: vertical; }
     .row {
       display: flex;
       gap: 15px;
+      margin-bottom: 10px;
     }
-    .row > div {
-      flex: 1;
-    }
-    button.btn-primary {
+    .row > div { flex: 1; }
+    button {
       background: var(--primary);
       color: white;
-      padding: 12px 24px;
       border: none;
+      padding: 12px 20px;
+      font-size: 1rem;
+      font-weight: 600;
       border-radius: 6px;
       cursor: pointer;
-      font-weight: 600;
-      font-size: 1rem;
-      transition: background 0.2s;
-      width: 100%;
+      transition: all 0.2s;
     }
-    button.btn-primary:hover {
-      background: var(--primary-dark);
-    }
-    button.btn-primary:disabled {
-      background: #cbd5e1;
-      cursor: not-allowed;
-    }
-    .status {
+    button:hover { background-color: var(--primary-dark); }
+    
+    /* CRITICAL FIX: Ensure utility hidden rules always win over specific layout display rules */
+    .hidden { display: none !important; }
+    
+    .status-msg {
+      margin-top: 15px;
       padding: 12px;
       border-radius: 6px;
-      font-weight: 600;
-      margin-bottom: 15px;
-      font-size: 0.9rem;
+      font-weight: 500;
     }
-    .status.success { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
-    .status.error { background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; }
-    
-    .audit-badge {
+    .success { background: #e6f4ea; color: #137333; border: 1px solid #c4e9cb; }
+    .error { background: #fce8e6; color: #c5221f; border: 1px solid #f6c8c6; }
+    .box {
+      border: 1px dashed var(--border);
+      padding: 15px;
+      border-radius: 8px;
+      background: #fafafa;
+      margin-top: 10px;
+    }
+
+    /* 🗂️ Administrative Mode Navigation Tab Sizing */
+    .tab-bar {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      border-bottom: 2px solid var(--border);
+      padding-bottom: 10px;
+    }
+    .tab-btn {
+      background: #e2e8f0;
+      color: var(--text-muted);
+      padding: 8px 16px;
+      font-size: 0.9rem;
+      border-radius: 20px;
+      border: none;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .tab-btn.active {
+      background: var(--primary);
+      color: white;
+    }
+
+    /* 📧 Admin User status styling */
+    .admin-header-flex {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      flex-wrap: wrap;
+      gap: 15px;
+    }
+    .user-badge {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: #e2e8f0;
+      padding: 6px 12px;
+      border-radius: 30px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #334155;
+    }
+    .btn-signout {
+      background: var(--error);
+      padding: 4px 10px;
+      font-size: 0.78rem;
+      border-radius: 20px;
+    }
+    .btn-signout:hover {
+      background-color: #dc2626;
+    }
+
+    /* 🔍 Review and Audit Cards Layout */
+    .q-audit-card {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 18px;
+      background: #fff;
+      margin-bottom: 15px;
+      transition: box-shadow 0.2s;
+    }
+    .q-audit-card:hover {
+      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    }
+    .badge {
       display: inline-block;
       padding: 4px 8px;
       border-radius: 4px;
       font-size: 0.75rem;
       font-weight: 700;
+      margin-right: 6px;
+      margin-bottom: 6px;
       text-transform: uppercase;
-      margin-top: 5px;
     }
-    .badge-critical { background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; }
-    .badge-warning { background: #fffbeb; color: #b45309; border: 1px solid #fde68a; }
-    .badge-healthy { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
+    .badge-error { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+    .badge-warning { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
+    .badge-success { background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
+    .badge-info { background: #e0f2fe; color: #0369a1; border: 1px solid #7dd3fc; }
 
-    .q-card {
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 16px;
-      margin-bottom: 12px;
-      background: #ffffff;
-      position: relative;
-    }
-    .q-card .actions {
-      position: absolute;
-      top: 16px;
-      right: 16px;
-      display: flex;
-      gap: 8px;
-    }
-    .btn-small {
-      padding: 6px 12px;
-      font-size: 0.8rem;
-      font-weight: 600;
-      border-radius: 4px;
-      border: 1px solid var(--border);
-      cursor: pointer;
-      background: #f8fafc;
-    }
-    .btn-edit { color: var(--primary); border-color: #bbf7d0; }
-    .btn-edit:hover { background: #f0fdf4; }
-    .btn-delete { color: var(--error); border-color: #fca5a5; }
-    .btn-delete:hover { background: #fef2f2; }
-
+    /* Custom Confirm Modal styling (complies with no-alert guidelines) */
     .modal-overlay {
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
       background: rgba(15, 23, 42, 0.6);
-      z-index: 1000;
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 20px;
+      z-index: 10000;
     }
     .modal-content {
       background: #ffffff;
+      padding: 24px;
       border-radius: 12px;
-      padding: 25px;
-      max-width: 600px;
-      width: 100%;
-      box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);
-      max-height: 90vh;
-      overflow-y: auto;
+      max-width: 400px;
+      width: 90%;
+      text-align: center;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
     }
-    .chip {
-      background: #e2e8f0;
+    .modal-btns {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      margin-top: 20px;
+    }
+    .modal-btn-cancel {
+      background: #cbd5e1;
       color: #334155;
-      padding: 2px 6px;
-      border-radius: 4px;
-      font-size: 0.75rem;
-      font-weight: bold;
+    }
+    .modal-btn-cancel:hover {
+      background: #94a3b8;
     }
   </style>
 </head>
 <body>
 
 <div class="container">
-  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background: #ffffff; padding: 12px 20px; border-radius: 8px; border: 1px solid var(--border);">
-    <div style="display: flex; align-items: center; gap: 10px;">
-      <span style="width: 10px; height: 10px; background: var(--primary); border-radius: 50%;"></span>
-      <h3 style="margin: 0; font-size: 0.95rem; font-weight: 700;" id="txtUserStatus">Verifying secure pipeline permissions...</h3>
-    </div>
-    <button id="btnAuthSignOut" class="btn-small btn-delete hidden">Sign Out System Account</button>
-  </div>
+  <header>
+    <section id="adminAuthSection" class="card">
+      <h2>🔒 Admin Authentication Required</h2>
+      <p style="font-size: 0.85rem; color: #666;">You must sign in with authorized teacher credentials to push or edit questions.</p>
+      <div class="row">
+        <div>
+          <label for="adminEmail">Email Address</label>
+          <input id="adminEmail" type="email" placeholder="admin@school.com" />
+        </div>
+        <div>
+          <label for="adminPassword">Password</label>
+          <input id="adminPassword" type="password" placeholder="••••••••" />
+        </div>
+      </div>
+      <div style="text-align: right; margin-top: 10px;">
+        <button id="btnAdminSignIn" style="background: #333;">Authenticate Admin Session</button>
+      </div>
+      <div id="authStatus" class="status-msg hidden"></div>
+    </section>
 
-  <div class="card" style="text-align: center; padding: 40px 20px;" id="authCard">
-    <h2>🔐 Teacher Administration Authentication</h2>
-    <p class="muted" style="margin-top:-10px; margin-bottom:25px; font-size:0.88rem;">Log into your remote Supabase instance to authorize structural mutations.</p>
-    <div style="max-width: 340px; margin: 0 auto; text-align: left;">
-      <label>Administrative User Email</label>
-      <input type="email" id="authEmail" placeholder="teacher@school.com" />
-      <label>Security Access Password</label>
-      <input type="password" id="authPassword" placeholder="••••••••" />
-      <button class="btn-primary" id="btnAuthSignIn" style="margin-top: 10px;">Authenticate Session</button>
-      <div id="authErrorMsg" class="status error hidden" style="margin-top: 15px;"></div>
-    </div>
-  </div>
-
-  <div id="adminMainContent" class="hidden">
-    <div class="tabs">
-      <button class="tab-btn active" id="tabFormBtn">Individual Form Mode</button>
-      <button class="tab-btn" id="tabBulkBtn">Bulk Transaction (CSV/Excel)</button>
-      <button class="tab-btn" id="tabReviewBtn">Review & Edit Portal</button>
-    </div>
-
-    <div id="tabForm" class="tab-content">
-      <div id="formStatus" class="status hidden"></div>
+    <div id="adminHeaderBlock" class="hidden">
+      <div class="admin-header-flex">
+        <div style="flex: 1; min-width: 250px;">
+          <h1 style="margin-bottom: 6px;">AQA Trilogy Question Creator Dashboard</h1>
+          <p style="margin: 0; color: var(--text-muted);">Manage and audit science questions mapped directly to specification references.</p>
+        </div>
+        <div class="user-badge">
+          <span>📧 <span id="adminUserEmail">admin@school.com</span></span>
+          <button id="btnAdminSignOut" class="btn-signout">Sign Out</button>
+        </div>
+      </div>
       
-      <div class="card">
-        <h2>1. Syllabus Target Mapping</h2>
-        <div class="row">
-          <div>
-            <label for="qSubject">Subject Discipline</label>
-            <select id="qSubject">
-              <option value="biology">Biology</option>
-              <option value="chemistry">Chemistry</option>
-              <option value="physics">Physics</option>
-            </select>
-          </div>
-          <div>
-            <label for="qPaper">Target Exam Paper</label>
-            <select id="qPaper">
-              <option value="paper1">Paper 1</option>
-              <option value="paper2">Paper 2</option>
-            </select>
-          </div>
-        </div>
-        
-        <label for="qSpecPoint">AQA Specification Reference Mapping</label>
-        <select id="qSpecPoint">
-          <option value="">-- Synchronizing specification entries... --</option>
-        </select>
-      </div>
-
-      <div class="card">
-        <h2>2. Setup Question Attributes</h2>
-        <div class="row">
-          <div>
-            <label for="qType">Structural Engine Type</label>
-            <select id="qType">
-              <option value="short_text">Short Text / Written Keywords</option>
-              <option value="mcq">Multiple Choice Question (MCQ)</option>
-              <option value="numeric">Numeric Equation Answer</option>
-              <option value="extended_response">Extended Response (6-Mark AI-Rubric)</option>
-            </select>
-          </div>
-          <div>
-            <label for="qTier">Target Entry Tier</label>
-            <select id="qTier">
-              <option value="both" selected>Both Tiers (Standard)</option>
-              <option value="FT">Foundation Tier (FT Only)</option>
-              <option value="HT">Higher Tier (HT Only)</option>
-            </select>
-          </div>
-          <div>
-            <label for="qDifficulty">Relative Grading Weight</label>
-            <select id="qDifficulty">
-              <option value="1">Level 1 (Basic Recall)</option>
-              <option value="2" selected>Level 2 (Standard Application)</option>
-              <option value="3">Level 3 (Complex Analysis)</option>
-            </select>
-          </div>
-        </div>
-
-        <label for="qPrompt">Question Prompt Text (Markdown supported)</label>
-        <textarea id="qPrompt" rows="3" placeholder="State the question clearly..."></textarea>
-
-        <label for="qResourceLink">Syllabus Remediation Video / Study URL (Optional)</label>
-        <input type="url" id="qResourceLink" placeholder="https://www.youtube.com/watch?v=..." />
-
-        <label for="qImageFile">Supporting Diagram / Diagram Context Overlay (Optional)</label>
-        <input type="file" id="qImageFile" accept="image/*" />
-        <div id="imgUploadProgress" class="muted" style="font-size:0.8rem; margin-top:-10px; margin-bottom:15px; font-weight:600;"></div>
-      </div>
-
-      <div id="panelMcq" class="card hidden">
-        <h2>3. MCQ Answer Configuration Options</h2>
-        <label>Provide comma-separated values (The first option will automatically act as the correct answer variant):</label>
-        <input type="text" id="mcqOptions" placeholder="Correct Answer, Distractor 1, Distractor 2, Distractor 3" />
-      </div>
-
-      <div id="panelNumeric" class="card hidden">
-        <h2>3. Mathematical Equation Target Solution</h2>
-        <div class="row">
-          <div>
-            <label>Correct Value (Number)</label>
-            <input type="number" id="numAnswer" step="any" placeholder="e.g. 9.8" />
-          </div>
-          <div>
-            <label>Allowed Tolerance Exception range</label>
-            <input type="number" id="numTolerance" step="any" value="0" placeholder="e.g. 0.05" />
-          </div>
-          <div>
-            <label>Required Unit Suffix</label>
-            <input type="text" id="numUnit" placeholder="e.g. m/s2" />
-          </div>
-        </div>
-      </div>
-
-      <div id="panelKeywords" class="card">
-        <h2>3. Evaluative Keyword Core Matrix</h2>
-        <label>Strict Required Target Terms (Comma separated - user MUST hit these to score points)</label>
-        <input type="text" id="keyRequired" placeholder="must, down, constant" />
-        
-        <label>Alternative / Optional Expansion Terms (Comma separated)</label>
-        <input type="text" id="keyOptional" placeholder="variable, shift, increase" />
-        
-        <label>Minimum Optional Terms Match Count Threshold</label>
-        <input type="number" id="keyMinOptional" value="0" min="0" />
-      </div>
-
-      <div id="panelExtendedResponse" class="card hidden">
-        <h2>3. 6-Mark Holistic Checklist Configuration</h2>
-        <label>Key Scientific Points & Level Indicators (Provide 1 key step per line for checklist evaluation)</label>
-        <textarea id="extRubricPoints" rows="5" placeholder="Step 1: State the independent variable&#10;Step 2: Control structural parameters&#10;Step 3: Measure final displacement magnitude"></textarea>
-      </div>
-
-      <div id="panelMarkPoints" class="card">
-        <h2>4. Spaced Spacing Diagnostic Feedback Mapping</h2>
-        
-        <div style="background:#f8fafc; padding:15px; border-radius:8px; border:1px solid var(--border); margin-bottom:15px;">
-          <h3 style="font-size:0.95rem; margin-bottom:10px; color:var(--primary);">Mark Point Criteria Entry 1</h3>
-          <div class="row">
-            <div>
-              <label>Target Competency (AO)</label>
-              <select id="mp1Ao">
-                <option value="AO1" selected>AO1: Knowledge Recall</option>
-                <option value="AO2">AO2: Concept Application</option>
-                <option value="AO3">AO3: Evaluation & Error Analysis</option>
-              </select>
-            </div>
-            <div>
-              <label>Scheme Intent Descriptor</label>
-              <input type="text" id="mp1Text" placeholder="Core definition check" />
-            </div>
-          </div>
-          <label>Remediation Feedback (Triggered if student misses this criteria block)</label>
-          <input type="text" id="mp1Feedback" placeholder="Review basic flashcards concerning this definition structural profile." />
-        </div>
-
-        <div style="background:#f8fafc; padding:15px; border-radius:8px; border:1px solid var(--border);">
-          <h3 style="font-size:0.95rem; margin-bottom:10px; color:var(--primary);">Mark Point Criteria Entry 2</h3>
-          <div class="row">
-            <div>
-              <label>Target Competency (AO)</label>
-              <select id="mp2Ao">
-                <option value="AO1">AO1: Knowledge Recall</option>
-                <option value="AO2" selected>AO2: Concept Application</option>
-                <option value="AO3">AO3: Evaluation & Error Analysis</option>
-              </select>
-            </div>
-            <div>
-              <label>Scheme Intent Descriptor</label>
-              <input type="text" id="mp2Text" placeholder="Application to scenario context" />
-            </div>
-          </div>
-          <label>Remediation Feedback (Triggered if student misses this criteria block)</label>
-          <input type="text" id="mp2Feedback" placeholder="Ensure you link the parameter mutation directly to experimental outputs." />
-        </div>
-      </div>
-
-      <button class="btn-primary" id="btnCommit" style="margin-bottom:40px;">Commit Question to Supabase Vault</button>
-    </div>
-
-    <div id="tabBulk" class="tab-content hidden">
-      <div class="card">
-        <h2>Bulk Upload Blueprint Pipeline</h2>
-        <p class="muted">Paste structured JSON arrays generated from spreadsheets or programmatic generation scripts here.</p>
-        
-        <label>JSON Data Array</label>
-        <textarea id="bulkJsonInput" rows="10" placeholder='[\n  {\n    "spec_ref": "4.1.1.1",\n    "question_type": "mcq",\n    "prompt": "What is the base unit of electrical current?",\n    "options": "Ampere, Volt, Ohm, Joule"\n  }\n]'></textarea>
-        
-        <button class="btn-primary" id="btnExecuteBulk">Process Excel Transaction List</button>
-        <div id="bulkStatusOutput" style="margin-top:15px; max-height:250px; overflow-y:auto; background:#1e293b; color:#f8fafc; font-family:monospace; padding:12px; border-radius:6px; font-size:0.85rem;" class="hidden"></div>
+      <div class="tab-bar" style="margin-top: 20px;">
+        <button id="tabIndivBtn" class="tab-btn active">Individual Form Mode</button>
+        <button id="tabBulkBtn" class="tab-btn">Excel CSV Bulk Import</button>
+        <button id="tabReviewBtn" class="tab-btn">🔍 Review & Edit Portal</button>
       </div>
     </div>
+  </header>
 
-    <div id="tabReview" class="tab-content hidden">
-      <div class="card">
-        <h2>Targeted Content Review & Integrity Auditing</h2>
-        <div class="row">
-          <div>
-            <label>Filter Subject</label>
-            <select id="reviewSubject">
-              <option value="biology">Biology</option>
-              <option value="chemistry">Chemistry</option>
-              <option value="physics">Physics</option>
-            </select>
-          </div>
-          <div>
-            <label>Filter Paper</label>
-            <select id="reviewPaper">
-              <option value="paper1">Paper 1</option>
-              <option value="paper2">Paper 2</option>
-            </select>
-          </div>
-          <div>
-            <label>Filter Topic</label>
-            <select id="reviewTopicFilter">
-              <option value="">All Topics</option>
-            </select>
-          </div>
-        </div>
-        <button class="btn-primary" id="btnQueryQuestions" style="background:#475569;">Query Question Vault & Run Quality Audit</button>
-      </div>
-
-      <div id="reviewSummaryText" style="font-weight:700; font-size:0.95rem; margin-bottom:12px; color:var(--text-muted);"></div>
-      <div id="reviewQuestionsFeed"></div>
-    </div>
-  </div>
-</div>
-
-<div id="inlineEditModal" class="modal-overlay hidden">
-  <div class="modal-content">
-    <h2 style="border-bottom:2px solid var(--border); padding-bottom:10px; color:var(--primary);">✏️ Edit Question Vault Entry</h2>
-    <input type="hidden" id="editTargetId" />
-    
-    <label>Prompt Directive Text</label>
-    <textarea id="editPrompt" rows="4"></textarea>
-
-    <label>Syllabus Remediation Link</label>
-    <input type="url" id="editResourceLink" />
-
-    <label for="editImageFile">Update Supporting Diagram (Optional)</label>
-    <input type="file" id="editImageFile" accept="image/*" />
-    <div id="editImgUploadProgress" class="muted" style="font-size:0.8rem; margin-top:-10px; margin-bottom:15px; font-weight:600;"></div>
-    <input type="hidden" id="editImageUrlStore" />
-
-    <div id="editDynamicSubContainer" style="background:#f8fafc; padding:15px; border-radius:8px; margin-bottom:15px; border:1px solid var(--border);"></div>
-
-    <div id="editMarkPointsPanel" style="background:#f8fafc; padding:15px; border-radius:8px; border:1px solid var(--border); margin-bottom:15px;">
-      <h3 style="font-size:0.95rem; margin-bottom:10px; color:var(--primary);">Mark Point Criteria Entry 1</h3>
+  <!-- ======================== TAB 1: INDIVIDUAL CREATOR ======================== -->
+  <div id="adminCoreForm" class="hidden">
+    <section class="card">
+      <h2>1. Syllabus Target Mapping</h2>
       <div class="row">
         <div>
-          <label>Target Competency (AO)</label>
-          <select id="editMp1Ao">
-            <option value="AO1">AO1: Knowledge Recall</option>
-            <option value="AO2">AO2: Concept Application</option>
-            <option value="AO3">AO3: Evaluation & Error Analysis</option>
+          <label for="subjectFilter">Subject</label>
+          <select id="subjectFilter">
+            <option value="biology">Biology</option>
+            <option value="chemistry">Chemistry</option>
+            <option value="physics">Physics</option>
           </select>
         </div>
         <div>
-          <label>Scheme Intent Descriptor</label>
-          <input type="text" id="editMp1Text" placeholder="Core description check" />
+          <label for="paperFilter">Paper</label>
+          <select id="paperFilter">
+            <option value="paper1">Paper 1</option>
+            <option value="paper2">Paper 2</option>
+          </select>
         </div>
       </div>
-      <label>Remediation Feedback</label>
-      <input type="text" id="editMp1Feedback" />
 
-      <h3 style="font-size:0.95rem; margin-top:15px; margin-bottom:10px; color:var(--primary);">Mark Point Criteria Entry 2</h3>
       <div class="row">
         <div>
-          <label>Target Competency (AO)</label>
-          <select id="editMp2Ao">
-            <option value="AO1">AO1: Knowledge Recall</option>
-            <option value="AO2">AO2: Concept Application</option>
-            <option value="AO3">AO3: Evaluation & Error Analysis</option>
+          <label for="topicFilter">Topic Area</label>
+          <select id="topicFilter">
+            <option value="">-- Select a subject/paper first --</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label for="specPointFilter">Specific Code / Statement Descriptor</label>
+          <select id="specPointFilter">
+            <option value="">-- Select a topic first --</option>
+          </select>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>2. Setup Question Attributes</h2>
+      
+      <label for="qPrompt">Question Prompt</label>
+      <textarea id="qPrompt" rows="3" placeholder="e.g. Describe how standard visual testing evaluates human visual acuity limits."></textarea>
+
+      <div class="row" style="margin-top: 10px;">
+        <div>
+          <label for="qTier">Target Entry Tier</label>
+          <select id="qTier">
+            <option value="both" selected>Both Tiers (Standard)</option>
+            <option value="FT">Foundation Tier (FT Only)</option>
+            <option value="HT">Higher Tier (HT Only)</option>
           </select>
         </div>
         <div>
-          <label>Scheme Intent Descriptor</label>
-          <input type="text" id="editMp2Text" placeholder="Application to scenario context" />
+          <label for="qDifficulty">Difficulty Weight</label>
+          <select id="qDifficulty">
+            <option value="1" selected>1 (Easy)</option>
+            <option value="2">2 (Medium)</option>
+            <option value="3">3 (Hard)</option>
+          </select>
         </div>
       </div>
-      <label>Remediation Feedback</label>
-      <input type="text" id="editMp2Feedback" />
-    </div>
 
-    <div style="display:flex; gap:12px; margin-top:20px;">
-      <button class="btn-small" id="btnCancelInlineEdit" style="flex:1; padding:12px;">Cancel Changes</button>
-      <button class="btn-primary" id="btnSaveInlineEdit" style="flex:2; margin:0;">Save Database Node</button>
+      <div class="row">
+        <div>
+          <label for="qResourceLink">Syllabus Video / Revision URL (Optional)</label>
+          <input id="qResourceLink" type="text" placeholder="e.g. https://www.youtube.com/watch?v=dQw4w9WgXcQ" />
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label for="qImage">Question Diagram / Image (Optional)</label>
+          <input id="qImage" type="file" accept="image/*" />
+          <p style="font-size: 0.78rem; color: var(--text-muted); margin: 4px 0 0 0;">Upload dynamic setup blueprints, charts, or ray diagram illustrations.</p>
+        </div>
+      </div>
+
+      <label for="qType">Question Typology Structure</label>
+      <select id="qType" style="margin-top: 5px;">
+        <option value="short_text" selected>Short Text / Keyword Recognition</option>
+        <option value="mcq">Multiple Choice Question (MCQ)</option>
+        <option value="numeric">Mathematical / Numeric Input</option>
+        <option value="extended_response">Extended Response (6-Mark AI Rubric)</option>
+      </select>
+
+      <!-- MCQ PANEL -->
+      <div id="panelMcq" class="box hidden">
+        <h3>MCQ Configuration Options</h3>
+        <label for="mcqOptions">Options (One option per line)</label>
+        <textarea id="mcqOptions" rows="4" placeholder="Option A&#10;Option B&#10;Option C&#10;Option D"></textarea>
+        
+        <label for="mcqCorrect">Exact Correct Answer String</label>
+        <input id="mcqCorrect" type="text" placeholder="Must match one of the choices exactly"/>
+      </div>
+
+      <!-- NUMERIC PANEL -->
+      <div id="panelNumeric" class="box hidden">
+        <h3>Numeric Target Configuration</h3>
+        <div class="row">
+          <div>
+            <label for="numAnswer">Target Numeric Output</label>
+            <input id="numAnswer" type="number" step="any" placeholder="e.g. 0.05"/>
+          </div>
+          <div>
+            <label for="numTolerance">Acceptable Deviation Tolerance</label>
+            <input id="numTolerance" type="number" step="any" value="0" placeholder="e.g. 0.01"/>
+          </div>
+        </div>
+      </div>
+
+      <!-- KEYWORDS PANEL -->
+      <div id="panelKeywords" class="box">
+        <h3>Keyword Evaluation Architecture</h3>
+        <p style="font-size: 0.85rem; margin: 0 0 10px; color: #666;">
+          Separate words with commas. The engine verifies these fragments locally during grading pipelines.
+        </p>
+        <label for="keyRequired">Required Terms (All must match for AO1 base criteria)</label>
+        <input id="keyRequired" type="text" placeholder="e.g. focus, lens"/>
+
+        <label for="keyOptional">Optional/Alternative Terms (Secondary Marks)</label>
+        <input id="keyOptional" type="text" placeholder="e.g. retina, distance, refraction"/>
+
+        <label for="minOptional">Minimum Optional Count Threshold</label>
+        <input id="minOptional" type="number" value="1" min="0"/>
+      </div>
+
+      <!-- AI EXTENDED RESPONSE PANEL -->
+      <div id="panelExtended" class="box hidden">
+        <h3>🤖 AQA Levels of Response (AI Evaluation Rubric)</h3>
+        <p style="font-size: 0.85rem; margin: 0 0 12px; color: #666;">
+          These fields compile directly into the AI Examiner prompt for grading and generate the student self-assessment checklists.
+        </p>
+
+        <label for="extGuidelines">Marking Guidelines Summary</label>
+        <textarea id="extGuidelines" rows="3" placeholder="Provide a summary of the experimental protocol or physical concepts the student must describe (e.g. Newton's Second Law setup using linear tracks and constant mass)."></textarea>
+
+        <h4 style="margin: 16px 0 6px 0; border-bottom: 1px solid var(--border); padding-bottom: 4px;">Level Boundaries Descriptors</h4>
+        
+        <label for="extLevel3">Level 3 (5-6 Marks) Descriptor</label>
+        <textarea id="extLevel3" rows="2" placeholder="e.g. Detailed, coherent, logically structured description detailing how to measure acceleration and vary force, keeping system mass constant."></textarea>
+
+        <label for="extLevel2">Level 2 (3-4 Marks) Descriptor</label>
+        <textarea id="extLevel2" rows="2" placeholder="e.g. Mostly clear, outlines steps to vary force and measure acceleration, but omits critical control measures."></textarea>
+
+        <label for="extLevel1">Level 1 (1-2 Marks) Descriptor</label>
+        <textarea id="extLevel1" rows="2" placeholder="e.g. Isolated scientific points or components mentioned, but no clear method."></textarea>
+
+        <label for="extScientificPoints" style="margin-top: 14px;">AQA Checklist points expected (One point per line)</label>
+        <textarea id="extScientificPoints" rows="5" placeholder="Set up a trolley on a linear track connected to string over a pulley.&#10;Measure acceleration using light gates.&#10;Vary force by adding masses to hanger.&#10;Keep total system mass constant by storing weights on the trolley.&#10;Repeat settings, calculate mean, and plot graph."></textarea>
+      </div>
+    </section>
+
+    <!-- MANUAL ASSESSMENT OBJECTIVES -->
+    <section id="sectionFeedback" class="card">
+      <h2>3. AQA Assessment Objective Feedback Mapping</h2>
+      <p style="font-size: 0.85rem; margin: 0 0 15px; color: #666;">
+        Provide targeted instructional remedies that display if a specific Assessment Objective condition is dropped.
+      </p>
+
+      <div class="box" style="margin-bottom: 10px;">
+        <h4>Mark Point Criteria Entry 1</h4>
+        <div class="row">
+          <div>
+            <label for="aoTarget1">Objective Target</label>
+            <select id="aoTarget1">
+              <option value="AO1">AO1: Core Knowledge / Definitions</option>
+              <option value="AO2">AO2: Data/Concept Application</option>
+              <option value="AO3">AO3: Evaluation/Analysis</option>
+            </select>
+          </div>
+          <div>
+            <label for="mpText1">Scheme Intent Descriptor</label>
+            <input id="mpText1" type="text" placeholder="e.g. Core definition matching"/>
+          </div>
+        </div>
+        <label for="mpFeedback1">Remediation Feedback (Shows if missed)</label>
+        <textarea id="mpFeedback1" rows="2" placeholder="Make sure to explicitly mention how structural properties impact behavior..."></textarea>
+      </div>
+
+      <div class="box">
+        <h4>Mark Point Criteria Entry 2 (Optional)</h4>
+        <div class="row">
+          <div>
+            <label for="aoTarget2">Objective Target</label>
+            <select id="aoTarget2">
+              <option value="AO1">AO1: Core Knowledge / Definitions</option>
+              <option value="AO2" selected>AO2: Data/Concept Application</option>
+              <option value="AO3">AO3: Evaluation/Analysis</option>
+            </select>
+          </div>
+          <div>
+            <label for="mpText2">Scheme Intent Descriptor</label>
+            <input id="mpText2" type="text" placeholder="e.g. System context analysis"/>
+          </div>
+        </div>
+        <label for="mpFeedback2">Remediation Feedback (Shows if missed)</label>
+        <textarea id="mpFeedback2" rows="2" placeholder="Remember to state the final destination or environment where energy/products accumulate."></textarea>
+      </div>
+    </section>
+
+    <div class="card" style="text-align: right;">
+      <button id="btnCommit">Upload & Commit Question Node</button>
+      <div id="statusOutput" class="status-msg hidden"></div>
     </div>
   </div>
+
+  <!-- ======================== TAB 2: BULK SPREADSHEET IMPORT ======================== -->
+  <div id="adminBulkForm" class="hidden">
+    <section class="card">
+      <h2>Excel Spreadsheet Bulk Import Panel</h2>
+      <p style="font-size: 0.85rem; color: #666; margin-bottom: 15px;">
+        Paste raw comma-separated text from your Excel backup master tracker. Ensure column headers match: 
+        <code style="background:#e8ecf0; padding:2px 4px; border-radius:4px; font-size:0.8rem;">spec_point_id, question_type, prompt, options, difficulty, tier, key_type, key_payload, mp1_ao, mp1_text, mp2_ao, mp2_text...</code>
+      </p>
+      
+      <label for="csvInput">Raw CSV Data Input Area</label>
+      <textarea id="csvInput" style="height: 280px; font-family: monospace; background: #fafafa;" placeholder="spec_point_id,question_type,prompt,options,difficulty,tier,key_type,key_payload..."></textarea>
+      
+      <div style="margin-top: 15px; text-align: right;">
+        <button id="btnExecuteBulk" style="background: #2980b9; width: 100%;">Process Excel Transaction List</button>
+      </div>
+      
+      <div id="bulkStatusOutput" class="status-msg hidden" style="max-height: 250px; overflow-y: auto; text-align: left; font-family: monospace; font-size: 0.85rem; line-height: 1.5;"></div>
+    </section>
+  </div>
+
+  <!-- ======================== TAB 3: AUDIT & EDIT PORTAL ======================== -->
+  <div id="adminReviewForm" class="hidden">
+    <section class="card">
+      <h2>🔍 Review & Audit Questions</h2>
+      <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 15px;">
+        Filter by subject area, audit existing questions, identify structure gaps, and modify database fields.
+      </p>
+      <div class="row">
+        <div>
+          <label for="revSubject">Subject</label>
+          <select id="revSubject">
+            <option value="biology">Biology</option>
+            <option value="chemistry">Chemistry</option>
+            <option value="physics" selected>Physics</option>
+          </select>
+        </div>
+        <div>
+          <label for="revPaper">Paper</label>
+          <select id="revPaper">
+            <option value="paper1" selected>Paper 1</option>
+            <option value="paper2">Paper 2</option>
+          </select>
+        </div>
+      </div>
+      
+      <!-- -->
+      <div class="row" style="margin-top: 10px;">
+        <div>
+          <label for="revTopic">Topic Area</label>
+          <select id="revTopic">
+            <option value="">All Topics</option>
+          </select>
+        </div>
+      </div>
+      
+      <div style="text-align: right; margin-top: 15px;">
+        <button id="btnQueryQuestions" style="background: #2563eb;">Search & Audit Database</button>
+      </div>
+      <div id="reviewAuditStatus" class="status-msg hidden"></div>
+    </section>
+
+    <!-- Question Cards List Container -->
+    <div id="reviewedQuestionsList"></div>
+
+    <!-- Active Edit Editor Drawer -->
+    <div id="inlineEditPanel" class="card hidden" style="border: 2px solid var(--primary);">
+      <h2 id="editFormHeader" style="color: var(--primary);">✏️ Edit Existing Question</h2>
+      <input id="editQuestionId" type="hidden" />
+
+      <label for="editPrompt">Question Prompt</label>
+      <textarea id="editPrompt" rows="3"></textarea>
+
+      <div class="row">
+        <div>
+          <label for="editTier">Target Tier</label>
+          <select id="editTier">
+            <option value="both">Both Tiers</option>
+            <option value="FT">Foundation Tier (FT)</option>
+            <option value="HT">Higher Tier (HT)</option>
+          </select>
+        </div>
+        <div>
+          <label for="editDifficulty">Difficulty</label>
+          <select id="editDifficulty">
+            <option value="1">1 (Easy)</option>
+            <option value="2">2 (Medium)</option>
+            <option value="3">3 (Hard)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label for="editResourceLink">Syllabus Revision URL</label>
+          <input id="editResourceLink" type="text" />
+        </div>
+      </div>
+
+      <!-- INLINE EDIT IMAGE FILE UPLOADER -->
+      <div class="row">
+        <div>
+          <label for="editImage">Question Diagram / Image (Optional)</label>
+          <input id="editImage" type="file" accept="image/*" />
+          <p style="font-size: 0.78rem; color: var(--text-muted); margin: 4px 0 0 0;">Upload dynamic setup blueprints, charts, or ray diagram illustrations.</p>
+          <input id="editImageUrlStore" type="hidden" />
+        </div>
+      </div>
+
+      <!-- MCQ EDIT CONTEXT -->
+      <div id="editMcqContainer" class="box hidden">
+        <h3>MCQ Configuration Options</h3>
+        <label for="editMcqOptions">Options (One option per line)</label>
+        <textarea id="editMcqOptions" rows="4"></textarea>
+        <label for="editMcqCorrect">Exact Correct Answer String</label>
+        <input id="editMcqCorrect" type="text" />
+      </div>
+
+      <!-- NUMERIC EDIT CONTEXT -->
+      <div id="editNumericContainer" class="box hidden">
+        <h3>Numeric Target Configuration</h3>
+        <div class="row">
+          <div>
+            <label for="editNumAnswer">Target Numeric Output</label>
+            <input id="editNumAnswer" type="number" step="any" />
+          </div>
+          <div>
+            <label for="editNumTolerance">Tolerance Range</label>
+            <input id="editNumTolerance" type="number" step="any" />
+          </div>
+        </div>
+      </div>
+
+      <!-- KEYWORDS EDIT CONTEXT -->
+      <div id="editKeywordsContainer" class="box hidden">
+        <h3>Keyword Evaluation Architecture</h3>
+        <label for="editKeyRequired">Required Keywords (Separated by commas)</label>
+        <input id="editKeyRequired" type="text" />
+        <label for="editKeyOptional">Optional Keywords (Separated by commas)</label>
+        <input id="editKeyOptional" type="text" />
+        <label for="editMinOptional">Min Optional Counts Needed</label>
+        <input id="editMinOptional" type="number" />
+      </div>
+
+      <!-- AI RUBRIC EDIT CONTEXT -->
+      <div id="editAiRubricContainer" class="box hidden">
+        <h3>🤖 AQA Levels of Response AI Rubric Guidelines</h3>
+        <label for="editExtGuidelines">Marking Guidelines Summary</label>
+        <textarea id="editExtGuidelines" rows="3"></textarea>
+
+        <h4 style="margin: 12px 0 6px 0;">Level Bound Descriptors</h4>
+        <label for="editExtLevel3">Level 3 (5-6 Marks) Descriptor</label>
+        <textarea id="editExtLevel3" rows="2"></textarea>
+        <label for="editExtLevel2">Level 2 (3-4 Marks) Descriptor</label>
+        <textarea id="editExtLevel2" rows="2"></textarea>
+        <label for="editExtLevel1">Level 1 (1-2 Marks) Descriptor</label>
+        <textarea id="editExtLevel1" rows="2"></textarea>
+
+        <label for="editExtScientificPoints" style="margin-top: 10px;">Checklist Expected Points (One per line)</label>
+        <textarea id="editExtScientificPoints" rows="4"></textarea>
+      </div>
+
+      <!-- INLINE EDIT ASSESSMENT OBJECTIVES (MARK POINTS) -->
+      <div id="editFeedbackContainer" class="box hidden">
+        <h3>Mark Point Criteria Mapping</h3>
+        <div class="box" style="margin-bottom: 10px; background: #fff;">
+          <h4>Mark Point Criteria Entry 1</h4>
+          <div class="row">
+            <div>
+              <label for="editAoTarget1">Objective Target</label>
+              <select id="editAoTarget1">
+                <option value="AO1">AO1: Core Knowledge / Definitions</option>
+                <option value="AO2">AO2: Data/Concept Application</option>
+                <option value="AO3">AO3: Evaluation/Analysis</option>
+              </select>
+            </div>
+            <div>
+              <label for="editMpText1">Scheme Intent Descriptor</label>
+              <input id="editMpText1" type="text" placeholder="e.g. Core definition matching"/>
+            </div>
+          </div>
+          <label for="editMpFeedback1">Remediation Feedback (Shows if missed)</label>
+          <textarea id="editMpFeedback1" rows="2" placeholder="Make sure to explicitly mention how structural properties impact behavior..."></textarea>
+        </div>
+
+        <div class="box" style="background: #fff;">
+          <h4>Mark Point Criteria Entry 2 (Optional)</h4>
+          <div class="row">
+            <div>
+              <label for="editAoTarget2">Objective Target</label>
+              <select id="editAoTarget2">
+                <option value="AO1">AO1: Core Knowledge / Definitions</option>
+                <option value="AO2" selected>AO2: Data/Concept Application</option>
+                <option value="AO3">AO3: Evaluation/Analysis</option>
+              </select>
+            </div>
+            <div>
+              <label_for="editMpText2">Scheme Intent Descriptor</label>
+              <input id="editMpText2" type="text" placeholder="e.g. System context analysis"/>
+            </div>
+          </div>
+          <label for="editMpFeedback2">Remediation Feedback (Shows if missed)</label>
+          <textarea id="editMpFeedback2" rows="2" placeholder="Remember to state the final destination or environment where energy/products accumulate."></textarea>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+        <button id="btnCancelEdit" style="background-color: #cbd5e1; color: #334155;">Cancel Edits</button>
+        <button id="btnSaveEdit">Commit Updates & Save</button>
+      </div>
+      <div id="editStatusMessage" class="status-msg hidden"></div>
+    </div>
+  </div>
+
 </div>
 
+<!-- Custom Confirmation Modal (Complies with NO alert/confirm guidelines) -->
 <div id="customConfirmModal" class="modal-overlay hidden">
-  <div class="modal-content" style="max-width: 400px; text-align: center;">
-    <h3 id="confirmModalTitle" style="color: var(--error); margin-bottom: 12px;">⚠️ Delete Entry Confirmation</h3>
-    <p id="confirmModalText" class="muted" style="font-size: 0.9rem; line-height: 1.4; margin-bottom: 20px;"></p>
-    <div style="display: flex; gap: 10px; justify-content: center;">
-      <button class="btn-small" id="btnModalCancel" style="padding: 10px 20px;">Cancel</button>
-      <button class="btn-primary btn-delete" id="btnModalConfirm" style="width: auto; padding: 10px 24px; margin: 0; background: var(--error);">Permanently Delete</button>
+  <div class="modal-content">
+    <h3 id="confirmModalTitle">Are you sure?</h3>
+    <p id="confirmModalText">This action cannot be undone.</p>
+    <div class="modal-btns">
+      <button id="btnModalCancel" class="modal-btn-cancel">Cancel</button>
+      <button id="btnModalConfirm" style="background-color: var(--error);">Delete Question</button>
     </div>
   </div>
 </div>
 
 <script>
-  // ====== CONFIG ======
+  // ====== PROJECT CREDENTIAL CONFIGURATION ======
   const SUPABASE_URL = "https://cbycwfhczyvzzhthpgsw.supabase.co";
   const SUPABASE_ANON_KEY = "sb_publishable_xD75RVd3kyvxs3IK_WsNag_eoCAZF4W";
-  
   const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-  let specificationPointsMap = [];
-  let loadedQuestionsCache = [];
-  let currentDeletionTargetId = null;
+  // ====== DOM ELEMENT REFERENCES ======
+  const adminAuthSection = document.getElementById("adminAuthSection");
+  const adminHeaderBlock = document.getElementById("adminHeaderBlock");
+  const adminCoreForm = document.getElementById("adminCoreForm");
+  const adminBulkForm = document.getElementById("adminBulkForm");
+  const adminReviewForm = document.getElementById("adminReviewForm");
+  
+  const tabIndivBtn = document.getElementById("tabIndivBtn");
+  const tabBulkBtn = document.getElementById("tabBulkBtn");
+  const tabReviewBtn = document.getElementById("tabReviewBtn");
+  
+  const btnAdminSignIn = document.getElementById("btnAdminSignIn");
+  const btnAdminSignOut = document.getElementById("btnAdminSignOut");
+  const authStatus = document.getElementById("authStatus");
+  const adminUserEmail = document.getElementById("adminUserEmail");
 
-  // ====== APP DOM BOUND NODES ======
-  const authCard = document.getElementById("authCard");
-  const adminMainContent = document.getElementById("adminMainContent");
-  const txtUserStatus = document.getElementById("txtUserStatus");
-  const btnAuthSignOut = document.getElementById("btnAuthSignOut");
-
-  const qSubject = document.getElementById("qSubject");
-  const qPaper = document.getElementById("qPaper");
-  const qSpecPoint = document.getElementById("qSpecPoint");
+  const subjectFilter = document.getElementById("subjectFilter");
+  const paperFilter = document.getElementById("paperFilter");
+  const topicFilter = document.getElementById("topicFilter");
+  const specPointFilter = document.getElementById("specPointFilter");
+  
   const qType = document.getElementById("qType");
-
   const panelMcq = document.getElementById("panelMcq");
   const panelNumeric = document.getElementById("panelNumeric");
   const panelKeywords = document.getElementById("panelKeywords");
-  const panelExtendedResponse = document.getElementById("panelExtendedResponse");
-
-  const formStatus = document.getElementById("formStatus");
+  const panelExtended = document.getElementById("panelExtended");
+  const sectionFeedback = document.getElementById("sectionFeedback");
+  
   const btnCommit = document.getElementById("btnCommit");
+  const statusOutput = document.getElementById("statusOutput");
 
-  const inlineEditModal = document.getElementById("inlineEditModal");
-  const customConfirmModal = document.getElementById("customConfirmModal");
+  const csvInput = document.getElementById("csvInput");
+  const btnExecuteBulk = document.getElementById("btnExecuteBulk");
+  const bulkStatusOutput = document.getElementById("bulkStatusOutput");
 
-  // ====== AUTH PIPELINE STATE SYNCHRONIZATION ======
-  document.getElementById("btnAuthSignIn").onclick = async () => {
-    const email = document.getElementById("authEmail").value.trim();
-    const password = document.getElementById("authPassword").value;
-    const errMsg = document.getElementById("authErrorMsg");
-    errMsg.classList.add("hidden");
+  // ====== 🗂️ NAV TAB TOGGLE ENGINE ======
+  function showSection(activeTab, activeForm) {
+    [tabIndivBtn, tabBulkBtn, tabReviewBtn].forEach(b => b.classList.remove("active"));
+    [adminCoreForm, adminBulkForm, adminReviewForm].forEach(f => f.classList.add("hidden"));
+    activeTab.classList.add("active");
+    activeForm.classList.remove("hidden");
+  }
+
+  tabIndivBtn.onclick = () => showSection(tabIndivBtn, adminCoreForm);
+  tabBulkBtn.onclick = () => showSection(tabBulkBtn, adminBulkForm);
+  tabReviewBtn.onclick = () => {
+    showSection(tabReviewBtn, adminReviewForm);
+    syncReviewTopics();
+  };
+
+  function showAuthStatus(text, isError = false) {
+    authStatus.textContent = text;
+    authStatus.className = "status-msg " + (isError ? "error" : "success");
+    authStatus.classList.remove("hidden");
+  }
+
+  btnAdminSignIn.onclick = async () => {
+    authStatus.classList.add("hidden");
+    const email = document.getElementById("adminEmail").value.trim();
+    const password = document.getElementById("adminPassword").value;
+
+    if (!email || !password) {
+      showAuthStatus("Please enter both email and password parameters.", true);
+      return;
+    }
 
     const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+
     if (error) {
-      errMsg.textContent = "Authentication failure: " + error.message;
-      errMsg.classList.remove("hidden");
+      showAuthStatus("Authentication Failed: " + error.message, true);
+      return;
     }
+
+    showAuthStatus("Authenticated successfully.");
+    revealAdminPortal(data.user);
   };
 
-  btnAuthSignOut.onclick = async () => {
-    await supabaseClient.auth.signOut();
+  btnAdminSignOut.onclick = async () => {
+    const { error } = await supabaseClient.auth.signOut();
+    if (error) {
+      showAuthStatus("Error signing out: " + error.message, true);
+      return;
+    }
+    setSignedOutUI();
   };
 
-  supabaseClient.auth.onAuthStateChange((event, session) => {
+  async function checkExistingAdminSession() {
+    const { data: { session } } = await supabaseClient.auth.getSession();
     if (session?.user) {
-      authCard.classList.add("hidden");
-      adminMainContent.classList.remove("hidden");
-      btnAuthSignOut.classList.remove("hidden");
-      txtUserStatus.textContent = `Authenticated Professional: ${session.user.email}`;
-      loadSpecificationPoints();
-    } else {
-      authCard.classList.remove("hidden");
-      adminMainContent.classList.add("hidden");
-      btnAuthSignOut.classList.add("hidden");
-      txtUserStatus.textContent = "Locked Interface Mode. Sign in below.";
+      revealAdminPortal(session.user);
     }
-  });
+  }
 
-  // ====== FORM EVENT ROUTING ======
-  qSubject.onchange = () => loadSpecificationPoints();
-  qPaper.onchange = () => loadSpecificationPoints();
+  function revealAdminPortal(user) {
+    adminAuthSection.classList.add("hidden");
+    adminHeaderBlock.classList.remove("hidden");
+    adminCoreForm.classList.remove("hidden");
+    
+    if (user && user.email) {
+      adminUserEmail.textContent = user.email;
+    }
+    syncTopics();
+    syncReviewTopics();
+  }
 
-  qType.onchange = () => {
-    panelMcq.classList.add("hidden");
-    panelNumeric.classList.add("hidden");
-    panelKeywords.classList.add("hidden");
-    panelExtendedResponse.classList.add("hidden");
+  function setSignedOutUI() {
+    adminAuthSection.classList.remove("hidden");
+    adminHeaderBlock.classList.add("hidden");
+    adminCoreForm.classList.add("hidden");
+    adminBulkForm.classList.add("hidden");
+    adminReviewForm.classList.add("hidden");
+    
+    document.getElementById("adminEmail").value = "";
+    document.getElementById("adminPassword").value = "";
+    authStatus.classList.add("hidden");
+  }
 
-    if (qType.value === "mcq") panelMcq.classList.remove("hidden");
-    else if (qType.value === "numeric") panelNumeric.classList.remove("hidden");
-    else if (qType.value === "extended_response") panelExtendedResponse.classList.remove("hidden");
-    else panelKeywords.classList.remove("hidden");
-  };
-
-  // ====== TAB NAVIGATION ======
-  const tabs = ["Form", "Bulk", "Review"];
-  tabs.forEach(t => {
-    document.getElementById(`tab${t}Btn`).onclick = () => {
-      tabs.forEach(x => {
-        document.getElementById(`tab${x}Btn`).classList.remove("active");
-        document.getElementById(`tab${x}`).classList.add("hidden");
-      });
-      document.getElementById(`tab${t}Btn`).classList.add("active");
-      document.getElementById(`tab${t}`).classList.remove("hidden");
-    };
-  });
-
-  // ====== METADATA LOADER ======
-  async function loadSpecificationPoints() {
-    const subject = qSubject.value;
-    const paper = qPaper.value;
+  // ====== DYNAMIC DROPDOWN CASCADING SYSTEM ======
+  async function syncTopics() {
+    topicFilter.innerHTML = '<option value="">Loading topics...</option>';
+    specPointFilter.innerHTML = '<option value="">-- Select a subject/paper first --</option>';
 
     const { data, error } = await supabaseClient
       .from("spec_points")
-      .select("id, spec_ref, topic_name, spec_text")
-      .eq("subject", subject)
-      .eq("paper", paper)
-      .order("spec_ref", { ascending: true });
+      .select("topic_name")
+      .eq("subject", subjectFilter.value)
+      .eq("paper", paperFilter.value);
 
-    if (error) {
-      console.error(error);
+    if (error || !data) {
+      topicFilter.innerHTML = '<option value="">Error loading topics</option>';
       return;
     }
-    specificationPointsMap = data || [];
+
+    const uniqueTopics = [...new Set(data.map(r => r.topic_name).filter(Boolean))];
     
-    qSpecPoint.innerHTML = specificationPointsMap.map(sp => `
-      <option value="${sp.id}">[${sp.spec_ref}] ${sp.topic_name} - ${sp.spec_text.slice(0, 60)}...</option>
-    `).join("");
-  }
-
-  // ====== IMAGE FILE REMAPPED UPLOADER UTILITY ======
-  async function handleBucketUploadPipeline(fileElement, progressElement) {
-    if (!fileElement || !fileElement.files || fileElement.files.length === 0) return null;
-    const file = fileElement.files[0];
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 7)}.${fileExt}`;
-    const filePath = `diagrams/${fileName}`;
-
-    if (progressElement) progressElement.textContent = "Uploading asset layer to cloud storage...";
-
-    const { data, error } = await supabaseClient.storage
-      .from("media_vault")
-      .upload(filePath, file);
-
-    if (error) {
-      if (progressElement) progressElement.textContent = "Upload rejected: " + error.message;
-      throw error;
+    if(uniqueTopics.length === 0) {
+      topicFilter.innerHTML = '<option value="">No topics found inside this section.</option>';
+      return;
     }
 
-    const { data: publicUrlData } = supabaseClient.storage
-      .from("media_vault")
-      .getPublicUrl(filePath);
-
-    if (progressElement) progressElement.textContent = "Asset published successfully! ✅";
-    return publicUrlData.publicUrl;
+    topicFilter.innerHTML = '<option value="">-- Select a Topic --</option>' + 
+      uniqueTopics.map(t => `<option value="${t}">${t}</option>`).join("");
   }
 
-  // ====== INDIVIDUAL CREATOR TRANSACTIONS ======
+  async function syncSpecPoints() {
+    if (!topicFilter.value) return;
+    specPointFilter.innerHTML = '<option value="">Loading specification entries...</option>';
+
+    const { data, error } = await supabaseClient
+      .from("spec_points")
+      .select("id, spec_ref, spec_text")
+      .eq("subject", subjectFilter.value)
+      .eq("paper", paperFilter.value)
+      .eq("topic_name", topicFilter.value);
+
+    if (error || !data) {
+      specPointFilter.innerHTML = '<option value="">Error loading specification entries</option>';
+      return;
+    }
+
+    specPointFilter.innerHTML = '<option value="">-- Select Specific Reference point --</option>' +
+      data.map(sp => `<option value="${sp.id}">[${sp.spec_ref}] ${sp.spec_text.slice(0, 60)}...</option>`).join("");
+  }
+
+  subjectFilter.addEventListener("change", syncTopics);
+  paperFilter.addEventListener("change", syncTopics);
+  topicFilter.addEventListener("change", syncSpecPoints);
+
+  // ====== DYNAMIC TOPIC FILTER DROPDOWN MAP FOR AUDIT PANEL ======
+  const revSubject = document.getElementById("revSubject");
+  const revPaper = document.getElementById("revPaper");
+  const revTopic = document.getElementById("revTopic");
+
+  async function syncReviewTopics() {
+    revTopic.innerHTML = '<option value="">Loading topics...</option>';
+    const { data, error } = await supabaseClient
+      .from("spec_points")
+      .select("topic_name")
+      .eq("subject", revSubject.value)
+      .eq("paper", revPaper.value);
+
+    if (error || !data) {
+      revTopic.innerHTML = '<option value="">Error loading topics</option>';
+      return;
+    }
+
+    const uniqueTopics = [...new Set(data.map(r => r.topic_name).filter(Boolean))];
+    revTopic.innerHTML = '<option value="">All Topics</option>' + 
+      uniqueTopics.map(t => `<option value="${t}">${t}</option>`).join("");
+  }
+
+  revSubject.addEventListener("change", syncReviewTopics);
+  revPaper.addEventListener("change", syncReviewTopics);
+
+  // Instantly apply visual updates client-side on dropdown changes without database overhead
+  revTopic.addEventListener("change", applyQueryFiltersAndRender);
+
+  qType.addEventListener("change", () => {
+    panelMcq.classList.add("hidden");
+    panelNumeric.classList.add("hidden");
+    panelKeywords.classList.add("hidden");
+    panelExtended.classList.add("hidden");
+    sectionFeedback.classList.remove("hidden");
+
+    if (qType.value === "mcq") {
+      panelMcq.classList.remove("hidden");
+    } else if (qType.value === "numeric") {
+      panelNumeric.classList.remove("hidden");
+    } else if (qType.value === "short_text") {
+      panelKeywords.classList.remove("hidden");
+    } else if (qType.value === "extended_response") {
+      panelExtended.classList.remove("hidden");
+      sectionFeedback.classList.add("hidden");
+    }
+  });
+
+  function splitClean(val) {
+    return val.split(',').map(s => s.trim()).filter(Boolean);
+  }
+
+  function showStatus(text, isError = false) {
+    statusOutput.textContent = text;
+    statusOutput.className = "status-msg " + (isError ? "error" : "success");
+    statusOutput.classList.remove("hidden");
+  }
+
+  // ====== INDIVIDUAL CREATOR: COMMIT ACTION ======
   btnCommit.onclick = async () => {
-    formStatus.classList.add("hidden");
-    formStatus.className = "status";
+    statusOutput.classList.add("hidden");
     
-    const specPointId = qSpecPoint.value;
-    const questionType = qType.value;
+    const specPointId = specPointFilter.value;
     const prompt = document.getElementById("qPrompt").value.trim();
-    const resourceLink = document.getElementById("qResourceLink").value.trim();
+    const questionType = qType.value;
     const tier = document.getElementById("qTier").value;
     const difficulty = parseInt(document.getElementById("qDifficulty").value, 10);
-    const fileInput = document.getElementById("qImageFile");
+    const resourceLink = document.getElementById("qResourceLink").value.trim();
+    const fileInput = document.getElementById("qImage");
 
     if (!specPointId || !prompt) {
-      formStatus.textContent = "Error: Validation bottleneck. Spec reference map and prompt text are both mandatory fields.";
-      formStatus.classList.add("error");
-      formStatus.classList.remove("hidden");
+      showStatus("Aborted: You must complete the syllabus target mapping and prompt text.", true);
       return;
     }
 
-    btnCommit.disabled = true;
-    btnCommit.textContent = "Encrypting structural payload safely...";
+    let optionsPayload = null;
+    let keyTypeTarget = "keywords";
+    let keyPayloadConstructor = {};
 
-    try {
-      // Process File Asset storage bucket thread securely
-      const publicImageUrl = await handleBucketUploadPipeline(fileInput, document.getElementById("imgUploadProgress"));
+    if (questionType === "mcq") {
+      keyTypeTarget = "mcq";
+      const rawOptions = document.getElementById("mcqOptions").value.split('\n');
+      optionsPayload = rawOptions.map(o => o.trim()).filter(Boolean);
+      keyPayloadConstructor = { correct: document.getElementById("mcqCorrect").value.trim() };
+    } 
+    else if (questionType === "numeric") {
+      keyTypeTarget = "numeric";
+      keyPayloadConstructor = {
+        answer: parseFloat(document.getElementById("numAnswer").value),
+        tolerance: parseFloat(document.getElementById("numTolerance").value || 0)
+      };
+    } 
+    else if (questionType === "extended_response") {
+      keyTypeTarget = "ai_rubric";
+      const guidelines = document.getElementById("extGuidelines").value.trim();
+      const l3 = document.getElementById("extLevel3").value.trim();
+      const l2 = document.getElementById("extLevel2").value.trim();
+      const l1 = document.getElementById("extLevel1").value.trim();
+      const scientificPoints = document.getElementById("extScientificPoints").value.split('\n').map(p => p.trim()).filter(Boolean);
 
-      let optionsPayload = null;
-      let keyType = "keywords";
-      let keyPayload = {};
-
-      if (questionType === "mcq") {
-        keyType = "mcq";
-        const parts = document.getElementById("mcqOptions").value.split(",").map(s => s.trim()).filter(Boolean);
-        optionsPayload = parts; 
-        keyPayload = { correct: parts[0] || "" };
-      } else if (questionType === "numeric") {
-        keyType = "numeric";
-        keyPayload = {
-          answer: parseFloat(document.getElementById("numAnswer").value),
-          tolerance: parseFloat(document.getElementById("numTolerance").value || 0),
-          unit: document.getElementById("numUnit").value.trim()
-        };
-      } else if (questionType === "extended_response") {
-        keyType = "extended_response";
-        const guidelines = document.getElementById("extRubricPoints").value.split("\n").map(s => s.trim()).filter(Boolean);
-        keyPayload = { key_scientific_points: guidelines };
-      } else {
-        keyType = "keywords";
-        keyPayload = {
-          required: document.getElementById("keyRequired").value.split(",").map(s => s.trim()).filter(Boolean),
-          optional: document.getElementById("keyOptional").value.split(",").map(s => s.trim()).filter(Boolean),
-          min_optional: parseInt(document.getElementById("keyMinOptional").value, 10) || 0
-        };
+      if (!guidelines || scientificPoints.length === 0) {
+        showStatus("Aborted: Please fill in the Marking Guidelines and Expected Scientific Points for the AI Rubric.", true);
+        return;
       }
 
-      // Build out custom transactional atomic object models via standard RLS constraints
+      keyPayloadConstructor = {
+        marking_guidelines: guidelines,
+        level_descriptors: {
+          "Level 3 (5-6 marks)": l3 || "Detailed, coherent description covering key steps.",
+          "Level 2 (3-4 marks)": l2 || "Mostly clear method, but contains omissions.",
+          "Level 1 (1-2 marks)": l1 || "Isolated scientific points are made."
+        },
+        key_scientific_points: scientificPoints
+      };
+    }
+    else {
+      keyTypeTarget = "keywords";
+      keyPayloadConstructor = {
+        required: splitClean(document.getElementById("keyRequired").value),
+        optional: splitClean(document.getElementById("keyOptional").value),
+        min_optional: parseInt(document.getElementById("minOptional").value || 0, 10)
+      };
+    }
+
+    try {
+      let publicImageUrl = null;
+
+      if (fileInput && fileInput.files.length > 0) {
+        showStatus("Uploading diagram image to secure bucket...");
+        const file = fileInput.files[0];
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${Date.now()}_${Math.floor(Math.random()*1000)}.${fileExt}`;
+        const filePath = `${subjectFilter.value}/${fileName}`;
+
+        const { data: uploadData, error: uploadErr } = await supabaseClient
+          .storage
+          .from('question-images')
+          .upload(filePath, file);
+
+        if (uploadErr) {
+          throw new Error("Storage Upload Error: " + uploadErr.message);
+        }
+
+        const { data: urlData } = supabaseClient.storage.from('question-images').getPublicUrl(filePath);
+        publicImageUrl = urlData.publicUrl;
+      }
+
+      // 1. Insert Base Question Row
       const { data: questionNode, error: qErr } = await supabaseClient
         .from("questions")
         .insert({
@@ -729,122 +1033,142 @@
         .select().single();
 
       if (qErr) throw qErr;
+      const targetQuestionId = questionNode.id;
 
-      // Commit answer key relational mappings safely
+      // 2. Insert Answer Key Row
       const { error: keyErr } = await supabaseClient
         .from("answer_keys")
         .insert({
-          question_id: questionNode.id,
-          key_type: keyType,
-          key_payload: keyPayload
+          question_id: targetQuestionId,
+          key_type: keyTypeTarget,
+          key_payload: keyPayloadConstructor
         });
 
       if (keyErr) throw keyErr;
 
-      // Commit Mark Points Feedback diagnostics mapping table elements
+      // 3. Insert Mark Points Rows
       if (questionType !== "extended_response") {
-        const markPointsPayload = [
-          {
-            question_id: questionNode.id,
-            ao: document.getElementById("mp1Ao").value,
-            point_text: document.getElementById("mp1Text").value.trim() || "Criteria Point A",
-            feedback_if_missing: document.getElementById("mp1Feedback").value.trim() || null
-          },
-          {
-            question_id: questionNode.id,
-            ao: document.getElementById("mp2Ao").value,
-            point_text: document.getElementById("mp2Text").value.trim() || "Criteria Point B",
-            feedback_if_missing: document.getElementById("mp2Feedback").value.trim() || null
+        const markPointsBatch = [];
+        for(let m = 1; m <= 2; m++) {
+          const text = document.getElementById(`mpText${m}`).value.trim();
+          const feedback = document.getElementById(`mpFeedback${m}`).value.trim();
+          if (text && feedback) {
+            markPointsBatch.push({
+              question_id: targetQuestionId,
+              ao: document.getElementById(`aoTarget${m}`).value,
+              point_text: text,
+              feedback_if_missing: feedback,
+              max_marks: 1
+            });
           }
-        ];
+        }
 
-        const { error: mpErr } = await supabaseClient.from("mark_points").insert(markPointsPayload);
-        if (mpErr) throw mpErr;
+        if (markPointsBatch.length > 0) {
+          const { error: mpErr } = await supabaseClient.from("mark_points").insert(markPointsBatch);
+          if (mpErr) throw mpErr;
+        }
       }
 
-      formStatus.textContent = `Success! Question committed securely. Generated UUID -> ${questionNode.id}`;
-      formStatus.classList.add("success");
-      formStatus.classList.remove("hidden");
-
-      // Reset Inputs
-      document.getElementById("qPrompt").value = "";
-      document.getElementById("qResourceLink").value = "";
-      fileInput.value = "";
-      document.getElementById("imgUploadProgress").textContent = "";
+      showStatus(`Success! Question node successfully initialized. ID: ${targetQuestionId}`);
+      clearCreationInputs();
 
     } catch (err) {
       console.error(err);
-      formStatus.textContent = "Transaction Faulted: " + (err.message || JSON.stringify(err));
-      formStatus.classList.add("error");
-      formStatus.classList.remove("hidden");
-    } finally {
-      btnCommit.disabled = false;
-      btnCommit.textContent = "Commit Question to Supabase Vault";
+      showStatus("Transaction Faulted: " + err.message, true);
     }
   };
 
-  // ====== BULK RAW FILE MIGRATION TRANSACTIONS ======
-  const btnExecuteBulk = document.getElementById("btnExecuteBulk");
-  const bulkStatusOutput = document.getElementById("bulkStatusOutput");
+  function clearCreationInputs() {
+    document.getElementById("qPrompt").value = "";
+    document.getElementById("qResourceLink").value = "";
+    document.getElementById("qImage").value = "";
+    document.getElementById("mcqOptions").value = "";
+    document.getElementById("mcqCorrect").value = "";
+    document.getElementById("numAnswer").value = "";
+    document.getElementById("keyRequired").value = "";
+    document.getElementById("keyOptional").value = "";
+    document.getElementById("mpText1").value = "";
+    document.getElementById("mpText2").value = "";
+    document.getElementById("mpFeedback1").value = "";
+    document.getElementById("mpFeedback2").value = "";
+    document.getElementById("extGuidelines").value = "";
+    document.getElementById("extLevel3").value = "";
+    document.getElementById("extLevel2").value = "";
+    document.getElementById("extLevel1").value = "";
+    document.getElementById("extScientificPoints").value = "";
+  }
+
+  // ====== Excel Bulk Spreadsheet Parser Utility ======
+  function parseCSVToObjects(csvText) {
+    const lines = csvText.split(/\r?\n/);
+    if (lines.length < 2) return [];
+    
+    const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+    const result = [];
+    
+    for (let i = 1; i < lines.length; i++) {
+      const lineStr = lines[i].trim();
+      if (!lineStr) continue;
+      
+      const matches = lineStr.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || lineStr.split(',');
+      const row = {};
+      headers.forEach((header, idx) => {
+        let val = matches[idx] ? matches[idx].trim() : '';
+        row[header] = val.replace(/^"|"$/g, '').replace(/""/g, '"'); 
+      });
+      result.push(row);
+    }
+    return result;
+  }
 
   btnExecuteBulk.onclick = async () => {
-    bulkStatusOutput.classList.remove("hidden");
-    bulkStatusOutput.innerHTML = "Initializing batch pipeline sequence...<br>";
-    
-    let rawArr = [];
-    try {
-      rawArr = JSON.parse(document.getElementById("bulkJsonInput").value);
-    } catch(e) {
-      bulkStatusOutput.innerHTML += `<span style="color:#ef4444;">Syntax Error: String fails JSON array structure requirements. Check braces.</span>`;
+    const rawCSV = csvInput.value.trim();
+    if (!rawCSV) {
+      alert("Please paste valid CSV rows into the textbox.");
       return;
     }
 
-    if (!Array.isArray(rawArr)) {
-      bulkStatusOutput.innerHTML += `<span style="color:#ef4444;">Error: Top level element inside bulk workspace must map to an array.</span>`;
+    const rows = parseCSVToObjects(rawCSV);
+    if (rows.length === 0) {
+      alert("No rows parsed. Confirm headers are correctly configured.");
       return;
     }
 
     btnExecuteBulk.disabled = true;
-    btnExecuteBulk.textContent = "Processing sequential rows...";
+    btnExecuteBulk.textContent = `Syncing ${rows.length} Spreadsheet rows...`;
+    bulkStatusOutput.classList.remove("hidden");
+    bulkStatusOutput.innerHTML = "<b>Starting bulk processing transaction sequence...</b><br>";
 
     let successCount = 0;
     let failCount = 0;
 
-    for(let i=0; i<rawArr.length; i++) {
-      const r = rawArr[i];
-      bulkStatusOutput.innerHTML += `Syncing item row ${i+1} of ${rawArr.length}... `;
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      
+      const markPointsArray = [];
+      for (let m = 1; m <= 6; m++) {
+        const ao = r[`mp${m}_ao`];
+        const text = r[`mp${m}_text`];
+        if (ao && text) {
+          markPointsArray.push({
+            ao: ao,
+            point_text: text,
+            feedback_if_missing: `Missing key points required by marking index ${m}.`,
+            max_marks: 1
+          });
+        }
+      }
 
       let parsedOptions = null;
-      if (r.options) {
-        parsedOptions = Array.isArray(r.options) ? r.options : r.options.split(",").map(o=>o.trim());
-      }
-
-      let markPointsArray = [];
-      if (r.mp1_ao || r.mp1_text || r.mp1_feedback) {
-        markPointsArray.push({
-          ao: r.mp1_ao || "AO1",
-          point_text: r.mp1_text || "Criteria Check",
-          feedback_if_missing: r.mp1_feedback || null
-        });
-      }
-      if (r.mp2_ao || r.mp2_text || r.mp2_feedback) {
-        markPointsArray.push({
-          ao: r.mp2_ao || "AO2",
-          point_text: r.mp2_text || "Application Check",
-          feedback_if_missing: r.mp2_feedback || null
-        });
+      if (r.options && r.options.trim()) {
+        parsedOptions = r.options.split('|').map(o => o.trim()).filter(Boolean);
       }
 
       let parsedPayload = {};
-      if (r.question_type === "mcq") {
-        parsedPayload = { "correct": parsedOptions ? parsedOptions[0] : (r.key_payload?.correct || "") };
-      } else if (r.question_type === "numeric") {
-        parsedPayload = typeof r.key_payload === "object" ? r.key_payload : { "answer": parseFloat(r.key_payload) };
-      } else if (r.question_type === "extended_response") {
-        const steps = Array.isArray(r.key_payload) ? r.key_payload : String(r.key_payload).split("\n");
-        parsedPayload = { "key_scientific_points": steps };
-      } else {
-        parsedPayload = typeof r.key_payload === "object" ? r.key_payload : { "required": [r.key_payload], "optional": [], "min_optional": 0 };
+      try {
+        parsedPayload = r.key_payload ? JSON.parse(r.key_payload) : { "answer": r.key_payload };
+      } catch(e) {
+        parsedPayload = { "answer": r.key_payload };
       }
 
       try {
@@ -857,7 +1181,7 @@
             p_options: parsedOptions,
             p_difficulty: parseInt(r.difficulty || 1, 10),
             p_tier: r.tier || "both",
-            p_resource_links: r.resource_links || null,
+            p_resource_links: null,
             p_key_type: r.key_type || r.question_type,
             p_key_payload: parsedPayload,
             p_mark_points_json: markPointsArray.length > 0 ? markPointsArray : null
@@ -866,362 +1190,498 @@
 
         if (rpcError) throw rpcError;
         successCount++;
-        bulkStatusOutput.innerHTML += `<span style="color:#27ae60;">[✓] Success! UUID -> ${newQuestionId}</span><br>`;
+        bulkStatusOutput.innerHTML += `<span style="color:#27ae60;">[✓] Row ${i+1}: Success! New Question UUID -> ${newQuestionId}</span><br>`;
 
       } catch (err) {
         failCount++;
-        bulkStatusOutput.innerHTML += `<span style="color:#c0392b;">[✗] Failed -> ${err.message || JSON.stringify(err)}</span><br>`;
+        bulkStatusOutput.innerHTML += `<span style="color:#c0392b;">[✗] Row ${i+1}: Failed -> ${err.message || JSON.stringify(err)}</span><br>`;
       }
       bulkStatusOutput.scrollTop = bulkStatusOutput.scrollHeight;
     }
 
     btnExecuteBulk.disabled = false;
     btnExecuteBulk.textContent = "Process Excel Transaction List";
-    bulkStatusOutput.innerHTML += `<br>*** Batch pipeline finished execution. Clear: ${successCount}. Failures: ${failCount}. ***<br>`;
+    bulkStatusOutput.innerHTML += `<br><b>🏁 Run completed. Successfully imported: ${successCount}. Failed entries: ${failCount}.</b>`;
   };
 
-  // ====== REVIEW & SYSTEM INTEGRITY AUDITS PORTAL ======
-  const reviewSubject = document.getElementById("reviewSubject");
-  const reviewPaper = document.getElementById("reviewPaper");
-  const reviewTopicFilter = document.getElementById("reviewTopicFilter");
-  const btnQueryQuestions = document.getElementById("btnQueryQuestions");
-  const reviewQuestionsFeed = document.getElementById("reviewQuestionsFeed");
-  const reviewSummaryText = document.getElementById("reviewSummaryText");
+  // ====== REVIEW & AUDIT CONTEXT ENGINE ======
+  let loadedQuestionsCache = [];
+  let currentDeletionTargetId = null;
 
-  async function syncReviewTopics() {
-    const subject = reviewSubject.value;
-    const paper = reviewPaper.value;
-
-    const { data, error } = await supabaseClient
-      .from("spec_points")
-      .select("topic_name")
-      .eq("subject", subject)
-      .eq("paper", paper);
-
-    if (error) {
-      console.error(error);
-      return;
-    }
-
-    const uniqueTopics = [...new Set((data || []).map(d => d.topic_name).filter(Boolean))];
-    reviewTopicFilter.innerHTML = `<option value="">All Topics (${uniqueTopics.length})</option>` + 
-      uniqueTopics.map(t => `<option value="${t}">${t}</option>`).join("");
+  function showReviewStatus(text, isError = false) {
+    const reviewAuditStatus = document.getElementById("reviewAuditStatus");
+    reviewAuditStatus.textContent = text;
+    reviewAuditStatus.className = "status-msg " + (isError ? "error" : "success");
+    reviewAuditStatus.classList.remove("hidden");
   }
 
-  reviewSubject.onchange = () => syncReviewTopics();
-  reviewPaper.onchange = () => syncReviewTopics();
-  reviewTopicFilter.onchange = () => renderFilteredReviewFeed();
-
-  function performAuditAnalysis(q) {
-    const keyType = q.answer_keys?.[0]?.key_type;
-    const keyPayload = q.answer_keys?.[0]?.key_payload || {};
+  document.getElementById("btnQueryQuestions").onclick = async () => {
+    const reviewedQuestionsList = document.getElementById("reviewedQuestionsList");
+    const inlineEditPanel = document.getElementById("inlineEditPanel");
     
-    // Critical Audits
-    if (!q.prompt || q.prompt.trim().length === 0) return { score: 0, label: "critical", msg: "Empty Prompt text field variant." };
-    if (q.question_type === "mcq" && (!q.options || q.options.length === 0)) return { score: 0, label: "critical", msg: "MCQ structure missing target options matrix." };
-    if (q.question_type === "numeric" && (keyPayload.answer === undefined || keyPayload.answer === null)) return { score: 0, label: "critical", msg: "Numeric formulation missing explicit scalar answer parameter." };
-    if (q.question_type === "extended_response" && (!keyPayload.key_scientific_points || keyPayload.key_scientific_points.length === 0)) return { score: 0, label: "critical", msg: "Extended item missing target Level analysis grading points checklist guidelines." };
+    inlineEditPanel.classList.add("hidden");
+    reviewedQuestionsList.innerHTML = `<div style="text-align:center; padding: 20px;">🔍 Querying questions matching criteria...</div>`;
     
-    // Low Severity warnings
-    if (!q.image_url) return { score: 1, label: "warning", msg: "Missing illustrative visual canvas diagrams." };
-    if (!q.resource_links) return { score: 1, label: "warning", msg: "Missing remedial multimedia lecture support links." };
-
-    return { score: 2, label: "healthy", msg: "Passed all content checks" };
-  }
-
-  btnQueryQuestions.onclick = async () => {
-    reviewQuestionsFeed.innerHTML = "<div class='muted'>Running integrity sweeps against data tables...</div>";
-    
-    const subject = reviewSubject.value;
-    const paper = reviewPaper.value;
+    const subjectVal = document.getElementById("revSubject").value;
+    const paperVal = document.getElementById("revPaper").value;
 
     try {
-      const { data, error } = await supabaseClient
+      const { data: specPoints, error: specError } = await supabaseClient
+        .from("spec_points")
+        .select("id, spec_ref, topic_name, spec_text")
+        .eq("subject", subjectVal)
+        .eq("paper", paperVal);
+
+      if (specError) throw specError;
+
+      if (!specPoints || specPoints.length === 0) {
+        reviewedQuestionsList.innerHTML = `<div class="card" style="text-align: center; color: var(--error);">No specification points mapped for ${subjectVal} ${paperVal}. Create spec points first.</div>`;
+        return;
+      }
+
+      const specIds = specPoints.map(s => s.id);
+
+      const { data: questions, error: qError } = await supabaseClient
         .from("questions")
-        .select(`
-          id, question_type, prompt, options, difficulty, tier, image_url, resource_links, spec_point_id,
-          spec_points (spec_ref, topic_name, spec_text),
-          answer_keys (key_type, key_payload),
-          mark_points (id, ao, point_text, feedback_if_missing)
-        `)
-        .eq("spec_points.subject", subject)
-        .eq("spec_points.paper", paper);
+        .select("id, spec_point_id, question_type, prompt, options, difficulty, tier, resource_links, image_url")
+        .in("spec_point_id", specIds);
 
-      if (error) throw error;
+      if (qError) throw qError;
 
-      // Clean filter anomalies caused by outer joins in basic Supabase setups
-      const validatedRows = (data || []).filter(r => r.spec_points !== null);
+      if (!questions || questions.length === 0) {
+        reviewedQuestionsList.innerHTML = `<div class="card" style="text-align: center; color: var(--warning);">No questions found matching ${subjectVal} ${paperVal}. Go to Individual Form Mode to add some!</div>`;
+        return;
+      }
 
-      // Pre-process questions inside in-memory layout arrays
-      loadedQuestionsCache = validatedRows.map(q => {
-        const audit = performAuditAnalysis(q);
-        return {
-          ...q,
-          audit_score: audit.score,
-          audit_label: audit.label,
-          audit_msg: audit.msg
-        };
+      const qIds = questions.map(q => q.id);
+      const { data: keys, error: keyError } = await supabaseClient
+        .from("answer_keys")
+        .select("question_id, key_type, key_payload")
+        .in("question_id", qIds);
+
+      if (keyError) throw keyError;
+
+      // Dynamically query mark points so we can edit and modify them inline
+      const { data: markPoints, error: mpError } = await supabaseClient
+        .from("mark_points")
+        .select("id, question_id, ao, point_text, feedback_if_missing")
+        .in("question_id", qIds);
+
+      if (mpError) throw mpError;
+
+      loadedQuestionsCache = questions.map(q => {
+        const associatedKey = keys.find(k => k.question_id === q.id);
+        const associatedSpec = specPoints.find(s => s.id === q.spec_point_id);
+        const associatedMPs = markPoints ? markPoints.filter(mp => mp.question_id === q.id) : [];
+        return { ...q, key: associatedKey, spec: associatedSpec, mark_points: associatedMPs };
       });
 
-      // Sort logic: Critical First (audit_score ascending), then sort alphanumerically by specification reference text markers
-      loadedQuestionsCache.sort((a, b) => {
-        if (a.audit_score !== b.audit_score) {
-          return a.audit_score - b.audit_score; 
-        }
-        const refA = a.spec_points?.spec_ref || "";
-        const refB = b.spec_points?.spec_ref || "";
-        return refA.localeCompare(refB, undefined, { numeric: true, sensitivity: 'base' });
-      });
+      applyQueryFiltersAndRender();
 
-      renderFilteredReviewFeed();
-
-    } catch(e) {
-      console.error(e);
-      reviewQuestionsFeed.innerHTML = `<div class='status error'>Audit engine halted unexpectedly: ${e.message}</div>`;
+    } catch (err) {
+      console.error(err);
+      reviewedQuestionsList.innerHTML = `<div class="card error">Error occurred while retrieving questions: ${err.message}</div>`;
     }
   };
 
-  function renderFilteredReviewFeed() {
-    const activeTopic = reviewTopicFilter.value;
+  // ====== MODULAR FILTERING & SORTING PIPELINES ======
+  function applyQueryFiltersAndRender() {
+    const selectedTopic = revTopic.value;
+    let filtered = loadedQuestionsCache;
     
-    const displayFeed = loadedQuestionsCache.filter(q => {
-      if (!activeTopic) return true;
-      return q.spec_points?.topic_name === activeTopic;
-    });
-
-    reviewSummaryText.textContent = `Displaying ${displayFeed.length} compiled database node tracks matching audit parameters:`;
-
-    if (displayFeed.length === 0) {
-      reviewQuestionsFeed.innerHTML = "<div class='q-card muted'>No questions match the current structural filters.</div>";
-      return;
+    if (selectedTopic) {
+      filtered = loadedQuestionsCache.filter(q => q.spec?.topic_name === selectedTopic);
     }
-
-    reviewQuestionsFeed.innerHTML = displayFeed.map(q => {
-      let badgeClass = "badge-healthy";
-      if (q.audit_label === "critical") badgeClass = "badge-critical";
-      if (q.audit_label === "warning") badgeClass = "badge-warning";
-
-      return `
-        <div class="q-card" style="border-left: 5px solid ${q.audit_label === 'critical' ? 'var(--error)' : (q.audit_label === 'warning' ? 'var(--warning)' : 'var(--success)')};">
-          <div class="actions">
-            <button class="btn-small btn-edit" onclick="editQuestionInline('${q.id}')">Edit Node</button>
-            <button class="btn-small btn-delete" onclick="requestSafeDelete('${q.id}')">Delete Item</button>
-          </div>
-          <div>
-            <span class="chip">${q.spec_points?.spec_ref || 'Unmapped'}</span>
-            <span class="chip" style="background:#e0f2fe; color:#0369a1;">${q.question_type.toUpperCase()}</span>
-            <span class="chip" style="background:#f1f5f9; color:#475569;">Tier: ${q.tier}</span>
-          </div>
-          <div style="font-weight: 700; margin-top:8px; margin-bottom:4px; max-width:80%; line-height:1.4;">${escapeHtml(q.prompt)}</div>
-          <div class="muted" style="font-size:0.78rem;">Topic Group: <b>${q.spec_points?.topic_name || 'N/A'}</b></div>
-          
-          <div class="audit-badge ${badgeClass}">Audit Signal: ${q.audit_msg}</div>
-        </div>
-      `;
-    }).join("");
+    
+    sortAndRenderQuestions(filtered);
   }
 
-  // ====== INLINE LIVE CREATOR MUTATIONS VIA LIGHTBOX ======
-  window.editQuestionInline = function(id) {
-    const q = loadedQuestionsCache.find(item => item.id === id);
-    if (!q) return;
+  function sortAndRenderQuestions(list) {
+    list.sort((a, b) => {
+      const auditA = performAuditAnalysis(a);
+      const auditB = performAuditAnalysis(b);
+      const critA = auditA.critical.length;
+      const critB = auditB.critical.length;
 
-    document.getElementById("editTargetId").value = q.id;
-    document.getElementById("editPrompt").value = q.prompt;
-    document.getElementById("editResourceLink").value = q.resource_links || "";
+      // Primary sort: Push critical gaps to the top
+      if (critA !== critB) {
+        return critB - critA;
+      }
+
+      // Secondary sort: Alphanumeric specification reference ascending
+      const refA = a.spec?.spec_ref || "";
+      const refB = b.spec?.spec_ref || "";
+      return refA.localeCompare(refB, undefined, { numeric: true, sensitivity: 'base' });
+    });
+
+    renderAuditedQuestions(list);
+  }
+
+  // ====== Auditing structural rules engine ======
+  function performAuditAnalysis(q) {
+    const issues = { critical: [], warnings: [] };
     
-    // Clear and reset the file input field elements dynamically in the editor drawer
-    document.getElementById("editImageFile").value = "";
-    document.getElementById("editImgUploadProgress").textContent = "";
-    document.getElementById("editImageUrlStore").value = q.image_url || "";
-
-    const key = q.answer_keys?.[0];
-    const payload = key?.key_payload || {};
-    const subContainer = document.getElementById("editDynamicSubContainer");
-    
-    // Hydrate Mark Point Fields into Inline Editor Context
-    const mp1 = q.mark_points?.[0] || {};
-    const mp2 = q.mark_points?.[1] || {};
-
-    document.getElementById("editMp1Ao").value = mp1.ao || "AO1";
-    document.getElementById("editMp1Text").value = mp1.point_text || "";
-    document.getElementById("editMp1Feedback").value = mp1.feedback_if_missing || "";
-
-    document.getElementById("editMp2Ao").value = mp2.ao || "AO2";
-    document.getElementById("editMp2Text").value = mp2.point_text || "";
-    document.getElementById("editMp2Feedback").value = mp2.feedback_if_missing || "";
-
-    // Show/Hide Mark Points Section dynamically if it is an Extended Response (AI handles everything holistically)
-    if (q.question_type === "extended_response") {
-      document.getElementById("editMarkPointsPanel").classList.add("hidden");
-    } else {
-      document.getElementById("editMarkPointsPanel").classList.remove("hidden");
+    if (!q.prompt || q.prompt.trim() === "") {
+      issues.critical.push("Empty question prompt text");
     }
 
     if (q.question_type === "mcq") {
-      subContainer.innerHTML = `
-        <label>MCQ Options (Comma separated list - first entry represents the correct key string)</label>
-        <input type="text" id="editSubMcqOptions" value="${q.options ? q.options.join(', ') : ''}" />
-      `;
-    } else if (q.question_type === "numeric") {
-      subContainer.innerHTML = `
-        <div class="row">
-          <div>
-            <label>Correct Answer Value</label>
-            <input type="number" id="editSubNumAnswer" step="any" value="${payload.answer !== undefined ? payload.answer : ''}" />
+      const keyPayload = q.key?.key_payload || {};
+      if (!keyPayload.correct || keyPayload.correct.trim() === "") {
+        issues.critical.push("Missing exact correct answer target");
+      }
+      if (!q.options || q.options.length === 0) {
+        issues.critical.push("Choice options are empty");
+      }
+    } 
+    else if (q.question_type === "numeric") {
+      const keyPayload = q.key?.key_payload || {};
+      if (keyPayload.answer === undefined || keyPayload.answer === null || isNaN(keyPayload.answer)) {
+        issues.critical.push("Missing expected numeric target answer");
+      }
+    } 
+    else if (q.question_type === "extended_response") {
+      const keyPayload = q.key?.key_payload || {};
+      if (!keyPayload.marking_guidelines || keyPayload.marking_guidelines.trim() === "") {
+        issues.critical.push("Missing AI Rubric scoring guidelines");
+      }
+      if (!keyPayload.key_scientific_points || keyPayload.key_scientific_points.length === 0) {
+        issues.critical.push("Missing Expected scientific points list");
+      }
+    } 
+    else {
+      const keyPayload = q.key?.key_payload || {};
+      if ((!keyPayload.required || keyPayload.required.length === 0) && (!keyPayload.optional || keyPayload.optional.length === 0)) {
+        issues.critical.push("No verification keywords targeted");
+      }
+    }
+
+    if (!q.resource_links || q.resource_links.trim() === "") {
+      issues.warnings.push("No revision resource or YouTube URL assigned");
+    }
+    if (!q.image_url) {
+      issues.warnings.push("Missing supporting diagram image/illustration");
+    }
+
+    return issues;
+  }
+
+  // ====== UI Card Rendering ======
+  function renderAuditedQuestions(questions) {
+    const container = document.getElementById("reviewedQuestionsList");
+    container.innerHTML = `<h3 style="margin-bottom:15px;">Questions Found (${questions.length})</h3>`;
+
+    questions.forEach(q => {
+      const audit = performAuditAnalysis(q);
+      const isHealthy = audit.critical.length === 0 && audit.warnings.length === 0;
+
+      let badgesHtml = "";
+      if (audit.critical.length > 0) {
+        badgesHtml += `<span class="badge badge-error">🔴 ${audit.critical.length} Critical Gap(s)</span> `;
+      }
+      if (audit.warnings.length > 0) {
+        badgesHtml += `<span class="badge badge-warning">🟡 ${audit.warnings.length} Soft Warning(s)</span> `;
+      }
+      if (isHealthy) {
+        badgesHtml += `<span class="badge badge-success">🟢 Healthy Structure</span> `;
+      }
+      badgesHtml += `<span class="badge badge-info">${q.question_type.replace("_", " ")}</span> `;
+      badgesHtml += `<span class="badge badge-info">Tier: ${q.tier}</span> `;
+
+      let auditLogsHtml = "";
+      if (audit.critical.length > 0) {
+        auditLogsHtml += `
+          <div style="margin-top:8px; color: var(--error); font-size: 0.8rem; font-weight:600;">
+            ${audit.critical.map(c => `• ${c}`).join("<br/>")}
+          </div>`;
+      }
+      if (audit.warnings.length > 0) {
+        auditLogsHtml += `
+          <div style="margin-top:4px; color: #b45309; font-size: 0.8rem; font-weight:600;">
+            ${audit.warnings.map(w => `• ${w}`).join("<br/>")}
+          </div>`;
+      }
+
+      const specRefStr = q.spec ? `[${q.spec.spec_ref}] ${q.spec.topic_name}` : "Unmapped spec ref";
+
+      const card = document.createElement("div");
+      card.className = "q-audit-card";
+      card.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap: 15px;">
+          <div style="flex:1;">
+            <div style="font-size:0.8rem; color:var(--text-muted); font-weight:700; margin-bottom:4px;">${specRefStr}</div>
+            <h4 style="margin-bottom:8px; font-size:1.05rem; line-height:1.4;">${escapeHtml(q.prompt)}</h4>
+            <div style="margin-top:10px;">${badgesHtml}</div>
+            ${auditLogsHtml}
           </div>
-          <div>
-            <label>Tolerance Limit Exception</label>
-            <input type="number" id="editSubNumTolerance" step="any" value="${payload.tolerance !== undefined ? payload.tolerance : '0'}" />
-          </div>
-          <div>
-            <label>Required Unit Target String</label>
-            <input type="text" id="editSubNumUnit" value="${payload.unit || ''}" />
+          <div style="display:flex; flex-direction:column; gap:8px; flex-shrink:0;">
+            <button onclick="editQuestionInline('${q.id}')" style="background:#2563eb; padding:6px 12px; font-size:0.85rem;">Edit</button>
+            <button onclick="requestSafeDelete('${q.id}')" style="background:var(--error); padding:6px 12px; font-size:0.85rem;">Delete</button>
           </div>
         </div>
       `;
-    } else if (q.question_type === "extended_response") {
-      subContainer.innerHTML = `
-        <label>Key level evaluation criteria checklist steps (one rule per text line layout)</label>
-        <textarea id="editSubExtRubric" rows="5">${payload.key_scientific_points ? payload.key_scientific_points.join('\n') : ''}</textarea>
-      `;
+      container.appendChild(card);
+    });
+  }
+
+  // ====== Inline Edit Trigger Logic ======
+  window.editQuestionInline = (id) => {
+    const q = loadedQuestionsCache.find(item => item.id === id);
+    if (!q) return;
+
+    const inlineEditPanel = document.getElementById("inlineEditPanel");
+    inlineEditPanel.classList.remove("hidden");
+    inlineEditPanel.scrollIntoView({ behavior: "smooth" });
+
+    document.getElementById("editQuestionId").value = q.id;
+    document.getElementById("editPrompt").value = q.prompt || "";
+    document.getElementById("editTier").value = q.tier || "both";
+    document.getElementById("editDifficulty").value = q.difficulty || "1";
+    document.getElementById("editResourceLink").value = q.resource_links || "";
+    document.getElementById("editImageUrlStore").value = q.image_url || "";
+    document.getElementById("editImage").value = ""; // Clear file selector
+
+    document.getElementById("editMcqContainer").classList.add("hidden");
+    document.getElementById("editNumericContainer").classList.add("hidden");
+    document.getElementById("editKeywordsContainer").classList.add("hidden");
+    document.getElementById("editAiRubricContainer").classList.add("hidden");
+
+    const payload = q.key?.key_payload || {};
+
+    // Restore diagnostic parameters to inline edit form
+    document.getElementById("editAoTarget1").value = "AO1";
+    document.getElementById("editMpText1").value = "";
+    document.getElementById("editMpFeedback1").value = "";
+    document.getElementById("editAoTarget2").value = "AO2";
+    document.getElementById("editMpText2").value = "";
+    document.getElementById("editMpFeedback2").value = "";
+
+    const editFeedbackContainer = document.getElementById("editFeedbackContainer");
+    if (q.question_type === "extended_response") {
+      editFeedbackContainer.classList.add("hidden");
     } else {
-      subContainer.innerHTML = `
-        <label>Strict Required Target Terms (Comma separated value tokens)</label>
-        <input type="text" id="editSubKeyRequired" value="${payload.required ? payload.required.join(', ') : ''}" />
-        <label>Alternative / Optional Expansion Terms</label>
-        <input type="text" id="editSubKeyOptional" value="${payload.optional ? payload.optional.join(', ') : ''}" />
-        <label>Minimum Optional Terms Match Count Threshold</label>
-        <input type="number" id="editSubKeyMinOptional" value="${payload.min_optional || 0}" />
-      `;
+      editFeedbackContainer.classList.remove("hidden");
+      if (q.mark_points && q.mark_points.length > 0) {
+        const mp1 = q.mark_points[0];
+        document.getElementById("editAoTarget1").value = mp1.ao || "AO1";
+        document.getElementById("editMpText1").value = mp1.point_text || "";
+        document.getElementById("editMpFeedback1").value = mp1.feedback_if_missing || "";
+
+        if (q.mark_points.length > 1) {
+          const mp2 = q.mark_points[1];
+          document.getElementById("editAoTarget2").value = mp2.ao || "AO2";
+          document.getElementById("editMpText2").value = mp2.point_text || "";
+          document.getElementById("editMpFeedback2").value = mp2.feedback_if_missing || "";
+        }
+      }
     }
 
-    inlineEditModal.classList.remove("hidden");
+    if (q.question_type === "mcq") {
+      document.getElementById("editMcqContainer").classList.remove("hidden");
+      document.getElementById("editMcqOptions").value = Array.isArray(q.options) ? q.options.join("\n") : "";
+      document.getElementById("editMcqCorrect").value = payload.correct || "";
+    } 
+    else if (q.question_type === "numeric") {
+      document.getElementById("editNumericContainer").classList.remove("hidden");
+      document.getElementById("editNumAnswer").value = payload.answer !== undefined ? payload.answer : "";
+      document.getElementById("editNumTolerance").value = payload.tolerance !== undefined ? payload.tolerance : "0";
+    } 
+    else if (q.question_type === "extended_response") {
+      document.getElementById("editAiRubricContainer").classList.remove("hidden");
+      document.getElementById("editExtGuidelines").value = payload.marking_guidelines || "";
+      
+      const ld = payload.level_descriptors || {};
+      document.getElementById("editExtLevel3").value = ld["Level 3 (5-6 marks)"] || "";
+      document.getElementById("editExtLevel2").value = ld["Level 2 (3-4 marks)"] || "";
+      document.getElementById("editExtLevel1").value = ld["Level 1 (1-2 marks)"] || "";
+      
+      const sps = payload.key_scientific_points || [];
+      document.getElementById("editExtScientificPoints").value = sps.join("\n");
+    } 
+    else {
+      document.getElementById("editKeywordsContainer").classList.remove("hidden");
+      document.getElementById("editKeyRequired").value = Array.isArray(payload.required) ? payload.required.join(", ") : "";
+      document.getElementById("editKeyOptional").value = Array.isArray(payload.optional) ? payload.optional.join(", ") : "";
+      document.getElementById("editMinOptional").value = payload.min_optional !== undefined ? payload.min_optional : "1";
+    }
   };
 
-  document.getElementById("btnCancelInlineEdit").onclick = () => {
-    inlineEditModal.classList.add("hidden");
-  };
+  // ====== Save Edit Handler ======
+  document.getElementById("btnSaveEdit").onclick = async () => {
+    const editStatusMessage = document.getElementById("editStatusMessage");
+    editStatusMessage.classList.add("hidden");
 
-  document.getElementById("btnSaveInlineEdit").onclick = async () => {
-    const id = document.getElementById("editTargetId").value;
+    const qId = document.getElementById("editQuestionId").value;
     const prompt = document.getElementById("editPrompt").value.trim();
-    const links = document.getElementById("editResourceLink").value.trim();
-    const editFileInput = document.getElementById("editImageFile");
-    const backupImageUrl = document.getElementById("editImageUrlStore").value;
+    const tier = document.getElementById("editTier").value;
+    const difficulty = parseInt(document.getElementById("editDifficulty").value, 10);
+    const resourceLink = document.getElementById("editResourceLink").value.trim();
 
-    const btnSave = document.getElementById("btnSaveInlineEdit");
-    btnSave.disabled = true;
-    btnSave.textContent = "Updating Supabase Record...";
+    const originalQ = loadedQuestionsCache.find(item => item.id === qId);
+    if (!originalQ) return;
+
+    if (!prompt) {
+      editStatusMessage.textContent = "Error: Question prompt text cannot be blank.";
+      editStatusMessage.className = "status-msg error";
+      editStatusMessage.classList.remove("hidden");
+      return;
+    }
+
+    let updatedOptions = null;
+    let keyPayload = {};
+
+    if (originalQ.question_type === "mcq") {
+      updatedOptions = document.getElementById("editMcqOptions").value.split("\n").map(o => o.trim()).filter(Boolean);
+      keyPayload = { correct: document.getElementById("editMcqCorrect").value.trim() };
+    } 
+    else if (originalQ.question_type === "numeric") {
+      keyPayload = {
+        answer: parseFloat(document.getElementById("editNumAnswer").value),
+        tolerance: parseFloat(document.getElementById("editNumTolerance").value || 0)
+      };
+    } 
+    else if (originalQ.question_type === "extended_response") {
+      const guidelines = document.getElementById("editExtGuidelines").value.trim();
+      const l3 = document.getElementById("editExtLevel3").value.trim();
+      const l2 = document.getElementById("editExtLevel2").value.trim();
+      const l1 = document.getElementById("editExtLevel1").value.trim();
+      const scientificPoints = document.getElementById("editExtScientificPoints").value.split("\n").map(p => p.trim()).filter(Boolean);
+
+      keyPayload = {
+        marking_guidelines: guidelines,
+        level_descriptors: {
+          "Level 3 (5-6 marks)": l3 || "Detailed, coherent description covering key steps.",
+          "Level 2 (3-4 marks)": l2 || "Mostly clear method, but contains omissions.",
+          "Level 1 (1-2 marks)": l1 || "Isolated scientific points are made."
+        },
+        key_scientific_points: scientificPoints
+      };
+    } 
+    else {
+      keyPayload = {
+        required: splitClean(document.getElementById("editKeyRequired").value),
+        optional: splitClean(document.getElementById("editKeyOptional").value),
+        min_optional: parseInt(document.getElementById("editMinOptional").value || 0, 10)
+      };
+    }
 
     try {
-      const originalQuestion = loadedQuestionsCache.find(item => item.id === id);
-      if (!originalQuestion) throw new Error("Entity contextual sync drop exception.");
+      // Inline edit image upload pipeline execution on commit triggers
+      let publicImageUrl = document.getElementById("editImageUrlStore").value || null;
+      const fileInput = document.getElementById("editImage");
 
-      // Run transactional cloud storage upload asset pipeline if replacement file was picked
-      let finalImageUrl = backupImageUrl;
-      if (editFileInput.files && editFileInput.files.length > 0) {
-        finalImageUrl = await handleBucketUploadPipeline(editFileInput, document.getElementById("editImgUploadProgress"));
+      if (fileInput && fileInput.files.length > 0) {
+        editStatusMessage.textContent = "Uploading diagram image to secure bucket...";
+        editStatusMessage.className = "status-msg success";
+        editStatusMessage.classList.remove("hidden");
+
+        const file = fileInput.files[0];
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${Date.now()}_${Math.floor(Math.random()*1000)}.${fileExt}`;
+        const folder = originalQ.spec?.subject || "general";
+        const filePath = `${folder}/${fileName}`;
+
+        const { data: uploadData, error: uploadErr } = await supabaseClient
+          .storage
+          .from('question-images')
+          .upload(filePath, file);
+
+        if (uploadErr) {
+          throw new Error("Storage Upload Error: " + uploadErr.message);
+        }
+
+        const { data: urlData } = supabaseClient.storage.from('question-images').getPublicUrl(filePath);
+        publicImageUrl = urlData.publicUrl;
       }
 
-      let updateOptions = null;
-      let updateKeyPayload = {};
-
-      if (originalQuestion.question_type === "mcq") {
-        const parts = document.getElementById("editSubMcqOptions").value.split(",").map(s => s.trim()).filter(Boolean);
-        updateOptions = parts;
-        updateKeyPayload = { correct: parts[0] || "" };
-      } else if (originalQuestion.question_type === "numeric") {
-        updateKeyPayload = {
-          answer: parseFloat(document.getElementById("editSubNumAnswer").value),
-          tolerance: parseFloat(document.getElementById("editSubNumTolerance").value || 0),
-          unit: document.getElementById("editSubNumUnit").value.trim()
-        };
-      } else if (originalQuestion.question_type === "extended_response") {
-        const steps = document.getElementById("editSubExtRubric").value.split("\n").map(s => s.trim()).filter(Boolean);
-        updateKeyPayload = { key_scientific_points: steps };
-      } else {
-        updateKeyPayload = {
-          required: document.getElementById("editSubKeyRequired").value.split(",").map(s => s.trim()).filter(Boolean),
-          optional: document.getElementById("editSubKeyOptional").value.split(",").map(s => s.trim()).filter(Boolean),
-          min_optional: parseInt(document.getElementById("editSubKeyMinOptional").value, 10) || 0
-        };
-      }
-
-      // Execute primary transaction mutation query update
-      const { error: qUpdateErr } = await supabaseClient
+      const { error: qUpdateError } = await supabaseClient
         .from("questions")
         .update({
           prompt: prompt,
-          options: updateOptions,
-          resource_links: links || null,
-          image_url: finalImageUrl || null
+          options: updatedOptions,
+          tier: tier,
+          difficulty: difficulty,
+          resource_links: resourceLink || null,
+          image_url: publicImageUrl
         })
-        .eq("id", id);
+        .eq("id", qId);
 
-      if (qUpdateErr) throw qUpdateErr;
+      if (qUpdateError) throw qUpdateError;
 
-      // Execute secondary keys relational mapping entity mutation updates
-      const targetKeyRow = originalQuestion.answer_keys?.[0];
-      if (targetKeyRow) {
-        const { error: keyUpdateErr } = await supabaseClient
+      if (originalQ.key) {
+        const { error: keyUpdateError } = await supabaseClient
           .from("answer_keys")
-          .update({ key_payload: updateKeyPayload })
-          .eq("question_id", id);
+          .update({ key_payload: keyPayload })
+          .eq("question_id", qId);
 
-        if (keyUpdateErr) throw keyUpdateErr;
+        if (keyUpdateError) throw keyUpdateError;
+      } else {
+        const { error: keyInsertError } = await supabaseClient
+          .from("answer_keys")
+          .insert({
+            question_id: qId,
+            key_type: originalQ.question_type === "extended_response" ? "ai_rubric" : (originalQ.question_type === "numeric" ? "numeric" : "keywords"),
+            key_payload: keyPayload
+          });
+
+        if (keyInsertError) throw keyInsertError;
       }
 
-      // Execute Mark Points entity mutation updates if not an Extended Response question
-      if (originalQuestion.question_type !== "extended_response") {
-        const mp1 = originalQuestion.mark_points?.[0];
-        if (mp1?.id) {
-          await supabaseClient.from("mark_points").update({
-            ao: document.getElementById("editMp1Ao").value,
-            point_text: document.getElementById("editMp1Text").value.trim(),
-            feedback_if_missing: document.getElementById("editMp1Feedback").value.trim() || null
-          }).eq("id", mp1.id);
-        } else {
-          // If the question didn't have mark points mapped originally, inject them cleanly
-          await supabaseClient.from("mark_points").insert({
-            question_id: id,
-            ao: document.getElementById("editMp1Ao").value,
-            point_text: document.getElementById("editMp1Text").value.trim() || "Criteria Point A",
-            feedback_if_missing: document.getElementById("editMp1Feedback").value.trim() || null
-          });
+      // Sync and overwrite intermediate diagnostic mark point values
+      if (originalQ.question_type !== "extended_response") {
+        const { error: deleteMpErr } = await supabaseClient
+          .from("mark_points")
+          .delete()
+          .eq("question_id", qId);
+
+        if (deleteMpErr) throw deleteMpErr;
+
+        const markPointsBatch = [];
+        for(let m = 1; m <= 2; m++) {
+          const text = document.getElementById(`editMpText${m}`).value.trim();
+          const feedback = document.getElementById(`editMpFeedback${m}`).value.trim();
+          if (text && feedback) {
+            markPointsBatch.push({
+              question_id: qId,
+              ao: document.getElementById(`editAoTarget${m}`).value,
+              point_text: text,
+              feedback_if_missing: feedback,
+              max_marks: 1
+            });
+          }
         }
 
-        const mp2 = originalQuestion.mark_points?.[1];
-        if (mp2?.id) {
-          await supabaseClient.from("mark_points").update({
-            ao: document.getElementById("editMp2Ao").value,
-            point_text: document.getElementById("editMp2Text").value.trim(),
-            feedback_if_missing: document.getElementById("editMp2Feedback").value.trim() || null
-          }).eq("id", mp2.id);
-        } else {
-          await supabaseClient.from("media_vault").insert({
-            question_id: id,
-            ao: document.getElementById("editMp2Ao").value,
-            point_text: document.getElementById("editMp2Text").value.trim() || "Criteria Point B",
-            feedback_if_missing: document.getElementById("editMp2Feedback").value.trim() || null
-          });
+        if (markPointsBatch.length > 0) {
+          const { error: mpErr } = await supabaseClient.from("mark_points").insert(markPointsBatch);
+          if (mpErr) throw mpErr;
         }
       }
 
-      inlineEditModal.classList.add("hidden");
-      document.getElementById("btnQueryQuestions").click(); // Hot refresh UI Feed elements instantly
+      editStatusMessage.textContent = "Success: Question node changes committed successfully!";
+      editStatusMessage.className = "status-msg success";
+      editStatusMessage.classList.remove("hidden");
 
-    } catch(err) {
+      setTimeout(() => {
+        document.getElementById("inlineEditPanel").classList.add("hidden");
+        document.getElementById("btnQueryQuestions").click();
+      }, 1500);
+
+    } catch (err) {
       console.error(err);
-      alert("Pipeline mutation constraint violation: " + err.message);
-    } finally {
-      btnSave.disabled = false;
-      btnSave.textContent = "Save Database Node";
+      editStatusMessage.textContent = "Transaction Error: " + err.message;
+      editStatusMessage.className = "status-msg error";
+      editStatusMessage.classList.remove("hidden");
     }
   };
 
-  // ====== SECURE NON-BLOCKING DELETION Pipeline OVERLAYS ======
-  window.requestSafeDelete = function(id) {
+  document.getElementById("btnCancelEdit").onclick = () => {
+    document.getElementById("inlineEditPanel").classList.add("hidden");
+  };
+
+  // ====== Secure Delete Confirm Dialog ======
+  const customConfirmModal = document.getElementById("customConfirmModal");
+
+  window.requestSafeDelete = (id) => {
     currentDeletionTargetId = id;
     const q = loadedQuestionsCache.find(item => item.id === id);
     if (!q) return;
@@ -1264,8 +1724,8 @@
     return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   }
 
-  // Preflight UI Configuration
-  syncReviewTopics();
+  checkExistingAdminSession();
 </script>
+
 </body>
 </html>
