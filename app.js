@@ -798,7 +798,8 @@ function markResponse(q, resp, key, markPoints) {
       
   if (key.key_type === "mcq") {
     max = q.max_marks || 1;
-    total = resp.answer === key.key_payload.correct ? max : 0;
+    const targetCorrect = key.key_payload?.correct || key.key_payload?.answer || "";
+    total = resp.answer === targetCorrect ? max : 0;
     quality = total ? 5 : 1;
 
     // Use AO1 as standard MCQ fallback unless specified in markPoints schema
@@ -819,8 +820,7 @@ function markResponse(q, resp, key, markPoints) {
         feedbackText = key.key_payload.feedback;
       }
       if (!feedbackText) {
-        const correctDisplay = key.key_payload?.correct || key.key_payload?.answer || "";
-        feedbackText = `The correct answer is "${correctDisplay}". Review your flashcards for this specific unit or definition.`;
+        feedbackText = `The correct answer is "${targetCorrect}". Review your flashcards for this specific unit or definition.`;
       }
 
       missing.push({ 
@@ -857,6 +857,7 @@ function markResponse(q, resp, key, markPoints) {
     }
   } 
   else if (key.key_type === "keywords") {
+    // ALWAYS pull configured required & optional elements from key_payload as source-of-truth answers!
     const required = key.key_payload.required || [];
     const optional = key.key_payload.optional || [];
     const minOptional = key.key_payload.min_optional || 0;
@@ -865,67 +866,69 @@ function markResponse(q, resp, key, markPoints) {
     const cleanStudentText = textRaw.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "");
     const studentWords = cleanStudentText.split(/\s+/).filter(Boolean);
 
-    // SMARTEST MULTI-MARK ROUTE: If Mark Points are configured, evaluate them individually as targets!
-    if (markPoints && markPoints.length > 0) {
-      max = markPoints.reduce((sum, mp) => sum + (mp.max_marks || 1), 0);
+    max = q.max_marks || 1;
+    
+    // Evaluate spelling/fuzzy matches against configured answers
+    const missingRequired = required.filter(r => !checkKeywordOrSynonymsMatch(r, studentWords, textRaw));
+    const matchedOptionalCount = optional.filter(o => checkKeywordOrSynonymsMatch(o, studentWords, textRaw)).length;
 
-      markPoints.forEach((mp) => {
-        // Evaluate the "point_text" of this mark point as a synonym-aware required expression
-        const pointEarned = checkKeywordOrSynonymsMatch(mp.point_text, studentWords, textRaw);
+    const hasAllRequired = missingRequired.length === 0;
+    const hasMinOptional = matchedOptionalCount >= minOptional;
 
-        if (pointEarned) {
-          const awarded = (mp.max_marks || 1);
-          total += awarded;
-          ao[mp.ao] += awarded; 
-        } else {
-          let fbText = mp.feedback_if_missing;
-          if (!fbText) {
-            fbText = `Missing keyword concept: "${mp.point_text || 'required definition'}". Review your flashcards for this specific topic.`;
-          }
-          missing.push({ 
-            ao: mp.ao, 
-            text: fbText,
-            url: cleanUrl,
-            image_url: mp.image_url || ""
-          });
-        }
-      });
-    } else {
-      // Standard backward-compatible fallback checks
-      const hasAllRequired = required.every(targetKeyword => 
-        checkKeywordOrSynonymsMatch(targetKeyword, studentWords, textRaw)
-      );
-
-      const optionalHits = optional.filter(targetKeyword => 
-        checkKeywordOrSynonymsMatch(targetKeyword, studentWords, textRaw)
-      ).length;
-
-      max = q.max_marks || 1;
-      total = (hasAllRequired && optionalHits >= minOptional) ? max : 0;
-      
-      if (total > 0) {
-        ao.AO1 = max;
-      } else {
-        // FIX: Ensure 'missing' feedback array is populated so incorrect answers don't render as 'perfect'
-        let missingTerms = [];
-        required.forEach(r => {
-          const hit = checkKeywordOrSynonymsMatch(r, studentWords, textRaw);
-          if (!hit) {
-            // Simplify display of pipe synonyms
-            missingTerms.push(r.replace(/\|/g, " / "));
-          }
+    if (hasAllRequired && hasMinOptional) {
+      total = max;
+      // Distribute AO marks according to markPoints profiles if they are configured
+      if (markPoints && markPoints.length > 0) {
+        markPoints.forEach(mp => {
+          ao[mp.ao] = (ao[mp.ao] || 0) + (mp.max_marks || 1);
         });
+      } else {
+        ao.AO1 = max;
+      }
+    } else {
+      total = 0;
+      // Populate missing details using feedback triggers from structured mark_points
+      if (missingRequired.length > 0) {
+        let fbText = "";
+        let fbAo = "AO1";
+        let fbImg = "";
         
-        let feedbackText = "Your answer is missing some required keywords.";
-        if (missingTerms.length > 0) {
-          feedbackText = `Your answer is missing these required terms: **${missingTerms.join(", ")}**.`;
+        const mp1 = markPoints?.[0];
+        if (mp1) {
+          fbText = mp1.feedback_if_missing || `Missing required concept: "${missingRequired.join(', ')}"`;
+          fbAo = mp1.ao || "AO1";
+          fbImg = mp1.image_url || "";
+        } else {
+          fbText = `Your answer is missing the required term: "${missingRequired.join(', ')}".`;
         }
         
         missing.push({
-          ao: "AO1",
-          text: feedbackText,
+          ao: fbAo,
+          text: fbText,
           url: cleanUrl,
-          image_url: ""
+          image_url: fbImg
+        });
+      }
+      
+      if (!hasMinOptional && hasAllRequired) {
+        let fbText = "";
+        let fbAo = "AO2";
+        let fbImg = "";
+        
+        const mp2 = markPoints?.[1] || markPoints?.[0];
+        if (mp2) {
+          fbText = mp2.feedback_if_missing || `Missing supporting details. Matched only ${matchedOptionalCount} of ${minOptional} optional terms.`;
+          fbAo = mp2.ao || "AO2";
+          fbImg = mp2.image_url || "";
+        } else {
+          fbText = `Missing supporting details (matched only ${matchedOptionalCount} of ${minOptional} optional terms).`;
+        }
+        
+        missing.push({
+          ao: fbAo,
+          text: fbText,
+          url: cleanUrl,
+          image_url: fbImg
         });
       }
     }
@@ -1005,15 +1008,10 @@ function renderFeedback(marking) {
   html += `</div>`;
 
   if (currentQ.question_type === "short_text" && currentKey && currentKey.key_type === "keywords") {
-    // Determine syllabus targets dynamically depending on whether custom independent mark points exist
-    let allTargetKeywords = [];
-    if (currentMarkPoints && currentMarkPoints.length > 0) {
-      allTargetKeywords = currentMarkPoints.map(mp => mp.point_text).filter(Boolean);
-    } else {
-      const required = currentKey.key_payload.required || [];
-      const optional = currentKey.key_payload.optional || [];
-      allTargetKeywords = [...required, ...optional];
-    }
+    // ALWAYS display required/optional parameters from key_payload as target reference metrics
+    const required = currentKey.key_payload.required || [];
+    const optional = currentKey.key_payload.optional || [];
+    const allTargetKeywords = [...required, ...optional];
     
     const studentRawText = (el("txtAns")?.value || "").trim();
     const tokens = mixWordTokens(studentRawText);
@@ -1025,7 +1023,7 @@ function renderFeedback(marking) {
       let highestType = null; 
       
       for (const targetExpr of allTargetKeywords) {
-        // Evaluate each token across synonym choices
+        // Evaluate token across synonyms
         const synonyms = targetExpr.split('|').map(s => s.trim().toLowerCase());
         for (const syn of synonyms) {
           if (token.toLowerCase() === syn) {
@@ -1286,7 +1284,7 @@ if (btnSubmit) {
     // Interactive MCQ styling highlighting correct (green) and selected incorrect (red)
     if (currentQ.question_type === "mcq") {
       const selectedInput = document.querySelector('input[name="mcq"]:checked');
-      const correctVal = currentKey?.key_payload?.correct;
+      const correctVal = currentKey?.key_payload?.correct || currentKey?.key_payload?.answer || "";
       const inputs = document.querySelectorAll('input[name="mcq"]');
       
       inputs.forEach(input => {
