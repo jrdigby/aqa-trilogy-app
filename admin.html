@@ -7,6 +7,20 @@
   
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   
+  <!-- MathJax Configuration & Loader for beautiful LaTeX symbol typesetting (e.g. \infty, \propto) -->
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']]
+      },
+      options: {
+        skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
+      }
+    };
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" id="MathJax-script" async></script>
+  
   <style>
     :root {
       --bg: #f4f7f6;
@@ -756,6 +770,17 @@
   let currentDeletionTargetId = null;
   let activeTestingQuestionNode = null; // Stores target reference for sandbox testing pipeline
 
+  // ====== Math Typesetting Engine Pipeline ======
+  function triggerMathTypeset() {
+    try {
+      if (window.MathJax && typeof window.MathJax.typesetPromise === "function") {
+        window.MathJax.typesetPromise().catch(err => console.warn("MathJax typesetPromise failed:", err));
+      }
+    } catch (err) {
+      console.warn("Math typesetting failed:", err);
+    }
+  }
+
   // DOM elements binding
   const adminAuthSection = document.getElementById("adminAuthSection");
   const adminHeaderBlock = document.getElementById("adminHeaderBlock");
@@ -937,7 +962,7 @@
     return publicURLData.publicUrl;
   }
 
-  // Create Node Core Commit Execution Block
+  // Create Question Core Commit Execution Block
   document.getElementById("btnCommit").onclick = async () => {
     const statusOutput = document.getElementById("statusOutput");
     statusOutput.classList.add("hidden");
@@ -1180,6 +1205,9 @@
         </div>
       `;
     }).join("");
+
+    // Trigger MathJax formula typesetting inside review list
+    triggerMathTypeset();
   }
 
   // ====== 🧪 SANDBOX EXPERIMENTAL TESTING RUNTIME ENGINE ======
@@ -1236,6 +1264,9 @@
     }
 
     document.getElementById("sandboxTestModal").classList.remove("hidden");
+    
+    // Trigger MathJax formula typesetting inside sandbox modal prompt
+    triggerMathTypeset();
   };
 
   // Internal auxiliary function mapping app.js word-token evaluation routines precisely
@@ -1361,7 +1392,7 @@
         });
 
         scoreTotal = earnedPoints;
-        auditLogHtml += `<div class='${scoreTotal === scoreMax ? "success":"error"}' style='padding:8px;'><b>Scored ${scoreTotal}/${scoreMax} Marks via Independent Criteria Paths:</b>${pointsBreakdownLog}</div>`;
+        auditLogHtml += `<div class='${scoreTotal === scoreMax ? "success" : "error"}' style='padding:8px;'><b>Scored ${scoreTotal}/${scoreMax} Marks via Independent Criteria Paths:</b>${pointsBreakdownLog}</div>`;
       } 
       else {
         // Core standard single-mark backward compatible evaluation validation route
@@ -1389,6 +1420,9 @@
 
     outputResult.innerHTML = auditLogHtml;
     outputResult.classList.remove("hidden");
+    
+    // Trigger MathJax formula typesetting on grading feedback outputs
+    triggerMathTypeset();
   };
 
   document.getElementById("btnCloseSandbox").onclick = () => {
