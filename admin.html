@@ -228,6 +228,35 @@
     }
     .match-exact { background: #d1fae5; color: #065f46; padding: 2px 4px; border-radius: 3px; font-weight: 600; }
     .match-fuzzy { background: #ffe4e6; color: #991b1b; padding: 2px 4px; border-radius: 3px; font-style: italic; }
+
+    /* Sandbox student UI parity styles */
+    .mcq-container {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .mcq-option {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 16px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+      background: #ffffff;
+    }
+    .mcq-option:hover {
+      background-color: #f8fafc;
+      border-color: var(--primary);
+    }
+    .mcq-option input[type="radio"] {
+      width: auto;
+      margin: 0;
+      cursor: pointer;
+      accent-color: var(--primary);
+    }
   </style>
 </head>
 <body>
@@ -1175,15 +1204,19 @@
       ${imgMarkup}
     `;
 
-    // 2. Render targeted dynamic input components matching the structural schema typology
+    // 2. Render targeted dynamic input components matching student UI
     if (qNode.question_type === "mcq") {
       const options = Array.isArray(qNode.options) ? qNode.options : [];
       inputContainer.innerHTML = `
-        <label>Select Multiple Choice Alternative Option:</label>
-        <select id="sbMcqSelect">
-          <option value="">-- Choose Option Variant --</option>
-          ${options.map(o => `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join("")}
-        </select>
+        <label style="font-weight: 600; display: block; margin-bottom: 8px;">Select Multiple Choice Option (Sandbox Parity):</label>
+        <div class="mcq-container">
+          ${options.map(o => `
+            <label class="mcq-option">
+              <input type="radio" name="sbMcq" value="${escapeHtml(o)}"/>
+              <span>${escapeHtml(o)}</span>
+            </label>
+          `).join("")}
+        </div>
       `;
     } else if (qNode.question_type === "numeric") {
       inputContainer.innerHTML = `
@@ -1251,12 +1284,13 @@
     let auditLogHtml = "";
 
     if (qNode.question_type === "mcq") {
-      const pickedAnswer = document.getElementById("sbMcqSelect").value;
-      const targetCorrect = payload.correct || "";
+      const selectedRadio = document.querySelector('input[name="sbMcq"]:checked');
+      const pickedAnswer = selectedRadio ? selectedRadio.value : "";
+      const targetCorrect = payload.correct || payload.answer || "";
       
       if (pickedAnswer === targetCorrect && targetCorrect !== "") {
         scoreTotal = scoreMax;
-        auditLogHtml = `<div class='success' style='padding:8px;'><b>PASSED (MCQ Match):</b> Earned ${scoreTotal}/${scoreMax} marks.<br/>Selected text matched target system criteria correctly.</div>`;
+        auditLogHtml = `<div class='success' style='padding:8px;'><b>PASSED (MCQ Match):</b> Earned ${scoreTotal}/${scoreMax} marks.<br/>Selected choice matched target system criteria correctly.</div>`;
       } else {
         auditLogHtml = `<div class='error' style='padding:8px;'><b>FAILED (MCQ Mismatch):</b> Scored 0/${scoreMax} marks.<br/>Target answer expected: "${escapeHtml(targetCorrect)}". Received: "${escapeHtml(pickedAnswer)}"</div>`;
       }
@@ -1400,7 +1434,7 @@
     if (qNode.question_type === "mcq") {
       document.getElementById("editMcqContainer").classList.remove("hidden");
       document.getElementById("editMcqOptions").value = Array.isArray(qNode.options) ? qNode.options.join("\n") : "";
-      document.getElementById("editMcqCorrect").value = payload.correct || "";
+      document.getElementById("editMcqCorrect").value = payload.correct || payload.answer || "";
     } else if (qNode.question_type === "numeric") {
       document.getElementById("editNumericContainer").classList.remove("hidden");
       document.getElementById("editNumAnswer").value = payload.answer !== undefined ? payload.answer : "";
@@ -1459,7 +1493,7 @@
         keyPayload = { correct: document.getElementById("editMcqCorrect").value.trim() };
       } else if (cachedRef.question_type === "numeric") {
         keyPayload = {
-          answer: parseFloat(document.getElementById("editSubNumAnswer"/* Typo catch: fixed to map element binding IDs below */ || "editNumAnswer").value),
+          answer: parseFloat(document.getElementById("editNumAnswer").value),
           tolerance: parseFloat(document.getElementById("editNumTolerance").value || 0)
         };
       } else if (cachedRef.question_type === "extended_response") {
