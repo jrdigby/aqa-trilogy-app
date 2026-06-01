@@ -762,7 +762,7 @@ function renderQuestion(q) {
 }
 
 function mixWordTokens(studentText) {
-  return studentText.split(/(\s+|[.,\/#!$%\^&\*;:{}=\-_`~()?])/);
+  return studentText.split(/(\s+|[.,\/#!$%\^&\*;:{}=\-_`~()?]/);
 }
 
 function markResponse(q, resp, key, markPoints) {
@@ -857,7 +857,6 @@ function markResponse(q, resp, key, markPoints) {
     }
   } 
   else if (key.key_type === "keywords") {
-    // ALWAYS pull configured required & optional elements from key_payload as source-of-truth answers!
     const required = key.key_payload.required || [];
     const optional = key.key_payload.optional || [];
     const minOptional = key.key_payload.min_optional || 0;
@@ -866,69 +865,65 @@ function markResponse(q, resp, key, markPoints) {
     const cleanStudentText = textRaw.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "");
     const studentWords = cleanStudentText.split(/\s+/).filter(Boolean);
 
-    max = q.max_marks || 1;
-    
-    // Evaluate spelling/fuzzy matches against configured answers
-    const missingRequired = required.filter(r => !checkKeywordOrSynonymsMatch(r, studentWords, textRaw));
-    const matchedOptionalCount = optional.filter(o => checkKeywordOrSynonymsMatch(o, studentWords, textRaw)).length;
+    // SMARTEST MULTI-MARK ROUTE: If Mark Points (Section 3) are configured, use them as source-of-truth criteria!
+    if (markPoints && markPoints.length > 0) {
+      max = markPoints.reduce((sum, mp) => sum + (mp.max_marks || 1), 0);
 
-    const hasAllRequired = missingRequired.length === 0;
-    const hasMinOptional = matchedOptionalCount >= minOptional;
+      markPoints.forEach((mp) => {
+        // Evaluate the "point_text" of this mark point (e.g. "Newton") as a case-insensitive, synonym-aware requirement
+        const pointEarned = checkKeywordOrSynonymsMatch(mp.point_text, studentWords, textRaw);
 
-    if (hasAllRequired && hasMinOptional) {
-      total = max;
-      // Distribute AO marks according to markPoints profiles if they are configured
-      if (markPoints && markPoints.length > 0) {
-        markPoints.forEach(mp => {
-          ao[mp.ao] = (ao[mp.ao] || 0) + (mp.max_marks || 1);
-        });
-      } else {
-        ao.AO1 = max;
-      }
+        if (pointEarned) {
+          const awarded = (mp.max_marks || 1);
+          total += awarded;
+          ao[mp.ao] += awarded; 
+        } else {
+          let fbText = mp.feedback_if_missing;
+          if (!fbText) {
+            fbText = `Missing keyword concept: "${mp.point_text || 'required definition'}". Review your flashcards for this specific topic.`;
+          }
+          missing.push({ 
+            ao: mp.ao, 
+            text: fbText,
+            url: cleanUrl,
+            image_url: mp.image_url || ""
+          });
+        }
+      });
     } else {
-      total = 0;
-      // Populate missing details using feedback triggers from structured mark_points
-      if (missingRequired.length > 0) {
-        let fbText = "";
-        let fbAo = "AO1";
-        let fbImg = "";
-        
-        const mp1 = markPoints?.[0];
-        if (mp1) {
-          fbText = mp1.feedback_if_missing || `Missing required concept: "${missingRequired.join(', ')}"`;
-          fbAo = mp1.ao || "AO1";
-          fbImg = mp1.image_url || "";
-        } else {
-          fbText = `Your answer is missing the required term: "${missingRequired.join(', ')}".`;
-        }
-        
-        missing.push({
-          ao: fbAo,
-          text: fbText,
-          url: cleanUrl,
-          image_url: fbImg
-        });
-      }
+      // Standard backward-compatible fallback checks (Section 2 Keywords)
+      const hasAllRequired = required.every(targetKeyword => 
+        checkKeywordOrSynonymsMatch(targetKeyword, studentWords, textRaw)
+      );
+
+      const optionalHits = optional.filter(targetKeyword => 
+        checkKeywordOrSynonymsMatch(targetKeyword, studentWords, textRaw)
+      ).length;
+
+      max = q.max_marks || 1;
+      total = (hasAllRequired && optionalHits >= minOptional) ? max : 0;
       
-      if (!hasMinOptional && hasAllRequired) {
-        let fbText = "";
-        let fbAo = "AO2";
-        let fbImg = "";
+      if (total > 0) {
+        ao.AO1 = max;
+      } else {
+        let missingTerms = [];
+        required.forEach(r => {
+          const hit = checkKeywordOrSynonymsMatch(r, studentWords, textRaw);
+          if (!hit) {
+            missingTerms.push(r.replace(/\|/g, " / "));
+          }
+        });
         
-        const mp2 = markPoints?.[1] || markPoints?.[0];
-        if (mp2) {
-          fbText = mp2.feedback_if_missing || `Missing supporting details. Matched only ${matchedOptionalCount} of ${minOptional} optional terms.`;
-          fbAo = mp2.ao || "AO2";
-          fbImg = mp2.image_url || "";
-        } else {
-          fbText = `Missing supporting details (matched only ${matchedOptionalCount} of ${minOptional} optional terms).`;
+        let feedbackText = "Your answer is missing some required keywords.";
+        if (missingTerms.length > 0) {
+          feedbackText = `Your answer is missing these required terms: **${missingTerms.join(", ")}**.`;
         }
         
         missing.push({
-          ao: fbAo,
-          text: fbText,
+          ao: "AO1",
+          text: feedbackText,
           url: cleanUrl,
-          image_url: fbImg
+          image_url: ""
         });
       }
     }
@@ -1008,10 +1003,15 @@ function renderFeedback(marking) {
   html += `</div>`;
 
   if (currentQ.question_type === "short_text" && currentKey && currentKey.key_type === "keywords") {
-    // ALWAYS display required/optional parameters from key_payload as target reference metrics
-    const required = currentKey.key_payload.required || [];
-    const optional = currentKey.key_payload.optional || [];
-    const allTargetKeywords = [...required, ...optional];
+    // Determine syllabus targets dynamically depending on whether custom independent mark points (Section 3) exist
+    let allTargetKeywords = [];
+    if (currentMarkPoints && currentMarkPoints.length > 0) {
+      allTargetKeywords = currentMarkPoints.map(mp => mp.point_text).filter(Boolean);
+    } else {
+      const required = currentKey.key_payload.required || [];
+      const optional = currentKey.key_payload.optional || [];
+      allTargetKeywords = [...required, ...optional];
+    }
     
     const studentRawText = (el("txtAns")?.value || "").trim();
     const tokens = mixWordTokens(studentRawText);
