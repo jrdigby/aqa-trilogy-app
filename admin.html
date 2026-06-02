@@ -359,7 +359,7 @@
         </div>
       </div>
 
-      <!-- NEW: Edit Image Area -->
+      <!-- Edit Image Area -->
       <div class="form-group" style="border: 1px solid var(--border); padding: 12px; border-radius: 8px; background: #f8fafc;">
         <label style="color: var(--primary-dark);">🖼️ Question Diagram / Image Attachment</label>
         <input id="editImageFile" type="file" accept="image/*" style="padding:6px; font-size:0.82rem; margin-bottom: 8px;"/>
@@ -403,7 +403,7 @@
           </div>
         </div>
 
-        <!-- NEW: Edit Scaffolding Sub-Configuration -->
+        <!-- Edit Scaffolding Sub-Configuration -->
         <div style="border-top:1px dashed #cbd5e1; padding-top:14px; margin-top:14px;">
           <h6 style="margin-top:0; margin-bottom:8px; color:var(--primary-dark); font-size:0.85rem; font-weight:700;">📐 Edit Mathematical Scaffolds:</h6>
           <div style="display:flex; flex-direction:column; gap:8px;">
@@ -457,7 +457,7 @@
         <textarea id="editLvl1" rows="1" placeholder="Level 1 descriptor"></textarea>
       </div>
 
-      <!-- NEW: Edit Step-by-Step Mark Checkpoints Panel -->
+      <!-- Edit Step-by-Step Mark Checkpoints Panel -->
       <div id="editMarkPointsSection" style="border:1px solid var(--border); padding:16px; border-radius:8px; background:#f8fafc;">
         <h5 style="margin-top:0; margin-bottom:8px; color:var(--primary); font-size:0.95rem; font-weight:700;">🎯 Edit Step-by-Step Checkpoints</h5>
         <p style="font-size:0.78rem; color:var(--text-muted); margin-top:-6px; margin-bottom:12px;">
@@ -612,7 +612,7 @@
           <input id="qImage" type="file" accept="image/*" style="padding:6px; font-size:0.82rem;"/>
         </div>
 
-        <!-- 🚀 Dynamic Creator Panels -->
+        <!-- Dynamic Creator Panels -->
         
         <!-- Multiple Choice Builder -->
         <div id="mcqPanel" class="form-group" style="border:1px solid var(--border); padding:16px; border-radius:8px; background:#f8fafc;">
@@ -719,7 +719,7 @@
         </div>
       </div>
       
-      <!-- Mark Points Builder section (Supports either Short Text keypoints or numeric guidelines) -->
+      <!-- Mark Points Builder section -->
       <div id="markPointsSection" class="card">
         <h3>3. Step-by-Step Mark Checkpoints (Section 3)</h3>
         <p style="font-size:0.8rem; color:var(--text-muted); margin-top:-8px; margin-bottom:16px;">
@@ -1098,17 +1098,17 @@
     const row = document.createElement("div");
     row.className = "row";
     row.id = `mp_row_${markPointsCounter}`;
-    row.style = "grid-template-columns: 100px 1fr 1fr 40px; align-items:center; gap:10px;";
+    row.style = "grid-template-columns: 100px 1fr 1fr 40px; align-items: flex-start; gap:10px; margin-bottom: 8px;";
     
     row.innerHTML = `
-      <select class="mp-ao">
+      <select class="mp-ao" style="height: 38px;">
         <option value="AO1" ${selectedAo === "AO1" ? "selected" : ""}>AO1</option>
         <option value="AO2" ${selectedAo === "AO2" ? "selected" : ""}>AO2</option>
         <option value="AO3" ${selectedAo === "AO3" ? "selected" : ""}>AO3</option>
       </select>
-      <input class="mp-text" type="text" placeholder="Point target keyword (e.g. gravity|gravitational)" value="${escapeHtml(ptText)}"/>
-      <input class="mp-feedback" type="text" placeholder="Remediation tips..." value="${escapeHtml(fbText)}"/>
-      <button onclick="removeMarkPointRow(${markPointsCounter})" style="background:var(--error); color:white; border:none; border-radius:6px; cursor:pointer; height:36px; font-weight:bold;">&times;</button>
+      <input class="mp-text" type="text" placeholder="Point target keyword (e.g. gravity|gravitational)" value="${escapeHtml(ptText)}" style="height: 38px; box-sizing: border-box;"/>
+      <textarea class="mp-feedback" rows="2" placeholder="Remediation tips..." style="box-sizing: border-box; width: 100%; resize: vertical; min-height: 38px; font-family: inherit; font-size: 0.9rem; border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px;">${escapeHtml(fbText)}</textarea>
+      <button onclick="removeMarkPointRow(${markPointsCounter})" style="background:var(--error); color:white; border:none; border-radius:6px; cursor:pointer; height:38px; font-weight:bold; width: 100%;">&times;</button>
     `;
     wrap.appendChild(row);
   };
@@ -1128,17 +1128,17 @@
     const row = document.createElement("div");
     row.className = "row edit-mp-row";
     row.id = `edit_mp_row_${editMarkPointsCounter}`;
-    row.style = "grid-template-columns: 100px 1fr 1fr 40px; align-items:center; gap:10px;";
+    row.style = "grid-template-columns: 100px 1fr 1fr 40px; align-items: flex-start; gap:10px; margin-bottom: 8px;";
     
     row.innerHTML = `
-      <select class="edit-mp-ao">
+      <select class="edit-mp-ao" style="height: 38px;">
         <option value="AO1" ${selectedAo === "AO1" ? "selected" : ""}>AO1</option>
         <option value="AO2" ${selectedAo === "AO2" ? "selected" : ""}>AO2</option>
         <option value="AO3" ${selectedAo === "AO3" ? "selected" : ""}>AO3</option>
       </select>
-      <input class="edit-mp-text" type="text" placeholder="Point target keyword (e.g. gravity|gravitational)" value="${escapeHtml(ptText)}"/>
-      <input class="edit-mp-feedback" type="text" placeholder="Remediation tips..." value="${escapeHtml(fbText)}"/>
-      <button type="button" onclick="removeEditMarkPointRow(${editMarkPointsCounter})" style="background:var(--error); color:white; border:none; border-radius:6px; cursor:pointer; height:36px; font-weight:bold; width:36px;">&times;</button>
+      <input class="edit-mp-text" type="text" placeholder="Point target keyword (e.g. gravity|gravitational)" value="${escapeHtml(ptText)}" style="height: 38px; box-sizing: border-box;"/>
+      <textarea class="edit-mp-feedback" rows="2" placeholder="Remediation tips..." style="box-sizing: border-box; width: 100%; resize: vertical; min-height: 38px; font-family: inherit; font-size: 0.9rem; border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px;">${escapeHtml(fbText)}</textarea>
+      <button type="button" onclick="removeEditMarkPointRow(${editMarkPointsCounter})" style="background:var(--error); color:white; border:none; border-radius:6px; cursor:pointer; height:38px; font-weight:bold; width: 100%;">&times;</button>
     `;
     wrap.appendChild(row);
   };
@@ -1546,7 +1546,7 @@
         specIds.push(row.id);
       });
       
-      // CRITICAL UPGRADE: Expanded select list to fetch related answer_keys to detect missing answers or missing keywords!
+      // Expanded select list to fetch related answer_keys to detect missing answers or missing keywords!
       let query = supabaseClient
         .from("questions")
         .select("id, spec_point_id, question_type, prompt, options, tier, marking_method, max_marks, resource_links, image_url, scaffold_config, answer_keys(key_type, key_payload)")
@@ -1657,7 +1657,7 @@
     document.getElementById("editResource").value = q.resource_links || "";
     document.getElementById("editTier").value = q.tier || "both";
     
-    // NEW: Populate image properties in edit modal
+    // Populate image properties in edit modal
     const editImgUrl = document.getElementById("editImageUrl");
     const editImgPreview = document.getElementById("editImagePreview");
     const editImgPreviewContainer = document.getElementById("editImagePreviewContainer");
@@ -1725,7 +1725,7 @@
         document.getElementById("editNumTol").value = keyData?.key_payload?.tolerance || 0;
         document.getElementById("editNumUnit").value = keyData?.key_payload?.unit || "";
 
-        // NEW: Populate Scaffolding values in edit window
+        // Populate Scaffolding values in edit window
         const sc = q.scaffold_config || {};
         const chkEditConvField = document.getElementById("chkEditScaffoldConv");
         const chkEditRearrangeField = document.getElementById("chkEditScaffoldRearrange");
@@ -1765,7 +1765,7 @@
       console.warn("Failed retrieving corresponding keys dynamically:", err);
     }
 
-    // NEW: Load existing Checkpoint Mark Points for editing
+    // Load existing Checkpoint Mark Points for editing
     document.getElementById("editMarkPointsWrapper").innerHTML = "";
     editMarkPointsCounter = 0;
     try {
@@ -1804,7 +1804,7 @@
     try {
       showAdminToast("Saving database updates...");
 
-      // NEW: Handle Image upload or URL updates during modification
+      // Handle Image upload or URL updates during modification
       let finalImageUrl = document.getElementById("editImageUrl").value.trim() || null;
       const fileInput = document.getElementById("editImageFile");
       
@@ -1842,7 +1842,7 @@
         ];
       }
       
-      // NEW: Handle Scaffolding config update inside numeric mode
+      // Handle Scaffolding config update inside numeric mode
       if (q.question_type === "numeric") {
         const chkEditConvChecked = document.getElementById("chkEditScaffoldConv").checked;
         const chkEditRearrangeChecked = document.getElementById("chkEditScaffoldRearrange").checked;
@@ -1915,7 +1915,7 @@
 
       if (keyErr) throw keyErr;
 
-      // NEW: Sync edit mark points by dropping old references and writing updated nodes
+      // Sync edit mark points by dropping old references and writing updated nodes
       await supabaseClient.from("mark_points").delete().eq("question_id", qId);
 
       const editRows = Array.from(document.querySelectorAll("#editMarkPointsWrapper .edit-mp-row"));
