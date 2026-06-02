@@ -346,8 +346,193 @@ async function loadDashboard() {
       `).join("")
       : `<div class="item">Nothing due today. Start practice to create your first schedule.</div>`;
   }
+  
+  // Call the interactive Flashcard Generator
+  await loadRevisionCards();
 }
 
+// ====== "MISSING INFO" REVISION FLASHCARD COMPILER ======
+async function loadRevisionCards() {
+  const flashcardArea = el("revisionCardsWrapper");
+  if (!flashcardArea) {
+    // If not declared, dynamically craft container before the mastery wrapper
+    const dashboardGrid = el("dashboard");
+    if (!dashboardGrid) return;
+    
+    const cardSection = document.createElement("div");
+    cardSection.className = "card";
+    cardSection.style = "margin-bottom: 24px; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; background: #ffffff;";
+    cardSection.innerHTML = `
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <h3 style="margin:0; font-weight:700; color:var(--text); font-size:1.15rem; display:flex; align-items:center; gap:8px;">
+          📚 Personal Revision Flashcards <span style="font-size:0.8rem; background:#fee2e2; color:#991b1b; padding:2px 8px; border-radius:12px; font-weight:700;">Dynamic Gaps</span>
+        </h3>
+        <button id="btnDownloadStudyGuide" style="background:#4f46e5; color:white; border:none; padding:6px 12px; font-size:0.75rem; font-weight:600; border-radius:6px; cursor:pointer; transition: background 0.15s;">
+          📥 Download PDF Guide
+        </button>
+      </div>
+      <p style="font-size:0.8rem; color:#64748b; margin-top:0; margin-bottom:16px;">This revision deck automatically aggregates key concepts you missed in your recent practice sessions. Flip them to self-test.</p>
+      <div id="revisionCardsWrapper" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap:16px;"></div>
+    `;
+    
+    const referenceNode = el("masteryWrapper")?.parentNode;
+    if (referenceNode) {
+      referenceNode.parentNode.insertBefore(cardSection, referenceNode);
+    }
+  }
+
+  const container = el("revisionCardsWrapper");
+  if (!container) return;
+
+  try {
+    // Query recent incorrect attempts containing diagnostic feedback values
+    const { data: attempts, error } = await supabaseClient
+      .from("attempts")
+      .select("created_at, question_id, score_total, score_max, feedback_payload, questions(prompt, spec_points(topic_name, spec_ref))")
+      .eq("user_id", currentUser.id)
+      .order("created_at", { ascending: false })
+      .limit(10);
+
+    if (error) throw error;
+
+    // Filter out attempts that didn't achieve full marks and have feedback reports
+    const failedAttempts = (attempts || []).filter(a => a.score_total < a.score_max && a.feedback_payload);
+
+    if (failedAttempts.length === 0) {
+      container.innerHTML = `
+        <div style="grid-column: 1/-1; text-align: center; padding: 24px; border: 2px dashed #e2e8f0; border-radius: 8px; color: #64748b;">
+          <span style="font-size: 1.5rem; display: block; margin-bottom: 6px;">🎉</span>
+          <strong style="font-size:0.85rem; color:#334155;">No concept gaps registered!</strong>
+          <p style="font-size:0.75rem; margin:4px 0 0 0;">Complete more practice sessions. Gaps or missed keywords will construct flashcards here.</p>
+        </div>
+      `;
+      const btnDl = el("btnDownloadStudyGuide");
+      if (btnDl) btnDl.style.display = "none";
+      return;
+    }
+
+    const btnDl = el("btnDownloadStudyGuide");
+    if (btnDl) {
+      btnDl.style.display = "block";
+      btnDl.onclick = () => downloadStudyGuideText(failedAttempts);
+    }
+
+    // Map attempts to interactive HTML cards
+    container.innerHTML = failedAttempts.map((att, idx) => {
+      const q = att.questions || {};
+      const spec = q.spec_points || {};
+      const topicName = spec.topic_name || "Science Topic";
+      const ref = spec.spec_ref || "AQA Ref";
+      
+      // Extract missed keywords from payload
+      let missedBulletPoints = [];
+      if (Array.isArray(att.feedback_payload?.missing)) {
+        missedBulletPoints = att.feedback_payload.missing.map(m => m.text);
+      } else if (Array.isArray(att.feedback_payload?.missing_or_incorrect)) {
+        missedBulletPoints = att.feedback_payload.missing_or_incorrect;
+      } else {
+        missedBulletPoints = ["Review standard definitions and practical procedures for this specification statement."];
+      }
+
+      const uid = `card_${idx}`;
+      return `
+        <div id="${uid}" class="revision-card" style="height: 180px; perspective: 1000px; cursor: pointer;">
+          <div class="card-inner" style="position: relative; width: 100%; height: 100%; transition: transform 0.6s; transform-style: preserve-3d; border-radius: 10px; border: 1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+            
+            <!-- Front of Card: The Question context -->
+            <div class="card-front" style="position: absolute; width: 100%; height: 100%; backface-visibility: hidden; background: #ffffff; padding: 16px; border-radius: 10px; display: flex; flex-direction: column; justify-content: space-between; box-sizing: border-box;">
+              <div>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                  <span style="font-size:0.7rem; font-weight:700; color:#4f46e5; text-transform:uppercase; letter-spacing:0.05em;">${topicName}</span>
+                  <span style="font-size:0.7rem; background:#f1f5f9; color:#475569; padding:2px 6px; border-radius:4px; font-weight:600;">${ref}</span>
+                </div>
+                <p style="font-size:0.82rem; font-weight:600; line-height:1.4; color:#1e293b; margin:0; display:-webkit-box; -webkit-line-clamp:4; -webkit-box-orient:vertical; overflow:hidden;">
+                  ${escapeHtml(q.prompt)}
+                </p>
+              </div>
+              <div style="font-size:0.72rem; color:#64748b; font-weight:600; text-align:right;">
+                💡 Tap to reveal missed concept
+              </div>
+            </div>
+
+            <!-- Back of Card: What they missed -->
+            <div class="card-back" style="position: absolute; width: 100%; height: 100%; backface-visibility: hidden; background: #fffbeb; color: #78350f; border: 1px solid #fde68a; padding: 16px; border-radius: 10px; transform: rotateY(180deg); display: flex; flex-direction: column; justify-content: space-between; box-sizing: border-box;">
+              <div style="overflow-y:auto; max-height: 120px;">
+                <span style="font-size:0.7rem; font-weight:700; text-transform:uppercase; display:block; margin-bottom:4px; color:#b45309;">⚠️ Examiner Insight</span>
+                <ul style="margin:0; padding-left:14px; font-size:0.75rem; line-height:1.4; font-weight:500;">
+                  ${missedBulletPoints.map(p => `<li style="margin-bottom:4px;">${escapeHtml(p)}</li>`).join("")}
+                </ul>
+              </div>
+              <div style="font-size:0.7rem; font-weight:600; text-align:left; color:#b45309; padding-top:4px; border-top:1px dashed #fcd34d;">
+                🔄 Tap to view question again
+              </div>
+            </div>
+
+          </div>
+        </div>
+      `;
+    }).join("");
+
+    // Wire up CSS perspective animations safely
+    failedAttempts.forEach((_, idx) => {
+      const uid = `card_${idx}`;
+      const element = el(uid);
+      if (element) {
+        const inner = element.querySelector(".card-inner");
+        let flipped = false;
+        element.onclick = () => {
+          flipped = !flipped;
+          inner.style.transform = flipped ? "rotateY(180deg)" : "rotateY(0deg)";
+        };
+      }
+    });
+
+  } catch (err) {
+    console.error("Failed to compile revision flashcards:", err);
+  }
+}
+
+// Support function for exporting dynamic study lists
+function downloadStudyGuideText(attempts) {
+  let content = "====================================================\n";
+  content += "      AQA GCSE SCIENCE PERSONAL STUDY COMPANION\n";
+  content += "      Generated dynamically from recent concept gaps\n";
+  content += "====================================================\n\n";
+
+  attempts.forEach((att, i) => {
+    const q = att.questions || {};
+    const spec = q.spec_points || {};
+    content += `${i + 1}. [${spec.spec_ref || 'Reference'}] ${spec.topic_name || 'Science Topic'}\n`;
+    content += `   Question Prompt: "${q.prompt}"\n`;
+    content += `   Target Examiner Criteria Missed:\n`;
+    
+    let bullets = [];
+    if (Array.isArray(att.feedback_payload?.missing)) {
+      bullets = att.feedback_payload.missing.map(m => m.text);
+    } else if (Array.isArray(att.feedback_payload?.missing_or_incorrect)) {
+      bullets = att.feedback_payload.missing_or_incorrect;
+    } else {
+      bullets = ["Review overall syllabus definitions."];
+    }
+    
+    bullets.forEach(b => {
+      content += `   • ${b}\n`;
+    });
+    content += `\n----------------------------------------------------\n\n`;
+  });
+
+  const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const trigger = document.createElement("a");
+  trigger.href = url;
+  trigger.download = `AQA_Science_Gaps_Guide_${todayISO()}.txt`;
+  document.body.appendChild(trigger);
+  trigger.click();
+  document.body.removeChild(trigger);
+  URL.revokeObjectURL(url);
+}
+
+// ====== PRACTICE SESSION ENGINE ======
 if (btnStartDue) {
   btnStartDue.onclick = async () => {
     if (!currentUser) return;
@@ -527,7 +712,7 @@ async function startAnyPractice() {
   // Directly load ALL questions across ALL matched spec points for selected topic parameters
   let qQuery = supabaseClient
     .from("questions")
-    .select("id,question_type,prompt,options,spec_point_id, resource_links, marking_method, max_marks, image_url")
+    .select("id,question_type,prompt,options,spec_point_id, resource_links, marking_method, max_marks, image_url, scaffold_config")
     .in("spec_point_id", matchingSpecPointIds)
     .in("tier", targetTiers);
       
@@ -547,7 +732,7 @@ async function startAnyPractice() {
   }
 
   if (activeQs.length === 0) {
-    const typeLabel = qType === "extended_response" ? "Extended Response (6-Mark)" : (qType === "short_text" ? "Short Text / Written" : (qType || "any"));
+    const typeLabel = qType === "extended_response" ? "Extended Response" : (qType === "short_text" ? "Short Text / Written" : (qType || "any"));
     showToastBanner(`No structural questions found of type "${typeLabel}" loaded for the selected ${tier} tier topics.`, true);
     return;
   }
@@ -567,7 +752,7 @@ async function startSessionForSpecPoint(specPointId, qType = "") {
   console.log("DEBUG startSessionForSpecPoint: Loading question payloads...");
   let query = supabaseClient
     .from("questions")
-    .select("id,question_type,prompt,options,spec_point_id, resource_links, marking_method, max_marks, image_url")
+    .select("id,question_type,prompt,options,spec_point_id, resource_links, marking_method, max_marks, image_url, scaffold_config")
     .eq("spec_point_id", specPointId)
     .in("tier", targetTiers);
 
@@ -690,11 +875,11 @@ async function loadQuestion() {
 function renderQuestion(q) {
   let commandWordBanner = getAQACommandWordHelper(q.prompt);
   
-  // Calculate total marks available for the question
+  // SUPPORT DYNAMIC SCALED COGNITIVE ASSESSMENTS
   const totalMarks = q.max_marks || (q.question_type === "extended_response" ? 6 : 1);
   const marksLabel = totalMarks === 1 ? "1 mark" : `${totalMarks} marks`;
 
-  // New Image Rendering Logic
+  // Image rendering
   let imageHtml = q.image_url 
     ? `<img src="${q.image_url}" style="max-width: 100%; border-radius: 8px; margin-bottom: 12px; border: 1px solid #e2e8f0; display: block;">` 
     : "";
@@ -724,9 +909,49 @@ function renderQuestion(q) {
         `).join("")}
       </div>
     `;
-  } else if (q.question_type === "numeric") {
-    html += `<div class="item"><label>Answer: <input id="numAns" type="number" step="any"/></label><label style="margin-left:10px;">Units: <input id="numUnit" type="text"/></label></div>`;
-  } else if (q.question_type === "extended_response") {
+  } 
+  else if (q.question_type === "numeric") {
+    // Dynamic Scaffold Setup
+    const sc = q.scaffold_config || {};
+    if (sc.has_conversion || sc.has_rearrangement) {
+      html += `<div class="item" style="border:1px solid #e2e8f0; padding:15px; border-radius:8px; background:#f8fafc; margin-top:12px;">`;
+      html += `<h4 style="margin-top:0; margin-bottom:12px; color:var(--primary); font-size:0.9rem;">📝 Scaffolded Multi-Mark Guided Steps:</h4>`;
+      
+      if (sc.has_conversion) {
+        html += `
+          <div style="margin-bottom: 12px;">
+            <label style="display:block; font-size:0.82rem; font-weight:700; margin-bottom:4px;">Step 1: Perform Unit Conversion (${sc.conversion_label || 'Standard Units'}):</label>
+            <input id="numAnsConv" type="number" step="any" style="padding:6px; font-size:0.85rem; width:120px; border-radius:4px; border:1px solid #cbd5e1;"/>
+          </div>
+        `;
+      }
+      if (sc.has_rearrangement) {
+        const distractors = sc.rearrangement_distractors || [];
+        html += `
+          <div style="margin-bottom: 12px;">
+            <label style="display:block; font-size:0.82rem; font-weight:700; margin-bottom:4px;">Step 2: Choose the Correct Rearranged Formula:</label>
+            <select id="rearrangeFormula" style="padding:6px; font-size:0.85rem; border-radius:4px; border:1px solid #cbd5e1; width:100%;">
+              <option value="">-- Choose target subject equation --</option>
+              ${distractors.map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join("")}
+            </select>
+          </div>
+        `;
+      }
+      
+      html += `
+        <div>
+          <label style="display:block; font-size:0.82rem; font-weight:700; margin-bottom:4px;">Final Step: Solve and Compute Calculation:</label>
+          <input id="numAns" type="number" step="any" style="padding:6px; font-size:0.85rem; width:120px; border-radius:4px; border:1px solid #cbd5e1;"/>
+          <input id="numUnit" type="text" placeholder="Units" style="padding:6px; font-size:0.85rem; width:80px; margin-left:8px; border-radius:4px; border:1px solid #cbd5e1;"/>
+        </div>
+      `;
+      html += `</div>`;
+    } else {
+      // Standard mathematical calculation layout
+      html += `<div class="item"><label>Answer: <input id="numAns" type="number" step="any"/></label><label style="margin-left:10px;">Units: <input id="numUnit" type="text"/></label></div>`;
+    }
+  } 
+  else if (q.question_type === "extended_response") {
     html += `
       <div class="item">
         <textarea id="txtAns" rows="8" style="width:100%;padding:12px;border-radius:10px;border:1px solid #ccc;background:#ffffff;color:#000000;font-size:0.95rem;line-height:1.5;" placeholder="Draft your detailed scientific explanation here..."></textarea>
@@ -762,98 +987,124 @@ function renderQuestion(q) {
 }
 
 function mixWordTokens(studentText) {
-  return studentText.split(/(\s+|[.,\/#!$%\^&\*;:{}=\-_`~()?])/);
+  return studentText.split(/(\s+|[.,\/#!$%\^&\*;:{}=\-_`~()?]/);
 }
 
 function markResponse(q, resp, key, markPoints) {
-  let total = 0, max = 1;
+  let total = 0, max = q.max_marks || 1;
   let ao = { AO1: 0, AO2: 0, AO3: 0 };
   let maxAo = { AO1: 0, AO2: 0, AO3: 0 };
   let missing = [], quality = 0;
 
-  if (!key) return { total: 0, max: 1, ao, maxAo, missing, quality: 0, feedbackPayload: {} };
+  if (!key) return { total: 0, max, ao, maxAo, missing, quality: 0, feedbackPayload: {} };
 
   const cleanUrl = (q && typeof q.resource_links === "string" && q.resource_links.trim().toLowerCase().startsWith('http')) 
     ? q.resource_links.trim() 
     : null;
 
-  // Determine potential Assessment Objective limits dynamically based on spec profiles
+  // Establish standard target distributions for variable-mark scoring blocks
   if (markPoints && markPoints.length > 0) {
     markPoints.forEach(mp => {
       maxAo[mp.ao] = (maxAo[mp.ao] || 0) + (mp.max_marks || 1);
     });
   } else {
     if (q.question_type === "mcq") {
-      maxAo.AO1 = 1;
+      maxAo.AO1 = max;
     } else if (q.question_type === "numeric") {
-      maxAo.AO2 = 1;
+      maxAo.AO2 = max;
     } else if (q.question_type === "extended_response") {
-      maxAo.AO1 = 2;
-      maxAo.AO2 = 2;
-      maxAo.AO3 = 2;
+      maxAo.AO1 = Math.ceil(max / 3);
+      maxAo.AO2 = Math.floor(max / 3);
+      maxAo.AO3 = max - maxAo.AO1 - maxAo.AO2;
     } else {
-      maxAo.AO1 = 1;
+      maxAo.AO1 = max;
     }
   }
       
   if (key.key_type === "mcq") {
-    max = q.max_marks || 1;
     const targetCorrect = key.key_payload?.correct || key.key_payload?.answer || "";
     total = resp.answer === targetCorrect ? max : 0;
     quality = total ? 5 : 1;
-
-    // Use AO1 as standard MCQ fallback unless specified in markPoints schema
     const targetAo = markPoints?.[0]?.ao || "AO1";
     if (total > 0) {
       ao[targetAo] = max;
     } else {
-      let feedbackText = "";
-      let feedbackImg = "";
-      if (markPoints && markPoints.length > 0) {
-        const mp = markPoints.find(mp => mp.feedback_if_missing);
-        if (mp) {
-          feedbackText = mp.feedback_if_missing;
-          feedbackImg = mp.image_url || "";
-        }
-      }
-      if (!feedbackText && key.key_payload?.feedback) {
-        feedbackText = key.key_payload.feedback;
-      }
-      if (!feedbackText) {
-        feedbackText = `The correct answer is "${targetCorrect}". Review your flashcards for this specific unit or definition.`;
-      }
-
-      missing.push({ 
-        ao: targetAo, 
-        text: feedbackText,
-        url: cleanUrl,
-        image_url: feedbackImg
-      });
+      let feedbackText = `The correct answer is "${targetCorrect}". Review your flashcards for this specific unit or definition.`;
+      missing.push({ ao: targetAo, text: feedbackText, url: cleanUrl });
     }
   } 
   else if (key.key_type === "numeric") {
-    max = q.max_marks || 1;
-    const ans = key.key_payload.answer;
-    const tol = key.key_payload.tolerance ?? 0;
-    total = (resp.value !== null && Math.abs(resp.value - ans) <= tol) ? max : 0;
-    quality = total ? 5 : 1;
-    if (total > 0) ao.AO2 = max;
-    else {
-      let numImg = "";
-      if (markPoints && markPoints.length > 0) {
-        const mp = markPoints.find(mp => mp.feedback_if_missing);
-        if (mp) numImg = mp.image_url || "";
-      }
-      const correctDisplay = key.key_payload?.answer || "";
-      const correctUnit = key.key_payload?.unit || "";
-      let feedbackText = `The correct answer is "${correctDisplay}${correctUnit ? ' ' + correctUnit : ''}". Review your calculations or flashcards for this specific unit.`;
+    const sc = q.scaffold_config || {};
+    
+    // Core Evaluator logic for step-by-step math scaffolds
+    if (sc.has_conversion || sc.has_rearrangement) {
+      let conversionEarned = 0;
+      let rearrangementEarned = 0;
+      let finalCalculationEarned = 0;
       
-      missing.push({ 
-        ao: "AO2", 
-        text: feedbackText,
-        url: cleanUrl,
-        image_url: numImg
-      });
+      const convTol = parseFloat(sc.conversion_tolerance || 0.0001);
+      const convTarget = parseFloat(sc.conversion_answer);
+      const formulaTarget = sc.rearrangement_answer;
+      
+      const ansTarget = parseFloat(key.key_payload.answer);
+      const ansTol = parseFloat(key.key_payload.tolerance ?? 0);
+      
+      if (sc.has_conversion) {
+        if (resp.conversionValue !== null && Math.abs(resp.conversionValue - convTarget) <= convTol) {
+          conversionEarned = 1;
+        } else {
+          missing.push({
+            ao: "AO2",
+            text: `Step 1 (Conversion) dropped: The target converted value should be ${convTarget} ${sc.conversion_label || ''}.`,
+            url: cleanUrl
+          });
+        }
+      }
+      
+      if (sc.has_rearrangement) {
+        if (resp.rearrangedChoice === formulaTarget && formulaTarget) {
+          rearrangementEarned = 1;
+        } else {
+          missing.push({
+            ao: "AO1",
+            text: `Step 2 (Rearrangement) dropped: The correct rearranged formula target is "${formulaTarget}".`,
+            url: cleanUrl
+          });
+        }
+      }
+      
+      if (resp.value !== null && Math.abs(resp.value - ansTarget) <= ansTol) {
+        finalCalculationEarned = 1;
+      } else {
+        missing.push({
+          ao: "AO2",
+          text: `Final Step calculation dropped: Expected magnitude ${ansTarget} ${key.key_payload.unit || ''}.`,
+          url: cleanUrl
+        });
+      }
+      
+      total = conversionEarned + rearrangementEarned + finalCalculationEarned;
+      ao.AO1 = rearrangementEarned;
+      ao.AO2 = conversionEarned + finalCalculationEarned;
+      
+      quality = (total === max) ? 5 : (total > 0 ? 3 : 0);
+    } 
+    else {
+      // Standard mathematical calculation evaluation block
+      const ans = key.key_payload.answer;
+      const tol = key.key_payload.tolerance ?? 0;
+      total = (resp.value !== null && Math.abs(resp.value - ans) <= tol) ? max : 0;
+      quality = total ? 5 : 1;
+      if (total > 0) ao.AO2 = max;
+      else {
+        const correctDisplay = key.key_payload?.answer || "";
+        const correctUnit = key.key_payload?.unit || "";
+        missing.push({ 
+          ao: "AO2", 
+          text: `The correct answer is "${correctDisplay}${correctUnit ? ' ' + correctUnit : ''}". Review calculations or units.`,
+          url: cleanUrl
+        });
+      }
     }
   } 
   else if (key.key_type === "keywords") {
@@ -865,12 +1116,10 @@ function markResponse(q, resp, key, markPoints) {
     const cleanStudentText = textRaw.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "");
     const studentWords = cleanStudentText.split(/\s+/).filter(Boolean);
 
-    // SMARTEST MULTI-MARK ROUTE: If Mark Points (Section 3) are configured, use them as source-of-truth criteria!
     if (markPoints && markPoints.length > 0) {
       max = markPoints.reduce((sum, mp) => sum + (mp.max_marks || 1), 0);
 
       markPoints.forEach((mp) => {
-        // Evaluate the "point_text" of this mark point (e.g. "Newton") as a case-insensitive, synonym-aware requirement
         const pointEarned = checkKeywordOrSynonymsMatch(mp.point_text, studentWords, textRaw);
 
         if (pointEarned) {
@@ -878,10 +1127,7 @@ function markResponse(q, resp, key, markPoints) {
           total += awarded;
           ao[mp.ao] += awarded; 
         } else {
-          let fbText = mp.feedback_if_missing;
-          if (!fbText) {
-            fbText = `Missing keyword concept: "${mp.point_text || 'required definition'}". Review your flashcards for this specific topic.`;
-          }
+          let fbText = mp.feedback_if_missing || `Missing keyword concept: "${mp.point_text || 'required definition'}".`;
           missing.push({ 
             ao: mp.ao, 
             text: fbText,
@@ -891,7 +1137,6 @@ function markResponse(q, resp, key, markPoints) {
         }
       });
     } else {
-      // Standard backward-compatible fallback checks (Section 2 Keywords)
       const hasAllRequired = required.every(targetKeyword => 
         checkKeywordOrSynonymsMatch(targetKeyword, studentWords, textRaw)
       );
@@ -900,7 +1145,6 @@ function markResponse(q, resp, key, markPoints) {
         checkKeywordOrSynonymsMatch(targetKeyword, studentWords, textRaw)
       ).length;
 
-      max = q.max_marks || 1;
       total = (hasAllRequired && optionalHits >= minOptional) ? max : 0;
       
       if (total > 0) {
@@ -914,17 +1158,11 @@ function markResponse(q, resp, key, markPoints) {
           }
         });
         
-        let feedbackText = "Your answer is missing some required keywords.";
-        if (missingTerms.length > 0) {
-          feedbackText = `Your answer is missing these required terms: **${missingTerms.join(", ")}**.`;
-        }
+        let feedbackText = missingTerms.length > 0 
+          ? `Your answer is missing these required terms: **${missingTerms.join(", ")}**.`
+          : "Your answer is missing some required keywords.";
         
-        missing.push({
-          ao: "AO1",
-          text: feedbackText,
-          url: cleanUrl,
-          image_url: ""
-        });
+        missing.push({ ao: "AO1", text: feedbackText, url: cleanUrl });
       }
     }
 
@@ -1003,7 +1241,6 @@ function renderFeedback(marking) {
   html += `</div>`;
 
   if (currentQ.question_type === "short_text" && currentKey && currentKey.key_type === "keywords") {
-    // Determine syllabus targets dynamically depending on whether custom independent mark points (Section 3) exist
     let allTargetKeywords = [];
     if (currentMarkPoints && currentMarkPoints.length > 0) {
       allTargetKeywords = currentMarkPoints.map(mp => mp.point_text).filter(Boolean);
@@ -1023,7 +1260,6 @@ function renderFeedback(marking) {
       let highestType = null; 
       
       for (const targetExpr of allTargetKeywords) {
-        // Evaluate token across synonyms
         const synonyms = targetExpr.split('|').map(s => s.trim().toLowerCase());
         for (const syn of synonyms) {
           if (token.toLowerCase() === syn) {
@@ -1082,7 +1318,6 @@ function renderFeedback(marking) {
   if (marking.missing && marking.missing.length > 0) {
     html += `<hr/><div><strong>How to improve</strong></div>`;
     html += marking.missing.map(m => {
-      // Inline rendering of remediation images on incorrect answer states
       let feedbackImgHtml = m.image_url 
         ? `<div style="margin-top: 8px; max-width: 100%;">
              <img src="${m.image_url}" style="max-width: 100%; max-height: 180px; object-fit: contain; border: 1px solid #fed7d7; border-radius: 6px; display: block;" alt="Feedback diagram" />
@@ -1140,15 +1375,15 @@ function renderLiveAIFeedback(evaluation) {
         <div style="display: flex; flex-direction: column; gap: 6px;">
           <div style="font-size: 0.78rem; padding: 6px 10px; background: #f8fafc; border-left: 3px solid #3b82f6; border-radius: 0 4px 4px 0; display: flex; justify-content: space-between;">
             <span style="font-weight: 700; color: #1e3a8a;">AO1: Knowledge & Procedural Recall</span>
-            <span style="font-weight: 700;">${evaluation.ao_breakdown?.AO1 || 0}/2 marks</span>
+            <span style="font-weight: 700;">${evaluation.ao_breakdown?.AO1 || 0}/${Math.ceil(max/3)} marks</span>
           </div>
           <div style="font-size: 0.78rem; padding: 6px 10px; background: #f8fafc; border-left: 3px solid #10b981; border-radius: 0 4px 4px 0; display: flex; justify-content: space-between;">
             <span style="font-weight: 700; color: #065f46;">AO2: Application to Experimental Method</span>
-            <span style="font-weight: 700;">${evaluation.ao_breakdown?.AO2 || 0}/2 marks</span>
+            <span style="font-weight: 700;">${evaluation.ao_breakdown?.AO2 || 0}/${Math.floor(max/3)} marks</span>
           </div>
           <div style="font-size: 0.78rem; padding: 6px 10px; background: #f8fafc; border-left: 3px solid #f59e0b; border-radius: 0 4px 4px 0; display: flex; justify-content: space-between;">
             <span style="font-weight: 700; color: #78350f;">AO3: Error Mitigation & Parallax Evaluation</span>
-            <span style="font-weight: 700;">${evaluation.ao_breakdown?.AO3 || 0}/2 marks</span>
+            <span style="font-weight: 700;">${evaluation.ao_breakdown?.AO3 || 0}/${max - Math.ceil(max/3) - Math.floor(max/3)} marks</span>
           </div>
         </div>
       </div>
@@ -1381,8 +1616,8 @@ if (btnSubmit) {
 
         // Programmatically convert holistic AI marks into SM-2 schedule quality parameters
         let srsQuality = 0;
-        if (data.score_total >= 5) srsQuality = 5;
-        else if (data.score_total >= 3) srsQuality = 3;
+        if (data.score_total >= (data.score_max - 1)) srsQuality = 5;
+        else if (data.score_total >= Math.ceil(data.score_max / 2)) srsQuality = 3;
         else if (data.score_total >= 1) srsQuality = 1;
         else srsQuality = 0;
 
@@ -1505,8 +1740,17 @@ function getResponsePayload(q) {
   }
   if (q.question_type === "numeric") {
     const val = parseFloat(el("numAns")?.value);
+    const convVal = el("numAnsConv") ? parseFloat(el("numAnsConv").value) : null;
+    const formulaChoice = el("rearrangeFormula") ? el("rearrangeFormula").value : "";
     const unit = (el("numUnit")?.value || "").trim();
-    return { type: "numeric", value: isNaN(val) ? null : val, unit };
+    
+    return { 
+      type: "numeric", 
+      value: isNaN(val) ? null : val, 
+      conversionValue: isNaN(convVal) ? null : convVal,
+      rearrangedChoice: formulaChoice,
+      unit 
+    };
   }
   const text = (el("txtAns")?.value || "").trim();
   return { type: "short_text", text };
@@ -1942,7 +2186,7 @@ if (liveTypeFilter) {
   if (!liveTypeFilter.querySelector('option[value="extended_response"]')) {
     const opt = document.createElement("option");
     opt.value = "extended_response";
-    opt.textContent = "Extended Response (6-Mark)";
+    opt.textContent = "Extended Response (AI Rubric)";
     liveTypeFilter.appendChild(opt);
   }
 
