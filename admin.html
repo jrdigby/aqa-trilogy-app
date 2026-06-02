@@ -316,7 +316,7 @@
 
 <!-- Edit Slideout Modal Overlay -->
 <div id="editModalOverlay" class="modal-overlay hidden">
-  <div class="modal-content" style="max-width: 750px;">
+  <div class="modal-content" style="max-width: 780px;">
     <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:12px; margin-bottom:16px;">
       <h3 style="margin:0;">📝 Edit Question Entry</h3>
       <button onclick="closeEditModal()" style="background:none; border:none; font-size:1.5rem; cursor:pointer; color:var(--text-muted);">&times;</button>
@@ -341,7 +341,7 @@
         <textarea id="editPrompt" rows="4"></textarea>
       </div>
 
-      <div class="row">
+      <div class="row" style="grid-template-columns: 1fr 1fr;">
         <div class="form-group">
           <label>Optional Resource Link (Walkthrough Video/Sheet)</label>
           <input id="editResource" type="text" placeholder="E.g. Youtube URL"/>
@@ -356,6 +356,17 @@
             <option value="5">5 marks</option>
             <option value="6">6 marks</option>
           </select>
+        </div>
+      </div>
+
+      <!-- NEW: Edit Image Area -->
+      <div class="form-group" style="border: 1px solid var(--border); padding: 12px; border-radius: 8px; background: #f8fafc;">
+        <label style="color: var(--primary-dark);">🖼️ Question Diagram / Image Attachment</label>
+        <input id="editImageFile" type="file" accept="image/*" style="padding:6px; font-size:0.82rem; margin-bottom: 8px;"/>
+        <input id="editImageUrl" type="text" placeholder="Or absolute Image URL path..." style="font-size:0.85rem;"/>
+        <div id="editImagePreviewContainer" class="hidden" style="margin-top: 8px; display: flex; align-items: center; gap: 10px;">
+          <img id="editImagePreview" src="" style="max-height: 80px; border: 1px solid var(--border); border-radius: 4px;"/>
+          <button type="button" onclick="removeEditImage()" style="background: var(--error); color: white; border: none; padding: 4px 8px; font-size: 0.75rem; border-radius: 4px; cursor: pointer;">Remove Image</button>
         </div>
       </div>
 
@@ -374,13 +385,47 @@
         </select>
       </div>
 
-      <!-- Edit Numeric Panel -->
+      <!-- Edit Numeric Panel (Now Equipped with Advanced Scaffolding) -->
       <div id="editNumericPanel" class="hidden" style="border:1px solid var(--border); padding:12px; border-radius:8px; background:#f8fafc;">
-        <h5 style="margin-top:0; margin-bottom:8px; color:var(--primary);">Numeric Settings</h5>
+        <h5 style="margin-top:0; margin-bottom:8px; color:var(--primary);">Numeric Settings & Parameters</h5>
         <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;">
-          <input id="editNumAns" type="number" step="any" placeholder="Correct Value"/>
-          <input id="editNumTol" type="number" step="any" placeholder="Tolerance (Default 0)"/>
-          <input id="editNumUnit" type="text" placeholder="Expected Unit"/>
+          <div>
+            <label style="font-size:0.75rem;">Correct Value</label>
+            <input id="editNumAns" type="number" step="any" placeholder="Correct Value" style="width:100%; box-sizing:border-box;"/>
+          </div>
+          <div>
+            <label style="font-size:0.75rem;">Tolerance</label>
+            <input id="editNumTol" type="number" step="any" placeholder="Tolerance" style="width:100%; box-sizing:border-box;"/>
+          </div>
+          <div>
+            <label style="font-size:0.75rem;">Expected Unit</label>
+            <input id="editNumUnit" type="text" placeholder="Expected Unit" style="width:100%; box-sizing:border-box;"/>
+          </div>
+        </div>
+
+        <!-- NEW: Edit Scaffolding Sub-Configuration -->
+        <div style="border-top:1px dashed #cbd5e1; padding-top:14px; margin-top:14px;">
+          <h6 style="margin-top:0; margin-bottom:8px; color:var(--primary-dark); font-size:0.85rem; font-weight:700;">📐 Edit Mathematical Scaffolds:</h6>
+          <div style="display:flex; flex-direction:column; gap:8px;">
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:0.8rem;">
+              <input id="chkEditScaffoldConv" type="checkbox"/>
+              <span>Step 1: Require Unit Conversion</span>
+            </label>
+            <div id="subEditScaffoldConv" class="hidden" style="padding-left:24px; display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;">
+              <input id="editScaffoldConvLabel" type="text" placeholder="Label (e.g. mV to V)" style="font-size:0.8rem;"/>
+              <input id="editScaffoldConvAnswer" type="number" step="any" placeholder="Correct val" style="font-size:0.8rem;"/>
+              <input id="editScaffoldConvTol" type="number" step="any" placeholder="Tolerance (e.g. 0.001)" style="font-size:0.8rem;"/>
+            </div>
+
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:0.8rem;">
+              <input id="chkEditScaffoldRearrange" type="checkbox"/>
+              <span>Step 2: Require Formula Rearrangement</span>
+            </label>
+            <div id="subEditScaffoldRearrange" class="hidden" style="padding-left:24px; display:flex; flex-direction:column; gap:8px;">
+              <input id="editScaffoldRearrangeAnswer" type="text" placeholder="Correct Rearranged equation (e.g. I = V / R)" style="font-size:0.8rem;"/>
+              <input id="editScaffoldRearrangeDistractors" type="text" placeholder="Distractors (comma-separated equations)" style="font-size:0.8rem;"/>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -410,6 +455,16 @@
         <textarea id="editLvl3" rows="1" placeholder="Level 3 descriptor"></textarea>
         <textarea id="editLvl2" rows="1" placeholder="Level 2 descriptor"></textarea>
         <textarea id="editLvl1" rows="1" placeholder="Level 1 descriptor"></textarea>
+      </div>
+
+      <!-- NEW: Edit Step-by-Step Mark Checkpoints Panel -->
+      <div id="editMarkPointsSection" style="border:1px solid var(--border); padding:16px; border-radius:8px; background:#f8fafc;">
+        <h5 style="margin-top:0; margin-bottom:8px; color:var(--primary); font-size:0.95rem; font-weight:700;">🎯 Edit Step-by-Step Checkpoints</h5>
+        <p style="font-size:0.78rem; color:var(--text-muted); margin-top:-6px; margin-bottom:12px;">
+          Specify cognitive points. Saving will synchronize these points with active database tables.
+        </p>
+        <div id="editMarkPointsWrapper" style="display:flex; flex-direction:column; gap:10px; margin-bottom:12px;"></div>
+        <button type="button" id="btnEditAddMarkPoint" class="btn btn-secondary" style="padding:6px 10px; font-size:0.8rem;">➕ Add Scoring Mark Point</button>
       </div>
       
     </div>
@@ -803,6 +858,7 @@
   let currentAuthSessionUser = null;
   let loadedQuestionsCache = [];
   let markPointsCounter = 0;
+  let editMarkPointsCounter = 0; // Distinct counter for editor window
   
   // Custom Toast Notifier
   function showAdminToast(msg, isError = false) {
@@ -1018,7 +1074,23 @@
     else sub.classList.add("hidden");
   };
 
-  // ====== SECTION 3: MARK POINTS DYNAMIC LIST ======
+  // Connect edit modal scaffold toggles as well
+  const chkEditConv = document.getElementById("chkEditScaffoldConv");
+  const chkEditRearrange = document.getElementById("chkEditScaffoldRearrange");
+  
+  chkEditConv.onchange = function() {
+    const sub = document.getElementById("subEditScaffoldConv");
+    if (chkEditConv.checked) sub.classList.remove("hidden");
+    else sub.classList.add("hidden");
+  };
+  
+  chkEditRearrange.onchange = function() {
+    const sub = document.getElementById("subEditScaffoldRearrange");
+    if (chkEditRearrange.checked) sub.classList.remove("hidden");
+    else sub.classList.add("hidden");
+  };
+
+  // ====== SECTION 3: MARK POINTS DYNAMIC LIST (CREATOR) ======
   window.addMarkPointRow = function(ptText = "", selectedAo = "AO1", fbText = "") {
     markPointsCounter++;
     const wrap = document.getElementById("markPointsWrapper");
@@ -1046,6 +1118,42 @@
   window.removeMarkPointRow = function(id) {
     const row = document.getElementById(`mp_row_${id}`);
     if (row) row.remove();
+  };
+
+  // ====== SECTION 3: MARK POINTS DYNAMIC LIST (EDIT WINDOW) ======
+  window.addEditMarkPointRow = function(ptText = "", selectedAo = "AO1", fbText = "") {
+    editMarkPointsCounter++;
+    const wrap = document.getElementById("editMarkPointsWrapper");
+    
+    const row = document.createElement("div");
+    row.className = "row edit-mp-row";
+    row.id = `edit_mp_row_${editMarkPointsCounter}`;
+    row.style = "grid-template-columns: 100px 1fr 1fr 40px; align-items:center; gap:10px;";
+    
+    row.innerHTML = `
+      <select class="edit-mp-ao">
+        <option value="AO1" ${selectedAo === "AO1" ? "selected" : ""}>AO1</option>
+        <option value="AO2" ${selectedAo === "AO2" ? "selected" : ""}>AO2</option>
+        <option value="AO3" ${selectedAo === "AO3" ? "selected" : ""}>AO3</option>
+      </select>
+      <input class="edit-mp-text" type="text" placeholder="Point target keyword (e.g. gravity|gravitational)" value="${escapeHtml(ptText)}"/>
+      <input class="edit-mp-feedback" type="text" placeholder="Remediation tips..." value="${escapeHtml(fbText)}"/>
+      <button type="button" onclick="removeEditMarkPointRow(${editMarkPointsCounter})" style="background:var(--error); color:white; border:none; border-radius:6px; cursor:pointer; height:36px; font-weight:bold; width:36px;">&times;</button>
+    `;
+    wrap.appendChild(row);
+  };
+
+  document.getElementById("btnEditAddMarkPoint").onclick = () => window.addEditMarkPointRow();
+
+  window.removeEditMarkPointRow = function(id) {
+    const row = document.getElementById(`edit_mp_row_${id}`);
+    if (row) row.remove();
+  };
+
+  window.removeEditImage = function() {
+    document.getElementById("editImageUrl").value = "";
+    document.getElementById("editImageFile").value = "";
+    document.getElementById("editImagePreviewContainer").classList.add("hidden");
   };
 
   // ====== FORM SUBMISSION PIXEL INTEGRATION ======
@@ -1549,6 +1657,21 @@
     document.getElementById("editResource").value = q.resource_links || "";
     document.getElementById("editTier").value = q.tier || "both";
     
+    // NEW: Populate image properties in edit modal
+    const editImgUrl = document.getElementById("editImageUrl");
+    const editImgPreview = document.getElementById("editImagePreview");
+    const editImgPreviewContainer = document.getElementById("editImagePreviewContainer");
+    
+    editImgUrl.value = q.image_url || "";
+    if (q.image_url) {
+      editImgPreview.src = q.image_url;
+      editImgPreviewContainer.classList.remove("hidden");
+    } else {
+      editImgPreview.src = "";
+      editImgPreviewContainer.classList.add("hidden");
+    }
+    document.getElementById("editImageFile").value = "";
+
     // Setup and unlock max marks config
     const editMaxMarks = document.getElementById("editMaxMarks");
     editMaxMarks.innerHTML = "";
@@ -1560,7 +1683,7 @@
     });
     editMaxMarks.value = (q.max_marks || 1).toString();
 
-    // Reset modals panels
+    // Reset modal panels
     document.getElementById("editMcqPanel").classList.add("hidden");
     document.getElementById("editNumericPanel").classList.add("hidden");
     document.getElementById("editShortTextPanel").classList.add("hidden");
@@ -1601,6 +1724,22 @@
         document.getElementById("editNumAns").value = keyData?.key_payload?.answer || "";
         document.getElementById("editNumTol").value = keyData?.key_payload?.tolerance || 0;
         document.getElementById("editNumUnit").value = keyData?.key_payload?.unit || "";
+
+        // NEW: Populate Scaffolding values in edit window
+        const sc = q.scaffold_config || {};
+        const chkEditConvField = document.getElementById("chkEditScaffoldConv");
+        const chkEditRearrangeField = document.getElementById("chkEditScaffoldRearrange");
+
+        chkEditConvField.checked = !!sc.has_conversion;
+        document.getElementById("editScaffoldConvLabel").value = sc.conversion_label || "";
+        document.getElementById("editScaffoldConvAnswer").value = sc.conversion_answer !== undefined ? sc.conversion_answer : "";
+        document.getElementById("editScaffoldConvTol").value = sc.conversion_tolerance !== undefined ? sc.conversion_tolerance : "";
+        chkEditConvField.onchange(); // trigger show/hide
+
+        chkEditRearrangeField.checked = !!sc.has_rearrangement;
+        document.getElementById("editScaffoldRearrangeAnswer").value = sc.rearrangement_answer || "";
+        document.getElementById("editScaffoldRearrangeDistractors").value = Array.isArray(sc.rearrangement_distractors) ? sc.rearrangement_distractors.join(", ") : "";
+        chkEditRearrangeField.onchange(); // trigger show/hide
       } 
       else if (q.question_type === "short_text") {
         document.getElementById("editShortTextPanel").classList.remove("hidden");
@@ -1626,6 +1765,25 @@
       console.warn("Failed retrieving corresponding keys dynamically:", err);
     }
 
+    // NEW: Load existing Checkpoint Mark Points for editing
+    document.getElementById("editMarkPointsWrapper").innerHTML = "";
+    editMarkPointsCounter = 0;
+    try {
+      const { data: mps, error: mpsErr } = await supabaseClient
+        .from("mark_points")
+        .select("ao, point_text, feedback_if_missing")
+        .eq("question_id", q.id)
+        .order("created_at", { ascending: true });
+        
+      if (!mpsErr && mps) {
+        mps.forEach(mp => {
+          addEditMarkPointRow(mp.point_text, mp.ao, mp.feedback_if_missing);
+        });
+      }
+    } catch(err) {
+      console.error("Failed to query mark points for edit panel:", err);
+    }
+
     document.getElementById("editModalOverlay").classList.remove("hidden");
   };
 
@@ -1638,7 +1796,7 @@
     const prompt = document.getElementById("editPrompt").value.trim();
     const resource = document.getElementById("editResource").value.trim();
     const tier = document.getElementById("editTier").value;
-    const marks = parseInt(document.getElementById("editMaxMarks").value) || 1;
+    let marks = parseInt(document.getElementById("editMaxMarks").value) || 1;
 
     const q = loadedQuestionsCache.find(x => x.id === qId);
     if (!q) return;
@@ -1646,12 +1804,33 @@
     try {
       showAdminToast("Saving database updates...");
 
+      // NEW: Handle Image upload or URL updates during modification
+      let finalImageUrl = document.getElementById("editImageUrl").value.trim() || null;
+      const fileInput = document.getElementById("editImageFile");
+      
+      if (fileInput && fileInput.files.length > 0) {
+        const file = fileInput.files[0];
+        const ext = file.name.split('.').pop();
+        const randName = `${Math.random().toString(36).substring(2)}.${ext}`;
+        const path = `${document.getElementById("auditSubject").value}/${randName}`;
+        
+        const { error: uploadError } = await supabaseClient.storage
+          .from("question-images")
+          .upload(path, file);
+          
+        if (uploadError) throw uploadError;
+        
+        const { data } = supabaseClient.storage.from("question-images").getPublicUrl(path);
+        finalImageUrl = data.publicUrl;
+      }
+
       // Update parent questions values
       const updatePayload = {
         prompt: prompt,
         resource_links: resource,
         tier: tier,
-        max_marks: marks
+        max_marks: marks,
+        image_url: finalImageUrl
       };
 
       if (q.question_type === "mcq") {
@@ -1661,6 +1840,31 @@
           document.getElementById("editOpt3").value.trim(),
           document.getElementById("editOpt4").value.trim()
         ];
+      }
+      
+      // NEW: Handle Scaffolding config update inside numeric mode
+      if (q.question_type === "numeric") {
+        const chkEditConvChecked = document.getElementById("chkEditScaffoldConv").checked;
+        const chkEditRearrangeChecked = document.getElementById("chkEditScaffoldRearrange").checked;
+        const scDistractors = document.getElementById("editScaffoldRearrangeDistractors").value;
+        
+        updatePayload.scaffold_config = {
+          has_conversion: chkEditConvChecked,
+          conversion_label: document.getElementById("editScaffoldConvLabel").value.trim(),
+          conversion_answer: parseFloat(document.getElementById("editScaffoldConvAnswer").value),
+          conversion_tolerance: parseFloat(document.getElementById("editScaffoldConvTol").value) || 0.001,
+          has_rearrangement: chkEditRearrangeChecked,
+          rearrangement_answer: document.getElementById("editScaffoldRearrangeAnswer").value.trim(),
+          rearrangement_distractors: scDistractors ? scDistractors.split(",").map(d => d.trim()) : []
+        };
+
+        // Recalculate and update the marks based on progressive steps toggled
+        let baseScore = 1;
+        if (chkEditConvChecked) baseScore += 1;
+        if (chkEditRearrangeChecked) baseScore += 1;
+        updatePayload.max_marks = baseScore;
+      } else {
+        updatePayload.scaffold_config = null;
       }
 
       const { error: uErr } = await supabaseClient
@@ -1710,6 +1914,23 @@
         .eq("question_id", qId);
 
       if (keyErr) throw keyErr;
+
+      // NEW: Sync edit mark points by dropping old references and writing updated nodes
+      await supabaseClient.from("mark_points").delete().eq("question_id", qId);
+
+      const editRows = Array.from(document.querySelectorAll("#editMarkPointsWrapper .edit-mp-row"));
+      if (editRows.length > 0) {
+        const markPayloads = editRows.map(r => ({
+          question_id: qId,
+          ao: r.querySelector(".edit-mp-ao").value,
+          point_text: r.querySelector(".edit-mp-text").value.trim(),
+          feedback_if_missing: r.querySelector(".edit-mp-feedback").value.trim(),
+          max_marks: 1
+        }));
+        
+        const { error: mpErr } = await supabaseClient.from("mark_points").insert(markPayloads);
+        if (mpErr) throw mpErr;
+      }
 
       closeEditModal();
       showAdminToast("Changes committed successfully!");
@@ -1833,14 +2054,46 @@
       `;
     } 
     else if (q.question_type === "numeric") {
-      html += `
-        <div style="display:flex; flex-direction:column; gap:10px;">
+      // Numerical rendering supporting conversion steps and equations
+      const sc = q.scaffold_config || {};
+      if (sc.has_conversion || sc.has_rearrangement) {
+        html += `<div style="border:1px solid var(--border); padding:12px; border-radius:8px; background:#fff; margin-bottom:10px;">`;
+        if (sc.has_conversion) {
+          html += `
+            <div style="margin-bottom:10px;">
+              <label style="display:block; font-size:0.8rem; font-weight:700; margin-bottom:4px;">Step 1: Conversion Value (${sc.conversion_label || ''}):</label>
+              <input id="sbNumAnsConv" type="number" step="any" style="width:120px;"/>
+            </div>
+          `;
+        }
+        if (sc.has_rearrangement) {
+          const distractors = sc.rearrangement_distractors || [];
+          html += `
+            <div style="margin-bottom:10px;">
+              <label style="display:block; font-size:0.8rem; font-weight:700; margin-bottom:4px;">Step 2: Correct Equation Form:</label>
+              <select id="sbRearrangeFormula" style="width:100%;">
+                <option value="">-- Choose target equation --</option>
+                ${distractors.map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join("")}
+              </select>
+            </div>
+          `;
+        }
+        html += `
+          <div>
+            <label style="display:block; font-size:0.8rem; font-weight:700; margin-bottom:4px;">Final Step: Calculation Answer:</label>
+            <input id="sbNumAns" type="number" step="any" style="width:120px;"/>
+            <input id="sbNumUnit" type="text" placeholder="Unit" style="width:80px; margin-left:8px;"/>
+          </div>
+        `;
+        html += `</div>`;
+      } else {
+        html += `
           <div style="display:flex; align-items:center; gap:8px;">
             <label>Answer: <input id="sbNumAns" type="number" step="any" style="width:120px;"/></label>
             <label style="margin-left:8px;">Unit: <input id="sbNumUnit" type="text" style="width:80px;"/></label>
           </div>
-        </div>
-      `;
+        `;
+      }
     } 
     else if (q.question_type === "extended_response") {
       html += `
@@ -1935,6 +2188,8 @@
       resp = { 
         type: "numeric", 
         value: parseFloat(document.getElementById("sbNumAns")?.value),
+        conversionValue: document.getElementById("sbNumAnsConv") ? parseFloat(document.getElementById("sbNumAnsConv").value) : null,
+        rearrangedChoice: document.getElementById("sbRearrangeFormula") ? document.getElementById("sbRearrangeFormula").value : "",
         unit: document.getElementById("sbNumUnit")?.value.trim() 
       };
     } else {
@@ -2016,18 +2271,64 @@
       `;
     } 
     else if (currentSandboxedKey.key_type === "numeric") {
-      const targetAns = currentSandboxedKey.key_payload.answer;
-      const tol = currentSandboxedKey.key_payload.tolerance || 0;
-      const expectedUnit = currentSandboxedKey.key_payload.unit || "";
-      
-      const valCorrect = resp.value !== null && Math.abs(resp.value - targetAns) <= tol;
-      score = valCorrect ? max : 0;
-      
-      detailsHtml = `
-        <div style="font-weight:bold; margin-bottom:8px;">Numerical Evaluation: <span style="color:${valCorrect ? "var(--success)" : "var(--error)"}">${valCorrect ? "PASS" : "FAIL"}</span></div>
-        <div>User Entered: <code>${resp.value} ${escapeHtml(resp.unit)}</code></div>
-        <div>Correct Answer range: <code>${targetAns} (±${tol}) ${escapeHtml(expectedUnit)}</code></div>
-      `;
+      // Numerical step calculations logic check
+      const sc = currentSandboxedQ.scaffold_config || {};
+      if (sc.has_conversion || sc.has_rearrangement) {
+        let stepScore = 0;
+        let auditTrail = [];
+        
+        if (sc.has_conversion) {
+          const convTol = parseFloat(sc.conversion_tolerance || 0.001);
+          const isConvCorrect = resp.conversionValue !== null && Math.abs(resp.conversionValue - sc.conversion_answer) <= convTol;
+          if (isConvCorrect) {
+            stepScore++;
+            auditTrail.push("🟢 Step 1 (Unit Conversion): Correct!");
+          } else {
+            auditTrail.push(`🔴 Step 1 (Unit Conversion): Incorrect (Expected: ${sc.conversion_answer})`);
+          }
+        }
+        
+        if (sc.has_rearrangement) {
+          if (resp.rearrangedChoice === sc.rearrangement_answer) {
+            stepScore++;
+            auditTrail.push("🟢 Step 2 (Formula Rearrangement): Correct!");
+          } else {
+            auditTrail.push(`🔴 Step 2 (Formula Rearrangement): Incorrect (Expected: ${sc.rearrangement_answer})`);
+          }
+        }
+        
+        const targetAns = currentSandboxedKey.key_payload.answer;
+        const tol = currentSandboxedKey.key_payload.tolerance || 0;
+        const isFinalCorrect = resp.value !== null && Math.abs(resp.value - targetAns) <= tol;
+        
+        if (isFinalCorrect) {
+          stepScore++;
+          auditTrail.push("🟢 Final Step (Calculation): Correct!");
+        } else {
+          auditTrail.push(`🔴 Final Step (Calculation): Incorrect (Expected: ${targetAns})`);
+        }
+        
+        score = stepScore;
+        detailsHtml = `
+          <div style="font-weight:bold; margin-bottom:8px;">Multi-step Calculation Audit:</div>
+          <ul style="padding-left:18px; font-size:0.85rem; line-height:1.4;">
+            ${auditTrail.map(t => `<li>${t}</li>`).join("")}
+          </ul>
+        `;
+      } else {
+        const targetAns = currentSandboxedKey.key_payload.answer;
+        const tol = currentSandboxedKey.key_payload.tolerance || 0;
+        const expectedUnit = currentSandboxedKey.key_payload.unit || "";
+        
+        const valCorrect = resp.value !== null && Math.abs(resp.value - targetAns) <= tol;
+        score = valCorrect ? max : 0;
+        
+        detailsHtml = `
+          <div style="font-weight:bold; margin-bottom:8px;">Numerical Evaluation: <span style="color:${valCorrect ? "var(--success)" : "var(--error)"}">${valCorrect ? "PASS" : "FAIL"}</span></div>
+          <div>User Entered: <code>${resp.value} ${escapeHtml(resp.unit)}</code></div>
+          <div>Correct Answer range: <code>${targetAns} (±${tol}) ${escapeHtml(expectedUnit)}</code></div>
+        `;
+      }
     } 
     else if (currentSandboxedKey.key_type === "keywords") {
       const req = currentSandboxedKey.key_payload.required || [];
