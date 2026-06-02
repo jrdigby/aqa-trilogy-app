@@ -1438,10 +1438,10 @@
         specIds.push(row.id);
       });
       
-      // CRITICAL UPGRADE: Expanded select list to include 'options', 'tier', 'marking_method' and 'scaffold_config' so MCQ modifiers never load blank!
+      // CRITICAL UPGRADE: Expanded select list to fetch related answer_keys to detect missing answers or missing keywords!
       let query = supabaseClient
         .from("questions")
-        .select("id, spec_point_id, question_type, prompt, options, tier, marking_method, max_marks, resource_links, image_url, scaffold_config")
+        .select("id, spec_point_id, question_type, prompt, options, tier, marking_method, max_marks, resource_links, image_url, scaffold_config, answer_keys(key_type, key_payload)")
         .in("spec_point_id", specIds);
         
       if (qTypeFilter) {
@@ -1468,14 +1468,52 @@
         const spec = specMap[q.spec_point_id] || {};
         const ref = spec.spec_ref || "Global";
         
-        // Compile diagnostic checklists
+        // Compile diagnostic checklists and audit warnings
         const warnings = [];
+        
+        // 1. Check if Answer Prompt is missing
+        if (!q.prompt || q.prompt.trim() === "") {
+          warnings.push("❌ Missing Prompt");
+        }
+        
+        // 2. Resolve answer key configuration and detect missing answers/keywords
+        const keyRelation = q.answer_keys;
+        const key = Array.isArray(keyRelation) && keyRelation.length > 0 ? keyRelation[0] : keyRelation;
+        
+        if (!key || !key.key_payload) {
+          warnings.push("❌ Missing Answer Key Relation");
+        } else {
+          const payload = key.key_payload;
+          if (q.question_type === "mcq") {
+            const correctOpt = payload.correct || payload.answer;
+            if (!correctOpt || correctOpt.trim() === "") {
+              warnings.push("❌ Missing Correct MCQ Option");
+            }
+          } else if (q.question_type === "numeric") {
+            const numAns = payload.answer;
+            if (numAns === undefined || numAns === null || isNaN(numAns)) {
+              warnings.push("❌ Missing Numeric Answer");
+            }
+          } else if (q.question_type === "short_text") {
+            const reqWords = payload.required;
+            if (!reqWords || !Array.isArray(reqWords) || reqWords.filter(Boolean).length === 0) {
+              warnings.push("❌ Missing Required Keywords");
+            }
+          }
+        }
+        
+        // Standard diagnostic warning checks
         if (!q.resource_links) warnings.push("⚠️ Missing Video Link");
         if (!q.image_url) warnings.push("🖼️ No Diagram");
-        if (q.prompt.includes("$") && !window.MathJax) warnings.push("📐 LaTeX Warning");
+        if (q.prompt && q.prompt.includes("$") && !window.MathJax) warnings.push("📐 LaTeX Warning");
         
         const warningsHtml = warnings.length 
-          ? warnings.map(w => `<span style="background:#fee2e2; color:#b91c1c; padding:2px 6px; border-radius:4px; font-size:0.75rem; font-weight:700; margin-right:4px;">${w}</span>`).join("")
+          ? warnings.map(w => {
+              const isError = w.startsWith("❌");
+              const bg = isError ? "#fef2f2" : "#fee2e2";
+              const textCol = isError ? "#dc2626" : "#b91c1c";
+              return `<span style="background:${bg}; color:${textCol}; padding:2px 6px; border-radius:4px; font-size:0.75rem; font-weight:700; margin-right:4px; display:inline-block; margin-bottom:2px;">${w}</span>`;
+            }).join("")
           : `<span style="background:#d1fae5; color:#065f46; padding:2px 6px; border-radius:4px; font-size:0.75rem; font-weight:700;">🟢 Audit Passed</span>`;
           
         return `
@@ -1484,7 +1522,7 @@
             <td style="padding:12px 16px;"><span class="chip" style="background:#e2e8f0; color:#475569; padding:2px 6px; border-radius:4px; font-size:0.76rem; font-weight:700;">${q.question_type.toUpperCase()}</span></td>
             <td style="padding:12px 16px; max-width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(q.prompt)}">${escapeHtml(q.prompt)}</td>
             <td style="padding:12px 16px; font-weight:700;">${q.max_marks} marks</td>
-            <td style="padding:12px 16px;">${warningsHtml}</td>
+            <td style="padding:12px 16px; max-width: 250px; white-space: normal; line-height: 1.3;">${warningsHtml}</td>
             <td style="padding:12px 16px; text-align:right; display:flex; gap:6px; justify-content:flex-end;">
               <button onclick="launchSandboxTest('${q.id}')" class="btn btn-secondary" style="padding:6px 10px; font-size:0.75rem; background:#3b82f6; color:white;">Test</button>
               <button onclick="requestInteractiveEdit('${q.id}')" class="btn btn-secondary" style="padding:6px 10px; font-size:0.75rem;">Modify</button>
