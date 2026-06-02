@@ -23,143 +23,147 @@
   
   <style>
     :root {
-      --bg: #f4f7f6;
+      --bg: #f8fafc;
       --card-bg: #ffffff;
-      --text: #1e293b;
-      --primary: #00a86b; /* Green for teacher/admin dashboard styling */
+      --text: #0f172a;
+      --primary: #10b981; /* Emerald green theme for AQA administration */
+      --primary-dark: #059669;
       --border: #e2e8f0;
       --text-muted: #64748b;
       --error: #ef4444;
       --success: #10b981;
       --warning: #f59e0b;
-      --primary-dark: #008f5a;
     }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       background: var(--bg);
       color: var(--text);
       margin: 0;
-      padding: 20px;
+      padding: 24px;
     }
     .container {
-      max-width: 900px;
+      max-width: 950px;
       margin: 0 auto;
     }
     .card {
       background: var(--card-bg);
-      padding: 25px;
+      padding: 28px;
       border-radius: 12px;
       box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03);
-      margin-bottom: 20px;
+      margin-bottom: 24px;
       border: 1px solid var(--border);
     }
-    h1, h2, h3, h4 { margin-top: 0; color: #0f172a; }
+    h1, h2, h3, h4 { margin-top: 0; color: #1e293b; font-weight: 700; }
     label {
       display: block;
-      margin: 12px 0 6px;
+      margin: 14px 0 6px;
       font-weight: 600;
-      font-size: 0.9rem;
+      font-size: 0.88rem;
+      color: #334155;
     }
     input, select, textarea {
       width: 100%;
-      padding: 10px;
+      padding: 12px;
       border: 1px solid var(--border);
-      border-radius: 6px;
+      border-radius: 8px;
       box-sizing: border-box;
       font-size: 0.95rem;
-      background: #fafafa;
+      background: #f8fafc;
       color: var(--text);
+      transition: all 0.2s;
     }
     input:focus, select:focus, textarea:focus {
       outline: none;
       border-color: var(--primary);
       background: #ffffff;
-      box-shadow: 0 0 0 3px rgba(0, 168, 107, 0.1);
+      box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
     }
     textarea { resize: vertical; }
     .row {
       display: flex;
-      gap: 15px;
-      margin-bottom: 10px;
+      gap: 16px;
+      margin-bottom: 12px;
     }
     .row > div { flex: 1; }
     button {
       background: var(--primary);
       color: white;
       border: none;
-      padding: 12px 20px;
-      font-size: 1rem;
+      padding: 12px 24px;
+      font-size: 0.95rem;
       font-weight: 600;
-      border-radius: 6px;
+      border-radius: 8px;
       cursor: pointer;
       transition: all 0.2s;
     }
     button:hover { background-color: var(--primary-dark); }
+    button:disabled { background: #cbd5e1; cursor: not-allowed; }
     
-    /* CRITICAL FIX: Ensure utility hidden rules always win over specific layout display rules */
     .hidden { display: none !important; }
     
     .status-msg {
-      margin-top: 15px;
-      padding: 12px;
-      border-radius: 6px;
-      font-weight: 500;
+      margin-top: 16px;
+      padding: 14px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.9rem;
     }
-    .success { background: #e6f4ea; color: #137333; border: 1px solid #c4e9cb; }
-    .error { background: #fce8e6; color: #c5221f; border: 1px solid #f6c8c6; }
+    .success { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
+    .error { background: #fef2f2; color: #991b1b; border: 1px solid #fca5a5; }
     .box {
       border: 1px dashed var(--border);
-      padding: 15px;
+      padding: 18px;
       border-radius: 8px;
-      background: #fafafa;
-      margin-top: 10px;
+      background: #f8fafc;
+      margin-top: 14px;
     }
 
-    /* 🗂️ Administrative Mode Navigation Tab Sizing */
+    /* Tab Bar Styling */
     .tab-bar {
       display: flex;
-      gap: 10px;
-      margin-bottom: 20px;
+      gap: 12px;
+      margin-bottom: 24px;
       border-bottom: 2px solid var(--border);
-      padding-bottom: 10px;
+      padding-bottom: 12px;
     }
     .tab-btn {
       background: #e2e8f0;
       color: var(--text-muted);
-      padding: 8px 16px;
+      padding: 10px 20px;
       font-size: 0.9rem;
-      border-radius: 20px;
+      border-radius: 30px;
       border: none;
       cursor: pointer;
       font-weight: 600;
+      transition: all 0.2s;
     }
     .tab-btn.active {
       background: var(--primary);
       color: white;
     }
 
-    /* 📧 Admin User status styling */
     .admin-header-flex {
       display: flex;
       justify-content: space-between;
-      align-items: flex-start;
+      align-items: center;
       flex-wrap: wrap;
-      gap: 15px;
+      gap: 16px;
     }
     .user-badge {
       display: flex;
       align-items: center;
-      gap: 10px;
-      background: #e2e8f0;
-      padding: 6px 12px;
+      gap: 12px;
+      background: #f1f5f9;
+      padding: 8px 16px;
       border-radius: 30px;
       font-size: 0.85rem;
       font-weight: 600;
       color: #334155;
+      border: 1px solid #e2e8f0;
     }
     .btn-signout {
       background: var(--error);
-      padding: 4px 10px;
+      padding: 6px 12px;
       font-size: 0.78rem;
       border-radius: 20px;
     }
@@ -167,15 +171,14 @@
       background-color: #dc2626;
     }
 
-    /* 🔍 Review and Audit Cards Layout */
+    /* Question Cards layout */
     .q-audit-card {
       border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 18px;
+      border-radius: 12px;
+      padding: 20px;
       background: #fff;
-      margin-bottom: 15px;
+      margin-bottom: 16px;
       transition: box-shadow 0.2s;
-      position: relative;
     }
     .q-audit-card:hover {
       box-shadow: 0 4px 12px rgba(0,0,0,0.05);
@@ -183,7 +186,7 @@
     .badge {
       display: inline-block;
       padding: 4px 8px;
-      border-radius: 4px;
+      border-radius: 6px;
       font-size: 0.75rem;
       font-weight: 700;
       margin-right: 6px;
@@ -195,7 +198,7 @@
     .badge-success { background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
     .badge-info { background: #e0f2fe; color: #0369a1; border: 1px solid #7dd3fc; }
 
-    /* Custom Confirm Modal styling (complies with no-alert guidelines) */
+    /* Modals & Overlays */
     .modal-overlay {
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
@@ -207,12 +210,12 @@
     }
     .modal-content {
       background: #ffffff;
-      padding: 24px;
-      border-radius: 12px;
-      max-width: 500px;
+      padding: 30px;
+      border-radius: 16px;
+      max-width: 650px;
       width: 90%;
       text-align: left;
-      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
       max-height: 90vh;
       overflow-y: auto;
     }
@@ -220,7 +223,7 @@
       display: flex;
       gap: 12px;
       justify-content: flex-end;
-      margin-top: 20px;
+      margin-top: 24px;
     }
     .modal-btn-cancel {
       background: #cbd5e1;
@@ -234,42 +237,29 @@
       color: #4f46e5;
       background: #eff6ff;
       border-left: 3px solid #3b82f6;
-      padding: 6px 10px;
-      margin-top: -4px;
+      padding: 8px 12px;
+      margin-top: 4px;
       margin-bottom: 12px;
-      border-radius: 0 4px 4px 0;
+      border-radius: 0 6px 6px 0;
       font-weight: 500;
     }
-    .match-exact { background: #d1fae5; color: #065f46; padding: 2px 4px; border-radius: 3px; font-weight: 600; }
-    .match-fuzzy { background: #ffe4e6; color: #991b1b; padding: 2px 4px; border-radius: 3px; font-style: italic; }
+    .match-exact { background: #d1fae5; color: #065f46; padding: 2px 4px; border-radius: 4px; font-weight: 600; }
+    .match-fuzzy { background: #ffe4e6; color: #991b1b; padding: 2px 4px; border-radius: 4px; font-style: italic; }
 
-    /* Sandbox student UI parity styles */
-    .mcq-container {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      margin-top: 12px;
-    }
-    .mcq-option {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 12px 16px;
-      border: 1px solid var(--border);
+    /* Custom Non-blocking Toast Alerts */
+    #adminToast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 10100;
+      padding: 14px 28px;
       border-radius: 8px;
-      cursor: pointer;
-      transition: all 0.2s;
-      background: #ffffff;
-    }
-    .mcq-option:hover {
-      background-color: #f8fafc;
-      border-color: var(--primary);
-    }
-    .mcq-option input[type="radio"] {
-      width: auto;
-      margin: 0;
-      cursor: pointer;
-      accent-color: var(--primary);
+      font-weight: 700;
+      color: white;
+      box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      opacity: 0;
+      transform: translateY(20px);
     }
   </style>
 </head>
@@ -278,20 +268,20 @@
 <div class="container">
   <header>
     <section id="adminAuthSection" class="card">
-      <h2>🔒 Admin Authentication Required</h2>
-      <p style="font-size: 0.85rem; color: #666;">You must sign in with authorized teacher credentials to push or edit questions.</p>
+      <h2>🔒 Teacher Dashboard Authentication</h2>
+      <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 20px;">Provide authorized credentials to modify dynamic syllabus schemas.</p>
       <div class="row">
         <div>
           <label for="adminEmail">Email Address</label>
-          <input id="adminEmail" type="email" placeholder="admin@school.com" />
+          <input id="adminEmail" type="email" placeholder="teacher@school.com" />
         </div>
         <div>
           <label for="adminPassword">Password</label>
           <input id="adminPassword" type="password" placeholder="••••••••" />
         </div>
       </div>
-      <div style="text-align: right; margin-top: 10px;">
-        <button id="btnAdminSignIn" style="background: #333;">Authenticate Admin Session</button>
+      <div style="text-align: right; margin-top: 14px;">
+        <button id="btnAdminSignIn">Authenticate Credentials</button>
       </div>
       <div id="authStatus" class="status-msg hidden"></div>
     </section>
@@ -299,8 +289,8 @@
     <div id="adminHeaderBlock" class="hidden">
       <div class="admin-header-flex">
         <div style="flex: 1; min-width: 250px;">
-          <h1 style="margin-bottom: 6px;">AQA Trilogy Question Creator Dashboard</h1>
-          <p style="margin: 0; color: var(--text-muted);">Manage and audit science questions mapped directly to specification references.</p>
+          <h1 style="margin-bottom: 4px;">AQA Science Platform (Creator Portal)</h1>
+          <p style="margin: 0; color: var(--text-muted); font-size: 0.95rem;">Configure spaced repetition variables, scaffolding algorithms, and AI schemas.</p>
         </div>
         <div class="user-badge">
           <span>📧 <span id="adminUserEmail">admin@school.com</span></span>
@@ -308,7 +298,7 @@
         </div>
       </div>
       
-      <div class="tab-bar" style="margin-top: 20px;">
+      <div class="tab-bar" style="margin-top: 24px;">
         <button id="tabIndivBtn" class="tab-btn active">Individual Form Mode</button>
         <button id="tabBulkBtn" class="tab-btn">Excel CSV Bulk Import</button>
         <button id="tabReviewBtn" class="tab-btn">🔍 Review & Edit Portal</button>
@@ -321,7 +311,7 @@
       <h2>1. Syllabus Target Mapping</h2>
       <div class="row">
         <div>
-          <label for="subjectFilter">Subject</label>
+          <label for="subjectFilter">Subject Area</label>
           <select id="subjectFilter">
             <option value="biology">Biology</option>
             <option value="chemistry">Chemistry</option>
@@ -329,7 +319,7 @@
           </select>
         </div>
         <div>
-          <label for="paperFilter">Paper</label>
+          <label for="paperFilter">Paper Branch</label>
           <select id="paperFilter">
             <option value="paper1">Paper 1</option>
             <option value="paper2">Paper 2</option>
@@ -360,13 +350,13 @@
       <h2>2. Setup Question Attributes</h2>
       
       <label for="qPrompt">Question Prompt</label>
-      <textarea id="qPrompt" rows="3" placeholder="e.g. Describe how standard visual testing evaluates human visual acuity limits."></textarea>
+      <textarea id="qPrompt" rows="3" placeholder="e.g. Describe how the student could investigate Newton's second law..."></textarea>
 
       <div class="row" style="margin-top: 10px;">
         <div>
           <label for="qTier">Target Entry Tier</label>
           <select id="qTier">
-            <option value="both" selected>Both Tiers (Standard)</option>
+            <option value="both" selected>Both Tiers (Foundation & Higher)</option>
             <option value="FT">Foundation Tier (FT Only)</option>
             <option value="HT">Higher Tier (HT Only)</option>
           </select>
@@ -374,9 +364,9 @@
         <div>
           <label for="qDifficulty">Difficulty Weight</label>
           <select id="qDifficulty">
-            <option value="1" selected>1 (Easy)</option>
-            <option value="2">2 (Medium)</option>
-            <option value="3">3 (Hard)</option>
+            <option value="1" selected>1 (Recall / Basic)</option>
+            <option value="2">2 (Application)</option>
+            <option value="3">3 (Analytical / Math)</option>
           </select>
         </div>
       </div>
@@ -392,7 +382,7 @@
         <div>
           <label for="qImage">Question Diagram / Image (Optional)</label>
           <input id="qImage" type="file" accept="image/*" />
-          <p style="font-size: 0.78rem; color: var(--text-muted); margin: 4px 0 0 0;">Upload dynamic setup blueprints, charts, or ray diagram illustrations.</p>
+          <p style="font-size: 0.78rem; color: var(--text-muted); margin: 4px 0 0 0;">Upload schematic setups, ray diagram grids, or mathematical tables.</p>
         </div>
       </div>
 
@@ -401,7 +391,7 @@
         <option value="short_text" selected>Short Text / Keyword Recognition</option>
         <option value="mcq">Multiple Choice Question (MCQ)</option>
         <option value="numeric">Mathematical / Numeric Input</option>
-        <option value="extended_response">Extended Response (6-Mark AI Rubric)</option>
+        <option value="extended_response">Extended Response (AI Rubric)</option>
       </select>
 
       <div id="panelMcq" class="box hidden">
@@ -414,7 +404,7 @@
       </div>
 
       <div id="panelNumeric" class="box hidden">
-        <h3>Numeric Target Configuration</h3>
+        <h3>Numeric Target & Scaffolding Settings</h3>
         <div class="row">
           <div>
             <label for="numAnswer">Target Numeric Output</label>
@@ -424,21 +414,67 @@
             <label for="numTolerance">Acceptable Deviation Tolerance</label>
             <input id="numTolerance" type="number" step="any" value="0" placeholder="e.g. 0.01"/>
           </div>
+          <div>
+            <label for="numUnit">Correct Expected Unit Label</label>
+            <input id="numUnit" type="text" placeholder="e.g. m/s^2, J"/>
+          </div>
+        </div>
+
+        <div style="margin-top: 14px; padding: 16px; border: 1px solid var(--border); border-radius: 10px; background: #ffffff;">
+          <h4 style="margin: 0 0 10px 0; color: #4f46e5; font-size: 0.95rem;">📐 Multi-Mark Scaffolding (Equation Rearrangement & Conversion)</h4>
+          <p style="font-size: 0.82rem; color: var(--text-muted); margin: 0 0 14px 0;">Activating steps automatically scales total marks up to 3 points ($1$ mark per validated step).</p>
+          
+          <label style="display: inline-flex; align-items: center; gap: 8px; font-weight: normal; margin-bottom: 12px; cursor: pointer;">
+            <input type="checkbox" id="numHasConversion" style="width: auto; margin: 0;"/>
+            <strong>Activate Step 1: Unit Conversion</strong>
+          </label>
+          
+          <div id="numConversionSubPanel" class="hidden" style="margin-left: 24px; border-left: 2px solid #4f46e5; padding-left: 14px; margin-bottom: 16px;">
+            <div class="row">
+              <div>
+                <label for="numConversionLabel">Conversion Variable Label (e.g., "to kg", "to seconds")</label>
+                <input id="numConversionLabel" type="text" placeholder="e.g., to kg" />
+              </div>
+              <div>
+                <label for="numConversionAnswer">Converted Value Target</label>
+                <input id="numConversionAnswer" type="number" step="any" placeholder="e.g., 0.5" />
+              </div>
+              <div>
+                <label for="numConversionTolerance">Conversion Tolerance</label>
+                <input id="numConversionTolerance" type="number" step="any" value="0.0001" />
+              </div>
+            </div>
+          </div>
+
+          <label style="display: inline-flex; align-items: center; gap: 8px; font-weight: normal; cursor: pointer;">
+            <input type="checkbox" id="numHasRearrangement" style="width: auto; margin: 0;"/>
+            <strong>Activate Step 2: Choose Rearranged Formula</strong>
+          </label>
+          
+          <div id="numRearrangementSubPanel" class="hidden" style="margin-left: 24px; border-left: 2px solid #4f46e5; padding-left: 14px; margin-top: 10px;">
+            <div class="row">
+              <div>
+                <label for="numRearrangeAnswer">Correct Rearranged Formula Target (LaTeX formatting allowed)</label>
+                <input id="numRearrangeAnswer" type="text" placeholder="e.g., $a = F / m$" />
+              </div>
+            </div>
+            <label for="numRearrangeDistractors">Formula Distractors / Options (One per line; include the correct option too)</label>
+            <textarea id="numRearrangeDistractors" rows="3" placeholder="a = F / m&#10;a = m / F&#10;a = F * m"></textarea>
+          </div>
         </div>
       </div>
 
       <div id="panelKeywords" class="box">
         <h3>Keyword Evaluation Architecture</h3>
         <p style="font-size: 0.85rem; margin: 0 0 10px; color: #666;">
-          Separate distinct criteria milestones with commas.
+          Separate terms with commas. Keyword targets are automatically highlighted inside student text blocks.
         </p>
-        <label for="keyRequired">Required Terms (All must match for AO1 base criteria)</label>
-        <input id="keyRequired" type="text" placeholder="e.g. focus, lens"/>
-        <div class="help-note">💡 Use a pipe character (|) to denote multi-word synonyms. E.g. <code>centre of mass | center of mass | midpoint</code> allows any of these variations.</div>
+        <label for="keyRequired">Required Terms (All must match for basic criteria)</label>
+        <input id="keyRequired" type="text" placeholder="e.g. force, mass"/>
+        <div class="help-note">💡 Use a pipe character (|) to denote multi-word synonyms. E.g. <code>centre of mass | midpoint</code> allows either.</div>
 
         <label for="keyOptional">Optional/Alternative Terms (Secondary Marks)</label>
-        <input id="keyOptional" type="text" placeholder="e.g. retina, distance, refraction"/>
-        <div class="help-note">💡 Use pipes for optional synonyms too. E.g. <code>reaction force | normal contact force</code></div>
+        <input id="keyOptional" type="text" placeholder="e.g. gravity, inertia"/>
 
         <label for="minOptional">Minimum Optional Count Threshold</label>
         <input id="minOptional" type="number" value="1" min="0"/>
@@ -447,32 +483,39 @@
       <div id="panelExtended" class="box hidden">
         <h3>🤖 AQA Levels of Response (AI Evaluation Rubric)</h3>
         <p style="font-size: 0.85rem; margin: 0 0 12px; color: #666;">
-          These fields compile directly into the AI Examiner prompt for grading and generate the student self-assessment checklists.
+          Specify boundaries. The engine dynamically coordinates scoring boundaries up to your chosen marks ceiling.
         </p>
 
+        <label for="extMaxMarks">Total Extended Response Marks Cap</label>
+        <select id="extMaxMarks" style="margin-bottom: 12px; font-weight: bold; border-color: #4f46e5;">
+          <option value="4">4 Marks (Shorter Practical Describe/Explain)</option>
+          <option value="5">5 Marks (Standard Application Analysis)</option>
+          <option value="6" selected>6 Marks (Standard AQA Long response)</option>
+        </select>
+
         <label for="extGuidelines">Marking Guidelines Summary</label>
-        <textarea id="extGuidelines" rows="3" placeholder="Provide a summary of the experimental protocol or physical concepts the student must describe (e.g. Newton's Second Law setup using linear tracks and constant mass)."></textarea>
+        <textarea id="extGuidelines" rows="3" placeholder="Provide a summary of the experimental protocol or physical concepts the student must describe."></textarea>
 
         <h4 style="margin: 16px 0 6px 0; border-bottom: 1px solid var(--border); padding-bottom: 4px;">Level Boundaries Descriptors</h4>
         
-        <label for="extLevel3">Level 3 (5-6 Marks) Descriptor</label>
-        <textarea id="extLevel3" rows="2" placeholder="e.g. Detailed, coherent, logically structured description detailing how to measure acceleration and vary force, keeping system mass constant."></textarea>
+        <label for="extLevel3">High Level Descriptor (e.g. Level 3 for 6-marks, or Level 2 for 4-marks)</label>
+        <textarea id="extLevel3" rows="2" placeholder="e.g. Detailed, coherent, logically structured description..."></textarea>
 
-        <label for="extLevel2">Level 2 (3-4 Marks) Descriptor</label>
-        <textarea id="extLevel2" rows="2" placeholder="e.g. Mostly clear, outlines steps to vary force and measure acceleration, but omits critical control measures."></textarea>
+        <label for="extLevel2">Mid Level Descriptor</label>
+        <textarea id="extLevel2" rows="2" placeholder="e.g. Mostly clear, outlines steps but omits critical controls..."></textarea>
 
-        <label for="extLevel1">Level 1 (1-2 Marks) Descriptor</label>
-        <textarea id="extLevel1" rows="2" placeholder="e.g. Isolated scientific points or components mentioned, but no clear method."></textarea>
+        <label for="extLevel1">Low Level Descriptor</label>
+        <textarea id="extLevel1" rows="2" placeholder="e.g. Isolated scientific points or components mentioned, but lacks sequencing..."></textarea>
 
-        <label for="extScientificPoints" style="margin-top: 14px;">AQA Checklist points expected (One point per line)</label>
-        <textarea id="extScientificPoints" rows="5" placeholder="Set up a trolley on a linear track connected to string over a pulley.&#10;Measure acceleration using light gates.&#10;Vary force by adding masses to hanger.&#10;Keep total system mass constant by storing weights on the trolley.&#10;Repeat settings, calculate mean, and plot graph."></textarea>
+        <label for="extScientificPoints" style="margin-top: 14px;">AQA Checklist points expected (One point per line - used for student checklist templates)</label>
+        <textarea id="extScientificPoints" rows="5" placeholder="Set up a trolley on a linear track connected to string over a pulley.&#10;Measure acceleration using light gates.&#10;Vary force by adding weights to hanger.&#10;Keep total system mass constant by transferring weights."></textarea>
       </div>
     </section>
 
     <section id="sectionFeedback" class="card">
       <h2>3. AQA Assessment Objective Feedback Mapping</h2>
       <p style="font-size: 0.85rem; margin: 0 0 15px; color: #666;">
-        Provide targeted instructional remedies that display if a specific Assessment Objective condition is dropped.
+        Map corrective guidance displayed directly to students when they drop Assessment Objectives (AO) marks.
       </p>
 
       <div class="box" style="margin-bottom: 10px;">
@@ -522,19 +565,24 @@
     </div>
   </div>
 
+  <!-- Excel Bulk CSV Import -->
   <div id="adminBulkForm" class="hidden">
     <section class="card">
       <h2>Excel Spreadsheet Bulk Import Panel</h2>
       <p style="font-size: 0.85rem; color: #666; margin-bottom: 15px;">
-        Paste raw comma-separated text from your Excel backup master tracker. Ensure column headers match: 
-        <code style="background:#e8ecf0; padding:2px 4px; border-radius:4px; font-size:0.8rem;">spec_point_id, question_type, prompt, options, difficulty, tier, key_type, key_payload, mp1_ao, mp1_text, mp2_ao, mp2_text...</code>
+        Paste comma-separated text from your syllabus database. It will execute parallel insertions for questions and answer keys.
       </p>
       
+      <div class="help-note">
+        <strong>Expected Header Layout:</strong><br/>
+        <code>spec_point_id, question_type, prompt, options_json, difficulty, tier, key_type, key_payload_json</code>
+      </div>
+      
       <label for="csvInput">Raw CSV Data Input Area</label>
-      <textarea id="csvInput" style="height: 280px; font-family: monospace; background: #fafafa;" placeholder="spec_point_id,question_type,prompt,options,difficulty,tier,key_type,key_payload..."></textarea>
+      <textarea id="csvInput" style="height: 280px; font-family: monospace; background: #fafafa; font-size: 0.85rem;" placeholder='de85fa18-d6b2-4522-8f5b-e49167b2c9bf,mcq,"Prompt text","[""A"",""B"",""C"",""D""]",1,HT,mcq,"{""correct"": ""A""}"'></textarea>
       
       <div style="margin-top: 15px; text-align: right;">
-        <button id="btnExecuteBulk" style="background: #2980b9; width: 100%;">Process Excel Transaction List</button>
+        <button id="btnExecuteBulk" style="background: #2563eb; width: 100%;">Process Excel Transaction List</button>
       </div>
       
       <div id="bulkStatusOutput" class="status-msg hidden" style="max-height: 250px; overflow-y: auto; text-align: left; font-family: monospace; font-size: 0.85rem; line-height: 1.5;"></div>
@@ -545,7 +593,7 @@
     <section class="card">
       <h2>🔍 Review & Audit Questions</h2>
       <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 15px;">
-        Filter by subject area, audit existing questions, identify structure gaps, and modify database fields.
+        Audit existing database nodes, check metadata integrity, and manage active records.
       </p>
       <div class="row">
         <div>
@@ -620,7 +668,7 @@
         <div>
           <label for="editImage">Question Diagram / Image (Optional)</label>
           <input id="editImage" type="file" accept="image/*" />
-          <p style="font-size: 0.78rem; color: var(--text-muted); margin: 4px 0 0 0;">Upload dynamic setup blueprints, charts, or ray diagram illustrations.</p>
+          <p style="font-size: 0.78rem; color: var(--text-muted); margin: 4px 0 0 0;">Upload or replace diagrams inside the question container.</p>
           <input id="editImageUrlStore" type="hidden" />
         </div>
       </div>
@@ -633,7 +681,7 @@
       </div>
 
       <div id="editNumericContainer" class="box hidden">
-        <h3>Numeric Target Configuration</h3>
+        <h3>Numeric Target & Scaffolding Settings</h3>
         <div class="row">
           <div>
             <label for="editNumAnswer">Target Numeric Output</label>
@@ -643,6 +691,50 @@
             <label for="editNumTolerance">Tolerance Range</label>
             <input id="editNumTolerance" type="number" step="any" />
           </div>
+          <div>
+            <label for="editNumUnit">Expected Unit Label</label>
+            <input id="editNumUnit" type="text" />
+          </div>
+        </div>
+
+        <div style="margin-top: 14px; padding: 16px; border: 1px solid var(--border); border-radius: 10px; background: #ffffff;">
+          <h4 style="margin: 0 0 10px 0; color: #4f46e5; font-size: 0.95rem;">📐 Scaffolding Multi-Step Options</h4>
+          
+          <label style="display: inline-flex; align-items: center; gap: 8px; font-weight: normal; margin-bottom: 12px; cursor: pointer;">
+            <input type="checkbox" id="editNumHasConversion" style="width: auto; margin: 0;"/>
+            <strong>Activate Step 1: Unit Conversion</strong>
+          </label>
+          <div id="editNumConversionSubPanel" class="hidden" style="margin-left: 24px; border-left: 2px solid #4f46e5; padding-left: 14px; margin-bottom: 16px;">
+            <div class="row">
+              <div>
+                <label for="editNumConversionLabel">Conversion Label (e.g., "to kg")</label>
+                <input id="editNumConversionLabel" type="text" />
+              </div>
+              <div>
+                <label for="editNumConversionAnswer">Converted Value Target</label>
+                <input id="editNumConversionAnswer" type="number" step="any" />
+              </div>
+              <div>
+                <label for="editNumConversionTolerance">Tolerance</label>
+                <input id="editNumConversionTolerance" type="number" step="any" />
+              </div>
+            </div>
+          </div>
+
+          <label style="display: inline-flex; align-items: center; gap: 8px; font-weight: normal; cursor: pointer;">
+            <input type="checkbox" id="editNumHasRearrangement" style="width: auto; margin: 0;"/>
+            <strong>Activate Step 2: Choose Rearranged Formula</strong>
+          </label>
+          <div id="editNumRearrangementSubPanel" class="hidden" style="margin-left: 24px; border-left: 2px solid #4f46e5; padding-left: 14px; margin-top: 10px;">
+            <div class="row">
+              <div>
+                <label for="editNumRearrangeAnswer">Correct Rearranged Formula</label>
+                <input id="editNumRearrangeAnswer" type="text" />
+              </div>
+            </div>
+            <label for="editNumRearrangeDistractors">Formula Options (One per line)</label>
+            <textarea id="editNumRearrangeDistractors" rows="3"></textarea>
+          </div>
         </div>
       </div>
 
@@ -650,11 +742,10 @@
         <h3>Keyword Evaluation Architecture</h3>
         <label for="editKeyRequired">Required Keywords (Separated by commas)</label>
         <input id="editKeyRequired" type="text" />
-        <div class="help-note">💡 Use pipe character (|) to separate phrase synonyms. E.g. <code>weight | gravity</code></div>
+        <div class="help-note">💡 Use pipes for phrase synonyms. E.g. <code>weight | gravitational pull</code></div>
         
         <label for="editKeyOptional">Optional Keywords (Separated by commas)</label>
         <input id="editKeyOptional" type="text" />
-        <div class="help-note">💡 Pipes work here too. E.g. <code>reaction force | normal force</code></div>
 
         <label for="editMinOptional">Min Optional Counts Needed</label>
         <input id="editMinOptional" type="number" />
@@ -662,16 +753,23 @@
 
       <div id="editAiRubricContainer" class="box hidden">
         <h3>🤖 AQA Levels of Response AI Rubric Guidelines</h3>
+        <label for="editExtMaxMarks">Total Extended Response Marks Cap</label>
+        <select id="editExtMaxMarks" style="margin-bottom: 12px; font-weight: bold;">
+          <option value="4">4 Marks</option>
+          <option value="5">5 Marks</option>
+          <option value="6">6 Marks</option>
+        </select>
+
         <label for="editExtGuidelines">Marking Guidelines Summary</label>
         <textarea id="editExtGuidelines" rows="3"></textarea>
         <h4 style="margin: 12px 0 6px 0;">Level Bound Descriptors</h4>
-        <label for="editExtLevel3">Level 3 (5-6 Marks) Descriptor</label>
+        <label for="editExtLevel3">High Level Descriptor</label>
         <textarea id="editExtLevel3" rows="2"></textarea>
-        <label for="editExtLevel2">Level 2 (3-4 Marks) Descriptor</label>
+        <label for="editExtLevel2">Mid Level Descriptor</label>
         <textarea id="editExtLevel2" rows="2"></textarea>
-        <label for="editExtLevel1">Level 1 (1-2 Marks) Descriptor</label>
+        <label for="editExtLevel1">Low Level Descriptor</label>
         <textarea id="editExtLevel1" rows="2"></textarea>
-        <label for="editExtScientificPoints" style="margin-top: 10px;">AQA Checklist points expected (One point per line)</label>
+        <label for="editExtScientificPoints">AQA Checklist points expected (One point per line)</label>
         <textarea id="editExtScientificPoints" rows="4"></textarea>
       </div>
 
@@ -729,7 +827,7 @@
 <div id="sandboxTestModal" class="modal-overlay hidden">
   <div class="modal-content" style="max-width: 650px;">
     <h2 style="color: var(--primary); margin-bottom: 4px; border-bottom: 2px solid var(--border); padding-bottom: 8px;">🧪 Student Mode Execution Sandbox</h2>
-    <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:15px; margin-top:0;">Simulate real-time response evaluations exactly as experienced by active students without altering any live attempts logs.</p>
+    <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:15px; margin-top:0;">Simulate real-time response evaluations exactly as experienced by students without logging database attempts.</p>
     
     <div id="sandboxQuestionView" style="background:#f8fafc; border: 1px solid var(--border); padding: 15px; border-radius: 8px; margin-bottom:15px;"></div>
     
@@ -758,6 +856,8 @@
   </div>
 </div>
 
+<div id="adminToast"></div>
+
 <script>
   // ====== SUPABASE PIPELINE CONNECTION MATRIX ======
   const SUPABASE_URL = "https://cbycwfhczyvzzhthpgsw.supabase.co";
@@ -769,9 +869,8 @@
   let specPointsCacheList = [];
   let loadedQuestionsCache = [];
   let currentDeletionTargetId = null;
-  let activeTestingQuestionNode = null; // Stores target reference for sandbox testing pipeline
+  let activeTestingQuestionNode = null; 
 
-  // ====== Math Typesetting Engine Pipeline ======
   function triggerMathTypeset() {
     try {
       if (window.MathJax && typeof window.MathJax.typesetPromise === "function") {
@@ -782,7 +881,20 @@
     }
   }
 
-  // DOM elements binding
+  // Toast UI Handler (Replacing direct alerts to satisfy sandbox rules)
+  function showAdminToast(msg, isError = false) {
+    const toast = document.getElementById("adminToast");
+    toast.textContent = msg;
+    toast.style.background = isError ? "var(--error)" : "var(--primary)";
+    toast.style.opacity = "1";
+    toast.style.transform = "translateY(0)";
+    setTimeout(() => {
+      toast.style.opacity = "0";
+      toast.style.transform = "translateY(20px)";
+    }, 4500);
+  }
+
+  // Bind element variables
   const adminAuthSection = document.getElementById("adminAuthSection");
   const adminHeaderBlock = document.getElementById("adminHeaderBlock");
   const adminCoreForm = document.getElementById("adminCoreForm");
@@ -813,7 +925,23 @@
   const inlineEditPanel = document.getElementById("inlineEditPanel");
   const customConfirmModal = document.getElementById("customConfirmModal");
 
-  // Auth operations
+  // Math Scaffolding Toggle Bindings - creation mode
+  document.getElementById("numHasConversion").onchange = (e) => {
+    document.getElementById("numConversionSubPanel").classList.toggle("hidden", !e.target.checked);
+  };
+  document.getElementById("numHasRearrangement").onchange = (e) => {
+    document.getElementById("numRearrangementSubPanel").classList.toggle("hidden", !e.target.checked);
+  };
+
+  // Math Scaffolding Toggle Bindings - edit mode
+  document.getElementById("editNumHasConversion").onchange = (e) => {
+    document.getElementById("editNumConversionSubPanel").classList.toggle("hidden", !e.target.checked);
+  };
+  document.getElementById("editNumHasRearrangement").onchange = (e) => {
+    document.getElementById("editNumRearrangementSubPanel").classList.toggle("hidden", !e.target.checked);
+  };
+
+  // Auth Operations
   btnAdminSignIn.onclick = async () => {
     authStatus.classList.add("hidden");
     const email = document.getElementById("adminEmail").value.trim();
@@ -821,7 +949,7 @@
 
     const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
     if (error) {
-      authStatus.textContent = "Auth Error: " + error.message;
+      authStatus.textContent = "Authentication Failed: " + error.message;
       authStatus.className = "status-msg error";
       authStatus.classList.remove("hidden");
     }
@@ -837,7 +965,6 @@
       adminHeaderBlock.classList.remove("hidden");
       adminUserEmail.textContent = session.user.email;
       
-      // Default screen route settings
       document.getElementById("tabIndivBtn").click();
       loadTopicsDropdown();
       syncReviewTopics();
@@ -850,7 +977,7 @@
     }
   });
 
-  // Navigation tab wiring
+  // Tab wiring
   const tabsMap = {
     "tabIndivBtn": "adminCoreForm",
     "tabBulkBtn": "adminBulkForm",
@@ -868,7 +995,7 @@
     };
   });
 
-  // Dropdown dependency wiring
+  // Dynamic Syllabus Dropdowns
   subjectFilter.onchange = () => loadTopicsDropdown();
   paperFilter.onchange = () => loadTopicsDropdown();
   topicFilter.onchange = () => loadSpecPointsDropdown();
@@ -927,7 +1054,6 @@
     `).join("");
   }
 
-  // Dynamic conditional sub-form switcher logic 
   qType.onchange = (e) => {
     panelMcq.classList.add("hidden");
     panelNumeric.classList.add("hidden");
@@ -941,7 +1067,7 @@
     else panelKeywords.classList.remove("hidden");
   };
 
-  // Atomic utility script logic to handle storage bucket asset layer publishing
+  // Upload dynamic setup diagrams
   async function uploadImageFileToVault(fileDOMElement) {
     if (!fileDOMElement || !fileDOMElement.files || fileDOMElement.files.length === 0) return null;
     
@@ -963,7 +1089,6 @@
     return publicURLData.publicUrl;
   }
 
-  // Create Question Core Commit Execution Block
   document.getElementById("btnCommit").onclick = async () => {
     const statusOutput = document.getElementById("statusOutput");
     statusOutput.classList.add("hidden");
@@ -978,7 +1103,7 @@
     const imageDOM = document.getElementById("qImage");
 
     if (!specPointId || !prompt) {
-      statusOutput.textContent = "Validation Bottleneck: Stating a question prompt and mapping a specific spec point target are mandatory requirements.";
+      statusOutput.textContent = "Error: Prompt and specification code targets are mandatory.";
       statusOutput.className = "status-msg error";
       statusOutput.classList.remove("hidden");
       return;
@@ -986,7 +1111,7 @@
 
     const commitBtn = document.getElementById("btnCommit");
     commitBtn.disabled = true;
-    commitBtn.textContent = "Publishing relational entity payload strings...";
+    commitBtn.textContent = "Publishing relational data...";
 
     try {
       const publicDiagramUrl = await uploadImageFileToVault(imageDOM);
@@ -994,28 +1119,57 @@
       let optionsPayload = null;
       let targetKeyType = "keywords";
       let keyPayload = {};
+      let calculatedMaxMarks = 1;
 
       if (questionType === "mcq") {
         targetKeyType = "mcq";
         const cleanChoices = document.getElementById("mcqOptions").value.split("\n").map(s => s.trim()).filter(Boolean);
         optionsPayload = cleanChoices;
         keyPayload = { correct: document.getElementById("mcqCorrect").value.trim() };
-      } else if (questionType === "numeric") {
+      } 
+      else if (questionType === "numeric") {
         targetKeyType = "numeric";
+        
+        const hasConversion = document.getElementById("numHasConversion").checked;
+        const hasRearrangement = document.getElementById("numHasRearrangement").checked;
+        
+        // Multi-Step Calculation Math Scaffolding setup
+        const scaffoldConfig = {
+          has_conversion: hasConversion,
+          has_rearrangement: hasRearrangement,
+          conversion_label: hasConversion ? document.getElementById("numConversionLabel").value.trim() : null,
+          conversion_answer: hasConversion ? parseFloat(document.getElementById("numConversionAnswer").value) : null,
+          conversion_tolerance: hasConversion ? parseFloat(document.getElementById("numConversionTolerance").value || 0.0001) : null,
+          rearrangement_answer: hasRearrangement ? document.getElementById("numRearrangeAnswer").value.trim() : null,
+          rearrangement_distractors: hasRearrangement ? document.getElementById("numRearrangeDistractors").value.split("\n").map(s => s.trim()).filter(Boolean) : []
+        };
+
+        // If scaffolding is enabled, scale marks (1 point per active step)
+        calculatedMaxMarks = 1;
+        if (hasConversion) calculatedMaxMarks++;
+        if (hasRearrangement) calculatedMaxMarks++;
+
         keyPayload = {
           answer: parseFloat(document.getElementById("numAnswer").value),
-          tolerance: parseFloat(document.getElementById("numTolerance").value || 0)
+          tolerance: parseFloat(document.getElementById("numTolerance").value || 0),
+          unit: document.getElementById("numUnit").value.trim() || null,
+          scaffold_config: scaffoldConfig
         };
-      } else if (questionType === "extended_response") {
-        targetKeyType = "extended_response";
+      } 
+      else if (questionType === "extended_response") {
+        targetKeyType = "ai_rubric";
+        calculatedMaxMarks = parseInt(document.getElementById("extMaxMarks").value, 10);
         keyPayload = {
-          guidelines_summary: document.getElementById("extGuidelines").value.trim(),
-          level3_desc: document.getElementById("extLevel3").value.trim(),
-          level2_desc: document.getElementById("extLevel2").value.trim(),
-          level1_desc: document.getElementById("extLevel1").value.trim(),
+          marking_guidelines: document.getElementById("extGuidelines").value.trim(),
+          level_descriptors: {
+            "Level 3 (High)": document.getElementById("extLevel3").value.trim(),
+            "Level 2 (Mid)": document.getElementById("extLevel2").value.trim(),
+            "Level 1 (Low)": document.getElementById("extLevel1").value.trim()
+          },
           key_scientific_points: document.getElementById("extScientificPoints").value.split("\n").map(s => s.trim()).filter(Boolean)
         };
-      } else {
+      } 
+      else {
         targetKeyType = "keywords";
         keyPayload = {
           required: document.getElementById("keyRequired").value.split(",").map(s => s.trim()).filter(Boolean),
@@ -1026,7 +1180,6 @@
 
       const { data: newQNode, error: qErr } = await supabaseClient
         .from("questions")
-        .select("id")
         .insert({
           spec_point_id: specPointId,
           question_type: questionType,
@@ -1035,7 +1188,7 @@
           difficulty: difficulty,
           tier: tier,
           marking_method: questionType === "extended_response" ? "ai_rubric" : (questionType === "numeric" ? "numeric" : "keyword"),
-          max_marks: questionType === "extended_response" ? 6 : 1,
+          max_marks: calculatedMaxMarks,
           resource_links: link || null,
           image_url: publicDiagramUrl || null
         })
@@ -1053,38 +1206,41 @@
 
       if (keyErr) throw keyErr;
 
+      // Map feedback remediation loops
       if (questionType !== "extended_response") {
         const markPointsToUpload = [
           {
             question_id: newQNode.id,
             ao: document.getElementById("aoTarget1").value,
-            point_text: document.getElementById("mpText1").value.trim() || "Base Recall Step A",
+            point_text: document.getElementById("mpText1").value.trim() || "Base Recall step",
             feedback_if_missing: document.getElementById("mpFeedback1").value.trim() || null
-          },
-          {
-            question_id: newQNode.id,
-            ao: document.getElementById("aoTarget2").value,
-            point_text: document.getElementById("mpText2").value.trim() || "Application Insight Step B",
-            feedback_if_missing: document.getElementById("mpFeedback2").value.trim() || null
           }
         ];
+
+        if (document.getElementById("mpText2").value.trim()) {
+          markPointsToUpload.push({
+            question_id: newQNode.id,
+            ao: document.getElementById("aoTarget2").value,
+            point_text: document.getElementById("mpText2").value.trim(),
+            feedback_if_missing: document.getElementById("mpFeedback2").value.trim() || null
+          });
+        }
 
         const { error: mpErr } = await supabaseClient.from("mark_points").insert(markPointsToUpload);
         if (mpErr) throw mpErr;
       }
 
-      statusOutput.textContent = `Success! Clean write transaction passed. Generated question reference ID: ${newQNode.id}`;
+      statusOutput.textContent = `Success! Question inserted successfully. Reference ID: ${newQNode.id}`;
       statusOutput.className = "status-msg success";
       statusOutput.classList.remove("hidden");
 
-      // Reset prompt input box
       document.getElementById("qPrompt").value = "";
       document.getElementById("qResourceLink").value = "";
       imageDOM.value = "";
 
     } catch (err) {
       console.error(err);
-      statusOutput.textContent = "Write Failure Logged: " + (err.message || JSON.stringify(err));
+      statusOutput.textContent = "Write Failure: " + (err.message || JSON.stringify(err));
       statusOutput.className = "status-msg error";
       statusOutput.classList.remove("hidden");
     } finally {
@@ -1093,22 +1249,130 @@
     }
   };
 
-  // ====== BULK CSV IMPORT WORKING TRANSACTIONS AREA ======
   document.getElementById("btnExecuteBulk").onclick = async () => {
     const bulkStatusOutput = document.getElementById("bulkStatusOutput");
     bulkStatusOutput.classList.remove("hidden");
-    bulkStatusOutput.innerHTML = "Initializing batch upload thread parser sequentially...<br/>";
+    bulkStatusOutput.innerHTML = "Initializing bulk CSV parsing engine...<br/>";
     
-    // Quick validation check against empty workspace fields
     const rawCSVText = document.getElementById("csvInput").value.trim();
     if(!rawCSVText) {
-      bulkStatusOutput.innerHTML += "<span style='color:var(--error)'>Abort: Core CSV workspace payload area cannot be completely empty.</span>";
+      bulkStatusOutput.innerHTML += "<span style='color:var(--error)'>Abort: Clipboard workspace contains empty text.</span>";
       return;
     }
-    bulkStatusOutput.innerHTML += "Parsing data structures from client rows... (Processing mock execution placeholder logic until specific formatting maps matched). Finished loops. Sync complete.";
+
+    try {
+      const lines = rawCSVText.split("\n");
+      if (lines.length < 2) {
+        throw new Error("CSV structure requires at least 1 header line and 1 payload line.");
+      }
+
+      // Safe CSV Column splitter
+      const splitCsvRow = (text) => {
+        let p = '', c = '', r = [];
+        let q = false;
+        for (let i = 0; i < text.length; i++) {
+          c = text[i];
+          if (c === '"') {
+            q = !q;
+          } else if (c === ',' && !q) {
+            r.push(p.trim().replace(/^"|"$/g, ''));
+            p = '';
+          } else {
+            p += c;
+          }
+        }
+        r.push(p.trim().replace(/^"|"$/g, ''));
+        return r;
+      };
+
+      const headers = splitCsvRow(lines[0]);
+      bulkStatusOutput.innerHTML += `Detected Headers: [${headers.join(", ")}]<br/>`;
+
+      let successfulRows = 0;
+      let skippedRows = 0;
+
+      for (let i = 1; i < lines.length; i++) {
+        if (!lines[i].trim()) continue;
+        const columns = splitCsvRow(lines[i]);
+        
+        // Build raw mapped entity object
+        const rowData = {};
+        headers.forEach((h, idx) => {
+          rowData[h] = columns[idx];
+        });
+
+        const specPointId = rowData.spec_point_id;
+        const qTypeVal = rowData.question_type;
+        const promptVal = rowData.prompt;
+
+        if (!specPointId || !qTypeVal || !promptVal) {
+          bulkStatusOutput.innerHTML += `<span style='color:var(--warning)'>Row ${i} skipped: missing core values.</span><br/>`;
+          skippedRows++;
+          continue;
+        }
+
+        let optionsPayload = null;
+        if (rowData.options_json) {
+          try {
+            optionsPayload = JSON.parse(rowData.options_json);
+          } catch(e) {
+            optionsPayload = rowData.options_json.split("|");
+          }
+        }
+
+        // Transact Questions Block
+        const { data: qNode, error: qErr } = await supabaseClient
+          .from("questions")
+          .insert({
+            spec_point_id: specPointId,
+            question_type: qTypeVal,
+            prompt: promptVal,
+            options: optionsPayload,
+            difficulty: parseInt(rowData.difficulty || "1", 10),
+            tier: rowData.tier || "both",
+            marking_method: qTypeVal === "extended_response" ? "ai_rubric" : (qTypeVal === "numeric" ? "numeric" : "keyword"),
+            max_marks: qTypeVal === "extended_response" ? 6 : 1
+          })
+          .select().single();
+
+        if (qErr) {
+          bulkStatusOutput.innerHTML += `<span style='color:var(--error)'>Row ${i} Error: ${qErr.message}</span><br/>`;
+          skippedRows++;
+          continue;
+        }
+
+        // Transact Answer Keys Block
+        let keyPayload = {};
+        if (rowData.key_payload_json) {
+          try {
+            keyPayload = JSON.parse(rowData.key_payload_json);
+          } catch(e) {
+            keyPayload = { raw_answer: rowData.key_payload_json };
+          }
+        }
+
+        const { error: keyErr } = await supabaseClient
+          .from("answer_keys")
+          .insert({
+            question_id: qNode.id,
+            key_type: rowData.key_type || qTypeVal,
+            key_payload: keyPayload
+          });
+
+        if (keyErr) {
+          bulkStatusOutput.innerHTML += `<span style='color:var(--error)'>Row ${i} Key insertion failed: ${keyErr.message}</span><br/>`;
+          skippedRows++;
+        } else {
+          successfulRows++;
+        }
+      }
+
+      bulkStatusOutput.innerHTML += `<strong style='color:var(--primary)'>Bulk Import Finished! Committed ${successfulRows} questions. Skipped ${skippedRows} rows.</strong>`;
+    } catch(err) {
+      bulkStatusOutput.innerHTML += `<span style='color:var(--error)'>Bulk transaction crashed: ${err.message}</span>`;
+    }
   };
 
-  // ====== TAB 3: AUDIT & EDIT REPOSITORY PORTAL ======
   revSubject.onchange = () => syncReviewTopics();
   revPaper.onchange = () => syncReviewTopics();
 
@@ -1135,7 +1399,7 @@
   btnQueryQuestions.onclick = async () => {
     const auditStatus = document.getElementById("reviewAuditStatus");
     auditStatus.classList.add("hidden");
-    reviewedQuestionsList.innerHTML = "<p class='muted'>Executing multi-table relational schema audits across repository tables...</p>";
+    reviewedQuestionsList.innerHTML = "<p class='muted'>Querying question configurations across relational tables...</p>";
 
     const s = revSubject.value;
     const p = revPaper.value;
@@ -1145,7 +1409,7 @@
       let query = supabaseClient
         .from("questions")
         .select(`
-          id, question_type, prompt, options, difficulty, tier, image_url, resource_links, spec_point_id,
+          id, question_type, prompt, options, difficulty, tier, image_url, resource_links, spec_point_id, max_marks,
           spec_points!inner (subject, paper, topic_name, spec_ref),
           answer_keys (key_type, key_payload),
           mark_points (id, ao, point_text, feedback_if_missing)
@@ -1165,24 +1429,22 @@
 
     } catch (e) {
       console.error(e);
-      reviewedQuestionsList.innerHTML = `<div class='status-msg error'>Audit loop dropped context unexpectedly: ${e.message}</div>`;
+      reviewedQuestionsList.innerHTML = `<div class='status-msg error'>Query Failed: ${e.message}</div>`;
     }
   };
 
   function renderReviewFeedContent() {
     if (loadedQuestionsCache.length === 0) {
-      reviewedQuestionsList.innerHTML = "<div class='box muted'>No matching scientific questions found inside this specification branch.</div>";
+      reviewedQuestionsList.innerHTML = "<div class='box muted'>No scientific questions found in this branch.</div>";
       return;
     }
 
     const totalCount = loadedQuestionsCache.length;
     let summaryHtml = `
-      <div style="background: #e0f2fe; border: 1px solid #bae6fd; color: #0369a1; padding: 14px 18px; border-radius: 10px; margin-bottom: 20px; font-weight: 700; font-size: 1rem; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-        <span style="display: flex; align-items: center; gap: 8px;">
-          🔍 <span>Search Results Summary</span>
-        </span>
-        <span style="background: #0369a1; color: white; padding: 4px 10px; border-radius: 20px; font-size: 0.82rem; font-weight: 800;">
-          ${totalCount} ${totalCount === 1 ? 'Question' : 'Questions'} Found
+      <div style="background: #e0f2fe; border: 1px solid #bae6fd; color: #0369a1; padding: 14px 18px; border-radius: 10px; margin-bottom: 20px; font-weight: 700; display: flex; justify-content: space-between; align-items: center;">
+        <span>🔍 Database Indexing Audit</span>
+        <span style="background: #0369a1; color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.82rem;">
+          ${totalCount} Questions Found
         </span>
       </div>
     `;
@@ -1190,65 +1452,54 @@
     const feedHtml = loadedQuestionsCache.map(q => {
       const spec = q.spec_points || {};
       
-      // Safe extraction helper to support both singular/plural formats
       let keyRow = {};
       if (q.answer_keys) {
-        if (Array.isArray(q.answer_keys)) {
-          keyRow = q.answer_keys[0] || {};
-        } else {
-          keyRow = q.answer_keys;
-        }
+        keyRow = Array.isArray(q.answer_keys) ? (q.answer_keys[0] || {}) : q.answer_keys;
       }
       
-      // Safe JSON parsing helper
       let payload = {};
       if (keyRow.key_payload) {
-        if (typeof keyRow.key_payload === "string") {
-          try {
-            payload = JSON.parse(keyRow.key_payload);
-          } catch (e) {
-            payload = {};
-          }
-        } else {
-          payload = keyRow.key_payload;
-        }
+        payload = (typeof keyRow.key_payload === "string") ? JSON.parse(keyRow.key_payload) : keyRow.key_payload;
       }
       
-      // Compute automatic audit flag signals
       let hasAuditWarning = false;
-      let auditReason = "Passed checks";
+      let auditReason = "Integrity check passed";
       
-      if (!q.prompt || q.prompt.length < 15) { hasAuditWarning = true; auditReason = "Prompt string too short or shallow."; }
-      else if (q.question_type === "keywords" && (!payload.required || payload.required.length === 0)) { hasAuditWarning = true; auditReason = "Keywords item lacks required baseline tokens."; }
-      else if (!q.image_url) { auditReason = "Optional notice: missing graphical schematic illustration canvas."; }
+      if (!q.prompt || q.prompt.length < 15) { 
+        hasAuditWarning = true; 
+        auditReason = "Prompt length thin or incomplete."; 
+      } else if (q.question_type === "numeric" && payload.scaffold_config?.has_conversion) {
+        auditReason = "Multi-step Scaffolding calculation active (Enhanced math).";
+      } else if (q.question_type === "extended_response") {
+        auditReason = `Extended writing active (${q.max_marks || 6} marks cap).`;
+      }
 
       return `
         <div class="q-audit-card" style="border-left: 4px solid ${hasAuditWarning ? 'var(--warning)' : 'var(--primary)'};">
           <div style="float: right; display: flex; gap: 8px;">
-            <button class="tab-btn" style="background:#4f46e5; color:white; font-size:0.8rem; padding:4px 10px;" onclick="launchStudentSandboxTester('${q.id}')">Test Node</button>
-            <button class="tab-btn" style="background:var(--primary); color:white; font-size:0.8rem; padding:4px 10px;" onclick="triggerInlineEditorFieldLoad('${q.id}')">Edit Node</button>
-            <button class="tab-btn" style="background:var(--error); color:white; font-size:0.8rem; padding:4px 10px;" onclick="requestSafeSystemDeletion('${q.id}')">Delete Item</button>
+            <button class="tab-btn" style="background:#4f46e5; color:white; font-size:0.8rem; padding:4px 10px;" onclick="launchStudentSandboxTester('${q.id}')">Test Sandbox</button>
+            <button class="tab-btn" style="background:var(--primary); color:white; font-size:0.8rem; padding:4px 10px;" onclick="triggerInlineEditorFieldLoad('${q.id}')">Edit</button>
+            <button class="tab-btn" style="background:var(--error); color:white; font-size:0.8rem; padding:4px 10px;" onclick="requestSafeSystemDeletion('${q.id}')">Delete</button>
           </div>
           <div>
-            <span class="badge badge-info">${spec.spec_ref || 'Reference Drop'}</span>
+            <span class="badge badge-info">${spec.spec_ref || 'Ref'}</span>
             <span class="badge badge-success">${q.question_type}</span>
             <span class="badge badge-warning">Tier: ${q.tier}</span>
+            <span class="badge badge-error">Marks: ${q.max_marks || 1}</span>
           </div>
           <p style="font-weight:700; font-size:0.95rem; margin:10px 0 6px 0; max-width:75%; line-height:1.4;">${escapeHtml(q.prompt)}</p>
           <div style="font-size:0.78rem; color:var(--text-muted);">
-            Topic Linkage: <b>${spec.topic_name || 'N/A'}</b> | Audit Signal: <span style="color:${hasAuditWarning ? 'var(--warning)':'var(--primary)'}; font-weight:600;">${auditReason}</span>
+            Topic: <b>${spec.topic_name || 'N/A'}</b> | Audit Status: <span style="color:${hasAuditWarning ? 'var(--warning)':'var(--primary)'}; font-weight:600;">${auditReason}</span>
           </div>
         </div>
       `;
     }).join("");
 
     reviewedQuestionsList.innerHTML = summaryHtml + feedHtml;
-
-    // Trigger MathJax formula typesetting inside review list
     triggerMathTypeset();
   }
 
-  // ====== 🧪 SANDBOX EXPERIMENTAL TESTING RUNTIME ENGINE ======
+  // ====== 🧪 SANDBOX TESTING SIMULATOR ENGINE (Upgraded with scaffolding logic) ======
   window.launchStudentSandboxTester = function(questionId) {
     const qNode = loadedQuestionsCache.find(x => x.id === questionId);
     if (!qNode) return;
@@ -1262,19 +1513,28 @@
     outputResult.classList.add("hidden");
     outputResult.innerHTML = "";
 
-    // 1. Render Question Prompt View Markup Card
-    let imgMarkup = qNode.image_url ? `<div style="text-align:center; margin-top:10px;"><img src="${qNode.image_url}" style="max-height:150px; border-radius:6px; object-fit:contain;"/></div>` : "";
+    let imgMarkup = qNode.image_url ? `<div style="text-align:center; margin-top:10px;"><img src="${qNode.image_url}" style="max-height:150px; border-radius:8px; object-fit:contain; border: 1px solid var(--border);"/></div>` : "";
+    
     viewContainer.innerHTML = `
       <div><strong>Prompt:</strong> ${escapeHtml(qNode.prompt)}</div>
-      <div><small class="muted">Type: ${qNode.question_type} | Max Marks Weight: ${qNode.max_marks || 1}</small></div>
+      <div><small class="muted">AQA Type: ${qNode.question_type} | Weight Cap: ${qNode.max_marks || 1} marks</small></div>
       ${imgMarkup}
     `;
 
-    // 2. Render targeted dynamic input components matching student UI
+    let keyRow = {};
+    if (qNode.answer_keys) {
+      keyRow = Array.isArray(qNode.answer_keys) ? (qNode.answer_keys[0] || {}) : qNode.answer_keys;
+    }
+    
+    let payload = {};
+    if (keyRow.key_payload) {
+      payload = (typeof keyRow.key_payload === "string") ? JSON.parse(keyRow.key_payload) : keyRow.key_payload;
+    }
+
     if (qNode.question_type === "mcq") {
       const options = Array.isArray(qNode.options) ? qNode.options : [];
       inputContainer.innerHTML = `
-        <label style="font-weight: 600; display: block; margin-bottom: 8px;">Select Multiple Choice Option (Sandbox Parity):</label>
+        <label>Select Multiple Choice Option:</label>
         <div class="mcq-container">
           ${options.map(o => `
             <label class="mcq-option">
@@ -1284,60 +1544,54 @@
           `).join("")}
         </div>
       `;
-    } else if (qNode.question_type === "numeric") {
+    } 
+    else if (qNode.question_type === "numeric") {
+      const sc = payload.scaffold_config || {};
+      let scaffoldHtml = "";
+
+      if (sc.has_conversion) {
+        scaffoldHtml += `
+          <div style="margin-bottom: 12px; padding: 10px; background: #f1f5f9; border-radius: 6px;">
+            <label><strong>Step 1: Perform Unit Conversion (${sc.conversion_label || 'Target conversion'}):</strong></label>
+            <input type="number" id="sbNumConvVal" step="any" style="width: 150px;" placeholder="Converted Value" />
+          </div>
+        `;
+      }
+
+      if (sc.has_rearrangement) {
+        const distractors = sc.rearrangement_distractors || [];
+        scaffoldHtml += `
+          <div style="margin-bottom: 12px; padding: 10px; background: #f1f5f9; border-radius: 6px;">
+            <label><strong>Step 2: Choose Rearranged Formula Target:</strong></label>
+            <select id="sbRearrangeSelect" style="width: 100%;">
+              <option value="">-- Choose target equation --</option>
+              ${distractors.map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join("")}
+            </select>
+          </div>
+        `;
+      }
+
       inputContainer.innerHTML = `
-        <label>Input Calculation Numerical Value Response:</label>
-        <input type="number" id="sbNumVal" step="any" placeholder="e.g. 0.25"/>
+        ${scaffoldHtml}
+        <div style="padding: 10px; background: #ecfdf5; border-radius: 6px; border: 1px solid #a7f3d0;">
+          <label><strong>Final Calculation (Value & Units):</strong></label>
+          <div style="display: flex; gap: 10px;">
+            <input type="number" id="sbNumVal" step="any" style="width: 150px;" placeholder="Final Value" />
+            <input type="text" id="sbNumUnitVal" style="width: 100px;" placeholder="Unit label" />
+          </div>
+        </div>
       `;
-    } else if (qNode.question_type === "extended_response") {
+    } 
+    else {
       inputContainer.innerHTML = `
-        <label>Draft 6-Mark Prose Answer (Evaluated locally using fallback terminology parsing rules):</label>
+        <label>Draft Prose / Keyword Response Text:</label>
         <textarea id="sbTextAnswer" rows="5" placeholder="Type extensive prose method details..."></textarea>
-      `;
-    } else {
-      inputContainer.innerHTML = `
-        <label>Draft Written Short Text Response (Synonym pipe logic active):</label>
-        <textarea id="sbTextAnswer" rows="3" placeholder="Type standard keyword answer phrasing..."></textarea>
       `;
     }
 
     document.getElementById("sandboxTestModal").classList.remove("hidden");
-    
-    // Trigger MathJax formula typesetting inside sandbox modal prompt
     triggerMathTypeset();
   };
-
-  // Internal auxiliary function mapping app.js word-token evaluation routines precisely
-  function evaluateSandboxFuzzyDistanceCheck(userWord, targetKeyword, threshold = 0.85) {
-    const w1 = userWord.toLowerCase().trim();
-    const w2 = targetKeyword.toLowerCase().trim();
-    if (w1 === w2) return true;
-    if (w1.length === 0 || w2.length === 0) return false;
-
-    // Levenshtein track engine matrix logic
-    const track = Array(w2.length + 1).fill(null).map(() => Array(w1.length + 1).fill(null));
-    for (let i = 0; i <= w1.length; i++) track[0][i] = i;
-    for (let j = 0; j <= w2.length; j++) track[j][0] = j;
-    for (let j = 1; j <= w2.length; j++) {
-      for (let i = 1; i <= w1.length; i++) {
-        const indicator = w1[i - 1] === w2[j - 1] ? 0 : 1;
-        track[j][i] = Math.min(track[j][i - 1] + 1, track[j - 1][i] + 1, track[j - 1][i - 1] + indicator);
-      }
-    }
-    const distance = track[w2.length][w1.length];
-    const maxLen = Math.max(w1.length, w2.length);
-    return (1 - (distance / maxLen)) >= threshold;
-  }
-
-  function checkSandboxExpressionMatch(targetExpr, studentTokens, rawString) {
-    if (!targetExpr) return false;
-    const expressions = targetExpr.split('|').map(s => s.trim().toLowerCase());
-    return expressions.some(expr => {
-      const normalizedRaw = rawString.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, " ").replace(/\s+/g, " ").trim();
-      if (normalizedRaw.includes(expr)) return true; // Phrase match logic verified
-      return studentTokens.some(tok => evaluateSandboxFuzzyDistanceCheck(tok, expr, 0.85));
-    });
-  }
 
   document.getElementById("btnExecuteSandboxMark").onclick = () => {
     const qNode = activeTestingQuestionNode;
@@ -1345,24 +1599,12 @@
 
     let keyRow = {};
     if (qNode.answer_keys) {
-      if (Array.isArray(qNode.answer_keys)) {
-        keyRow = qNode.answer_keys[0] || {};
-      } else {
-        keyRow = qNode.answer_keys;
-      }
+      keyRow = Array.isArray(qNode.answer_keys) ? (qNode.answer_keys[0] || {}) : qNode.answer_keys;
     }
 
     let payload = {};
     if (keyRow.key_payload) {
-      if (typeof keyRow.key_payload === "string") {
-        try {
-          payload = JSON.parse(keyRow.key_payload);
-        } catch (e) {
-          payload = {};
-        }
-      } else {
-        payload = keyRow.key_payload;
-      }
+      payload = (typeof keyRow.key_payload === "string") ? JSON.parse(keyRow.key_payload) : keyRow.key_payload;
     }
 
     const markPoints = qNode.mark_points || [];
@@ -1379,37 +1621,73 @@
       
       if (pickedAnswer === targetCorrect && targetCorrect !== "") {
         scoreTotal = scoreMax;
-        auditLogHtml = `<div class='success' style='padding:8px;'><b>PASSED (MCQ Match):</b> Earned ${scoreTotal}/${scoreMax} marks.<br/>Selected choice matched target system criteria correctly.</div>`;
+        auditLogHtml = `<div class='success' style='padding:8px;'><b>PASSED:</b> Earned ${scoreTotal}/${scoreMax} marks.<br/>Selected MCQ choice matches schema key.</div>`;
       } else {
-        auditLogHtml = `<div class='error' style='padding:8px;'><b>FAILED (MCQ Mismatch):</b> Scored 0/${scoreMax} marks.<br/>Target answer expected: "${escapeHtml(targetCorrect)}". Received: "${escapeHtml(pickedAnswer)}"</div>`;
+        auditLogHtml = `<div class='error' style='padding:8px;'><b>FAILED:</b> Scored 0/${scoreMax} marks.<br/>Correct Answer is "${escapeHtml(targetCorrect)}".</div>`;
       }
     } 
     else if (qNode.question_type === "numeric") {
-      const typedVal = parseFloat(document.getElementById("sbNumVal").value);
-      const targetAns = parseFloat(payload.answer);
-      const deviationTolerance = parseFloat(payload.tolerance || 0);
+      const sc = payload.scaffold_config || {};
+      let subMarksEarned = 0;
+      let logs = [];
 
-      if (!isNaN(typedVal) && Math.abs(typedVal - targetAns) <= deviationTolerance) {
-        scoreTotal = scoreMax;
-        auditLogHtml = `<div class='success' style='padding:8px;'><b>PASSED (Numeric Boundary):</b> Earned ${scoreTotal}/${scoreMax} marks.<br/>Input value is safely positioned within configured deviation ranges (Target: ${targetAns} ± ${deviationTolerance}).</div>`;
-      } else {
-        auditLogHtml = `<div class='error' style='padding:8px;'><b>FAILED (Numeric Mismatch):</b> Scored 0/${scoreMax} marks.<br/>Target magnitude requested: ${targetAns} (tolerance bounds: ±${deviationTolerance}). Given: ${typedVal}</div>`;
+      if (sc.has_conversion) {
+        const studentConv = parseFloat(document.getElementById("sbNumConvVal")?.value);
+        const targetConv = parseFloat(sc.conversion_answer);
+        const tol = parseFloat(sc.conversion_tolerance || 0.0001);
+
+        if (!isNaN(studentConv) && Math.abs(studentConv - targetConv) <= tol) {
+          subMarksEarned++;
+          logs.push("🟢 Step 1: Unit conversion evaluated correctly (+1 mark).");
+        } else {
+          logs.push(`❌ Step 1: Unit conversion failed (Target: ${targetConv}).`);
+        }
       }
+
+      if (sc.has_rearrangement) {
+        const studentSelect = document.getElementById("sbRearrangeSelect")?.value;
+        const targetSelect = sc.rearrangement_answer;
+
+        if (studentSelect === targetSelect && targetSelect) {
+          subMarksEarned++;
+          logs.push("🟢 Step 2: Formula rearrangement selected correctly (+1 mark).");
+        } else {
+          logs.push(`❌ Step 2: Formula rearrangement incorrect.`);
+        }
+      }
+
+      // Final Step check
+      const studentVal = parseFloat(document.getElementById("sbNumVal")?.value);
+      const targetVal = parseFloat(payload.answer);
+      const tolerance = parseFloat(payload.tolerance || 0);
+
+      if (!isNaN(studentVal) && Math.abs(studentVal - targetVal) <= tolerance) {
+        subMarksEarned++;
+        logs.push("🟢 Final Step: Calculation is accurate (+1 mark).");
+      } else {
+        logs.push(`❌ Final Step: Calculation is incorrect (Target: ${targetVal} ± ${tolerance}).`);
+      }
+
+      scoreTotal = subMarksEarned;
+      auditLogHtml = `
+        <div class='${scoreTotal === scoreMax ? "success" : "error"}' style='padding:12px;'>
+          <strong>Calculation Evaluation Result: ${scoreTotal} of ${scoreMax} Marks</strong><br/>
+          <div style="font-size:0.85rem; margin-top:6px; line-height:1.4;">${logs.join("<br/>")}</div>
+        </div>
+      `;
     } 
     else {
-      // Short Text Keyword Recognition or Extended Response Fallback Term Mapping logic
+      // General Keyword fuzzy analysis logic
       const rawInputText = document.getElementById("sbTextAnswer").value;
       const scrubbedCleanText = rawInputText.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "");
       const inputWordTokens = scrubbedCleanText.split(/\s+/).filter(Boolean);
 
-      // Render custom text analysis visual highlighting tokens matching requirements
       let tokenHighlights = rawInputText.split(/(\s+|[.,\/#!$%\^&\*;:{}=\-_`~()?])/).map(tok => {
         if (/^[\s.,\/#!$%\^&\*;:{}=\-_`~()?]/g.test(tok) || !tok) return escapeHtml(tok);
         
         let foundMatchExpr = null;
         let matchedType = null;
         
-        // Map target list for keyword evaluation arrays
         let searchTargets = [];
         if (markPoints.length > 0) {
           searchTargets = markPoints.map(mp => mp.point_text).filter(Boolean);
@@ -1426,60 +1704,29 @@
           if (matchedType === 'exact') break;
         }
 
-        if (matchedType === 'exact') return `<span class="match-exact" title="Exact match target sync: ${escapeHtml(foundMatchExpr)}">${escapeHtml(tok)}</span>`;
+        if (matchedType === 'exact') return `<span class="match-exact" title="Exact match: ${escapeHtml(foundMatchExpr)}">${escapeHtml(tok)}</span>`;
         if (matchedType === 'fuzzy') return `<span class="match-fuzzy" title="Fuzzy boundary match: ${escapeHtml(foundMatchExpr)}">${escapeHtml(tok)}</span>`;
         return escapeHtml(tok);
       }).join("");
 
-      auditLogHtml += `<div style='margin-bottom:10px; padding:8px; border:1px solid var(--border); border-radius:4px; background:#f8fafc;'><strong>Highlighted Token Mapping:</strong><br/><p style='font-family:monospace; margin:4px 0;'>${tokenHighlights}</p></div>`;
+      auditLogHtml += `<div style='margin-bottom:12px; padding:10px; border:1px solid var(--border); border-radius:6px; background:#f8fafc;'><strong>Highlighted keyword search results:</strong><br/><p style='font-family:monospace; margin:4px 0;'>${tokenHighlights}</p></div>`;
 
-      if (markPoints.length > 0) {
-        // Independent mult-mark framework verification path
-        scoreMax = markPoints.length;
-        let earnedPoints = 0;
-        let pointsBreakdownLog = "";
-
-        markPoints.forEach((mp, i) => {
-          const hit = checkSandboxExpressionMatch(mp.point_text, inputWordTokens, rawInputText);
-          if (hit) {
-            earnedPoints++;
-            pointsBreakdownLog += `<br/>🟢 Mark Point ${i+1} Passed [${mp.ao}]: matched expression requirements ("${escapeHtml(mp.point_text)}")`;
-          } else {
-            pointsBreakdownLog += `<br/>❌ Mark Point ${i+1} Dropped [${mp.ao}]: missing target concept structure ("${escapeHtml(mp.point_text)}")`;
-          }
-        });
-
-        scoreTotal = earnedPoints;
-        auditLogHtml += `<div class='${scoreTotal === scoreMax ? "success" : "error"}' style='padding:8px;'><b>Scored ${scoreTotal}/${scoreMax} Marks via Independent Criteria Paths:</b>${pointsBreakdownLog}</div>`;
-      } 
-      else {
-        // Core standard single-mark backward compatible evaluation validation route
+      if (qNode.question_type === "extended_response") {
+        auditLogHtml += `<div class='badge badge-info' style='display:block; text-align:center;'>ℹ️ Sandbox Notice: AI Levels of Response are evaluated securely using the server Edge Function. Ensure keys and rubrics compile correctly.</div>`;
+      } else {
         const requiredTerms = payload.required || [];
-        const optionalTerms = payload.optional || [];
-        const minOptCount = payload.min_optional || 0;
-
         let missingRequired = requiredTerms.filter(r => !checkSandboxExpressionMatch(r, inputWordTokens, rawInputText));
-        let matchedOptionalCount = optionalTerms.filter(o => checkSandboxExpressionMatch(o, inputWordTokens, rawInputText)).length;
-
-        const passed = (missingRequired.length === 0 && matchedOptionalCount >= minOptCount);
-        scoreTotal = passed ? scoreMax : 0;
-
-        if (passed) {
-          auditLogHtml += `<div class='success' style='padding:8px;'><b>PASSED (Standard Fallback Check):</b> Scored ${scoreTotal}/${scoreMax} marks.<br/>All required elements matched, optional threshold hit (${matchedOptionalCount}/${minOptCount}).</div>`;
+        
+        if (missingRequired.length === 0) {
+          auditLogHtml += `<div class='success' style='padding:8px;'><b>PASSED:</b> Earned ${scoreMax}/${scoreMax} marks. Keywords matched successfully.</div>`;
         } else {
-          let errorExplanation = "";
-          if (missingRequired.length > 0) errorExplanation += `<br/>• Missing Required Core Expressions: "${escapeHtml(missingRequired.join(', '))}"`;
-          if (matchedOptionalCount < minOptCount) errorExplanation += `<br/>• Optional target threshold failed: matched only ${matchedOptionalCount} of requested ${minOptCount} expressions.`;
-          
-          auditLogHtml += `<div class='error' style='padding:8px;'><b>FAILED (Criteria Constraint Violation):</b> Scored 0/${scoreMax} marks.${errorExplanation}</div>`;
+          auditLogHtml += `<div class='error' style='padding:8px;'><b>FAILED:</b> Missed required terms: "${escapeHtml(missingRequired.join(', '))}"</div>`;
         }
       }
     }
 
     outputResult.innerHTML = auditLogHtml;
     outputResult.classList.remove("hidden");
-    
-    // Trigger MathJax formula typesetting on grading feedback outputs
     triggerMathTypeset();
   };
 
@@ -1488,7 +1735,6 @@
     activeTestingQuestionNode = null;
   };
 
-  // ====== INLINE LIVE CREATOR MUTATIONS COMPILATION PIPELINE ======
   window.triggerInlineEditorFieldLoad = function(id) {
     const qNode = loadedQuestionsCache.find(x => x.id === id);
     if (!qNode) return;
@@ -1501,30 +1747,16 @@
     document.getElementById("editImageUrlStore").value = qNode.image_url || "";
     document.getElementById("editImage").value = "";
 
-    // SAFE MULTI-FORMAT SCHEMA RESOLVER (Fixes array vs single-object JSON return paths)
     let keyRow = {};
     if (qNode.answer_keys) {
-      if (Array.isArray(qNode.answer_keys)) {
-        keyRow = qNode.answer_keys[0] || {};
-      } else {
-        keyRow = qNode.answer_keys;
-      }
+      keyRow = Array.isArray(qNode.answer_keys) ? (qNode.answer_keys[0] || {}) : qNode.answer_keys;
     }
 
     let payload = {};
     if (keyRow.key_payload) {
-      if (typeof keyRow.key_payload === "string") {
-        try {
-          payload = JSON.parse(keyRow.key_payload);
-        } catch (e) {
-          payload = {};
-        }
-      } else {
-        payload = keyRow.key_payload;
-      }
+      payload = (typeof keyRow.key_payload === "string") ? JSON.parse(keyRow.key_payload) : keyRow.key_payload;
     }
 
-    // Hydrate Assessment Objectives feedback fields safely
     const mp1 = qNode.mark_points?.[0] || {};
     const mp2 = qNode.mark_points?.[1] || {};
 
@@ -1536,7 +1768,6 @@
     document.getElementById("editMpText2").value = mp2.point_text || "";
     document.getElementById("editMpFeedback2").value = mp2.feedback_if_missing || "";
 
-    // Toggle subcontainers visibility matching the internal type rules
     document.getElementById("editMcqContainer").classList.add("hidden");
     document.getElementById("editNumericContainer").classList.add("hidden");
     document.getElementById("editKeywordsContainer").classList.add("hidden");
@@ -1547,20 +1778,41 @@
       document.getElementById("editMcqContainer").classList.remove("hidden");
       document.getElementById("editMcqOptions").value = Array.isArray(qNode.options) ? qNode.options.join("\n") : "";
       document.getElementById("editMcqCorrect").value = payload.correct || payload.answer || "";
-    } else if (qNode.question_type === "numeric") {
+    } 
+    else if (qNode.question_type === "numeric") {
       document.getElementById("editNumericContainer").classList.remove("hidden");
       document.getElementById("editNumAnswer").value = payload.answer !== undefined ? payload.answer : "";
       document.getElementById("editNumTolerance").value = payload.tolerance !== undefined ? payload.tolerance : "0";
-    } else if (qNode.question_type === "extended_response") {
-      document.getElementById("editAiRubricContainer").classList.remove("hidden");
-      document.getElementById("editMarkPointsPanel").classList.add("hidden"); // AI maps holistically
+      document.getElementById("editNumUnit").value = payload.unit || "";
 
-      document.getElementById("editExtGuidelines").value = payload.guidelines_summary || "";
-      document.getElementById("editExtLevel3").value = payload.level3_desc || "";
-      document.getElementById("editExtLevel2").value = payload.level2_desc || "";
-      document.getElementById("editExtLevel1").value = payload.level1_desc || "";
+      // Hydrate Math Scaffolding states
+      const sc = payload.scaffold_config || {};
+      
+      const convCheckbox = document.getElementById("editNumHasConversion");
+      convCheckbox.checked = !!sc.has_conversion;
+      document.getElementById("editNumConversionSubPanel").classList.toggle("hidden", !sc.has_conversion);
+      document.getElementById("editNumConversionLabel").value = sc.conversion_label || "";
+      document.getElementById("editNumConversionAnswer").value = sc.conversion_answer !== undefined ? sc.conversion_answer : "";
+      document.getElementById("editNumConversionTolerance").value = sc.conversion_tolerance !== undefined ? sc.conversion_tolerance : "0.0001";
+
+      const rearrangeCheckbox = document.getElementById("editNumHasRearrangement");
+      rearrangeCheckbox.checked = !!sc.has_rearrangement;
+      document.getElementById("editNumRearrangementSubPanel").classList.toggle("hidden", !sc.has_rearrangement);
+      document.getElementById("editNumRearrangeAnswer").value = sc.rearrangement_answer || "";
+      document.getElementById("editNumRearrangeDistractors").value = Array.isArray(sc.rearrangement_distractors) ? sc.rearrangement_distractors.join("\n") : "";
+    } 
+    else if (qNode.question_type === "extended_response") {
+      document.getElementById("editAiRubricContainer").classList.remove("hidden");
+      document.getElementById("editMarkPointsPanel").classList.add("hidden");
+
+      document.getElementById("editExtMaxMarks").value = qNode.max_marks || "6";
+      document.getElementById("editExtGuidelines").value = payload.marking_guidelines || "";
+      document.getElementById("editExtLevel3").value = payload.level_descriptors?.["Level 3 (High)"] || "";
+      document.getElementById("editExtLevel2").value = payload.level_descriptors?.["Level 2 (Mid)"] || "";
+      document.getElementById("editExtLevel1").value = payload.level_descriptors?.["Level 1 (Low)"] || "";
       document.getElementById("editExtScientificPoints").value = Array.isArray(payload.key_scientific_points) ? payload.key_scientific_points.join("\n") : "";
-    } else {
+    } 
+    else {
       document.getElementById("editKeywordsContainer").classList.remove("hidden");
       document.getElementById("editKeyRequired").value = Array.isArray(payload.required) ? payload.required.join(", ") : "";
       document.getElementById("editKeyOptional").value = Array.isArray(payload.optional) ? payload.optional.join(", ") : "";
@@ -1586,11 +1838,11 @@
 
     const saveBtn = document.getElementById("btnSaveInlineEdit");
     saveBtn.disabled = true;
-    saveBtn.textContent = "Committing updates...";
+    saveBtn.textContent = "Saving changes...";
 
     try {
       const cachedRef = loadedQuestionsCache.find(x => x.id === id);
-      if(!cachedRef) throw new Error("Entity alignment drop exception during compilation handshakes.");
+      if(!cachedRef) throw new Error("Entity alignment failed.");
 
       let finalImageUrl = preservedImgUrl;
       if (editFileInput.files && editFileInput.files.length > 0) {
@@ -1599,25 +1851,50 @@
 
       let parsedOptions = null;
       let keyPayload = {};
+      let calculatedMaxMarks = 1;
 
       if (cachedRef.question_type === "mcq") {
         parsedOptions = document.getElementById("editMcqOptions").value.split("\n").map(s => s.trim()).filter(Boolean);
         keyPayload = { correct: document.getElementById("editMcqCorrect").value.trim() };
-      } else if (cachedRef.question_type === "numeric") {
-        // CRITICAL FIX: Fixed element selector ID from legacy typo
+      } 
+      else if (cachedRef.question_type === "numeric") {
+        const hasConversion = document.getElementById("editNumHasConversion").checked;
+        const hasRearrangement = document.getElementById("editNumHasRearrangement").checked;
+
+        const scaffoldConfig = {
+          has_conversion: hasConversion,
+          has_rearrangement: hasRearrangement,
+          conversion_label: hasConversion ? document.getElementById("editNumConversionLabel").value.trim() : null,
+          conversion_answer: hasConversion ? parseFloat(document.getElementById("editNumConversionAnswer").value) : null,
+          conversion_tolerance: hasConversion ? parseFloat(document.getElementById("editNumConversionTolerance").value || 0.0001) : null,
+          rearrangement_answer: hasRearrangement ? document.getElementById("editNumRearrangeAnswer").value.trim() : null,
+          rearrangement_distractors: hasRearrangement ? document.getElementById("editNumRearrangeDistractors").value.split("\n").map(s => s.trim()).filter(Boolean) : []
+        };
+
+        calculatedMaxMarks = 1;
+        if (hasConversion) calculatedMaxMarks++;
+        if (hasRearrangement) calculatedMaxMarks++;
+
         keyPayload = {
           answer: parseFloat(document.getElementById("editNumAnswer").value),
-          tolerance: parseFloat(document.getElementById("editNumTolerance").value || 0)
+          tolerance: parseFloat(document.getElementById("editNumTolerance").value || 0),
+          unit: document.getElementById("editNumUnit").value.trim() || null,
+          scaffold_config: scaffoldConfig
         };
-      } else if (cachedRef.question_type === "extended_response") {
+      } 
+      else if (cachedRef.question_type === "extended_response") {
+        calculatedMaxMarks = parseInt(document.getElementById("editExtMaxMarks").value, 10);
         keyPayload = {
-          guidelines_summary: document.getElementById("editExtGuidelines").value.trim(),
-          level3_desc: document.getElementById("editExtLevel3").value.trim(),
-          level2_desc: document.getElementById("editExtLevel2").value.trim(),
-          level1_desc: document.getElementById("editExtLevel1").value.trim(),
+          marking_guidelines: document.getElementById("editExtGuidelines").value.trim(),
+          level_descriptors: {
+            "Level 3 (High)": document.getElementById("editExtLevel3").value.trim(),
+            "Level 2 (Mid)": document.getElementById("editExtLevel2").value.trim(),
+            "Level 1 (Low)": document.getElementById("editExtLevel1").value.trim()
+          },
           key_scientific_points: document.getElementById("editExtScientificPoints").value.split("\n").map(s => s.trim()).filter(Boolean)
         };
-      } else {
+      } 
+      else {
         keyPayload = {
           required: document.getElementById("editKeyRequired").value.split(",").map(s => s.trim()).filter(Boolean),
           optional: document.getElementById("editKeyOptional").value.split(",").map(s => s.trim()).filter(Boolean),
@@ -1625,7 +1902,6 @@
         };
       }
 
-      // Execute base question table update
       const { error: baseErr } = await supabaseClient
         .from("questions")
         .update({
@@ -1633,6 +1909,7 @@
           options: parsedOptions,
           difficulty: diff,
           tier: tier,
+          max_marks: calculatedMaxMarks,
           resource_links: link || null,
           image_url: finalImageUrl || null
         })
@@ -1640,7 +1917,6 @@
 
       if (baseErr) throw baseErr;
 
-      // Execute answer key structural entity updates
       const { error: keyUpdErr } = await supabaseClient
         .from("answer_keys")
         .update({ key_payload: keyPayload })
@@ -1648,7 +1924,6 @@
 
       if (keyUpdErr) throw keyUpdErr;
 
-      // Execute Assessment Objectives criteria list mutations if not holistic AI rubric item
       if (cachedRef.question_type !== "extended_response") {
         const mp1 = cachedRef.mark_points?.[0];
         if (mp1?.id) {
@@ -1661,41 +1936,25 @@
           await supabaseClient.from("mark_points").insert({
             question_id: id,
             ao: document.getElementById("editAoTarget1").value,
-            point_text: document.getElementById("editMpText1").value.trim() || "Base Recall Step A",
+            point_text: document.getElementById("editMpText1").value.trim() || "Base Step",
             feedback_if_missing: document.getElementById("editMpFeedback1").value.trim() || null
-          });
-        }
-
-        const mp2 = cachedRef.mark_points?.[1];
-        if (mp2?.id) {
-          await supabaseClient.from("mark_points").update({
-            ao: document.getElementById("editAoTarget2").value,
-            point_text: document.getElementById("editMpText2").value.trim(),
-            feedback_if_missing: document.getElementById("editMpFeedback2").value.trim() || null
-          }).eq("id", mp2.id);
-        } else {
-          await supabaseClient.from("mark_points").insert({
-            question_id: id,
-            ao: document.getElementById("editAoTarget2").value,
-            point_text: document.getElementById("editMpText2").value.trim() || "Application Insight Step B",
-            feedback_if_missing: document.getElementById("editMpFeedback2").value.trim() || null
           });
         }
       }
 
       inlineEditPanel.classList.add("hidden");
-      btnQueryQuestions.click(); // Trigger hot reload updates instantly to feed list
+      showAdminToast("Changes saved successfully.");
+      btnQueryQuestions.click(); 
 
     } catch (ex) {
       console.error(ex);
-      alert("Relational mutation error locked down: " + ex.message);
+      showAdminToast("Error committing changes: " + ex.message, true);
     } finally {
       saveBtn.disabled = false;
       saveBtn.textContent = "Save Database Node";
     }
   };
 
-  // ====== SECURE NON-BLOCKING DELETION ACTION MODALS PIPELINE ======
   window.requestSafeSystemDeletion = function(id) {
     currentDeletionTargetId = id;
     const match = loadedQuestionsCache.find(x => x.id === id);
@@ -1723,12 +1982,13 @@
 
       customConfirmModal.classList.add("hidden");
       currentDeletionTargetId = null;
-      btnQueryQuestions.click(); // Hot reload instant updates
+      showAdminToast("Question removed from database.");
+      btnQueryQuestions.click(); 
 
     } catch(err) {
       console.error(err);
       customConfirmModal.classList.add("hidden");
-      alert("Database constraints prevented deletion transaction: " + err.message);
+      showAdminToast("Database constraint error: " + err.message, true);
     }
   };
 
