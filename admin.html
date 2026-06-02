@@ -1767,6 +1767,9 @@
   };
   
   function renderSandboxQuestion(q) {
+    const stage = document.getElementById("sandboxStage");
+    if (!stage) return;
+
     let imgHtml = q.image_url ? `<img src="${q.image_url}" style="max-width:100%; border-radius:8px; margin-bottom:12px; border:1px solid var(--border); display:block;"/>` : "";
     let html = `
       <div style="margin-bottom:12px;">
@@ -1851,6 +1854,7 @@
     return track[s2.length][s1.length];
   }
 
+  // Fuzzy Levenshtein Match Helper
   function isFuzzyMatch(userWord, targetKeyword, threshold = 0.85) {
     const w1 = userWord.toLowerCase().trim();
     const w2 = targetKeyword.toLowerCase().trim();
