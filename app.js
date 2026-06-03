@@ -225,18 +225,39 @@ function isFuzzyMatch(userWord, targetKeyword, threshold = 0.85) {
 }
 
 // Core helper to check if a specific target concept/word or its synonyms match the student answer
+// Updated helper to check if a specific target concept matches, taking negations into account
 function checkKeywordOrSynonymsMatch(targetExpr, studentWords, rawText) {
   if (!targetExpr) return false;
   
   // Split synonyms by the pipe "|" character
   const synonyms = targetExpr.split('|').map(s => s.trim().toLowerCase());
+  const lowerRawText = rawText.toLowerCase();
+
+  // Define standard English scientific negations
+  const negations = ["not", "no", "without", "never", "zero"];
   
   return synonyms.some(syn => {
-    // 1. Direct phrase matching in cleaned raw student text (handles multi-word terms)
-    const cleanRaw = rawText.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, " ").replace(/\s+/g, " ").trim();
+    // 1. Check if the target word is explicitly negated in the student's sentence
+    const synIndex = lowerRawText.indexOf(syn);
+    if (synIndex !== -1) {
+      // Extract the text block right before the keyword (up to 15 characters back)
+      const lookbackStart = Math.max(0, synIndex - 15);
+      const contextualSnippet = lowerRawText.substring(lookbackStart, synIndex);
+      
+      // If a negation word is right before this keyword, consider it unmatched (wrong)
+      const isNegated = negations.some(neg => {
+        const regex = new RegExp(`\\b${neg}\\b`);
+        return regex.test(contextualSnippet);
+      });
+      
+      if (isNegated) return false;
+    }
+
+    // 2. Direct phrase matching in cleaned raw student text if not negated
+    const cleanRaw = lowerRawText.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, " ").replace(/\s+/g, " ").trim();
     if (cleanRaw.includes(syn)) return true;
     
-    // 2. Fall back to fuzzy matching on individual word tokens
+    // 3. Fall back to fuzzy matching on individual word tokens
     return studentWords.some(userWord => isFuzzyMatch(userWord, syn, 0.85));
   });
 }
