@@ -1277,7 +1277,7 @@ function renderFeedback(marking) {
       if (highestType === 'exact') {
         return `<span class="match-exact" title="Exact match for: ${escapeHtml(bestMatch)}">${escapeHtml(token)}</span>`;
       } else if (highestType === 'fuzzy') {
-        return `<span class="match-fuzzy" style="background-color: #fff7ed; color: #9a3412; border-bottom: 2px solid #f97316;" title="Spelling correction target: ${escapeHtml(bestMatch)}">${escapeHtml(token)} <b style="font-weight:700;">[spell: ${escapeHtml(bestMatch)}]</b></span>`;
+        return `<span class="match-fuzzy" style="background-color: #fff7ed; color: #9a3412; border-bottom: 2px solid #f97316;" title="Spelling correction target: ${escapeHtml(bestMatch)}">${escapeHtml(token)} <b style="font-weight:700;">[spelling: ${escapeHtml(bestMatch)}]</b></span>`;
       }
       
       return escapeHtml(token);
