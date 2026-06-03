@@ -834,13 +834,12 @@
               <th style="padding:12px 16px;">Format Type</th>
               <th style="padding:12px 16px;">Question Prompt (Snippet)</th>
               <th style="padding:12px 16px;">Max Marks</th>
-              <th style="padding:12px 16px;">Audit Warnings</th>
               <th style="padding:12px 16px; text-align:right;">Database Actions</th>
             </tr>
           </thead>
           <tbody id="questionsAuditList">
             <tr>
-              <td colspan="6" style="padding:24px; text-align:center; color:var(--text-muted);">Please click Query Questions to pull database items.</td>
+              <td colspan="5" style="padding:24px; text-align:center; color:var(--text-muted);">Please click Query Questions to pull database items.</td>
             </tr>
           </tbody>
         </table>
@@ -1532,7 +1531,7 @@
     const qTypeFilter = document.getElementById("auditType").value;
     const search = document.getElementById("auditSearchQuery").value.trim();
     
-    auditList.innerHTML = `<tr><td colspan="6" style="padding:24px; text-align:center;">Querying database records...</td></tr>`;
+    auditList.innerHTML = `<tr><td colspan="5" style="padding:24px; text-align:center;">Querying database records...</td></tr>`;
     
     try {
       // Pull specification points to map topics and names
@@ -1567,11 +1566,70 @@
         filtered = filtered.filter(q => q.prompt.toLowerCase().includes(search.toLowerCase()));
       }
       
+      // Audit engine mapping to calculate severity & prepare prioritized sorting rules
+      filtered.forEach(q => {
+        const warnings = [];
+        
+        // 1. Critical Errors (Weight = 10 each)
+        if (!q.prompt || q.prompt.trim() === "") {
+          warnings.push({ type: 'error', text: "❌ Missing Prompt" });
+        }
+        
+        const keyRelation = q.answer_keys;
+        const key = Array.isArray(keyRelation) && keyRelation.length > 0 ? keyRelation[0] : keyRelation;
+        
+        if (!key || !key.key_payload) {
+          warnings.push({ type: 'error', text: "❌ Missing Answer Key Relation" });
+        } else {
+          const payload = key.key_payload;
+          if (q.question_type === "mcq") {
+            const correctOpt = payload.correct || payload.answer;
+            if (!correctOpt || correctOpt.trim() === "") {
+              warnings.push({ type: 'error', text: "❌ Missing Correct MCQ Option" });
+            }
+          } else if (q.question_type === "numeric") {
+            const numAns = payload.answer;
+            if (numAns === undefined || numAns === null || isNaN(numAns)) {
+              warnings.push({ type: 'error', text: "❌ Missing Numeric Answer" });
+            }
+          } else if (q.question_type === "short_text") {
+            const reqWords = payload.required;
+            if (!reqWords || !Array.isArray(reqWords) || reqWords.filter(Boolean).length === 0) {
+              warnings.push({ type: 'error', text: "❌ Missing Required Keywords" });
+            }
+          }
+        }
+        
+        // 2. Standard Warnings (Weight = 1 each)
+        if (!q.resource_links) {
+          warnings.push({ type: 'warning', text: "⚠️ Missing Video Link" });
+        }
+        if (!q.image_url) {
+          warnings.push({ type: 'warning', text: "🖼️ No Diagram" });
+        }
+        if (q.prompt && q.prompt.includes("$") && !window.MathJax) {
+          warnings.push({ type: 'warning', text: "📐 LaTeX Warning" });
+        }
+        
+        q._warningsList = warnings;
+        
+        // Severity metric builder
+        let severityScore = 0;
+        warnings.forEach(w => {
+          if (w.type === 'error') severityScore += 10;
+          else severityScore += 1;
+        });
+        q._severityWeight = severityScore;
+      });
+
+      // Sort by calculated severity weight descending (highest weights move to the top!)
+      filtered.sort((a, b) => b._severityWeight - a._severityWeight);
+      
       // Store in memory cache for Sandbox loading & modal populates
       loadedQuestionsCache = filtered;
       
       if (filtered.length === 0) {
-        auditList.innerHTML = `<tr><td colspan="6" style="padding:24px; text-align:center; color:var(--text-muted);">No records found in active tables matching your search rules.</td></tr>`;
+        auditList.innerHTML = `<tr><td colspan="5" style="padding:24px; text-align:center; color:var(--text-muted);">No records found in active tables matching your search rules.</td></tr>`;
         return;
       }
       
@@ -1579,65 +1637,37 @@
         const spec = specMap[q.spec_point_id] || {};
         const ref = spec.spec_ref || "Global";
         
-        // Compile diagnostic checklists and audit warnings
-        const warnings = [];
-        
-        // 1. Check if Answer Prompt is missing
-        if (!q.prompt || q.prompt.trim() === "") {
-          warnings.push("❌ Missing Prompt");
-        }
-        
-        // 2. Resolve answer key configuration and detect missing answers/keywords
-        const keyRelation = q.answer_keys;
-        const key = Array.isArray(keyRelation) && keyRelation.length > 0 ? keyRelation[0] : keyRelation;
-        
-        if (!key || !key.key_payload) {
-          warnings.push("❌ Missing Answer Key Relation");
-        } else {
-          const payload = key.key_payload;
-          if (q.question_type === "mcq") {
-            const correctOpt = payload.correct || payload.answer;
-            if (!correctOpt || correctOpt.trim() === "") {
-              warnings.push("❌ Missing Correct MCQ Option");
-            }
-          } else if (q.question_type === "numeric") {
-            const numAns = payload.answer;
-            if (numAns === undefined || numAns === null || isNaN(numAns)) {
-              warnings.push("❌ Missing Numeric Answer");
-            }
-          } else if (q.question_type === "short_text") {
-            const reqWords = payload.required;
-            if (!reqWords || !Array.isArray(reqWords) || reqWords.filter(Boolean).length === 0) {
-              warnings.push("❌ Missing Required Keywords");
-            }
-          }
-        }
-        
-        // Standard diagnostic warning checks
-        if (!q.resource_links) warnings.push("⚠️ Missing Video Link");
-        if (!q.image_url) warnings.push("🖼️ No Diagram");
-        if (q.prompt && q.prompt.includes("$") && !window.MathJax) warnings.push("📐 LaTeX Warning");
-        
-        const warningsHtml = warnings.length 
-          ? warnings.map(w => {
-              const isError = w.startsWith("❌");
-              const bg = isError ? "#fef2f2" : "#fee2e2";
-              const textCol = isError ? "#dc2626" : "#b91c1c";
-              return `<span style="background:${bg}; color:${textCol}; padding:2px 6px; border-radius:4px; font-size:0.75rem; font-weight:700; margin-right:4px; display:inline-block; margin-bottom:2px;">${w}</span>`;
+        // Build beautiful text warnings displays to slide directly under each question row
+        const warningsHtml = q._warningsList.length 
+          ? q._warningsList.map(w => {
+              const isError = w.type === 'error';
+              const bg = isError ? "#fef2f2" : "#fef3c7";
+              const textCol = isError ? "#991b1b" : "#92400e";
+              const borderCol = isError ? "#fca5a5" : "#fcd34d";
+              return `<span style="background:${bg}; color:${textCol}; border:1px solid ${borderCol}; padding:4px 10px; border-radius:6px; font-size:0.78rem; font-weight:600; display:inline-flex; align-items:center; gap:4px; margin-right:6px; margin-bottom:4px;">${w.text}</span>`;
             }).join("")
-          : `<span style="background:#d1fae5; color:#065f46; padding:2px 6px; border-radius:4px; font-size:0.75rem; font-weight:700;">🟢 Audit Passed</span>`;
+          : `<span style="background:#d1fae5; color:#065f46; border:1px solid #a7f3d0; padding:4px 10px; border-radius:6px; font-size:0.78rem; font-weight:600; display:inline-flex; align-items:center; gap:4px;">🟢 Audit Passed: Question fully configured</span>`;
           
         return `
-          <tr style="border-bottom:1px solid var(--border); transition: background 0.15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='none'">
-            <td style="padding:12px 16px; font-weight:700; color:#1e293b;">${ref}</td>
-            <td style="padding:12px 16px;"><span class="chip" style="background:#e2e8f0; color:#475569; padding:2px 6px; border-radius:4px; font-size:0.76rem; font-weight:700;">${q.question_type.toUpperCase()}</span></td>
-            <td style="padding:12px 16px; max-width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(q.prompt)}">${escapeHtml(q.prompt)}</td>
-            <td style="padding:12px 16px; font-weight:700;">${q.max_marks} marks</td>
-            <td style="padding:12px 16px; max-width: 250px; white-space: normal; line-height: 1.3;">${warningsHtml}</td>
-            <td style="padding:12px 16px; text-align:right; display:flex; gap:6px; justify-content:flex-end;">
+          <!-- Row A: Primary metadata metrics -->
+          <tr style="border-top:1px solid var(--border); transition: background 0.15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='none'">
+            <td style="padding:12px 16px 4px 16px; font-weight:700; color:#1e293b;">${ref}</td>
+            <td style="padding:12px 16px 4px 16px;"><span class="chip" style="background:#e2e8f0; color:#475569; padding:2px 6px; border-radius:4px; font-size:0.76rem; font-weight:700;">${q.question_type.toUpperCase()}</span></td>
+            <td style="padding:12px 16px 4px 16px; max-width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(q.prompt)}">${escapeHtml(q.prompt)}</td>
+            <td style="padding:12px 16px 4px 16px; font-weight:700;">${q.max_marks} marks</td>
+            <td style="padding:12px 16px 4px 16px; text-align:right; display:flex; gap:6px; justify-content:flex-end;">
               <button onclick="launchSandboxTest('${q.id}')" class="btn btn-secondary" style="padding:6px 10px; font-size:0.75rem; background:#3b82f6; color:white;">Test</button>
               <button onclick="requestInteractiveEdit('${q.id}')" class="btn btn-secondary" style="padding:6px 10px; font-size:0.75rem;">Modify</button>
               <button onclick="requestSafeSystemDeletion('${q.id}')" class="btn btn-danger" style="padding:6px 10px; font-size:0.75rem;">Remove</button>
+            </td>
+          </tr>
+          <!-- Row B: Spanning warning container rendering cleanly underneath Row A -->
+          <tr style="border-bottom:1px solid var(--border); background: none;">
+            <td colspan="5" style="padding: 4px 16px 12px 16px; font-size: 0.8rem; line-height: 1.45;">
+              <div style="display:flex; flex-wrap:wrap; gap:6px; align-items:center;">
+                <span style="font-weight:700; color:var(--text-muted); margin-right:6px;">Status / Audit Details:</span>
+                ${warningsHtml}
+              </div>
             </td>
           </tr>
         `;
@@ -1645,7 +1675,7 @@
       
     } catch(err) {
       console.error(err);
-      auditList.innerHTML = `<tr><td colspan="6" style="padding:24px; text-align:center; color:var(--error);">Failed to audit records: ${err.message}</td></tr>`;
+      auditList.innerHTML = `<tr><td colspan="5" style="padding:24px; text-align:center; color:var(--error);">Failed to audit records: ${err.message}</td></tr>`;
     }
   };
 
@@ -2201,6 +2231,7 @@
     return similarity >= threshold;
   }
 
+  // Fuzzy match logic helper
   function checkKeywordOrSynonymsMatch(targetExpr, studentWords, rawText) {
     if (!targetExpr) return false;
     const synonyms = targetExpr.split('|').map(s => s.trim().toLowerCase());
