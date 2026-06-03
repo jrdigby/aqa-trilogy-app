@@ -1021,18 +1021,28 @@ function markResponse(q, resp, key, markPoints) {
     }
   }
       
-  if (key.key_type === "mcq") {
-    const targetCorrect = key.key_payload?.correct || key.key_payload?.answer || "";
-    total = resp.answer === targetCorrect ? max : 0;
-    quality = total ? 5 : 1;
-    const targetAo = markPoints?.[0]?.ao || "AO1";
-    if (total > 0) {
-      ao[targetAo] = max;
-    } else {
-      let feedbackText = `The correct answer is "${targetCorrect}". Review your flashcards for this specific unit or definition.`;
-      missing.push({ ao: targetAo, text: feedbackText, url: cleanUrl });
-    }
-  } 
+ if (key.key_type === "mcq") {
+  const targetCorrect = key.key_payload?.correct || key.key_payload?.answer || "";
+  total = resp.answer === targetCorrect ? max : 0;
+  quality = total ? 5 : 1;
+  const targetAo = markPoints?.[0]?.ao || "AO1";
+  
+  if (total > 0) {
+    ao[targetAo] = max;
+  } else {
+    // Check if the database contains a specific remedial step for this question
+    let feedbackText = markPoints?.[0]?.feedback_if_missing 
+      ? markPoints[0].feedback_if_missing 
+      : `The correct answer is "${targetCorrect}". Review your flashcards for this specific unit or definition.`;
+    
+    missing.push({ 
+      ao: targetAo, 
+      text: feedbackText, 
+      url: cleanUrl,
+      image_url: markPoints?.[0]?.image_url || "" // Includes a step-by-step diagram if present
+    });
+  }
+}
   else if (key.key_type === "numeric") {
     const sc = q.scaffold_config || {};
     
