@@ -325,6 +325,9 @@
     <div style="display:flex; flex-direction:column; gap:12px; margin-bottom:20px;">
       <input type="hidden" id="editQuestionId"/>
       
+      <!-- Live Grading Mode Status Indicator -->
+      <div id="editGradingModeIndicator" style="padding: 12px; border-radius: 8px; font-size: 0.82rem; line-height: 1.45; font-weight: 600; border-style: solid; border-width: 1px; display: none;"></div>
+      
       <div class="row" style="grid-template-columns: 1fr;">
         <div class="form-group">
           <label>Student Target Tier</label>
@@ -1689,13 +1692,16 @@
     document.getElementById("editShortTextPanel").classList.add("hidden");
     document.getElementById("editExtendedPanel").classList.add("hidden");
 
+    let keyData = null;
     // Fetch answer keys
     try {
-      const { data: keyData } = await supabaseClient
+      const { data } = await supabaseClient
         .from("answer_keys")
         .select("*")
         .eq("question_id", q.id)
         .maybeSingle();
+      
+      keyData = data;
 
       if (q.question_type === "mcq") {
         document.getElementById("editMcqPanel").classList.remove("hidden");
@@ -1765,23 +1771,61 @@
       console.warn("Failed retrieving corresponding keys dynamically:", err);
     }
 
-    // Load existing Checkpoint Mark Points for editing
+    // Load existing Checkpoint Mark Points for editing safely without ordering by created_at to avoid PostgreSQL failures
     document.getElementById("editMarkPointsWrapper").innerHTML = "";
     editMarkPointsCounter = 0;
+    let mps = [];
     try {
-      const { data: mps, error: mpsErr } = await supabaseClient
+      const { data: dbMps, error: mpsErr } = await supabaseClient
         .from("mark_points")
         .select("ao, point_text, feedback_if_missing")
-        .eq("question_id", q.id)
-        .order("created_at", { ascending: true });
+        .eq("question_id", q.id);
         
-      if (!mpsErr && mps) {
+      if (!mpsErr && dbMps) {
+        mps = dbMps;
         mps.forEach(mp => {
           addEditMarkPointRow(mp.point_text, mp.ao, mp.feedback_if_missing);
         });
+      } else if (mpsErr) {
+        console.error("Supabase Error loading checkpoints:", mpsErr);
       }
     } catch(err) {
       console.error("Failed to query mark points for edit panel:", err);
+    }
+
+    // Dynamic Grading Mode Status Indicator Layout Config
+    const indicator = document.getElementById("editGradingModeIndicator");
+    if (indicator) {
+      indicator.style.display = "block";
+      if (q.question_type === "short_text") {
+        if (mps && mps.length > 0) {
+          indicator.style.background = "#eff6ff";
+          indicator.style.color = "#1e40af";
+          indicator.style.borderColor = "#bfdbfe";
+          indicator.innerHTML = `🎯 <strong>Active Grading Mode: Step-by-Step Checkpoints</strong><br/>
+            The student is evaluated against the checkpoints listed in Section 3 below. The basic required/optional keywords in the Section 2 keywords panel are currently ignored by the grading engine.`;
+        } else {
+          indicator.style.background = "#f0fdf4";
+          indicator.style.color = "#166534";
+          indicator.style.borderColor = "#bbf7d0";
+          indicator.innerHTML = `🔑 <strong>Active Grading Mode: Basic Keyword Matching</strong><br/>
+            The student is evaluated dynamically using the Required/Optional keywords defined in the Section 2 keywords panel below.`;
+        }
+      } else if (q.question_type === "numeric") {
+        indicator.style.background = "#fafbfc";
+        indicator.style.color = "#475569";
+        indicator.style.borderColor = "#e2e8f0";
+        indicator.innerHTML = `📐 <strong>Active Grading Mode: Mathematical Calculation</strong><br/>
+          Awarded dynamically based on expected numerical magnitude, tolerance range, units, and active multi-step guided steps.`;
+      } else if (q.question_type === "mcq") {
+        indicator.style.background = "#fafbfc";
+        indicator.style.color = "#475569";
+        indicator.style.borderColor = "#e2e8f0";
+        indicator.innerHTML = `🔘 <strong>Active Grading Mode: Multiple Choice Question (MCQ)</strong><br/>
+          Awarded if student selection matches the designated correct option value.`;
+      } else {
+        indicator.style.display = "none";
+      }
     }
 
     document.getElementById("editModalOverlay").classList.remove("hidden");
