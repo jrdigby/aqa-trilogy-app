@@ -1089,11 +1089,12 @@ function markResponse(q, resp, key, markPoints) {
   else if (key.key_type === "numeric") {
     const sc = q.scaffold_config || {};
     
-    // Core Evaluator logic for step-by-step math scaffolds
+    // Core Evaluator logic for step-by-step math scaffolds with Error Carried Forward (ECF) support
     if (sc.has_conversion || sc.has_rearrangement) {
       let conversionEarned = 0;
       let rearrangementEarned = 0;
       let finalCalculationEarned = 0;
+      let ecfApplied = false;
       
       const convTol = parseFloat(sc.conversion_tolerance || 0.0001);
       const convTarget = parseFloat(sc.conversion_answer);
@@ -1108,7 +1109,7 @@ function markResponse(q, resp, key, markPoints) {
         } else {
           missing.push({
             ao: "AO2",
-            text: `Step 1 (Conversion) wrong: Converting ${sc.conversion_label || ''} should equal ${convTarget}.`,
+            text: `Step 1 (Conversion) dropped: The target converted value should be ${convTarget} ${sc.conversion_label || ''}.`,
             url: cleanUrl
           });
         }
@@ -1126,8 +1127,34 @@ function markResponse(q, resp, key, markPoints) {
         }
       }
       
-      if (resp.value !== null && Math.abs(resp.value - ansTarget) <= ansTol) {
+      // Compute calculation correctness with Error Carried Forward (ECF) verification
+      let isFinalCorrect = false;
+      if (resp.value !== null) {
+        if (Math.abs(resp.value - ansTarget) <= ansTol) {
+          isFinalCorrect = true;
+        } 
+        // ECF calculation: If they failed conversion, check if their math was correct based on their wrong value
+        else if (sc.has_conversion && conversionEarned === 0 && resp.conversionValue !== null && !isNaN(resp.conversionValue) && convTarget !== 0) {
+          const ratio = resp.conversionValue / convTarget;
+          const ecfTarget = ansTarget * ratio;
+          const scaledTol = ansTol * Math.abs(ratio);
+          
+          if (Math.abs(resp.value - ecfTarget) <= Math.max(ansTol, scaledTol)) {
+            isFinalCorrect = true;
+            ecfApplied = true;
+          }
+        }
+      }
+
+      if (isFinalCorrect) {
         finalCalculationEarned = 1;
+        if (ecfApplied) {
+          missing.push({
+            ao: "AO2",
+            text: `Error Carried Forward (ECF) applied: Final calculation graded correct based on your converted value of ${resp.conversionValue}.`,
+            isEcf: true
+          });
+        }
       } else {
         missing.push({
           ao: "AO2",
@@ -1152,7 +1179,7 @@ function markResponse(q, resp, key, markPoints) {
       if (total > 0) {
         ao.AO2 = max;
       } else {
-        // Look up if a custom remediation checkpoint is configured
+        // Look up if a custom remediation checkpoint is configured for wrong answers
         const fallbackPoint = markPoints?.find(mp => mp.point_text === "[numeric_fallback]");
         
         let feedbackText = (fallbackPoint && fallbackPoint.feedback_if_missing)
