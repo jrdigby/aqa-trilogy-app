@@ -1412,11 +1412,22 @@ function renderFeedback(marking) {
            </div>` 
         : "";
 
+      // Dynamic ECF styles: swap the red design with a constructive, mint-green alert theme
+      const isEcf = !!m.isEcf;
+      const containerBg = isEcf ? "#f0fdf4" : "#fff5f5";
+      const borderCol = isEcf ? "#10b981" : "#ff4d4d";
+      const textCol = isEcf ? "#166534" : "#0f172a";
+      const badgeBg = isEcf ? "#dcfce7" : "#ff4d4d";
+      const badgeColor = isEcf ? "#166534" : "white";
+      const badgeLabel = isEcf ? "ECF" : m.ao;
+
       return `
-        <div class="item" style="margin: 5px 0; padding: 12px; background: #fff5f5; border-left: 3px solid #ff4d4d;">
+        <div class="item" style="margin: 5px 0; padding: 12px; background: ${containerBg}; border-left: 4px solid ${borderCol}; border-radius: 0 6px 6px 0; color: ${textCol};">
           <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px;">
             <div>
-              <span class="chip" style="background:#ff4d4d; color:white; padding:2px 6px; border-radius:4px; font-size:0.8rem; margin-right: 5px;">${m.ao}</span> 
+              <span class="chip" style="background:${badgeBg}; color:${badgeColor}; padding:2px 6px; border-radius:4px; font-size:0.8rem; margin-right: 5px; font-weight: bold; text-transform: uppercase;">
+                ${badgeLabel}
+              </span> 
               ${escapeHtml(m.text)}
               ${feedbackImgHtml}
             </div>
