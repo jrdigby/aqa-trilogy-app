@@ -1803,7 +1803,11 @@ function getResponsePayload(q) {
     const val = parseFloat(el("numAns")?.value);
     const convVal = el("numAnsConv") ? parseFloat(el("numAnsConv").value) : null;
     const formulaChoice = el("rearrangeFormula") ? el("rearrangeFormula").value : "";
-    const unit = (el("numUnit")?.value || "").trim();
+    
+    // Retrieve the unit from the globally loaded database key instead of reading the deleted #numUnit DOM element
+    const unit = (currentKey && currentKey.key_payload && currentKey.key_payload.unit) 
+      ? currentKey.key_payload.unit 
+      : "";
     
     return { 
       type: "numeric", 
