@@ -934,6 +934,19 @@ function renderQuestion(q) {
   else if (q.question_type === "numeric") {
     // Dynamic Scaffold Setup
     const sc = q.scaffold_config || {};
+    
+    // 1. Retrieve the unit symbol from the globally loaded key payload in currentKey
+    const unit = (currentKey && currentKey.key_payload && currentKey.key_payload.unit) 
+      ? currentKey.key_payload.unit 
+      : "";
+      
+    // 2. Build the visual read-only badge HTML (only if a unit is specified)
+    const unitLabelHtml = unit ? `
+      <span class="unit-badge" style="font-size: 0.85rem; font-weight: 700; color: #475569; background: #f1f5f9; border: 1px solid #cbd5e1; padding: 6px 12px; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; vertical-align: middle; margin-left: 8px; box-sizing: border-box; line-height: 1.2;">
+        ${escapeHtml(unit)}
+      </span>
+    ` : "";
+
     if (sc.has_conversion || sc.has_rearrangement) {
       html += `<div class="item" style="border:1px solid #e2e8f0; padding:15px; border-radius:8px; background:#f8fafc; margin-top:12px;">`;
       html += `<h4 style="margin-top:0; margin-bottom:12px; color:var(--primary); font-size:0.9rem;">📝 Scaffolded Multi-Mark Guided Steps:</h4>`;
@@ -962,14 +975,23 @@ function renderQuestion(q) {
       html += `
         <div>
           <label style="display:block; font-size:0.82rem; font-weight:700; margin-bottom:4px;">Final Step: Solve and Compute Calculation:</label>
-          <input id="numAns" type="number" step="any" style="padding:6px; font-size:0.85rem; width:120px; border-radius:4px; border:1px solid #cbd5e1;"/>
-          <input id="numUnit" type="text" placeholder="Units" style="padding:6px; font-size:0.85rem; width:80px; margin-left:8px; border-radius:4px; border:1px solid #cbd5e1;"/>
+          <div style="display: inline-flex; align-items: center; vertical-align: middle;">
+            <input id="numAns" type="number" step="any" style="padding:6px; font-size:0.85rem; width:120px; border-radius:4px; border:1px solid #cbd5e1; box-sizing: border-box;"/>
+            ${unitLabelHtml}
+          </div>
         </div>
       `;
       html += `</div>`;
     } else {
-      // Standard mathematical calculation layout
-      html += `<div class="item"><label>Answer: <input id="numAns" type="number" step="any"/></label><label style="margin-left:10px;">Units: <input id="numUnit" type="text"/></label></div>`;
+      // Standard mathematical calculation layout (Removed raw unit text entry; integrated the read-only badge)
+      html += `
+        <div class="item" style="display: flex; align-items: center; margin-top: 12px;">
+          <label style="font-size: 0.9rem; font-weight: 600;">Answer: 
+            <input id="numAns" type="number" step="any" style="padding:6px; font-size:0.85rem; width:120px; border-radius:4px; border:1px solid #cbd5e1; margin-left: 4px; box-sizing: border-box;"/>
+          </label>
+          ${unitLabelHtml}
+        </div>
+      `;
     }
   } 
   else if (q.question_type === "extended_response") {
