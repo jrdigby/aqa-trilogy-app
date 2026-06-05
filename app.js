@@ -1109,7 +1109,7 @@ function markResponse(q, resp, key, markPoints) {
         } else {
           missing.push({
             ao: "AO2",
-            text: `Step 1 (Conversion) wrong: Converting ${sc.conversion_label || ''} should equal ${convTarget} .`,
+            text: `Step 1 (Conversion) dropped: The target converted value should be ${convTarget} ${sc.conversion_label || ''}.`,
             url: cleanUrl
           });
         }
@@ -1121,7 +1121,7 @@ function markResponse(q, resp, key, markPoints) {
         } else {
           missing.push({
             ao: "AO1",
-            text: `Step 2 (Rearrangement) wrong: The correct rearranged formula target is "${formulaTarget}".`,
+            text: `Step 2 (Rearrangement) dropped: The correct rearranged formula target is "${formulaTarget}".`,
             url: cleanUrl
           });
         }
