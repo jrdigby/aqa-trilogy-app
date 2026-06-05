@@ -1042,28 +1042,28 @@ function markResponse(q, resp, key, markPoints) {
     }
   }
       
- if (key.key_type === "mcq") {
-  const targetCorrect = key.key_payload?.correct || key.key_payload?.answer || "";
-  total = resp.answer === targetCorrect ? max : 0;
-  quality = total ? 5 : 1;
-  const targetAo = markPoints?.[0]?.ao || "AO1";
-  
-  if (total > 0) {
-    ao[targetAo] = max;
-  } else {
-    // Check if the database contains a specific remedial step for this question
-    let feedbackText = markPoints?.[0]?.feedback_if_missing 
-      ? markPoints[0].feedback_if_missing 
-      : `The correct answer is "${targetCorrect}". Review your flashcards for this specific unit or definition.`;
+  if (key.key_type === "mcq") {
+    const targetCorrect = key.key_payload?.correct || key.key_payload?.answer || "";
+    total = resp.answer === targetCorrect ? max : 0;
+    quality = total ? 5 : 1;
+    const targetAo = markPoints?.[0]?.ao || "AO1";
     
-    missing.push({ 
-      ao: targetAo, 
-      text: feedbackText, 
-      url: cleanUrl,
-      image_url: markPoints?.[0]?.image_url || "" // Includes a step-by-step diagram if present
-    });
+    if (total > 0) {
+      ao[targetAo] = max;
+    } else {
+      // Check if the database contains a specific remedial step for this question
+      let feedbackText = markPoints?.[0]?.feedback_if_missing 
+        ? markPoints[0].feedback_if_missing 
+        : `The correct answer is "${targetCorrect}". Review your flashcards for this specific unit or definition.`;
+      
+      missing.push({ 
+        ao: targetAo, 
+        text: feedbackText, 
+        url: cleanUrl,
+        image_url: markPoints?.[0]?.image_url || "" // Includes a step-by-step diagram if present
+      });
+    }
   }
-}
   else if (key.key_type === "numeric") {
     const sc = q.scaffold_config || {};
     
@@ -1126,14 +1126,22 @@ function markResponse(q, resp, key, markPoints) {
       const tol = key.key_payload.tolerance ?? 0;
       total = (resp.value !== null && Math.abs(resp.value - ans) <= tol) ? max : 0;
       quality = total ? 5 : 1;
-      if (total > 0) ao.AO2 = max;
-      else {
-        const correctDisplay = key.key_payload?.answer || "";
-        const correctUnit = key.key_payload?.unit || "";
+      
+      if (total > 0) {
+        ao.AO2 = max;
+      } else {
+        // Look up if a custom remediation checkpoint is configured
+        const fallbackPoint = markPoints?.find(mp => mp.point_text === "[numeric_fallback]");
+        
+        let feedbackText = (fallbackPoint && fallbackPoint.feedback_if_missing)
+          ? fallbackPoint.feedback_if_missing
+          : `The correct answer is "${ans}${key.key_payload?.unit ? ' ' + key.key_payload.unit : ''}". Review calculations or units.`;
+        
         missing.push({ 
           ao: "AO2", 
-          text: `The correct answer is "${correctDisplay}${correctUnit ? ' ' + correctUnit : ''}". Review calculations or units.`,
-          url: cleanUrl
+          text: feedbackText, 
+          url: cleanUrl,
+          image_url: fallbackPoint?.image_url || "" // Dynamically supports remediation imagery/diagrams
         });
       }
     }
