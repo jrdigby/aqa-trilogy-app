@@ -1108,7 +1108,7 @@ function markResponse(q, resp, key, markPoints) {
         } else {
           missing.push({
             ao: "AO2",
-            text: `Step 1 (Conversion) wrong: Converting ${sc.conversion_label || ''} should equal ${convTarget} ${key.key_payload.unit || ''}.`,
+            text: `Step 1 (Conversion) wrong: Converting ${sc.conversion_label || ''} should equal ${convTarget}.`,
             url: cleanUrl
           });
         }
