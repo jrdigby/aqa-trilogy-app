@@ -1,0 +1,2590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>AQA Trilogy Question Bank Creator (Admin)</title>
+  
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  
+  <!-- MathJax Configuration & Loader for beautiful LaTeX symbol typesetting (e.g. \infty, \propto) -->
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']]
+      },
+      options: {
+        skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
+      }
+    };
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" id="MathJax-script" async></script>
+  
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --text: #0f172a;
+      --primary: #10b981; /* Emerald green theme for AQA administration */
+      --primary-dark: #059669;
+      --border: #e2e8f0;
+      --text-muted: #64748b;
+      --error: #ef4444;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --font: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
+    }
+    
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      margin: 0;
+      padding: 0;
+      line-height: 1.5;
+    }
+
+    header {
+      background: #1e293b;
+      color: #fff;
+      padding: 16px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 4px solid var(--primary);
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 1.25rem;
+      font-weight: 700;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 32px auto;
+      padding: 0 24px;
+      box-sizing: border-box;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      margin-bottom: 24px;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #334155;
+      margin-bottom: 6px;
+    }
+
+    input[type="text"],
+    input[type="number"],
+    input[type="password"],
+    input[type="email"],
+    select,
+    textarea {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #fff;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 0.9rem;
+      transition: border-color 0.15s ease;
+      box-sizing: border-box;
+    }
+
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 10px 20px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      border-radius: 8px;
+      cursor: pointer;
+      border: none;
+      transition: background 0.15s, transform 0.1s;
+    }
+
+    .btn:active {
+      transform: scale(0.98);
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+    }
+
+    .btn-primary:hover {
+      background: var(--primary-dark);
+    }
+
+    .btn-secondary {
+      background: #64748b;
+      color: #fff;
+    }
+
+    .btn-secondary:hover {
+      background: #475569;
+    }
+
+    .btn-danger {
+      background: var(--error);
+      color: #fff;
+    }
+
+    .btn-danger:hover {
+      background: #b91c1c;
+    }
+
+    .tab-nav {
+      display: flex;
+      gap: 8px;
+      border-bottom: 2px solid var(--border);
+      margin-bottom: 24px;
+    }
+
+    .tab-btn {
+      padding: 10px 16px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      background: none;
+      border: none;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+    }
+
+    .tab-btn.active {
+      color: var(--primary);
+      border-bottom-color: var(--primary);
+    }
+
+    .panel {
+      display: none;
+    }
+
+    .panel.active {
+      display: block;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    /* Table styling for review logs */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 16px;
+    }
+
+    th, td {
+      padding: 12px 16px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.88rem;
+    }
+
+    th {
+      background: #f1f5f9;
+      font-weight: 600;
+      color: #475569;
+    }
+
+    /* Simulated Interactive Testing Playground */
+    .mcq-option-wrap {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #fff;
+      cursor: pointer;
+    }
+
+    /* Status Notifications banner */
+    #toastBanner {
+      position: fixed;
+      top: 24px;
+      right: 24px;
+      z-index: 1000;
+      padding: 12px 24px;
+      color: #fff;
+      border-radius: 8px;
+      font-weight: 700;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      transition: all 0.3s ease;
+      opacity: 0;
+      transform: translateY(-20px);
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>AQA Trilogy Core Curriculum Platform (Curator Engine)</h1>
+    <span id="authStatusBadge" style="font-size: 0.8rem; font-weight: bold; background: rgba(255,255,255,0.1); padding: 4px 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.2);">🔒 Access Restricted</span>
+  </header>
+
+  <div id="toastBanner">Operation Complete!</div>
+
+  <div class="container">
+
+    <!-- Authenticator Block -->
+    <div id="adminAuthSection" class="card">
+      <h2 style="margin-top: 0; margin-bottom: 16px;">🔑 Teacher / Administrator Portal Sign In</h2>
+      <p style="color: var(--text-muted); font-size: 0.88rem; margin-bottom: 24px;">This database editor manages tables inside Supabase. Authenticate with your designated teacher keys to unlock full operations.</p>
+      
+      <div class="row">
+        <div>
+          <label>Administrator Email Address:</label>
+          <input type="email" id="adminEmail" placeholder="e.g. teacher@school.org" />
+        </div>
+        <div>
+          <label>Secure Key Access Token:</label>
+          <input type="password" id="adminPassword" placeholder="••••••••" />
+        </div>
+      </div>
+      <button class="btn btn-primary" id="btnAdminAuthenticate" style="margin-top: 8px;">Validate Permissions</button>
+    </div>
+
+    <!-- Active Management Workspace (Visible only when validated) -->
+    <div id="creatorContainer" class="hidden">
+      
+      <div class="tab-nav">
+        <button class="tab-btn active" onclick="switchPanel('creator')">✏️ Create Question</button>
+        <button class="tab-btn" onclick="switchPanel('csv')">📂 Packaged CSV Importer</button>
+        <button class="tab-btn" onclick="switchPanel('audit')">🔍 Database Audit &amp; Review</button>
+      </div>
+
+      <!-- TAB 1: CREATOR PANEL -->
+      <div id="panelCreator" class="panel active">
+        
+        <!-- SECTION 1: METADATA -->
+        <div class="card">
+          <h3 style="margin-top:0; color:var(--primary-dark); font-size:1.1rem; border-bottom:1px solid var(--border); padding-bottom:8px;">Section 1: Question Core &amp; Curriculum Mapping</h3>
+          
+          <div class="row" style="margin-top: 16px;">
+            <div>
+              <label>Syllabus Subject Area:</label>
+              <select id="subjectSelect">
+                <option value="physics">Physics</option>
+                <option value="chemistry">Chemistry</option>
+                <option value="biology">Biology</option>
+              </select>
+            </div>
+            <div>
+              <label>Paper Allocation:</label>
+              <select id="paperSelect">
+                <option value="paper1">Paper 1</option>
+                <option value="paper2">Paper 2</option>
+              </select>
+            </div>
+            <div>
+              <label>Cognitive Tier Target:</label>
+              <select id="tierSelect">
+                <option value="both">Both (Standard Common Core)</option>
+                <option value="higher">Higher (Trilogy Level 5-9)</option>
+                <option value="foundation">Foundation (Trilogy Level 1-5)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="row">
+            <div style="grid-column: span 2;">
+              <label>Target Specification Reference Point (Syllabus Link):</label>
+              <select id="specPointSelect">
+                <option>Select subject and paper targets to sync points...</option>
+              </select>
+            </div>
+            <div>
+              <label>AQA Question Type:</label>
+              <select id="qType">
+                <option value="short_text">Short Answer (Written)</option>
+                <option value="numeric">Numeric (Calculation)</option>
+                <option value="mcq">Multiple Choice Question (MCQ)</option>
+                <option value="extended_response">6-Mark Extended Response (AI graded)</option>
+              </select>
+            </div>
+          </div>
+
+          <div id="maxMarksRow" class="row">
+            <div>
+              <label>Awardable Assessment Weight (Max Marks):</label>
+              <select id="maxMarks">
+                <option value="1">1 mark</option>
+                <option value="2" selected>2 marks</option>
+                <option value="3">3 marks</option>
+                <option value="4">4 marks</option>
+                <option value="5">5 marks</option>
+                <option value="6">6 marks</option>
+              </select>
+            </div>
+          </div>
+
+          <div style="margin-top: 12px;">
+            <label>Question Prompt / Stem (supports MathJax LaTeX: use $ or $$):</label>
+            <textarea id="qPrompt" rows="4" placeholder="Type prompt here..."></textarea>
+          </div>
+
+          <div class="row" style="margin-top: 16px;">
+            <div>
+              <label>Optional Diagram Attachment / Graphic (JPG/PNG File):</label>
+              <input type="file" id="qImage" accept="image/*" />
+            </div>
+            <div>
+              <label>Walkthrough Resource Video URL (YouTube embed):</label>
+              <input type="text" id="qVideo" placeholder="https://www.youtube.com/embed/WalkthroughID" />
+            </div>
+          </div>
+        </div>
+
+        <!-- SECTION 2: EXPECTED ANSWER CONFIG -->
+        <div class="card">
+          <h3 style="margin-top:0; color:var(--primary-dark); font-size:1.1rem; border-bottom:1px solid var(--border); padding-bottom:8px;">Section 2: Interactive Answers &amp; Keys Config</h3>
+
+          <!-- Sub Panel: MCQ Answers -->
+          <div id="mcqPanel" class="hidden" style="margin-top: 16px;">
+            <div class="row">
+              <div>
+                <label>Option A (Raw choice text):</label>
+                <input type="text" id="mcqOptA" />
+              </div>
+              <div>
+                <label>Option B (Raw choice text):</label>
+                <input type="text" id="mcqOptB" />
+              </div>
+            </div>
+            <div class="row">
+              <div>
+                <label>Option C (Raw choice text):</label>
+                <input type="text" id="mcqOptC" />
+              </div>
+              <div>
+                <label>Option D (Raw choice text):</label>
+                <input type="text" id="mcqOptD" />
+              </div>
+            </div>
+            <div style="margin-top: 12px; max-width: 400px;">
+              <label>Mark Correct Target Selection Option:</label>
+              <select id="mcqCorrect">
+                <option value="">-- Choose Correct Option --</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Sub Panel: Numeric Answers with multi-mark Scaffolding -->
+          <div id="numericPanel" class="hidden" style="margin-top: 16px;">
+            <div class="row">
+              <div>
+                <label>Correct Value / Magnitude Answer:</label>
+                <input type="number" id="numAnsVal" placeholder="e.g. 4.5" step="any" />
+              </div>
+              <div>
+                <label>Target Precision Margin (Tolerance Value):</label>
+                <input type="number" id="numAnsTol" placeholder="e.g. 0.05 (leeway range)" step="any" />
+              </div>
+              <div>
+                <label>Target Required Unit Symbol (Read-Only Badge):</label>
+                <input type="text" id="numAnsUnit" placeholder="e.g. J, N, W, Pa" />
+              </div>
+            </div>
+
+            <!-- Scaffold toggles to support progressive units and formulas -->
+            <div style="border: 1px solid var(--border); background: #f8fafc; padding: 15px; border-radius: 8px; margin-top: 15px;">
+              <h4 style="margin-top: 0; margin-bottom: 12px; color: #1e293b; font-size: 0.9rem;">📐 Progressive Scaffold Steps (Formula Rearrangements &amp; Unit Conversions)</h4>
+              
+              <div style="display: flex; gap: 20px; align-items: center; margin-bottom: 12px;">
+                <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 0; cursor: pointer;">
+                  <input type="checkbox" id="chkScaffoldConv" />
+                  <span>Enable Step 1: Unit Conversion</span>
+                </label>
+                <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 0; cursor: pointer;">
+                  <input type="checkbox" id="chkScaffoldRearrange" />
+                  <span>Enable Step 2: Formula Rearrangement</span>
+                </label>
+              </div>
+
+              <div id="subScaffoldConv" class="row hidden" style="border-top: 1px solid var(--border); padding-top: 12px;">
+                <div>
+                  <label>Conversion Step Variable Label (e.g. meters, seconds):</label>
+                  <input type="text" id="scaffoldConvLabel" placeholder="e.g. meters" />
+                </div>
+                <div>
+                  <label>Expected Converted Magnitude Value:</label>
+                  <input type="number" id="scaffoldConvAnswer" placeholder="e.g. 0.2" step="any" />
+                </div>
+                <div>
+                  <label>Conversion Tolerance:</label>
+                  <input type="number" id="scaffoldConvTol" value="0.001" step="any" />
+                </div>
+              </div>
+
+              <div id="subScaffoldRearrange" class="row hidden" style="border-top: 1px solid var(--border); padding-top: 12px;">
+                <div>
+                  <label>Correct Target Formula Sequence (e.g. W = F * s):</label>
+                  <input type="text" id="scaffoldRearrangeAnswer" placeholder="e.g. W = F * s" />
+                </div>
+                <div style="grid-column: span 2;">
+                  <label>Formula Distractor Choices (comma-separated list, including correct answer):</label>
+                  <input type="text" id="scaffoldRearrangeDistractors" placeholder="W = F * s, W = F / s, F = W * s" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Sub Panel: Short Answer Keywords -->
+          <div id="shortTextKeywordsPanel" style="margin-top: 16px;">
+            <p style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.4; margin-bottom: 12px;">
+              <strong>Note:</strong> If you leave the "Section 3: Step-by-Step Mark Checkpoints" completely blank below, this question will grade automatically using basic Required/Optional keyword algorithms.
+            </p>
+            <div class="row">
+              <div>
+                <label>Required Keywords (Comma-separated, supports synonyms using pipe "|"):</label>
+                <input type="text" id="shortReqKeywords" placeholder="gravity|gravitational, acceleration" />
+              </div>
+              <div>
+                <label>Optional Keywords (Comma-separated lists):</label>
+                <input type="text" id="shortOptKeywords" placeholder="mass, weight" />
+              </div>
+              <div>
+                <label>Minimum Optional Words Expected:</label>
+                <input type="number" id="shortMinOptional" value="0" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Sub Panel: 6-Mark AI Extended Rubric -->
+          <div id="extendedPanel" class="hidden" style="margin-top: 16px;">
+            <div>
+              <label>AI Marking Guidelines (Specify scientific requirements for Gemini's grading engine):</label>
+              <textarea id="guidelines" rows="4" placeholder="e.g., Candidates must mention energy transfers..."></textarea>
+            </div>
+            <div class="row" style="margin-top: 12px;">
+              <div>
+                <label>Level 3 Descriptor (5-6 marks):</label>
+                <textarea id="lvl3" rows="3" placeholder="Clear, logical explanation..."></textarea>
+              </div>
+              <div>
+                <label>Level 2 Descriptor (3-4 marks):</label>
+                <textarea id="lvl2" rows="3" placeholder="Partial logic..."></textarea>
+              </div>
+              <div>
+                <label>Level 1 Descriptor (1-2 marks):</label>
+                <textarea id="lvl1" rows="3" placeholder="Isolated ideas..."></textarea>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SECTION 3: DETAILED STEP-BY-STEP CHECKPOINTS -->
+        <div class="card">
+          <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:8px; margin-bottom:16px;">
+            <h3 style="margin:0; color:var(--primary-dark); font-size:1.1rem;">Section 3: Detailed Step-by-Step Mark Checkpoints (Grading Criteria)</h3>
+            <button class="btn btn-secondary" id="btnAddMarkPoint" style="padding:4px 10px; font-size:0.75rem;">+ Add Criteria Step</button>
+          </div>
+          <p style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.4; margin-bottom: 16px;">
+            <strong>Important Tips:</strong><br/>
+            • <strong>Short Answer Questions:</strong> If you input steps here, the student is graded against these checkpoints. Each matched row awards 1 mark (AO-specific).<br/>
+            • <strong>Numeric Questions:</strong> To write a custom math walkthrough instead of the default formula, set the point keyword to <code>[numeric_fallback]</code> and input your detailed working out in the Remediation Tips field.
+          </p>
+          <div id="markPointsWrapper"></div>
+        </div>
+
+        <!-- Panel Submission Actions -->
+        <div style="display: flex; gap: 12px; justify-content: flex-end; margin-bottom: 40px;">
+          <button class="btn btn-secondary" id="btnReset">Clear Inputs</button>
+          <button class="btn btn-primary" id="btnCommit">Commit Question to Supabase</button>
+        </div>
+      </div>
+
+      <!-- TAB 2: PACKAGED CSV PANEL -->
+      <div id="panelCsv" class="panel">
+        <div class="card">
+          <h3 style="margin-top:0; color:var(--primary-dark); font-size:1.1rem; border-bottom:1px solid var(--border); padding-bottom:8px;">Import Packaged CSV Lists</h3>
+          <p style="color:var(--text-muted); font-size:0.85rem; line-height:1.4;">
+            Upload mass question lists from spreadsheet exports. If the CSV row elements do not specify subject, paper, or tier references, they will inherit the fallback options configured below.
+          </p>
+
+          <div class="row" style="margin-top: 16px;">
+            <div>
+              <label>CSV Inherited Subject:</label>
+              <select id="csvSubject">
+                <option value="physics">Physics Trilogy</option>
+                <option value="chemistry">Chemistry Trilogy</option>
+                <option value="biology">Biology Trilogy</option>
+              </select>
+            </div>
+            <div>
+              <label>CSV Inherited Paper:</label>
+              <select id="csvPaper">
+                <option value="paper1">Trilogy Paper 1</option>
+                <option value="paper2">Trilogy Paper 2</option>
+              </select>
+            </div>
+            <div>
+              <label>CSV Inherited Tier:</label>
+              <select id="csvTier">
+                <option value="both">Both (Common Core)</option>
+                <option value="higher">Higher (Tier 5-9)</option>
+                <option value="foundation">Foundation (Tier 1-5)</option>
+              </select>
+            </div>
+          </div>
+
+          <div style="margin-top: 16px;">
+            <label>Select Spreadsheet CSV File:</label>
+            <input type="file" id="csvFile" accept=".csv" style="padding: 10px; background: #fff; border: 1px dashed var(--border); width: 100%; box-sizing: border-box; border-radius: 8px;" />
+          </div>
+
+          <button class="btn btn-primary" id="btnProcessCsv" style="margin-top: 20px;">Parse CSV File</button>
+        </div>
+
+        <div class="card">
+          <h4 style="margin-top: 0;">CSV Processing Console Logs:</h4>
+          <pre id="csvLog" style="background:#1e293b; color:#38bdf8; padding:16px; border-radius:8px; font-family: 'Courier New', Courier, monospace; font-size:0.8rem; max-height:250px; overflow-y:auto; margin:0;">Awaiting file selection...</pre>
+        </div>
+      </div>
+
+      <!-- TAB 3: AUDIT & REVIEW LIST -->
+      <div id="panelAudit" class="panel">
+        <div class="card">
+          <h3 style="margin-top:0; color:var(--primary-dark); font-size:1.1rem; border-bottom:1px solid var(--border); padding-bottom:8px;">Database Table Audit, Search &amp; Testing Sandbox</h3>
+          <p style="color:var(--text-muted); font-size:0.85rem; line-height:1.4;">
+            Filter and query questions inside Supabase. View error badges for missing data or test grading mechanics in the sandbox area before deployment.
+          </p>
+
+          <div class="row" style="margin-top: 16px;">
+            <div>
+              <label>Filter Subject:</label>
+              <select id="auditSubject">
+                <option value="physics">Physics Trilogy</option>
+                <option value="chemistry">Chemistry Trilogy</option>
+                <option value="biology">Biology Trilogy</option>
+              </select>
+            </div>
+            <div>
+              <label>Filter Paper:</label>
+              <select id="auditPaper">
+                <option value="paper1">Trilogy Paper 1</option>
+                <option value="paper2">Trilogy Paper 2</option>
+              </select>
+            </div>
+            <div>
+              <label>Filter Question Type:</label>
+              <select id="auditType">
+                <option value="">-- All Types --</option>
+                <option value="short_text">Short Answer (Written)</option>
+                <option value="numeric">Numeric (Calculation)</option>
+                <option value="mcq">Multiple Choice Question (MCQ)</option>
+                <option value="extended_response">6-Mark Extended Response</option>
+              </select>
+            </div>
+            <div>
+              <label>Search Text Stems:</label>
+              <input type="text" id="auditSearchQuery" placeholder="Search prompt terms..." />
+            </div>
+          </div>
+
+          <button class="btn btn-primary" id="btnQueryQuestions" style="margin-top: 10px;">Query Active Database</button>
+        </div>
+
+        <div class="card" style="padding:0; overflow-x:auto;">
+          <table style="margin: 0; min-width: 800px;">
+            <thead>
+              <tr>
+                <th style="width: 100px;">Syllabus Ref</th>
+                <th style="width: 120px;">Type</th>
+                <th>Prompt Text Stem</th>
+                <th style="width: 100px;">Max Marks</th>
+                <th style="width: 220px; text-align:right;">Operations</th>
+              </tr>
+            </thead>
+            <tbody id="questionsAuditList">
+              <tr>
+                <td colspan="5" style="padding:24px; text-align:center; color:var(--text-muted);">Set filters and query active tables.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- MODAL WINDOW A: INTERACTIVE SANDBOX SIMULATOR -->
+  <div id="sandboxModalOverlay" class="hidden" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(15,23,42,0.6); z-index:2000; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(4px);">
+    <div class="card" style="width:100%; max-width:650px; box-shadow:0 20px 25px -5px rgba(0,0,0,0.1); margin: 0 16px; border-radius:16px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:12px; margin-bottom:16px;">
+        <h3 style="margin:0; font-size:1.15rem; color:#1e293b;">🧪 Sandbox Sandbox Testing Playground</h3>
+        <button onclick="closeSandboxModal()" style="border:none; background:none; font-size:1.4rem; cursor:pointer; color:var(--text-muted);">&times;</button>
+      </div>
+
+      <!-- Target Simulator Stage -->
+      <div id="sandboxStage" style="min-height:100px; padding:4px 0;"></div>
+
+      <!-- Realtime Evaluated feedback card -->
+      <div id="sandboxFeedbackCard" class="hidden" style="margin-top: 16px; border: 1px solid var(--border); border-radius: 8px; padding: 16px; background: #f8fafc;">
+        <div id="sandboxFeedbackPayload" style="font-size:0.88rem; line-height:1.5;"></div>
+      </div>
+
+      <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:20px; border-top:1px solid var(--border); padding-top:16px;">
+        <button onclick="closeSandboxModal()" class="btn btn-secondary" style="padding:8px 16px;">Close sandbox</button>
+        <button id="btnSandboxSubmit" class="btn btn-primary" style="padding:8px 16px; background:#3b82f6;">Run Scoring Engine</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL WINDOW B: INTERACTIVE EDIT/MODIFY WINDOW -->
+  <div id="editModalOverlay" class="hidden" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(15,23,42,0.6); z-index:1900; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(4px); overflow-y:auto; padding: 40px 0;">
+    <div class="card" style="width:100%; max-width:800px; box-shadow:0 20px 25px -5px rgba(0,0,0,0.1); border-radius:16px; margin: auto 16px; max-height:90vh; overflow-y:auto; box-sizing:border-box;">
+      <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:12px; margin-bottom:16px;">
+        <h3 style="margin:0; font-size:1.15rem; color:#1e293b;">✏️ Modify Active Question Record</h3>
+        <button onclick="closeEditModal()" style="border:none; background:none; font-size:1.4rem; cursor:pointer; color:var(--text-muted);">&times;</button>
+      </div>
+
+      <div style="background:#eff6ff; border:1px solid #bfdbfe; color:#1e40af; padding:12px; border-radius:8px; font-size:0.8rem; margin-bottom:16px; line-height:1.4;">
+        💡 <strong>Live Edits Mode:</strong> Making changes here and clicking "Save Changes" will instantly update active tables.
+      </div>
+
+      <div id="editGradingModeIndicator" style="border: 1px solid transparent; padding: 12px; border-radius: 8px; font-size: 0.8rem; line-height: 1.45; margin-bottom: 16px;"></div>
+
+      <form id="editForm" onsubmit="return false;">
+        <input type="hidden" id="editQuestionId"/>
+        
+        <div style="margin-bottom:12px;">
+          <label>Question Prompt Stem:</label>
+          <textarea id="editPrompt" rows="3" style="font-family:inherit;"></textarea>
+        </div>
+
+        <div class="row">
+          <div>
+            <label>Syllabus Cognitive Tier:</label>
+            <select id="editTier">
+              <option value="both">Both (Common)</option>
+              <option value="higher">Higher Tier</option>
+              <option value="foundation">Foundation Tier</option>
+            </select>
+          </div>
+          <div>
+            <label>Awardable Max Marks:</label>
+            <select id="editMaxMarks"></select>
+          </div>
+          <div>
+            <label>Revision Walkthrough Video:</label>
+            <input type="text" id="editResource" />
+          </div>
+        </div>
+
+        <!-- Section 2 Keywords Edit Panel -->
+        <div id="editMcqPanel" class="hidden">
+          <div class="row">
+            <div>
+              <label>Choice A:</label>
+              <input type="text" id="editOpt1"/>
+            </div>
+            <div>
+              <label>Choice B:</label>
+              <input type="text" id="editOpt2"/>
+            </div>
+          </div>
+          <div class="row">
+            <div>
+              <label>Choice C:</label>
+              <input type="text" id="editOpt3"/>
+            </div>
+            <div>
+              <label>Choice D:</label>
+              <input type="text" id="editOpt4"/>
+            </div>
+          </div>
+          <div style="margin-top:8px;">
+            <label>Correct MCQ Selection:</label>
+            <select id="editOptCorrect"></select>
+          </div>
+        </div>
+
+        <div id="editNumericPanel" class="hidden">
+          <div class="row">
+            <div>
+              <label>Correct Value Target:</label>
+              <input type="number" id="editNumAns" step="any"/>
+            </div>
+            <div>
+              <label>Tolerance Range Leeway:</label>
+              <input type="number" id="editNumTol" step="any"/>
+            </div>
+            <div>
+              <label>Target Expected Unit Badge:</label>
+              <input type="text" id="editNumUnit"/>
+            </div>
+          </div>
+
+          <!-- Progressive Scaffolding Edits Area -->
+          <div style="border: 1px solid var(--border); background: #f8fafc; padding: 12px; border-radius: 8px; margin-top: 12px; margin-bottom: 12px;">
+            <h4 style="margin-top: 0; margin-bottom: 10px; font-size: 0.85rem; color:#334155;">📐 Scaffold Steps Configuration</h4>
+            <div style="display: flex; gap: 16px; align-items: center; margin-bottom: 10px;">
+              <label style="display: flex; align-items: center; gap: 6px; margin-bottom: 0; cursor: pointer; font-size:0.8rem;">
+                <input type="checkbox" id="chkEditScaffoldConv" />
+                <span>Conversion Step</span>
+              </label>
+              <label style="display: flex; align-items: center; gap: 6px; margin-bottom: 0; cursor: pointer; font-size:0.8rem;">
+                <input type="checkbox" id="chkEditScaffoldRearrange" />
+                <span>Rearrangement Step</span>
+              </label>
+            </div>
+
+            <div id="subEditScaffoldConv" class="row hidden" style="border-top:1px solid var(--border); padding-top:8px;">
+              <div>
+                <label style="font-size:0.78rem;">Conversion Variable Label:</label>
+                <input type="text" id="editScaffoldConvLabel" placeholder="e.g. meters" style="font-size:0.8rem; padding:6px;"/>
+              </div>
+              <div>
+                <label style="font-size:0.78rem;">Expected Converted Magnitude:</label>
+                <input type="number" id="editScaffoldConvAnswer" placeholder="e.g. 0.2" step="any" style="font-size:0.8rem; padding:6px;"/>
+              </div>
+              <div>
+                <label style="font-size:0.78rem;">Conversion Tolerance:</label>
+                <input type="number" id="editScaffoldConvTol" step="any" style="font-size:0.8rem; padding:6px;"/>
+              </div>
+            </div>
+
+            <div id="subEditScaffoldRearrange" class="row hidden" style="border-top:1px solid var(--border); padding-top:8px;">
+              <div>
+                <label style="font-size:0.78rem;">Correct Target Formula:</label>
+                <input type="text" id="editScaffoldRearrangeAnswer" style="font-size:0.8rem; padding:6px;"/>
+              </div>
+              <div style="grid-column: span 2;">
+                <label style="font-size:0.78rem;">Rearrange Choice Distractors (comma list):</label>
+                <input type="text" id="editScaffoldRearrangeDistractors" style="font-size:0.8rem; padding:6px;"/>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="editShortTextPanel" class="hidden">
+          <div class="row">
+            <div>
+              <label>Required Keywords (Supports Synonyms |):</label>
+              <input type="text" id="editShortReqKeywords"/>
+            </div>
+            <div>
+              <label>Optional Keywords List:</label>
+              <input type="text" id="editShortOptKeywords"/>
+            </div>
+            <div>
+              <label>Minimum Optional Words Expected:</label>
+              <input type="number" id="editShortMinOptional"/>
+            </div>
+          </div>
+        </div>
+
+        <div id="editExtendedPanel" class="hidden">
+          <div style="margin-bottom:10px;">
+            <label>AI Marking Guidelines / Target points:</label>
+            <textarea id="editGuidelines" rows="3" style="font-family:inherit;"></textarea>
+          </div>
+          <div class="row">
+            <div>
+              <label>Level 3 Descriptor (5-6 marks):</label>
+              <textarea id="editLvl3" rows="2" style="font-family:inherit; font-size:0.8rem;"></textarea>
+            </div>
+            <div>
+              <label>Level 2 Descriptor (3-4 marks):</label>
+              <textarea id="editLvl2" rows="2" style="font-family:inherit; font-size:0.8rem;"></textarea>
+            </div>
+            <div>
+              <label>Level 1 Descriptor (1-2 marks):</label>
+              <textarea id="editLvl1" rows="2" style="font-family:inherit; font-size:0.8rem;"></textarea>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section 3 Checkpoints Edit Panel -->
+        <div style="margin-top:16px; border-top:1px solid var(--border); padding-top:12px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+            <label style="font-size:0.9rem; font-weight:700; color:var(--primary-dark); margin-bottom:0;">Section 3: Step-by-Step Mark Checkpoints</label>
+            <button type="button" class="btn btn-secondary" id="btnEditAddMarkPoint" style="padding:3px 8px; font-size:0.75rem;">+ Add Criteria Step</button>
+          </div>
+          <div id="editMarkPointsWrapper" style="max-height: 200px; overflow-y: auto; border: 1px solid var(--border); padding: 10px; border-radius: 8px; background: #fafbfc;"></div>
+        </div>
+
+        <!-- Attachment Management -->
+        <div class="row" style="margin-top:16px; align-items:flex-end;">
+          <div style="grid-column: span 2;">
+            <label>Diagram Image URL:</label>
+            <input type="text" id="editImageUrl" placeholder="Manual URL..." />
+          </div>
+          <div>
+            <label>Upload New Diagram File:</label>
+            <input type="file" id="editImageFile" accept="image/*" />
+          </div>
+        </div>
+        <div id="editImagePreviewContainer" class="hidden" style="margin-top:10px; display:flex; align-items:center; gap:10px; background:#f1f5f9; padding:8px; border-radius:8px;">
+          <img id="editImagePreview" style="max-height:80px; border-radius:4px; border:1px solid var(--border);"/>
+          <div>
+            <span style="font-size:0.75rem; font-weight:700; color:var(--text-muted);">Current Active Image Reference</span><br/>
+            <button type="button" onclick="removeEditImage()" class="btn btn-danger" style="padding:2px 6px; font-size:0.7rem; margin-top:4px;">Delete Attachment</button>
+          </div>
+        </div>
+
+      </form>
+
+      <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:20px; border-top:1px solid var(--border); padding-top:16px;">
+        <button onclick="closeEditModal()" class="btn btn-secondary" style="padding:8px 16px;">Discard Changes</button>
+        <button id="btnSaveEdits" class="btn btn-primary" style="padding:8px 16px;">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONFIRM DELETE DIALOG -->
+  <div id="customConfirmModal" class="hidden" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(15,23,42,0.6); z-index:2100; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(4px);">
+    <div class="card" style="width:100%; max-width:400px; box-shadow:0 20px 25px -5px rgba(0,0,0,0.1); margin: 0 16px; border-radius:12px;">
+      <h3 style="margin-top:0; color:var(--error); font-size:1.1rem; border-bottom:1px solid var(--border); padding-bottom:8px; margin-bottom:12px;">🔴 Irreversible System Deletion</h3>
+      <p id="confirmModalText" style="font-size:0.85rem; line-height:1.45; color:#334155; margin-bottom:20px;"></p>
+      <div style="display:flex; justify-content:flex-end; gap:8px;">
+        <button id="btnModalCancel" class="btn btn-secondary" style="padding:6px 12px; font-size:0.8rem;">Cancel</button>
+        <button id="btnModalConfirm" class="btn btn-danger" style="padding:6px 12px; font-size:0.8rem;">Execute Deletion</button>
+      </div>
+    </div>
+  </div>
+
+<!-- Supabase Script Integrations & Business Logic -->
+<script>
+  // ====== SUPABASE CONFIG ======
+  const SUPABASE_URL = "https://cbycwfhczyvzzhthpgsw.supabase.co";
+  const SUPABASE_ANON_KEY = "sb_publishable_xD75RVd3kyvxs3IK_WsNag_eoCAZF4W";
+  const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  let currentAuthSessionUser = null;
+  let loadedQuestionsCache = [];
+  let markPointsCounter = 0;
+  let editMarkPointsCounter = 0; // Distinct counter for editor window
+  
+  // Custom Toast Notifier
+  function showAdminToast(msg, isError = false) {
+    const banner = document.getElementById("toastBanner");
+    banner.textContent = msg;
+    banner.style.background = isError ? "var(--error)" : "var(--primary)";
+    banner.style.opacity = "1";
+    banner.style.transform = "translateY(0)";
+    setTimeout(() => {
+      banner.style.opacity = "0";
+      banner.style.transform = "translateY(-20px)";
+    }, 5000);
+  }
+
+  // Check Auth State on Boot
+  window.onload = async function() {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (session) {
+      handleAuthSuccess(session.user);
+    } else {
+      console.log("No active administrator session detected. Standard login screen visible.");
+    }
+  };
+
+  // Auth Button Listener
+  document.getElementById("btnAdminAuthenticate").onclick = async () => {
+    const email = document.getElementById("adminEmail").value.trim();
+    const password = document.getElementById("adminPassword").value;
+    
+    if (!email || !password) {
+      showAdminToast("Please enter teacher credentials to proceed.", true);
+      return;
+    }
+
+    const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+    if (error) {
+      showAdminToast("Authentication rejected: " + error.message, true);
+    } else {
+      showAdminToast("Teacher session validated cleanly.");
+      handleAuthSuccess(data.user);
+    }
+  };
+
+  function handleAuthSuccess(user) {
+    currentAuthSessionUser = user;
+    document.getElementById("adminAuthSection").classList.add("hidden");
+    document.getElementById("creatorContainer").classList.remove("hidden");
+    
+    const badge = document.getElementById("authStatusBadge");
+    badge.textContent = `🟢 Authenticated: ${user.email}`;
+    badge.style.background = "#d1fae5";
+    badge.style.color = "var(--primary-dark)";
+    badge.style.borderColor = "#a7f3d0";
+    
+    // Auto load topics
+    loadSyllabusReferenceSelects();
+  }
+
+  // Switch Panel Tabs
+  window.switchPanel = function(panelId) {
+    document.querySelectorAll(".tab-btn").forEach(btn => btn.classList.remove("active"));
+    document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
+    
+    // Find active button click
+    const activeBtn = Array.from(document.querySelectorAll(".tab-btn")).find(btn => btn.textContent.toLowerCase().includes(panelId));
+    if (activeBtn) activeBtn.classList.add("active");
+    
+    const panelName = "panel" + panelId.charAt(0).toUpperCase() + panelId.slice(1);
+    const activePanel = document.getElementById(panelName);
+    if (activePanel) activePanel.classList.add("active");
+  };
+
+  // ====== SYLLABUS LOADER ======
+  async function loadSyllabusReferenceSelects() {
+    const subject = document.getElementById("subjectSelect").value;
+    const paper = document.getElementById("paperSelect").value;
+    const selector = document.getElementById("specPointSelect");
+    
+    selector.innerHTML = "<option>Loading references...</option>";
+    
+    try {
+      const { data, error } = await supabaseClient
+        .from("spec_points")
+        .select("id, spec_ref, topic_name, spec_text")
+        .eq("subject", subject)
+        .eq("paper", paper)
+        .order("spec_ref", { ascending: true });
+        
+      if (error) throw error;
+      
+      selector.innerHTML = (data || []).map(row => `
+        <option value="${row.id}">${row.spec_ref} - [${row.topic_name}] ${row.spec_text.slice(0, 75)}...</option>
+      `).join("");
+      
+    } catch(err) {
+      console.error(err);
+      selector.innerHTML = "<option>Error loading syllabus data.</option>";
+    }
+  }
+
+  // Trigger loading syllabus upon form changes
+  document.getElementById("subjectSelect").onchange = loadSyllabusReferenceSelects;
+  document.getElementById("paperSelect").onchange = loadSyllabusReferenceSelects;
+
+  // ====== MCQ CHOOSE DROPDOWN LOADER ======
+  const mcqCorrectSelect = document.getElementById("mcqCorrect");
+  const optionsArr = ["mcqOptA", "mcqOptB", "mcqOptC", "mcqOptD"];
+  
+  function updateMcqCorrectSelector() {
+    mcqCorrectSelect.innerHTML = "<option value=''>-- Choose Correct Selection --</option>";
+    optionsArr.forEach((id, i) => {
+      const optText = document.getElementById(id).value.trim();
+      if (optText) {
+        const letter = String.fromCharCode(65 + i); // A, B, C, D
+        const val = document.createElement("option");
+        val.value = optText;
+        val.textContent = `Option ${letter}: "${optText}"`;
+        mcqCorrectSelect.appendChild(val);
+      }
+    });
+  }
+  optionsArr.forEach(id => {
+    document.getElementById(id).oninput = updateMcqCorrectSelector;
+  });
+
+  // ====== DYNAMIC QUESTION PANEL TOGGLING ======
+  const qType = document.getElementById("qType");
+  const maxMarksRow = document.getElementById("maxMarksRow");
+  const maxMarks = document.getElementById("maxMarks");
+  
+  qType.onchange = function() {
+    const type = qType.value;
+    
+    // Hide all dynamic components
+    document.getElementById("mcqPanel").classList.add("hidden");
+    document.getElementById("numericPanel").classList.add("hidden");
+    document.getElementById("shortTextKeywordsPanel").classList.add("hidden");
+    document.getElementById("extendedPanel").classList.add("hidden");
+    
+    // Setup clean Max Marks rules dynamically
+    maxMarks.removeAttribute("disabled");
+    maxMarks.innerHTML = "";
+    
+    if (type === "mcq") {
+      document.getElementById("mcqPanel").classList.remove("hidden");
+      
+      const opt = document.createElement("option");
+      opt.value = "1";
+      opt.textContent = "1 mark";
+      maxMarks.appendChild(opt);
+      maxMarks.value = "1";
+      maxMarksRow.classList.add("hidden");
+    } 
+    else if (type === "numeric") {
+      document.getElementById("numericPanel").classList.remove("hidden");
+      
+      const opt = document.createElement("option");
+      opt.value = "1";
+      opt.textContent = "Calculated dynamically based on toggled steps";
+      maxMarks.appendChild(opt);
+      maxMarks.value = "1";
+      maxMarksRow.classList.add("hidden");
+    } 
+    else if (type === "short_text") {
+      document.getElementById("shortTextKeywordsPanel").classList.remove("hidden");
+      
+      const opt1 = document.createElement("option");
+      opt1.value = "1";
+      opt1.textContent = "1 mark";
+      const opt2 = document.createElement("option");
+      opt2.value = "2";
+      opt2.textContent = "2 marks";
+      
+      maxMarks.appendChild(opt1);
+      maxMarks.appendChild(opt2);
+      maxMarks.value = "1";
+      maxMarksRow.classList.remove("hidden");
+    } 
+    else if (type === "extended_response") {
+      document.getElementById("extendedPanel").classList.remove("hidden");
+      
+      const opt4 = document.createElement("option");
+      opt4.value = "4";
+      opt4.textContent = "4 marks";
+      const opt5 = document.createElement("option");
+      opt5.value = "5";
+      opt5.textContent = "5 marks";
+      const opt6 = document.createElement("option");
+      opt6.value = "6";
+      opt6.textContent = "6 marks";
+      
+      maxMarks.appendChild(opt4);
+      maxMarks.appendChild(opt5);
+      maxMarks.appendChild(opt6);
+      maxMarks.value = "6";
+      maxMarksRow.classList.remove("hidden");
+    }
+  };
+
+  // Numerical progressive scaffolding helpers
+  const chkConv = document.getElementById("chkScaffoldConv");
+  const chkRearrange = document.getElementById("chkScaffoldRearrange");
+  
+  chkConv.onchange = function() {
+    const sub = document.getElementById("subScaffoldConv");
+    if (chkConv.checked) sub.classList.remove("hidden");
+    else sub.classList.add("hidden");
+  };
+  
+  chkRearrange.onchange = function() {
+    const sub = document.getElementById("subScaffoldRearrange");
+    if (chkRearrange.checked) sub.classList.remove("hidden");
+    else sub.classList.add("hidden");
+  };
+
+  // Connect edit modal scaffold toggles as well
+  const chkEditConv = document.getElementById("chkEditScaffoldConv");
+  const chkEditRearrange = document.getElementById("chkEditScaffoldRearrange");
+  
+  chkEditConv.onchange = function() {
+    const sub = document.getElementById("subEditScaffoldConv");
+    if (chkEditConv.checked) sub.classList.remove("hidden");
+    else sub.classList.add("hidden");
+  };
+  
+  chkEditRearrange.onchange = function() {
+    const sub = document.getElementById("subEditScaffoldRearrange");
+    if (chkEditRearrange.checked) sub.classList.remove("hidden");
+    else sub.classList.add("hidden");
+  };
+
+  // ====== SECTION 3: MARK POINTS DYNAMIC LIST (CREATOR) ======
+  window.addMarkPointRow = function(ptText = "", selectedAo = "AO1", fbText = "") {
+    markPointsCounter++;
+    const wrap = document.getElementById("markPointsWrapper");
+    
+    const row = document.createElement("div");
+    row.className = "row";
+    row.id = `mp_row_${markPointsCounter}`;
+    row.style = "grid-template-columns: 100px 1fr 1fr 40px; align-items: flex-start; gap:10px; margin-bottom: 8px;";
+    
+    row.innerHTML = `
+      <select class="mp-ao" style="height: 38px;">
+        <option value="AO1" ${selectedAo === "AO1" ? "selected" : ""}>AO1</option>
+        <option value="AO2" ${selectedAo === "AO2" ? "selected" : ""}>AO2</option>
+        <option value="AO3" ${selectedAo === "AO3" ? "selected" : ""}>AO3</option>
+      </select>
+      <input class="mp-text" type="text" placeholder="Point target keyword (e.g. gravity|gravitational)" value="${escapeHtml(ptText)}" style="height: 38px; box-sizing: border-box;"/>
+      <textarea class="mp-feedback" rows="2" placeholder="Remediation tips..." style="box-sizing: border-box; width: 100%; resize: vertical; min-height: 38px; font-family: inherit; font-size: 0.9rem; border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px;">${escapeHtml(fbText)}</textarea>
+      <button onclick="removeMarkPointRow(${markPointsCounter})" style="background:var(--error); color:white; border:none; border-radius:6px; cursor:pointer; height:38px; font-weight:bold; width: 100%;">&times;</button>
+    `;
+    wrap.appendChild(row);
+  };
+  
+  document.getElementById("btnAddMarkPoint").onclick = () => window.addMarkPointRow();
+  
+  window.removeMarkPointRow = function(id) {
+    const row = document.getElementById(`mp_row_${id}`);
+    if (row) row.remove();
+  };
+
+  // ====== SECTION 3: MARK POINTS DYNAMIC LIST (EDIT WINDOW) ======
+  window.addEditMarkPointRow = function(ptText = "", selectedAo = "AO1", fbText = "") {
+    editMarkPointsCounter++;
+    const wrap = document.getElementById("editMarkPointsWrapper");
+    
+    const row = document.createElement("div");
+    row.className = "row edit-mp-row";
+    row.id = `edit_mp_row_${editMarkPointsCounter}`;
+    row.style = "grid-template-columns: 100px 1fr 1fr 40px; align-items: flex-start; gap:10px; margin-bottom: 8px;";
+    
+    row.innerHTML = `
+      <select class="edit-mp-ao" style="height: 38px;">
+        <option value="AO1" ${selectedAo === "AO1" ? "selected" : ""}>AO1</option>
+        <option value="AO2" ${selectedAo === "AO2" ? "selected" : ""}>AO2</option>
+        <option value="AO3" ${selectedAo === "AO3" ? "selected" : ""}>AO3</option>
+      </select>
+      <input class="edit-mp-text" type="text" placeholder="Point target keyword (e.g. gravity|gravitational)" value="${escapeHtml(ptText)}" style="height: 38px; box-sizing: border-box;"/>
+      <textarea class="edit-mp-feedback" rows="2" placeholder="Remediation tips..." style="box-sizing: border-box; width: 100%; resize: vertical; min-height: 38px; font-family: inherit; font-size: 0.9rem; border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px;">${escapeHtml(fbText)}</textarea>
+      <button type="button" onclick="removeEditMarkPointRow(${editMarkPointsCounter})" style="background:var(--error); color:white; border:none; border-radius:6px; cursor:pointer; height:38px; font-weight:bold; width: 100%;">&times;</button>
+    `;
+    wrap.appendChild(row);
+  };
+
+  document.getElementById("btnEditAddMarkPoint").onclick = () => window.addEditMarkPointRow();
+
+  window.removeEditMarkPointRow = function(id) {
+    const row = document.getElementById(`edit_mp_row_${id}`);
+    if (row) row.remove();
+  };
+
+  window.removeEditImage = function() {
+    document.getElementById("editImageUrl").value = "";
+    document.getElementById("editImageFile").value = "";
+    document.getElementById("editImagePreviewContainer").classList.add("hidden");
+  };
+
+  // ====== FORM SUBMISSION PIXEL INTEGRATION ======
+  document.getElementById("btnCommit").onclick = async () => {
+    if (!currentAuthSessionUser) {
+      showAdminToast("Security Error: Log in as authorized administrator first.", true);
+      return;
+    }
+    
+    const specPointId = document.getElementById("specPointSelect").value;
+    const questionType = qType.value;
+    const prompt = document.getElementById("qPrompt").value.trim();
+    const tier = document.getElementById("tierSelect").value;
+    const youtubeUrl = document.getElementById("qVideo").value.trim();
+    const imageInput = document.getElementById("qImage");
+    
+    if (!specPointId || !prompt) {
+      showAdminToast("Validation Alert: Please set prompt details and select specification target point.", true);
+      return;
+    }
+    
+    try {
+      showAdminToast("Uploading attachments and parsing payloads...");
+      let finalImageUrl = null;
+      
+      // Image File Stream Attachment Loader
+      if (imageInput && imageInput.files.length > 0) {
+        const file = imageInput.files[0];
+        const ext = file.name.split('.').pop();
+        const randName = `${Math.random().toString(36).substring(2)}.${ext}`;
+        const path = `${document.getElementById("subjectSelect").value}/${randName}`;
+        
+        const { error: uploadError } = await supabaseClient.storage
+          .from("question-images")
+          .upload(path, file);
+          
+        if (uploadError) throw uploadError;
+        
+        const { data } = supabaseClient.storage.from("question-images").getPublicUrl(path);
+        finalImageUrl = data.publicUrl;
+      }
+      
+      // Compute Max Marks accurately
+      let calculatedMaxMarks = parseInt(maxMarks.value) || 1;
+      let calculatedMarkingMethod = "keyword";
+      
+      if (questionType === "numeric") {
+        let baseScore = 1;
+        if (chkConv.checked) baseScore += 1;
+        if (chkRearrange.checked) baseScore += 1;
+        calculatedMaxMarks = baseScore;
+        calculatedMarkingMethod = "numeric";
+      } else if (questionType === "extended_response") {
+        calculatedMarkingMethod = "ai_rubric";
+      }
+
+      // Create Parent Question Record
+      const insertPayload = {
+        spec_point_id: specPointId,
+        question_type: questionType,
+        prompt: prompt,
+        options: questionType === "mcq" ? [
+          document.getElementById("mcqOptA").value.trim(),
+          document.getElementById("mcqOptB").value.trim(),
+          document.getElementById("mcqOptC").value.trim(),
+          document.getElementById("mcqOptD").value.trim()
+        ] : null,
+        tier: tier,
+        marking_method: calculatedMarkingMethod,
+        max_marks: calculatedMaxMarks,
+        resource_links: youtubeUrl,
+        image_url: finalImageUrl
+      };
+      
+      // Inject Mathematical scaffold subconfigurations
+      if (questionType === "numeric") {
+        const scDistractors = document.getElementById("scaffoldRearrangeDistractors").value;
+        insertPayload.scaffold_config = {
+          has_conversion: chkConv.checked,
+          conversion_label: document.getElementById("scaffoldConvLabel").value.trim(),
+          conversion_answer: parseFloat(document.getElementById("scaffoldConvAnswer").value),
+          conversion_tolerance: parseFloat(document.getElementById("scaffoldConvTol").value) || 0.001,
+          has_rearrangement: chkRearrange.checked,
+          rearrangement_answer: document.getElementById("scaffoldRearrangeAnswer").value.trim(),
+          rearrangement_distractors: scDistractors ? scDistractors.split(",").map(d => d.trim()) : []
+        };
+      }
+
+      const { data: qResult, error: qErr } = await supabaseClient
+        .from("questions")
+        .insert(insertPayload)
+        .select()
+        .single();
+        
+      if (qErr) throw qErr;
+      
+      // Save Answer Key payloads
+      let keyType = "keywords";
+      let keyPayload = {};
+      
+      if (questionType === "mcq") {
+        keyType = "mcq";
+        keyPayload = {
+          correct: mcqCorrectSelect.value,
+          feedback: "Check your textbook or video review guide for this concept."
+        };
+      } 
+      else if (questionType === "numeric") {
+        keyType = "numeric";
+        keyPayload = {
+          answer: parseFloat(document.getElementById("numAnsVal").value),
+          tolerance: parseFloat(document.getElementById("numAnsTol").value) || 0,
+          unit: document.getElementById("numAnsUnit").value.trim()
+        };
+      } 
+      else if (questionType === "short_text") {
+        keyType = "keywords";
+        
+        const reqStr = document.getElementById("shortReqKeywords").value.trim();
+        const optStr = document.getElementById("shortOptKeywords").value.trim();
+        const minOpt = parseInt(document.getElementById("shortMinOptional").value) || 0;
+        
+        keyPayload = {
+          required: reqStr ? reqStr.split(",").map(k => k.trim()) : [],
+          optional: optStr ? optStr.split(",").map(k => k.trim()) : [],
+          min_optional: minOpt
+        };
+      }
+      else if (questionType === "extended_response") {
+        keyType = "ai_rubric";
+        keyPayload = {
+          marking_guidelines: document.getElementById("guidelines").value,
+          level_descriptors: {
+            "Level 3 (5-6 marks)": document.getElementById("lvl3").value,
+            "Level 2 (3-4 marks)": document.getElementById("lvl2").value,
+            "Level 1 (1-2 marks)": document.getElementById("lvl1").value
+          }
+        };
+      }
+
+      const { error: kErr } = await supabaseClient
+        .from("answer_keys")
+        .insert({
+          question_id: qResult.id,
+          key_type: keyType,
+          key_payload: keyPayload
+        });
+        
+      if (kErr) throw kErr;
+      
+      // Save Section 3 detailed Mark Points
+      const rows = Array.from(document.querySelectorAll("#markPointsWrapper .row"));
+      if (rows.length > 0) {
+        const markPayloads = rows.map(r => ({
+          question_id: qResult.id,
+          ao: r.querySelector(".mp-ao").value,
+          point_text: r.querySelector(".mp-text").value.trim(),
+          feedback_if_missing: r.querySelector(".mp-feedback").value.trim(),
+          max_marks: 1
+        }));
+        
+        const { error: mpErr } = await supabaseClient.from("mark_points").insert(markPayloads);
+        if (mpErr) throw mpErr;
+      }
+      
+      showAdminToast("Question committed successfully! ✅");
+      clearQuestionCreatorForm();
+      
+    } catch(err) {
+      console.error(err);
+      showAdminToast("Error committing entry: " + err.message, true);
+    }
+  };
+
+  function clearQuestionCreatorForm() {
+    document.getElementById("qPrompt").value = "";
+    document.getElementById("qVideo").value = "";
+    document.getElementById("qImage").value = "";
+    
+    document.getElementById("mcqOptA").value = "";
+    document.getElementById("mcqOptB").value = "";
+    document.getElementById("mcqOptC").value = "";
+    document.getElementById("mcqOptD").value = "";
+    mcqCorrectSelect.innerHTML = "<option value=''>-- Choose Correct Option --</option>";
+    
+    document.getElementById("shortReqKeywords").value = "";
+    document.getElementById("shortOptKeywords").value = "";
+    document.getElementById("shortMinOptional").value = "0";
+
+    document.getElementById("numAnsVal").value = "";
+    document.getElementById("numAnsTol").value = "";
+    document.getElementById("numAnsUnit").value = "";
+    
+    chkConv.checked = false;
+    chkConv.onchange();
+    chkRearrange.checked = false;
+    chkRearrange.onchange();
+    
+    document.getElementById("guidelines").value = "";
+    document.getElementById("lvl3").value = "";
+    document.getElementById("lvl2").value = "";
+    document.getElementById("lvl1").value = "";
+    
+    document.getElementById("markPointsWrapper").innerHTML = "";
+    markPointsCounter = 0;
+  }
+  document.getElementById("btnReset").onclick = clearQuestionCreatorForm;
+
+  // ====== TAB 2: CSV PROCESSING ENGINE ======
+  document.getElementById("btnProcessCsv").onclick = async () => {
+    if (!currentAuthSessionUser) {
+      showAdminToast("Log in as an authorized teacher to upload CSV packets.", true);
+      return;
+    }
+    
+    const fileInput = document.getElementById("csvFile");
+    const logArea = document.getElementById("csvLog");
+    
+    if (fileInput.files.length === 0) {
+      showAdminToast("Please select a standard CSV file first.", true);
+      return;
+    }
+    
+    const subOverride = document.getElementById("csvSubject").value;
+    const paperOverride = document.getElementById("csvPaper").value;
+    const tierOverride = document.getElementById("csvTier").value;
+    
+    const file = fileInput.files[0];
+    const reader = new FileReader();
+    
+    logArea.textContent = `Starting CSV read operation for: "${file.name}"...`;
+    
+    reader.onload = async function(e) {
+      const text = e.target.result;
+      const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
+      
+      logArea.textContent += `\nFound ${lines.length} lines total (including possible headers).`;
+      
+      // Pop headers if present
+      const firstLine = lines[0].toLowerCase();
+      if (firstLine.includes("prompt") || firstLine.includes("spec_ref") || firstLine.includes("subject")) {
+        lines.shift();
+        logArea.textContent += `\nDetected headers list. Popping row index 0. Starting row imports...`;
+      }
+      
+      let processed = 0;
+      let failed = 0;
+      
+      for (let line of lines) {
+        // Safe CSV line tokenizer
+        const parts = [];
+        let cur = '';
+        let insideQuote = false;
+        
+        for (let i = 0; i < line.length; i++) {
+          const char = line[i];
+          if (char === '"') {
+            insideQuote = !insideQuote;
+          } else if (char === ',' && !insideQuote) {
+            parts.push(cur.trim());
+            cur = '';
+          } else {
+            cur += char;
+          }
+        }
+        parts.push(cur.trim());
+        
+        if (parts.length < 5) {
+          failed++;
+          logArea.textContent += `\nSkipped short line: "${line.slice(0,40)}..." (Invalid length: ${parts.length})`;
+          continue;
+        }
+        
+        // Parse Columns
+        let csvSub = parts[0] || subOverride;
+        let csvPaper = parts[1] || paperOverride;
+        let csvTier = parts[2] || tierOverride;
+        let csvRef = parts[3];
+        let csvType = parts[4];
+        let csvPrompt = parts[5];
+        
+        // Let's resolve the UUID for the target spec reference dynamically
+        logArea.textContent += `\nResolving syllabus ID for Reference: ${csvRef}...`;
+        
+        const { data: matchedRef, error: refErr } = await supabaseClient
+          .from("spec_points")
+          .select("id")
+          .eq("subject", csvSub)
+          .eq("paper", csvPaper)
+          .eq("spec_ref", csvRef)
+          .maybeSingle();
+          
+        if (refErr || !matchedRef) {
+          failed++;
+          logArea.textContent += `\n🔴 Error: Reference "${csvRef}" does not exist in your spec_points database. Skip row.`;
+          continue;
+        }
+        
+        try {
+          // Process Question Record
+          const insertPayload = {
+            spec_point_id: matchedRef.id,
+            question_type: csvType,
+            prompt: csvPrompt,
+            tier: csvTier,
+            max_marks: parseInt(parts[11]) || 1,
+            marking_method: csvType === "mcq" ? "keyword" : (csvType === "numeric" ? "numeric" : (csvType === "extended_response" ? "ai_rubric" : "keyword"))
+          };
+          
+          if (csvType === "mcq") {
+            insertPayload.options = [parts[6], parts[7], parts[8], parts[9]];
+          }
+          
+          const { data: qNode, error: qErr } = await supabaseClient
+            .from("questions")
+            .insert(insertPayload)
+            .select()
+            .single();
+            
+          if (qErr) throw qErr;
+          
+          // Process Answer Key
+          let keyType = "keywords";
+          let keyPayload = {};
+          
+          if (csvType === "mcq") {
+            keyType = "mcq";
+            keyPayload = {
+              correct: parts[10],
+              feedback: "Double-check your concepts."
+            };
+          } else {
+            keyType = "keywords";
+            keyPayload = {
+              required: parts[10] ? parts[10].split("|").map(x => x.trim()) : [],
+              optional: [],
+              min_optional: 0
+            };
+          }
+          
+          const { error: kErr } = await supabaseClient
+            .from("answer_keys")
+            .insert({
+              question_id: qNode.id,
+              key_type: keyType,
+              key_payload: keyPayload
+            });
+            
+          if (kErr) throw kErr;
+          processed++;
+          logArea.textContent += `\n🟢 Successfully uploaded Question ID: ${qNode.id}`;
+          
+        } catch(err) {
+          failed++;
+          logArea.textContent += `\n🔴 Transaction Error processing row: ${err.message}`;
+        }
+      }
+      
+      logArea.textContent += `\n\n=========================================\nCompleted! Processed: ${processed} | Failed/Skipped: ${failed}`;
+      showAdminToast(`CSV Parse completed. Verified ${processed} additions.`);
+    };
+    
+    reader.readAsText(file);
+  };
+
+  // ====== TAB 3: AUDIT CHECKLISTS & ACTIONS ======
+  const btnQueryQuestions = document.getElementById("btnQueryQuestions");
+  const auditList = document.getElementById("questionsAuditList");
+  
+  btnQueryQuestions.onclick = async () => {
+    const sub = document.getElementById("auditSubject").value;
+    const paper = document.getElementById("auditPaper").value;
+    const qTypeFilter = document.getElementById("auditType").value;
+    const search = document.getElementById("auditSearchQuery").value.trim();
+    
+    auditList.innerHTML = `<tr><td colspan="5" style="padding:24px; text-align:center;">Querying database records...</td></tr>`;
+    
+    try {
+      // Pull specification points to map topics and names
+      const { data: specs } = await supabaseClient
+        .from("spec_points")
+        .select("id, spec_ref, topic_name")
+        .eq("subject", sub)
+        .eq("paper", paper);
+        
+      const specMap = {};
+      const specIds = [];
+      (specs || []).forEach(row => {
+        specMap[row.id] = row;
+        specIds.push(row.id);
+      });
+      
+      // Pull ALL checkpoints upfront to see if a short_text item uses Section 3 scoring criteria
+      const { data: allMarkPoints } = await supabaseClient
+        .from("mark_points")
+        .select("question_id, id");
+
+      const checkPointsCounterMap = {};
+      (allMarkPoints || []).forEach(mp => {
+        checkPointsCounterMap[mp.question_id] = (checkPointsCounterMap[mp.question_id] || 0) + 1;
+      });
+      
+      // Expanded select list to fetch related answer_keys to detect missing answers or missing keywords!
+      let query = supabaseClient
+        .from("questions")
+        .select("id, spec_point_id, question_type, prompt, options, tier, marking_method, max_marks, resource_links, image_url, scaffold_config, answer_keys(key_type, key_payload)")
+        .in("spec_point_id", specIds);
+        
+      if (qTypeFilter) {
+        query = query.eq("question_type", qTypeFilter);
+      }
+      
+      const { data: questions, error: qErr } = await query;
+      if (qErr) throw qErr;
+      
+      let filtered = questions || [];
+      if (search) {
+        filtered = filtered.filter(q => q.prompt.toLowerCase().includes(search.toLowerCase()));
+      }
+      
+      // Audit engine mapping to calculate severity & prepare prioritized sorting rules
+      filtered.forEach(q => {
+        const warnings = [];
+        
+        // 1. Critical Errors (Weight = 10 each)
+        if (!q.prompt || q.prompt.trim() === "") {
+          warnings.push({ type: 'error', text: "❌ Missing Prompt" });
+        }
+        
+        const keyRelation = q.answer_keys;
+        const key = Array.isArray(keyRelation) && keyRelation.length > 0 ? keyRelation[0] : keyRelation;
+        const totalCheckpoints = checkPointsCounterMap[q.id] || 0;
+        
+        if (!key || !key.key_payload) {
+          warnings.push({ type: 'error', text: "❌ Missing Answer Key Relation" });
+        } else {
+          const payload = key.key_payload;
+          if (q.question_type === "mcq") {
+            const correctOpt = payload.correct || payload.answer;
+            if (!correctOpt || correctOpt.trim() === "") {
+              warnings.push({ type: 'error', text: "❌ Missing Correct MCQ Option" });
+            }
+          } else if (q.question_type === "numeric") {
+            const numAns = payload.answer;
+            if (numAns === undefined || numAns === null || isNaN(numAns)) {
+              warnings.push({ type: 'error', text: "❌ Missing Numeric Answer" });
+            }
+          } else if (q.question_type === "short_text") {
+            const reqWords = payload.required;
+            const hasKeywords = reqWords && Array.isArray(reqWords) && reqWords.filter(Boolean).length > 0;
+            
+            // FIX: Only throw error if BOTH Section 2 keywords AND Section 3 checkpoints are missing!
+            if (!hasKeywords && totalCheckpoints === 0) {
+              warnings.push({ type: 'error', text: "❌ Missing Required Keywords or Checkpoints" });
+            }
+          }
+        }
+        
+        // 2. Standard Warnings (Weight = 1 each)
+        if (!q.resource_links) {
+          warnings.push({ type: 'warning', text: "⚠️ Missing Video Link" });
+        }
+        if (!q.image_url) {
+          warnings.push({ type: 'warning', text: "🖼️ No Diagram" });
+        }
+        if (q.prompt && q.prompt.includes("$") && !window.MathJax) {
+          warnings.push({ type: 'warning', text: "📐 LaTeX Warning" });
+        }
+        
+        q._warningsList = warnings;
+        
+        // Severity metric builder
+        let severityScore = 0;
+        warnings.forEach(w => {
+          if (w.type === 'error') severityScore += 10;
+          else severityScore += 1;
+        });
+        q._severityWeight = severityScore;
+      });
+
+      // Sort by calculated severity weight descending (highest weights move to the top!)
+      filtered.sort((a, b) => b._severityWeight - a._severityWeight);
+      
+      // Store in memory cache for Sandbox loading & modal populates
+      loadedQuestionsCache = filtered;
+      
+      if (filtered.length === 0) {
+        auditList.innerHTML = `<tr><td colspan="5" style="padding:24px; text-align:center; color:var(--text-muted);">No records found in active tables matching your search rules.</td></tr>`;
+        return;
+      }
+      
+      auditList.innerHTML = filtered.map(q => {
+        const spec = specMap[q.spec_point_id] || {};
+        const ref = spec.spec_ref || "Global";
+        const hasCheckpoints = (checkPointsCounterMap[q.id] || 0) > 0;
+        
+        // Build text warnings displays to slide directly under each question row
+        let warningsHtml = "";
+        if (q._warningsList.length > 0) {
+          warningsHtml = q._warningsList.map(w => {
+            const isError = w.type === 'error';
+            const bg = isError ? "#fef2f2" : "#fef3c7";
+            const textCol = isError ? "#991b1b" : "#92400e";
+            const borderCol = isError ? "#fca5a5" : "#fcd34d";
+            return `<span style="background:${bg}; color:${textCol}; border:1px solid ${borderCol}; padding:4px 10px; border-radius:6px; font-size:0.78rem; font-weight:600; display:inline-flex; align-items:center; gap:4px; margin-right:6px; margin-bottom:4px;">${w.text}</span>`;
+          }).join("");
+        }
+        
+        // Add status badge showing check mode
+        if (q.question_type === "short_text") {
+          if (hasCheckpoints) {
+            warningsHtml += `<span style="background:#eff6ff; color:#1e40af; border:1px solid #bfdbfe; padding:4px 10px; border-radius:6px; font-size:0.78rem; font-weight:600; display:inline-flex; align-items:center; gap:4px; margin-right:6px; margin-bottom:4px;">🎯 Grading: Checkpoints Active</span>`;
+          } else {
+            warningsHtml += `<span style="background:#f0fdf4; color:#166534; border:1px solid #bbf7d0; padding:4px 10px; border-radius:6px; font-size:0.78rem; font-weight:600; display:inline-flex; align-items:center; gap:4px; margin-right:6px; margin-bottom:4px;">🔑 Grading: Keyword Engine</span>`;
+          }
+        } else if (q._warningsList.length === 0) {
+          warningsHtml = `<span style="background:#d1fae5; color:#065f46; border:1px solid #a7f3d0; padding:4px 10px; border-radius:6px; font-size:0.78rem; font-weight:600; display:inline-flex; align-items:center; gap:4px;">🟢 Audit Passed: Question fully configured</span>`;
+        }
+          
+        return `
+          <!-- Row A: Primary metadata metrics -->
+          <tr style="border-top:1px solid var(--border); transition: background 0.15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='none'">
+            <td style="padding:12px 16px 4px 16px; font-weight:700; color:#1e293b;">${ref}</td>
+            <td style="padding:12px 16px 4px 16px;"><span class="chip" style="background:#e2e8f0; color:#475569; padding:2px 6px; border-radius:4px; font-size:0.76rem; font-weight:700;">${q.question_type.toUpperCase()}</span></td>
+            <td style="padding:12px 16px 4px 16px; max-width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(q.prompt)}">${escapeHtml(q.prompt)}</td>
+            <td style="padding:12px 16px 4px 16px; font-weight:700;">${q.max_marks} marks</td>
+            <td style="padding:12px 16px 4px 16px; text-align:right; display:flex; gap:6px; justify-content:flex-end;">
+              <button onclick="launchSandboxTest('${q.id}')" class="btn btn-secondary" style="padding:6px 10px; font-size:0.75rem; background:#3b82f6; color:white;">Test</button>
+              <button onclick="requestInteractiveEdit('${q.id}')" class="btn btn-secondary" style="padding:6px 10px; font-size:0.75rem;">Modify</button>
+              <button onclick="requestSafeSystemDeletion('${q.id}')" class="btn btn-danger" style="padding:6px 10px; font-size:0.75rem;">Remove</button>
+            </td>
+          </tr>
+          <!-- Row B: Spanning warning container rendering cleanly underneath Row A -->
+          <tr style="border-bottom:1px solid var(--border); background: none;">
+            <td colspan="5" style="padding: 4px 16px 12px 16px; font-size: 0.8rem; line-height: 1.45;">
+              <div style="display:flex; flex-wrap:wrap; gap:6px; align-items:center;">
+                <span style="font-weight:700; color:var(--text-muted); margin-right:6px;">Status / Audit Details:</span>
+                ${warningsHtml}
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join("");
+      
+    } catch(err) {
+      console.error(err);
+      auditList.innerHTML = `<tr><td colspan="5" style="padding:24px; text-align:center; color:var(--error);">Failed to audit records: ${err.message}</td></tr>`;
+    }
+  };
+
+  // ====== EDIT MODAL WORKFLOW ======
+  window.requestInteractiveEdit = async function(id) {
+    const q = loadedQuestionsCache.find(x => x.id === id);
+    if (!q) return;
+
+    // Populate common elements
+    document.getElementById("editQuestionId").value = q.id;
+    document.getElementById("editPrompt").value = q.prompt;
+    document.getElementById("editResource").value = q.resource_links || "";
+    document.getElementById("editTier").value = q.tier || "both";
+    
+    // Populate image properties in edit modal
+    const editImgUrl = document.getElementById("editImageUrl");
+    const editImgPreview = document.getElementById("editImagePreview");
+    const editImgPreviewContainer = document.getElementById("editImagePreviewContainer");
+    
+    editImgUrl.value = q.image_url || "";
+    if (q.image_url) {
+      editImgPreview.src = q.image_url;
+      editImgPreviewContainer.classList.remove("hidden");
+    } else {
+      editImgPreview.src = "";
+      editImgPreviewContainer.classList.add("hidden");
+    }
+    document.getElementById("editImageFile").value = "";
+
+    // Setup and unlock max marks config
+    const editMaxMarks = document.getElementById("editMaxMarks");
+    editMaxMarks.innerHTML = "";
+    [1, 2, 3, 4, 5, 6].forEach(val => {
+      const opt = document.createElement("option");
+      opt.value = val.toString();
+      opt.textContent = `${val} mark${val > 1 ? 's' : ''}`;
+      editMaxMarks.appendChild(opt);
+    });
+    editMaxMarks.value = (q.max_marks || 1).toString();
+
+    // Reset modal panels
+    document.getElementById("editMcqPanel").classList.add("hidden");
+    document.getElementById("editNumericPanel").classList.add("hidden");
+    document.getElementById("editShortTextPanel").classList.add("hidden");
+    document.getElementById("editExtendedPanel").classList.add("hidden");
+
+    let keyData = null;
+    // Fetch answer keys
+    try {
+      const { data } = await supabaseClient
+        .from("answer_keys")
+        .select("*")
+        .eq("question_id", q.id)
+        .maybeSingle();
+      
+      keyData = data;
+
+      if (q.question_type === "mcq") {
+        document.getElementById("editMcqPanel").classList.remove("hidden");
+        const opts = q.options || [];
+        document.getElementById("editOpt1").value = opts[0] || "";
+        document.getElementById("editOpt2").value = opts[1] || "";
+        document.getElementById("editOpt3").value = opts[2] || "";
+        document.getElementById("editOpt4").value = opts[3] || "";
+        
+        // Rebuild select correctly
+        const correctSelect = document.getElementById("editOptCorrect");
+        correctSelect.innerHTML = "<option value=''>-- Choose correct choice --</option>";
+        opts.forEach((o, idx) => {
+          if (o) {
+            const letter = String.fromCharCode(65 + idx);
+            const choice = document.createElement("option");
+            choice.value = o;
+            choice.textContent = `Option ${letter}: "${o}"`;
+            correctSelect.appendChild(choice);
+          }
+        });
+        correctSelect.value = keyData?.key_payload?.correct || "";
+      } 
+      else if (q.question_type === "numeric") {
+        document.getElementById("editNumericPanel").classList.remove("hidden");
+        document.getElementById("editNumAns").value = keyData?.key_payload?.answer || "";
+        document.getElementById("editNumTol").value = keyData?.key_payload?.tolerance || 0;
+        document.getElementById("editNumUnit").value = keyData?.key_payload?.unit || "";
+
+        // Populate Scaffolding values in edit window
+        const sc = q.scaffold_config || {};
+        const chkEditConvField = document.getElementById("chkEditScaffoldConv");
+        const chkEditRearrangeField = document.getElementById("chkEditScaffoldRearrange");
+
+        chkEditConvField.checked = !!sc.has_conversion;
+        document.getElementById("editScaffoldConvLabel").value = sc.conversion_label || "";
+        document.getElementById("editScaffoldConvAnswer").value = sc.conversion_answer !== undefined ? sc.conversion_answer : "";
+        document.getElementById("editScaffoldConvTol").value = sc.conversion_tolerance !== undefined ? sc.conversion_tolerance : "";
+        chkEditConvField.onchange(); // trigger show/hide
+
+        chkEditRearrangeField.checked = !!sc.has_rearrangement;
+        document.getElementById("editScaffoldRearrangeAnswer").value = sc.rearrangement_answer || "";
+        document.getElementById("editScaffoldRearrangeDistractors").value = Array.isArray(sc.rearrangement_distractors) ? sc.rearrangement_distractors.join(", ") : "";
+        chkEditRearrangeField.onchange(); // trigger show/hide
+      } 
+      else if (q.question_type === "short_text") {
+        document.getElementById("editShortTextPanel").classList.remove("hidden");
+        
+        // Populate standard required and optional arrays
+        const requiredArr = keyData?.key_payload?.required || [];
+        const optionalArr = keyData?.key_payload?.optional || [];
+        const minOptVal = keyData?.key_payload?.min_optional || 0;
+        
+        document.getElementById("editShortReqKeywords").value = requiredArr.join(", ");
+        document.getElementById("editShortOptKeywords").value = optionalArr.join(", ");
+        document.getElementById("editShortMinOptional").value = minOptVal;
+      }
+      else if (q.question_type === "extended_response") {
+        document.getElementById("editExtendedPanel").classList.remove("hidden");
+        document.getElementById("editGuidelines").value = keyData?.key_payload?.marking_guidelines || "";
+        document.getElementById("editLvl3").value = keyData?.key_payload?.level_descriptors?.["Level 3 (5-6 marks)"] || "";
+        document.getElementById("editLvl2").value = keyData?.key_payload?.level_descriptors?.["Level 2 (3-4 marks)"] || "";
+        document.getElementById("editLvl1").value = keyData?.key_payload?.level_descriptors?.["Level 1 (1-2 marks)"] || "";
+      }
+
+    } catch (err) {
+      console.warn("Failed retrieving corresponding keys dynamically:", err);
+    }
+
+    // Load existing Checkpoint Mark Points for editing safely without ordering by created_at to avoid PostgreSQL failures
+    document.getElementById("editMarkPointsWrapper").innerHTML = "";
+    editMarkPointsCounter = 0;
+    let mps = [];
+    try {
+      const { data: dbMps, error: mpsErr } = await supabaseClient
+        .from("mark_points")
+        .select("ao, point_text, feedback_if_missing")
+        .eq("question_id", q.id);
+        
+      if (!mpsErr && dbMps) {
+        mps = dbMps;
+        mps.forEach(mp => {
+          addEditMarkPointRow(mp.point_text, mp.ao, mp.feedback_if_missing);
+        });
+      } else if (mpsErr) {
+        console.error("Supabase Error loading checkpoints:", mpsErr);
+      }
+    } catch(err) {
+      console.error("Failed to query mark points for edit panel:", err);
+    }
+
+    // Dynamic Grading Mode Status Indicator Layout Config
+    const indicator = document.getElementById("editGradingModeIndicator");
+    if (indicator) {
+      indicator.style.display = "block";
+      if (q.question_type === "short_text") {
+        if (mps && mps.length > 0) {
+          indicator.style.background = "#eff6ff";
+          indicator.style.color = "#1e40af";
+          indicator.style.borderColor = "#bfdbfe";
+          indicator.innerHTML = `🎯 <strong>Active Grading Mode: Step-by-Step Checkpoints</strong><br/>
+            The student is evaluated against the checkpoints listed in Section 3 below. The basic required/optional keywords in the Section 2 keywords panel are currently ignored by the grading engine.`;
+        } else {
+          indicator.style.background = "#f0fdf4";
+          indicator.style.color = "#166534";
+          indicator.style.borderColor = "#bbf7d0";
+          indicator.innerHTML = `🔑 <strong>Active Grading Mode: Basic Keyword Matching</strong><br/>
+            The student is evaluated dynamically using the Required/Optional keywords defined in the Section 2 keywords panel below.`;
+        }
+      } else if (q.question_type === "numeric") {
+        indicator.style.background = "#fafbfc";
+        indicator.style.color = "#475569";
+        indicator.style.borderColor = "#e2e8f0";
+        indicator.innerHTML = `📐 <strong>Active Grading Mode: Mathematical Calculation</strong><br/>
+          Awarded dynamically based on expected numerical magnitude, tolerance range, units, and active multi-step guided steps.`;
+      } else if (q.question_type === "mcq") {
+        indicator.style.background = "#fafbfc";
+        indicator.style.color = "#475569";
+        indicator.style.borderColor = "#e2e8f0";
+        indicator.innerHTML = `🔘 <strong>Active Grading Mode: Multiple Choice Question (MCQ)</strong><br/>
+          Awarded if student selection matches the designated correct option value.`;
+      } else {
+        indicator.style.display = "none";
+      }
+    }
+
+    document.getElementById("editModalOverlay").classList.remove("hidden");
+  };
+
+  window.closeEditModal = function() {
+    document.getElementById("editModalOverlay").classList.add("hidden");
+  };
+
+  document.getElementById("btnSaveEdits").onclick = async () => {
+    const qId = document.getElementById("editQuestionId").value;
+    const prompt = document.getElementById("editPrompt").value.trim();
+    const resource = document.getElementById("editResource").value.trim();
+    const tier = document.getElementById("editTier").value;
+    let marks = parseInt(document.getElementById("editMaxMarks").value) || 1;
+
+    const q = loadedQuestionsCache.find(x => x.id === qId);
+    if (!q) return;
+
+    try {
+      showAdminToast("Saving database updates...");
+
+      // Handle Image upload or URL updates during modification
+      let finalImageUrl = document.getElementById("editImageUrl").value.trim() || null;
+      const fileInput = document.getElementById("editImageFile");
+      
+      if (fileInput && fileInput.files.length > 0) {
+        const file = fileInput.files[0];
+        const ext = file.name.split('.').pop();
+        const randName = `${Math.random().toString(36).substring(2)}.${ext}`;
+        const path = `${document.getElementById("auditSubject").value}/${randName}`;
+        
+        const { error: uploadError } = await supabaseClient.storage
+          .from("question-images")
+          .upload(path, file);
+          
+        if (uploadError) throw uploadError;
+        
+        const { data } = supabaseClient.storage.from("question-images").getPublicUrl(path);
+        finalImageUrl = data.publicUrl;
+      }
+
+      // Update parent questions values
+      const updatePayload = {
+        prompt: prompt,
+        resource_links: resource,
+        tier: tier,
+        max_marks: marks,
+        image_url: finalImageUrl
+      };
+
+      if (q.question_type === "mcq") {
+        updatePayload.options = [
+          document.getElementById("editOpt1").value.trim(),
+          document.getElementById("editOpt2").value.trim(),
+          document.getElementById("editOpt3").value.trim(),
+          document.getElementById("editOpt4").value.trim()
+        ];
+      }
+      
+      // Handle Scaffolding config update inside numeric mode
+      if (q.question_type === "numeric") {
+        const chkEditConvChecked = document.getElementById("chkEditScaffoldConv").checked;
+        const chkEditRearrangeChecked = document.getElementById("chkEditScaffoldRearrange").checked;
+        const scDistractors = document.getElementById("editScaffoldRearrangeDistractors").value;
+        
+        updatePayload.scaffold_config = {
+          has_conversion: chkEditConvChecked,
+          conversion_label: document.getElementById("editScaffoldConvLabel").value.trim(),
+          conversion_answer: parseFloat(document.getElementById("editScaffoldConvAnswer").value),
+          conversion_tolerance: parseFloat(document.getElementById("editScaffoldConvTol").value) || 0.001,
+          has_rearrangement: chkEditRearrangeChecked,
+          rearrangement_answer: document.getElementById("editScaffoldRearrangeAnswer").value.trim(),
+          rearrangement_distractors: scDistractors ? scDistractors.split(",").map(d => d.trim()) : []
+        };
+
+        // Recalculate and update the marks based on progressive steps toggled
+        let baseScore = 1;
+        if (chkEditConvChecked) baseScore += 1;
+        if (chkEditRearrangeChecked) baseScore += 1;
+        updatePayload.max_marks = baseScore;
+      } else {
+        updatePayload.scaffold_config = null;
+      }
+
+      const { error: uErr } = await supabaseClient
+        .from("questions")
+        .update(updatePayload)
+        .eq("id", qId);
+
+      if (uErr) throw uErr;
+
+      // Update associated keys structure
+      let updatedPayload = {};
+      if (q.question_type === "mcq") {
+        updatedPayload = {
+          correct: document.getElementById("editOptCorrect").value,
+          feedback: "Check your syllabus specifications for this concept."
+        };
+      } else if (q.question_type === "numeric") {
+        updatedPayload = {
+          answer: parseFloat(document.getElementById("editNumAns").value),
+          tolerance: parseFloat(document.getElementById("editNumTol").value) || 0,
+          unit: document.getElementById("editNumUnit").value.trim()
+        };
+      } else if (q.question_type === "short_text") {
+        const reqInput = document.getElementById("editShortReqKeywords").value.trim();
+        const optInput = document.getElementById("editShortOptKeywords").value.trim();
+        const minOptInput = parseInt(document.getElementById("editShortMinOptional").value) || 0;
+
+        updatedPayload = {
+          required: reqInput ? reqInput.split(",").map(k => k.trim()) : [],
+          optional: optInput ? optInput.split(",").map(k => k.trim()) : [],
+          min_optional: minOptInput
+        };
+      } else if (q.question_type === "extended_response") {
+        updatedPayload = {
+          marking_guidelines: document.getElementById("editGuidelines").value,
+          level_descriptors: {
+            "Level 3 (5-6 marks)": document.getElementById("editLvl3").value,
+            "Level 2 (3-4 marks)": document.getElementById("editLvl2").value,
+            "Level 1 (1-2 marks)": document.getElementById("editLvl1").value
+          }
+        };
+      }
+
+      const { error: keyErr } = await supabaseClient
+        .from("answer_keys")
+        .update({ key_payload: updatedPayload })
+        .eq("question_id", qId);
+
+      if (keyErr) throw keyErr;
+
+      // Sync edit mark points by dropping old references and writing updated nodes
+      await supabaseClient.from("mark_points").delete().eq("question_id", qId);
+
+      const editRows = Array.from(document.querySelectorAll("#editMarkPointsWrapper .edit-mp-row"));
+      if (editRows.length > 0) {
+        const markPayloads = editRows.map(r => ({
+          question_id: qId,
+          ao: r.querySelector(".edit-mp-ao").value,
+          point_text: r.querySelector(".edit-mp-text").value.trim(),
+          feedback_if_missing: r.querySelector(".edit-mp-feedback").value.trim(),
+          max_marks: 1
+        }));
+        
+        const { error: mpErr } = await supabaseClient.from("mark_points").insert(markPayloads);
+        if (mpErr) throw mpErr;
+      }
+
+      closeEditModal();
+      showAdminToast("Changes committed successfully!");
+      btnQueryQuestions.click(); // Hot reload instant updates
+
+    } catch(err) {
+      console.error(err);
+      showAdminToast("Modification transaction dropped: " + err.message, true);
+    }
+  };
+
+  // ====== DELETION SYSTEM PIPELINE ======
+  let currentDeletionTargetId = null;
+  const customConfirmModal = document.getElementById("customConfirmModal");
+
+  window.requestSafeSystemDeletion = function(id) {
+    currentDeletionTargetId = id;
+    const match = loadedQuestionsCache.find(x => x.id === id);
+    if (!match) return;
+
+    document.getElementById("confirmModalText").innerHTML = `Confirm row truncation request inside remote tables?<br/>Target UUID reference focus: <br/><code style='font-size:0.75rem; background:#f1f5f9; padding:2px 4px;'>${match.id}</code><br/><br/>This operation drops cascade metrics instantly.`;
+    customConfirmModal.classList.remove("hidden");
+  };
+
+  document.getElementById("btnModalCancel").onclick = () => {
+    customConfirmModal.classList.add("hidden");
+    currentDeletionTargetId = null;
+  };
+
+  document.getElementById("btnModalConfirm").onclick = async () => {
+    if (!currentDeletionTargetId) return;
+
+    try {
+      const { error } = await supabaseClient
+        .from("questions")
+        .delete()
+        .eq("id", currentDeletionTargetId);
+
+      if (error) throw error;
+
+      customConfirmModal.classList.add("hidden");
+      currentDeletionTargetId = null;
+      showAdminToast("Question removed from database.");
+      btnQueryQuestions.click(); // Hot reload instant updates
+
+    } catch(err) {
+      console.error(err);
+      customConfirmModal.classList.add("hidden");
+      showAdminToast("Database constraint error: " + err.message, true);
+    }
+  };
+
+  // ====== INTERACTIVE LOCAL SANDBOX SIMULATOR WORKFLOW (MODAL-BASED) ======
+  let currentSandboxedQ = null;
+  let currentSandboxedKey = null;
+  let currentSandboxedMarkPoints = [];
+
+  window.launchSandboxTest = async function(id) {
+    const q = loadedQuestionsCache.find(x => x.id === id);
+    if (!q) return;
+
+    currentSandboxedQ = q;
+    
+    const stage = document.getElementById("sandboxStage");
+    const feedbackCard = document.getElementById("sandboxFeedbackCard");
+    const btnSubmitSandbox = document.getElementById("btnSandboxSubmit");
+    
+    stage.innerHTML = "Retrieving Sandbox environment payloads...";
+    feedbackCard.classList.add("hidden");
+    btnSubmitSandbox.disabled = true;
+    
+    document.getElementById("sandboxModalOverlay").classList.remove("hidden");
+    
+    try {
+      const [keyRes, markRes] = await Promise.all([
+        supabaseClient.from("answer_keys").select("key_type,key_payload").eq("question_id", id).maybeSingle(),
+        supabaseClient.from("mark_points").select("ao,point_text,feedback_if_missing,max_marks,image_url").eq("question_id", id)
+      ]);
+      
+      currentSandboxedKey = keyRes.data;
+      currentSandboxedMarkPoints = markRes.data || [];
+      
+      renderSandboxQuestion(currentSandboxedQ);
+      btnSubmitSandbox.disabled = false;
+      
+    } catch(err) {
+      stage.innerHTML = `<div class="bad">Error loading Sandbox assets: ${err.message}</div>`;
+    }
+  };
+
+  window.closeSandboxModal = function() {
+    document.getElementById("sandboxModalOverlay").classList.add("hidden");
+  };
+  
+  function renderSandboxQuestion(q) {
+    const stage = document.getElementById("sandboxStage");
+    if (!stage) return;
+
+    let imgHtml = q.image_url ? `<img src="${q.image_url}" style="max-width:100%; border-radius:8px; margin-bottom:12px; border:1px solid var(--border); display:block;"/>` : "";
+    let html = `
+      <div style="margin-bottom:12px;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
+          <strong style="font-size:1.05rem;">${escapeHtml(q.prompt)}</strong>
+          <span style="background:#e2e8f0; padding:2px 8px; border-radius:4px; font-weight:bold; font-size:0.75rem;">${q.max_marks} marks</span>
+        </div>
+        ${imgHtml}
+      </div>
+    `;
+    
+    if (q.question_type === "mcq") {
+      const opts = Array.isArray(q.options) ? q.options : [];
+      html += `
+        <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 12px; width: 100%;">
+          ${opts.map(o => `
+            <label class="mcq-option-wrap">
+              <input type="radio" name="sandbox_mcq" value="${escapeHtml(o)}" />
+              <span>${escapeHtml(o)}</span>
+            </label>
+          `).join("")}
+        </div>
+      `;
+    } 
+    else if (q.question_type === "numeric") {
+      // Dynamic sandbox renderer matching student app unit layouts
+      const sc = q.scaffold_config || {};
+      
+      // Pull unit symbol directly from supabase answer keys configuration
+      const unit = (currentSandboxedKey && currentSandboxedKey.key_payload && currentSandboxedKey.key_payload.unit) ? currentSandboxedKey.key_payload.unit : "";
+      const unitLabelHtml = unit ? `
+        <span class="unit-badge" style="font-size: 0.9rem; font-weight: 700; color: var(--text-muted); background: #f1f5f9; border: 1px solid var(--border); padding: 6px 12px; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; margin-left: 8px;">
+          ${escapeHtml(unit)}
+        </span>
+      ` : "";
+
+      if (sc.has_conversion || sc.has_rearrangement) {
+        html += `<div style="border:1px solid var(--border); padding:12px; border-radius:8px; background:#fff; margin-bottom:10px;">`;
+        if (sc.has_conversion) {
+          html += `
+            <div style="margin-bottom:10px;">
+              <label style="display:block; font-size:0.8rem; font-weight:700; margin-bottom:4px;">Step 1: Conversion Value (${sc.conversion_label || ''}):</label>
+              <input id="sbNumAnsConv" type="number" step="any" style="width:120px;"/>
+            </div>
+          `;
+        }
+        if (sc.has_rearrangement) {
+          const distractors = sc.rearrangement_distractors || [];
+          html += `
+            <div style="margin-bottom:10px;">
+              <label style="display:block; font-size:0.8rem; font-weight:700; margin-bottom:4px;">Step 2: Correct Equation Form:</label>
+              <select id="sbRearrangeFormula" style="width:100%;">
+                <option value="">-- Choose target equation --</option>
+                ${distractors.map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join("")}
+              </select>
+            </div>
+          `;
+        }
+        html += `
+          <div>
+            <label style="display:block; font-size:0.8rem; font-weight:700; margin-bottom:4px;">Final Step: Calculation Answer:</label>
+            <div style="display:flex; align-items:center;">
+              <input id="sbNumAns" type="number" step="any" style="width:120px;"/>
+              ${unitLabelHtml}
+            </div>
+          </div>
+        `;
+        html += `</div>`;
+      } else {
+        html += `
+          <div style="display:flex; align-items:center; gap:8px;">
+            <label>Answer: <input id="sbNumAns" type="number" step="any" style="width:120px;"/></label>
+            ${unitLabelHtml}
+          </div>
+        `;
+      }
+    } 
+    else if (q.question_type === "extended_response") {
+      html += `
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <textarea id="sbTextAns" rows="6" style="width:100%;" placeholder="Draft sandbox model description..."></textarea>
+        </div>
+      `;
+    } 
+    else {
+      html += `
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <textarea id="sbTextAns" rows="3" style="width:100%;" placeholder="Type sandbox text response..."></textarea>
+        </div>
+      `;
+    }
+    
+    stage.innerHTML = html;
+    // Trigger Math typesetting
+    if (window.MathJax && typeof window.MathJax.typesetPromise === "function") {
+      window.MathJax.typesetPromise();
+    }
+  }
+
+  // Fisher-Yates array shuffling algorithm
+  function shuffleArray(array) {
+    const arr = [...array]; 
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  // Fuzzy Levenshtein Match Utility
+  function getLevenshteinDistance(s1, s2) {
+    const track = Array(s2.length + 1).fill(null).map(() => Array(s1.length + 1).fill(null));
+    for (let i = 0; i <= s1.length; i += 1) track[0][i] = i;
+    for (let j = 0; j <= s2.length; j += 1) track[j][0] = j;
+    for (let j = 1; j <= s2.length; j += 1) {
+      for (let i = 1; i <= s1.length; i += 1) {
+        const indicator = s1[i - 1] === s2[j - 1] ? 0 : 1;
+        track[j][i] = Math.min(
+          track[j][i - 1] + 1, 
+          track[j - 1][i] + 1, 
+          track[j - 1][i - 1] + indicator 
+        );
+      }
+    }
+    return track[s2.length][s1.length];
+  }
+
+  // Fuzzy Levenshtein Match Helper
+  function isFuzzyMatch(userWord, targetKeyword, threshold = 0.85) {
+    const w1 = userWord.toLowerCase().trim();
+    const w2 = targetKeyword.toLowerCase().trim();
+    if (w1 === w2) return true; 
+    if (w1.length === 0 || w2.length === 0) return false;
+    const distance = getLevenshteinDistance(w1, w2);
+    const maxLength = Math.max(w1.length, w2.length);
+    const similarity = 1 - (distance / maxLength);
+    return similarity >= threshold;
+  }
+
+  // Fuzzy match logic helper
+  function checkKeywordOrSynonymsMatch(targetExpr, studentWords, rawText) {
+    if (!targetExpr) return false;
+    const synonyms = targetExpr.split('|').map(s => s.trim().toLowerCase());
+    return synonyms.some(syn => {
+      const cleanRaw = rawText.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, " ").replace(/\s+/g, " ").trim();
+      if (cleanRaw.includes(syn)) return true;
+      return studentWords.some(userWord => isFuzzyMatch(userWord, syn, 0.85));
+    });
+  }
+
+  // Simulate Sandbox Mark Submission
+  document.getElementById("btnSandboxSubmit").onclick = async () => {
+    if (!currentSandboxedQ || !currentSandboxedKey) return;
+    
+    const btnSubmitSandbox = document.getElementById("btnSandboxSubmit");
+    const feedbackCard = document.getElementById("sandboxFeedbackCard");
+    const feedbackPayload = document.getElementById("sandboxFeedbackPayload");
+
+    btnSubmitSandbox.disabled = true;
+    feedbackCard.classList.remove("hidden");
+    feedbackPayload.innerHTML = "Evaluating locally...";
+    
+    // Package sandbox responses
+    let resp = {};
+    if (currentSandboxedQ.question_type === "mcq") {
+      const picked = document.querySelector('input[name="sandbox_mcq"]:checked')?.value || "";
+      resp = { type: "mcq", answer: picked };
+    } else if (currentSandboxedQ.question_type === "numeric") {
+      resp = { 
+        type: "numeric", 
+        value: parseFloat(document.getElementById("sbNumAns")?.value),
+        conversionValue: document.getElementById("sbNumAnsConv") ? parseFloat(document.getElementById("sbNumAnsConv").value) : null,
+        rearrangedChoice: document.getElementById("sbRearrangeFormula") ? document.getElementById("sbRearrangeFormula").value : "",
+        unit: (currentSandboxedKey && currentSandboxedKey.key_payload) ? (currentSandboxedKey.key_payload.unit || "") : ""
+      };
+    } else {
+      resp = { type: "short_text", text: document.getElementById("sbTextAns")?.value.trim() };
+    }
+    
+    // Simulate Edge Function triggers if Extended response selected
+    if (currentSandboxedQ.question_type === "extended_response") {
+      feedbackPayload.innerHTML = `
+        <div style="text-align:center; padding:12px;">
+          <strong>🤖 Connecting to Google Gemini Live Grader...</strong>
+          <p style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">Invoking 'mark-long-answer' microservice safely.</p>
+        </div>
+      `;
+      
+      try {
+        const { data, error } = await supabaseClient.functions.invoke("mark-long-answer", {
+          body: {
+            question_id: currentSandboxedQ.id,
+            student_text: resp.text
+          }
+        });
+        
+        if (error) throw error;
+        
+        const pct = Math.round((data.score_total / data.score_max) * 100);
+        feedbackPayload.innerHTML = `
+          <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:8px; margin-bottom:10px;">
+            <span style="font-weight:bold; color:var(--primary); font-size:1.1rem;">AI Level Achieved: ${data.level_achieved}</span>
+            <span style="background:var(--primary); color:white; font-weight:bold; padding:4px 10px; border-radius:6px; font-size:0.85rem;">${data.score_total}/${data.score_max} Marks (${pct}%)</span>
+          </div>
+          <div style="margin-bottom:10px;">
+            <strong>Demonstrated scientific highlights:</strong>
+            <ul style="margin:5px 0; padding-left:20px; font-size:0.82rem;">
+              ${(data.analysis_highlights || []).map(h => `<li>${escapeHtml(h)}</li>`).join("")}
+            </ul>
+          </div>
+          <div style="margin-bottom:10px; color:#b91c1c;">
+            <strong>Identified missing points or misconceptions:</strong>
+            <ul style="margin:5px 0; padding-left:20px; font-size:0.82rem;">
+              ${(data.missing_or_incorrect || []).map(m => `<li>${escapeHtml(m)}</li>`).join("")}
+            </ul>
+          </div>
+          <div style="background:#eff6ff; border-left:4px solid #2563eb; padding:10px; border-radius:0 6px 6px 0; font-size:0.82rem; color:#1e40af; line-height:1.4;">
+            <strong>Actionable recommendation:</strong><br/>
+            ${escapeHtml(data.actionable_improvement_advice)}
+          </div>
+          ${data.improved_answer ? `
+            <div style="background:#f0fdf4; border:1px solid #dcfce7; border-left:4px solid #16a34a; padding:10px; border-radius:8px; font-size:0.82rem; color:#166534; line-height:1.4; margin-top:10px;">
+              <strong>Perfect Model Answer Coach Suggestion:</strong><br/>
+              <span style="white-space:pre-wrap;">${escapeHtml(data.improved_answer)}</span>
+            </div>
+          ` : ""}
+        `;
+        
+      } catch(err) {
+        console.error(err);
+        feedbackPayload.innerHTML = `<span style="color:var(--error);">AI Grader connections timed out: ${err.message}. Showing static fallback schemas.</span>`;
+      }
+      
+      btnSubmitSandbox.disabled = false;
+      return;
+    }
+    
+    // Local evaluation fallback
+    let score = 0;
+    let max = currentSandboxedQ.max_marks || 1;
+    let detailsHtml = "";
+    
+    if (currentSandboxedKey.key_type === "mcq") {
+      const correct = currentSandboxedKey.key_payload.correct || "";
+      const isCorrect = resp.answer === correct;
+      score = isCorrect ? max : 0;
+      
+      let missingFeedback = currentSandboxedMarkPoints?.[0]?.feedback_if_missing
+        ? currentSandboxedMarkPoints[0].feedback_if_missing
+        : `Check your textbook or video review guide for this concept.`;
+
+      detailsHtml = `
+        <div style="font-weight:bold; margin-bottom:8px;">MCQ Result: <span style="color:${isCorrect ? "var(--success)" : "var(--error)"}">${isCorrect ? "CORRECT" : "INCORRECT"}</span></div>
+        <div>Selected Option: <code>"${escapeHtml(resp.answer)}"</code></div>
+        <div>Expected Target Option: <code>"${escapeHtml(correct)}"</code></div>
+        ${!isCorrect ? `<div style="margin-top:10px; padding:10px; background:#fff5f5; border-left:3px solid var(--error); font-size:0.85rem; color:#991b1b;"><strong>💡 Remedial Checkpoint Step:</strong> ${escapeHtml(missingFeedback)}</div>` : ''}
+      `;
+    } 
+    else if (currentSandboxedKey.key_type === "numeric") {
+      const sc = currentSandboxedQ.scaffold_config || {};
+      if (sc.has_conversion || sc.has_rearrangement) {
+        let stepScore = 0;
+        let auditTrail = [];
+        let ecfApplied = false;
+        
+        let isConvCorrect = false;
+        if (sc.has_conversion) {
+          const convTol = parseFloat(sc.conversion_tolerance || 0.001);
+          isConvCorrect = resp.conversionValue !== null && Math.abs(resp.conversionValue - sc.conversion_answer) <= convTol;
+          if (isConvCorrect) {
+            stepScore++;
+            auditTrail.push("🟢 Step 1 (Unit Conversion): Correct!");
+          } else {
+            auditTrail.push(`🔴 Step 1 (Unit Conversion): Incorrect (Expected: ${sc.conversion_answer})`);
+          }
+        }
+        
+        if (sc.has_rearrangement) {
+          if (resp.rearrangedChoice === sc.rearrangement_answer) {
+            stepScore++;
+            auditTrail.push("🟢 Step 2 (Formula Rearrangement): Correct!");
+          } else {
+            auditTrail.push(`🔴 Step 2 (Formula Rearrangement): Incorrect (Expected: ${sc.rearrangement_answer})`);
+          }
+        }
+        
+        const targetAns = currentSandboxedKey.key_payload.answer;
+        const tol = currentSandboxedKey.key_payload.tolerance || 0;
+        
+        let isFinalCorrect = false;
+        if (resp.value !== null) {
+          if (Math.abs(resp.value - targetAns) <= tol) {
+            isFinalCorrect = true;
+          } 
+          // ECF dynamic check inside Sandbox Testing
+          else if (sc.has_conversion && !isConvCorrect && resp.conversionValue !== null && !isNaN(resp.conversionValue) && sc.conversion_answer !== 0) {
+            const ratio = resp.conversionValue / sc.conversion_answer;
+            const ecfTarget = targetAns * ratio;
+            const scaledTol = tol * Math.abs(ratio);
+            
+            if (Math.abs(resp.value - ecfTarget) <= Math.max(tol, scaledTol)) {
+              isFinalCorrect = true;
+              ecfApplied = true;
+            }
+          }
+        }
+        
+        if (isFinalCorrect) {
+          stepScore++;
+          if (ecfApplied) {
+            auditTrail.push(`🟢 Final Step (Calculation): Correct via Error Carried Forward! (Using converted value ${resp.conversionValue})`);
+          } else {
+            auditTrail.push("🟢 Final Step (Calculation): Correct!");
+          }
+        } else {
+          auditTrail.push(`🔴 Final Step (Calculation): Incorrect (Expected: ${targetAns})`);
+        }
+        
+        score = stepScore;
+        detailsHtml = `
+          <div style="font-weight:bold; margin-bottom:8px;">Multi-step Calculation Audit:</div>
+          <ul style="padding-left:18px; font-size:0.85rem; line-height:1.4;">
+            ${auditTrail.map(t => `<li>${t}</li>`).join("")}
+          </ul>
+        `;
+      } else {
+        const targetAns = currentSandboxedKey.key_payload.answer;
+        const tol = currentSandboxedKey.key_payload.tolerance || 0;
+        
+        const valCorrect = resp.value !== null && Math.abs(resp.value - targetAns) <= tol;
+        score = valCorrect ? max : 0;
+        
+        if (valCorrect) {
+          detailsHtml = `
+            <div style="font-weight:bold; margin-bottom:8px;">Numerical Evaluation: <span style="color:var(--success)">PASS</span></div>
+            <div>User Entered: <code>${resp.value} ${escapeHtml(resp.unit)}</code></div>
+            <div>Expected: <code>${targetAns} (±${tol}) ${escapeHtml(resp.unit)}</code></div>
+          `;
+        } else {
+          // Check if a custom remediation checkpoint is configured
+          const fallbackPoint = currentSandboxedMarkPoints?.find(mp => mp.point_text === "[numeric_fallback]");
+          
+          let feedbackText = (fallbackPoint && fallbackPoint.feedback_if_missing)
+            ? fallbackPoint.feedback_if_missing
+            : `Incorrect calculation. The expected value is ${targetAns}${resp.unit ? ' ' + resp.unit : ''}.`;
+          
+          const diagramHtml = (fallbackPoint && fallbackPoint.image_url)
+            ? `<img src="${fallbackPoint.image_url}" style="max-width:100%; border-radius:8px; margin-top:8px; border:1px solid var(--border); display:block;" alt="Remediation Guide"/>`
+            : "";
+
+          detailsHtml = `
+            <div style="font-weight:bold; margin-bottom:8px;">Numerical Evaluation: <span style="color:var(--error)">FAIL</span></div>
+            <div>User Entered: <code>${resp.value} ${escapeHtml(resp.unit)}</code></div>
+            <div style="margin-top:10px; padding:10px; background:#fff5f5; border-left:3px solid var(--error); font-size:0.85rem; color:#991b1b;">
+              <strong>💡 Remedial Checkpoint Step:</strong> ${escapeHtml(feedbackText)}
+              ${diagramHtml}
+            </div>
+          `;
+        }
+      }
+    } 
+    else if (currentSandboxedKey.key_type === "keywords" || currentSandboxedMarkPoints.length > 0) {
+      const cleanInputText = (resp.text || "").toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "");
+      const studentWords = cleanInputText.split(/\s+/).filter(Boolean);
+      
+      // Smart Multi-Mark point validation (Checkpoint Engine Mode)
+      if (currentSandboxedMarkPoints && currentSandboxedMarkPoints.length > 0) {
+        max = currentSandboxedMarkPoints.reduce((sum, mp) => sum + (mp.max_marks || 1), 0);
+        let earned = 0;
+        let hitsList = [];
+        let missingList = [];
+        
+        currentSandboxedMarkPoints.forEach(mp => {
+          const hit = checkKeywordOrSynonymsMatch(mp.point_text, studentWords, (resp.text || ""));
+          if (hit) {
+            earned++;
+            hitsList.push(mp.point_text);
+          } else {
+            missingList.push(mp);
+          }
+        });
+        
+        score = earned;
+        detailsHtml = `
+          <div style="font-weight:bold; margin-bottom:12px;">Detailed Mark Points Earned: <span style="color:var(--primary-dark);">${earned}/${max} marks</span></div>
+          <div style="margin-bottom:8px;">🟢 Identifications matching: <code>[${hitsList.join(", ") || "None"}]</code></div>
+          <div>⚠️ Missing criteria checklist:</div>
+          <ul style="margin:5px 0; padding-left:20px; font-size:0.8rem;">
+            ${missingList.map(m => {
+              const diag = m.image_url ? `<br/><img src="${m.image_url}" style="max-height:80px; margin-top:5px; border-radius:4px;"/>` : "";
+              return `<li><span style="font-weight:bold; color:var(--error);">${m.ao}:</span> missing keyword "<code>${m.point_text}</code>". Remediation: <em>${escapeHtml(m.feedback_if_missing)}</em>${diag}</li>`;
+            }).join("")}
+          </ul>
+        `;
+      } else {
+        // Fallback to Section 2 Basic Keyword Engine if no checkpoints exist
+        const req = currentSandboxedKey.key_payload.required || [];
+        const opt = currentSandboxedKey.key_payload.optional || [];
+        const minOpt = currentSandboxedKey.key_payload.min_optional || 0;
+
+        const hasAllReq = req.every(keyword => checkKeywordOrSynonymsMatch(keyword, studentWords, (resp.text || "")));
+        const optHits = opt.filter(keyword => checkKeywordOrSynonymsMatch(keyword, studentWords, (resp.text || ""))).length;
+        
+        const isPass = hasAllReq && optHits >= minOpt;
+        score = isPass ? max : 0;
+        
+        detailsHtml = `
+          <div style="font-weight:bold; margin-bottom:8px;">Standard Keywords Match: <span style="color:${isPass ? "var(--success)" : "var(--error)"}">${isPass ? "PASS" : "FAIL"}</span></div>
+          <div>Required expectations: <code>[${req.join(", ")}]</code></div>
+          <div>Optional matches: <code>${optHits} of ${minOpt} expected</code></div>
+        `;
+      }
+    }
+    
+    feedbackPayload.innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:8px; margin-bottom:12px;">
+        <span style="font-weight:bold; font-size:1.1rem; color:var(--text);">Local Sandbox Calculator</span>
+        <span style="font-weight:bold; background:var(--primary); color:white; padding:4px 10px; border-radius:6px;">${score}/${max} marks</span>
+      </div>
+      ${detailsHtml}
+    `;
+    
+    btnSubmitSandbox.disabled = false;
+  };
+
+  function escapeHtml(s) {
+    if (!s) return "";
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+</script>
+<script type="module" src="src/admin.js"></script>
+</body>
+</html>
