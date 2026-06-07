@@ -1,8 +1,9 @@
-import { showToastBanner, renderQuestionLayout, renderFeedback, renderLiveAIFeedback, renderAQAExtendedResponseFeedback } from './uiComponents.js';
+import { showToastBanner, renderQuestionLayout, renderFeedback, renderLiveAIFeedback, renderAQAExtendedResponseFeedback, renderMasteryHeatmap } from './uiComponents.js';
 import { triggerMathTypeset } from './mathEngine.js';
 import { checkKeywordOrSynonymsMatch, updateSRS, getAQACommandWordHelper, isFuzzyMatch } from './evalEngine.js';
 import { escapeHtml, shuffleArray, todayISO, addDaysISO } from './utils.js';
 import { supabaseClient, timeoutPromise, fetchDashboardDueItems, fetchRecentConceptGaps, fetchWeeklyForecastSchedules, fetchSyllabusPipelineData } from './dbClient.js';
+import dbClient from "./dbClient.js";
 
 console.log("APP VERSION", "v-" + Date.now());
 
@@ -106,10 +107,26 @@ if (btnSignOut) {
 async function loadDashboard() {
   if (!currentUser) return;
   console.log("DEBUG loadDashboard: Starting dashboard items load...");
+  
   let due = [];
+  let allSpecs = [];
+  let activeSRS = [];
+
   try {
-    due = await fetchDashboardDueItems(currentUser.id);
-    console.log("DEBUG loadDashboard: Dashboard loaded successfully.", due.length, "items due.");
+    // 1. Fetch upcoming due items, whole curriculum map, and user metrics in parallel
+    const [dueResult, specsResult, srsResult] = await Promise.all([
+      fetchDashboardDueItems(currentUser.id),
+      dbClient.fetchAllSpecificationPoints(), // Fetches entire AQA static spec framework
+      dbClient.fetchUserSRSState(currentUser.id) // Fetches all tracked schedules for this student
+    ]);
+
+    due = dueResult;
+    allSpecs = specsResult;
+    activeSRS = srsResult;
+
+    console.log("DIAGNOSTIC - Total Spec Points from DB:", allSpecs ? allSpecs.length : "undefined");
+    console.log("DIAGNOSTIC - Raw Data Sample:", allSpecs && allSpecs[0] ? allSpecs[0] : "no data");
+    console.log("DEBUG loadDashboard: Dashboard data pipeline complete.", due.length, "items due.");
   } catch (err) {
     console.error("DEBUG loadDashboard: Dashboard failed to load, applying empty state fallback:", err);
     if (dueCount) dueCount.textContent = "0";
@@ -117,6 +134,28 @@ async function loadDashboard() {
     return;
   }
 
+  // 2. Render and inject the interactive Curriculum Mastery Matrix
+  const heatmapContainer = el("heatmapViewWrapper") || document.createElement("div");
+  if (!el("heatmapViewWrapper")) {
+    heatmapContainer.id = "heatmapViewWrapper";
+    // Inserts the matrix gracefully right before the active "Due Items" list container layout
+    if (dueList && dueList.parentNode) {
+      dueList.parentNode.insertBefore(heatmapContainer, dueList);
+    }
+  }
+
+  // Clear previous heatmap state and append fresh visual nodes
+  heatmapContainer.innerHTML = "";
+  if (allSpecs && allSpecs.length > 0) {
+    const masteryHeatmapNode = renderMasteryHeatmap(allSpecs, activeSRS, async (selectedPoint) => {
+      console.log(`Heatmap target selection registered: [${selectedPoint.spec_ref}]`);
+      // Fixed Reference Router: Boots up the practice workspace for this unique specification node instantly
+      await startSessionForSpecPoint(selectedPoint.id); 
+    });
+    heatmapContainer.appendChild(masteryHeatmapNode);
+  }
+
+  // 3. Render standard pending daily items list view elements
   if (dueCount) dueCount.textContent = due.length;
   if (dueList) {
     dueList.innerHTML = due.length
@@ -130,7 +169,7 @@ async function loadDashboard() {
       : `<div class="item">Nothing due today. Start practice to create your first schedule.</div>`;
   }
   
-  // Call the interactive Flashcard Generator
+  // 4. Call the interactive Flashcard Generator
   await loadRevisionCards();
 }
 
@@ -190,8 +229,8 @@ async function loadRevisionCards() {
     const btnDl = el("btnDownloadStudyGuide");
     if (btnDl) {
       btnDl.style.display = "block";
-            btnDl.onclick = async () => {
-               await downloadStudyGuideText(failedAttempts);
+      btnDl.onclick = async () => {
+        await downloadStudyGuideText(failedAttempts);
       };
     }
 
@@ -262,7 +301,7 @@ async function loadRevisionCards() {
         };
       }
     });
-triggerMathTypeset();
+    triggerMathTypeset();
   } catch (err) {
     console.error("Failed to compile revision flashcards:", err);
   }
@@ -282,7 +321,6 @@ async function downloadStudyGuideText(attempts) {
   }
 
   // ====== STEP 1: CREATE A HIDDEN PRINT TEMPLATE ELEMENT ======
-  // This builds a pristine printable sheet behind the scenes so we don't mess up the dashboard UI layout
   const printArea = document.createElement("div");
   printArea.style.padding = "24px";
   printArea.style.background = "#ffffff";
@@ -316,7 +354,7 @@ async function downloadStudyGuideText(attempts) {
     // Capture the exact typeset text markup, preserving LaTeX notation properties cleanly
     const itemBlock = document.createElement("div");
     itemBlock.style.marginBottom = "24px";
-    itemBlock.style.pageBreakInside = "avoid"; // Prevents a single topic from being awkwardly cut in half across pages
+    itemBlock.style.pageBreakInside = "avoid"; 
     itemBlock.innerHTML = `
       <h3 style="color: #1e293b; margin: 0 0 6px 0; font-size: 1.1rem; font-weight: 700;">${i + 1}. [${ref}] ${topicName}</h3>
       <p style="margin: 0 0 4px 0; font-size: 0.8rem; font-weight: 700; color: #64748b; text-transform: uppercase;">Question Context:</p>
@@ -334,7 +372,6 @@ async function downloadStudyGuideText(attempts) {
   document.body.appendChild(printArea);
 
   // ====== STEP 3: RUN THE SYMBOLS TYPESET ENGINE OVER THE PRINT AREA ======
-  // This forces MathJax to immediately process the new elements before compiling the file output
   if (window.MathJax && typeof window.MathJax.typesetPromise === "function") {
     await window.MathJax.typesetPromise([printArea]);
   }
@@ -348,7 +385,6 @@ async function downloadStudyGuideText(attempts) {
     jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
   };
 
-  // Run the sequence compiler, then scrub the print memory template container safely from the background DOM
   try {
     await html2pdf().set(options).from(printArea).save();
   } finally {
@@ -438,7 +474,6 @@ if (btnStartAny) {
 }
 
 // ====== 7-DAY WORKLOAD REVISION FORECAST ======
-// ====== 7-DAY WORKLOAD REVISION FORECAST ======
 async function loadWeeklyForecast() {
   if (!currentUser || !forecastWrapper) return;
 
@@ -460,7 +495,6 @@ async function loadWeeklyForecast() {
   console.log("DEBUG loadWeeklyForecast: Loading schedules forecast...");
   let schedules = [];
   try {
-    // FIXED: Substituted legacy inline database query with modular DB call wrapper
     schedules = await fetchWeeklyForecastSchedules(currentUser.id);
   } catch (err) {
     console.error("DEBUG loadWeeklyForecast: Failed to gather due dates array:", err);
@@ -528,7 +562,6 @@ async function startAnyPractice() {
 
   const matchingSpecPointIds = sp.map(item => item.id);
 
-  // Directly load ALL questions across ALL matched spec points for selected topic parameters
   let qQuery = supabaseClient
     .from("questions")
     .select("id,question_type,prompt,options,spec_point_id, resource_links, marking_method, max_marks, image_url, scaffold_config")
@@ -556,7 +589,6 @@ async function startAnyPractice() {
     return;
   }
 
-  // Shuffle the entire pool of topic questions and slice up to 10 for true random mixed-topic variety
   sessionQuestions = shuffleArray(activeQs).slice(0, 10);
   idx = 0;
   if (dashSection) dashSection.classList.add("hidden");
@@ -595,7 +627,6 @@ async function startSessionForSpecPoint(specPointId, qType = "") {
     return;
   }
 
-  // Shuffle the subset of questions for this specific spec point to avoid repetitive presentation
   sessionQuestions = shuffleArray(qs);
   idx = 0;
   if (dashSection) dashSection.classList.add("hidden");
@@ -667,7 +698,6 @@ async function loadQuestion() {
   
   hasImprovedCurrentQ = false;
 
-  // Clean revision guides or banners from edit contexts
   const banner = el("improveBanner");
   if (banner) banner.remove();
 
@@ -688,15 +718,13 @@ async function loadQuestion() {
   currentKey = keyRes.data;
   currentMarkPoints = markRes.data || [];
 
-  //  ADD THIS LINE HERE to generate the AQA command word helper block
   const commandWordBanner = getAQACommandWordHelper(currentQ.prompt);
 
   if (qBox) {
-  qBox.innerHTML = renderQuestionLayout(currentQ, commandWordBanner, currentKey);
-  triggerMathTypeset();
+    qBox.innerHTML = renderQuestionLayout(currentQ, commandWordBanner, currentKey);
+    triggerMathTypeset();
+  }
 }
-}
-
 
 function mixWordTokens(studentText) {
   return studentText.split(/(\s+|[.,\/#!$%\^&\*;:{}=\-_`~()?])/);
@@ -714,7 +742,6 @@ function markResponse(q, resp, key, markPoints) {
     ? q.resource_links.trim() 
     : null;
 
-  // Establish standard target distributions for variable-mark scoring blocks
   if (markPoints && markPoints.length > 0) {
     markPoints.forEach(mp => {
       maxAo[mp.ao] = (maxAo[mp.ao] || 0) + (mp.max_marks || 1);
@@ -742,7 +769,6 @@ function markResponse(q, resp, key, markPoints) {
     if (total > 0) {
       ao[targetAo] = max;
     } else {
-      // Check if the database contains a specific remedial step for this question
       let feedbackText = markPoints?.[0]?.feedback_if_missing 
         ? markPoints[0].feedback_if_missing 
         : `The correct answer is "${targetCorrect}". Review your flashcards for this specific unit or definition.`;
@@ -751,14 +777,13 @@ function markResponse(q, resp, key, markPoints) {
         ao: targetAo, 
         text: feedbackText, 
         url: cleanUrl,
-        image_url: markPoints?.[0]?.image_url || "" // Includes a step-by-step diagram if present
+        image_url: markPoints?.[0]?.image_url || "" 
       });
     }
   }
   else if (key.key_type === "numeric") {
     const sc = q.scaffold_config || {};
     
-    // Core Evaluator logic for step-by-step math scaffolds with Error Carried Forward (ECF) support
     if (sc.has_conversion || sc.has_rearrangement) {
       let conversionEarned = 0;
       let rearrangementEarned = 0;
@@ -796,13 +821,11 @@ function markResponse(q, resp, key, markPoints) {
         }
       }
       
-      // Compute calculation correctness with Error Carried Forward (ECF) verification
       let isFinalCorrect = false;
       if (resp.value !== null) {
         if (Math.abs(resp.value - ansTarget) <= ansTol) {
           isFinalCorrect = true;
         } 
-        // ECF calculation: If they failed conversion, check if their math was correct based on their wrong value
         else if (sc.has_conversion && conversionEarned === 0 && resp.conversionValue !== null && !isNaN(resp.conversionValue) && convTarget !== 0) {
           const ratio = resp.conversionValue / convTarget;
           const ecfTarget = ansTarget * ratio;
@@ -839,7 +862,6 @@ function markResponse(q, resp, key, markPoints) {
       quality = (total === max) ? 5 : (total > 0 ? 3 : 0);
     } 
     else {
-      // Standard mathematical calculation evaluation block
       const ans = key.key_payload.answer;
       const tol = key.key_payload.tolerance ?? 0;
       total = (resp.value !== null && Math.abs(resp.value - ans) <= tol) ? max : 0;
@@ -848,7 +870,6 @@ function markResponse(q, resp, key, markPoints) {
       if (total > 0) {
         ao.AO2 = max;
       } else {
-        // Look up if a custom remediation checkpoint is configured for wrong answers
         const fallbackPoint = markPoints?.find(mp => mp.point_text === "[numeric_fallback]");
         
         let feedbackText = (fallbackPoint && fallbackPoint.feedback_if_missing)
@@ -859,7 +880,7 @@ function markResponse(q, resp, key, markPoints) {
           ao: "AO2", 
           text: feedbackText, 
           url: cleanUrl,
-          image_url: fallbackPoint?.image_url || "" // Dynamically supports remediation imagery/diagrams
+          image_url: fallbackPoint?.image_url || "" 
         });
       }
     }
@@ -931,7 +952,6 @@ function markResponse(q, resp, key, markPoints) {
   return { total, max, ao, maxAo, missing, quality, feedbackPayload: { missing } };
 }
 
-
 async function upsertSRS(specPointId, quality) {
   try {
     const { data: existing, error: existingErr } = await supabaseClient
@@ -950,7 +970,6 @@ async function upsertSRS(specPointId, quality) {
 
     const upd = updateSRS({ quality, ef, reps, interval });
     
-    //  FIXED: Pass today's date string as the first argument, and the interval as the second argument
     const nextDue = addDaysISO(todayISO(), upd.newInterval);
 
     const payload = {
@@ -973,7 +992,6 @@ async function upsertSRS(specPointId, quality) {
   }
 }
 
-// ====== PRE-LOAD RESOLUTION PLUGS ======
 function getResponsePayload(q) {
   if (!q) return { type: "short_text", text: "" };
   if (q.question_type === "mcq") {
@@ -985,7 +1003,6 @@ function getResponsePayload(q) {
     const convVal = el("numAnsConv") ? parseFloat(el("numAnsConv").value) : null;
     const formulaChoice = el("rearrangeFormula") ? el("rearrangeFormula").value : "";
     
-    // Retrieve the unit from the globally loaded database key instead of reading the deleted #numUnit DOM element
     const unit = (currentKey && currentKey.key_payload && currentKey.key_payload.unit) 
       ? currentKey.key_payload.unit 
       : "";
@@ -1044,7 +1061,7 @@ async function syncUserTierAndLoadTopics(user) {
 }
 
 function showSignedInLayout() {
-  if (btnSignOut) btnSignOut.classList.add("hidden"); // Modified: signout hides securely until explicit profile demands
+  if (btnSignOut) btnSignOut.classList.add("hidden"); 
   if (authSection) authSection.classList.add("hidden");
   if (dashSection) dashSection.classList.remove("hidden");
 
@@ -1096,7 +1113,6 @@ async function loadTopics() {
 
   console.log(`DEBUG loadTopics: Launching parallel concurrent database query batch...`);
 
-  // FIXED: Legacy multi-table queries replaced by a single unified abstraction pipeline call
   let rows, questions, rawDue, attempts, markPoints;
   try {
     const pipeline = await fetchSyllabusPipelineData(currentUser?.id, subject, paper, targetTiers, qType);
@@ -1336,7 +1352,7 @@ async function loadTopics() {
         const percentage = hasAttempts ? Math.round((stats.earned / stats.max) * 100) : 0;
 
         return `
-          <div style="background: #ffffff; border: 1px solid ${ao.border}; padding: 16px; border-radius: 12px; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+          <div style="background: #ffffff; border: 1px solid ${ao.border}; padding: 66px; border-radius: 12px; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
             <div>
               <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
                 <span style="font-weight: 700; color: #1e293b; font-size: 0.95rem; line-height: 1.3;">${ao.name}</span>
@@ -1456,6 +1472,7 @@ supabaseClient.auth.onAuthStateChange(async (event, session) => {
     setSignedOutUI();
   }
 });
+
 // ====== ANSWER SUBMISSION ORCHESTRATOR ======
 if (btnSubmit) {
   btnSubmit.onclick = async () => {
@@ -1463,7 +1480,6 @@ if (btnSubmit) {
     
     const response = getResponsePayload(currentQ);
 
-    // Front-end Validation Block: Halt empty answer submissions from hitting endpoints
     if (currentQ.question_type === "extended_response" || currentQ.marking_method === "ai_rubric") {
       if (!response.text || response.text.trim().length === 0) {
         showToastBanner("Please write a detailed response before clicking Submit!", true);
@@ -1473,11 +1489,9 @@ if (btnSubmit) {
 
     btnSubmit.disabled = true;
 
-    // Remove the guidance banner immediately on submitting a new revision draft
     const existingBanner = el("improveBanner");
     if (existingBanner) existingBanner.remove();
 
-    // Interactive MCQ styling highlighting correct (green) and selected incorrect (red)
     if (currentQ.question_type === "mcq") {
       const selectedInput = document.querySelector('input[name="mcq"]:checked');
       const correctVal = currentKey?.key_payload?.correct || currentKey?.key_payload?.answer || "";
@@ -1530,11 +1544,9 @@ if (btnSubmit) {
 
         if (error) throw error;
 
-        // Route clean data token inputs straight to the modular layout engine
         feedback.innerHTML = renderLiveAIFeedback(data, hasImprovedCurrentQ);
         triggerMathTypeset();
 
-        // Interactive "Improve My Answer" click handler injection
         const btnImprove = el("btnImprove");
         if (btnImprove) {
           btnImprove.onclick = () => {
@@ -1560,7 +1572,6 @@ if (btnSubmit) {
           };
         }
 
-        // Store attempt metrics
         const result = await supabaseClient.from("attempts").insert({
           user_id: currentUser.id,
           question_id: currentQ.id,
@@ -1608,7 +1619,6 @@ if (btnSubmit) {
           studentWords.some(userWord => isFuzzyMatch(userWord, targetKeyword, 0.85))
         );
 
-        // Fixed parameter mapping for the uiComponents failover renderer
         feedback.innerHTML = renderAQAExtendedResponseFeedback(studentTextRaw, customPayload, localKeywords, matchedKeywords);
         triggerMathTypeset();
         await upsertSRS(currentQ.spec_point_id, 3);
@@ -1644,6 +1654,7 @@ if (btnSubmit) {
     }
   };
 }
+
 // ====== PRACTICE NAVIGATION CONTROL ======
 if (btnNext) {
   btnNext.onclick = async () => {
@@ -1652,11 +1663,9 @@ if (btnNext) {
       if (sessionSection) sessionSection.classList.add("hidden");
       if (dashSection) dashSection.classList.remove("hidden");
       
-      // Load standard dashboard widgets synchronously
       await loadDashboard();
       await loadWeeklyForecast();
       
-      // Wrap loadTopics in a conditional block to avoid blocking app state reset
       try {
         await loadTopics();
       } catch (topicErr) {
@@ -1667,4 +1676,5 @@ if (btnNext) {
     }
   };
 }
+
 console.log("DEBUG: app.js engine parsing completed.");

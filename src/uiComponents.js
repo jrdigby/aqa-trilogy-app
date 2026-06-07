@@ -425,3 +425,131 @@ export function renderAQAExtendedResponseFeedback(studentText, rubric, localKeyw
   `;
   return html;
 }
+/**
+ * Renders a visual AQA specification mastery grid map
+ * @param {Array} allSpecPoints - Complete static target array from DB lookup
+ * @param {Array} srsStates - Active records tracking progress
+ * @param {Function} onCellClickCallback - Handler redirecting view to selected item
+ */
+export function renderMasteryHeatmap(allSpecPoints, srsStates, onCellClickCallback) {
+  // 1. Pivot user tracking array into a quick hashmap keyed by spec_point_id
+  const trackingMap = new Map();
+  if (Array.isArray(srsStates)) {
+    srsStates.forEach(state => {
+      if (state && state.spec_point_id) {
+        trackingMap.set(state.spec_point_id, state);
+      }
+    });
+  }
+
+  // Ensure allSpecPoints is a valid array
+  const safePoints = Array.isArray(allSpecPoints) ? allSpecPoints : [];
+
+  // 2. Case-insensitive subject filtering logic
+  const subjects = {
+    biology: safePoints.filter(p => p && p.subject && p.subject.toString().toLowerCase().trim() === 'biology'),
+    chemistry: safePoints.filter(p => p && p.subject && p.subject.toString().toLowerCase().trim() === 'chemistry'),
+    physics: safePoints.filter(p => p && p.subject && p.subject.toString().toLowerCase().trim() === 'physics')
+  };
+
+  console.log("HEATMAP DEBUG - Filter counts:", {
+    bio: subjects.biology.length,
+    chem: subjects.chemistry.length,
+    phys: subjects.physics.length
+  });
+
+  // 3. Assemble parent layout template frame with explicit row alignment overrides
+  const wrapper = document.createElement("div");
+  wrapper.className = "heatmap-container";
+  wrapper.innerHTML = `
+    <div class="heatmap-header">
+      <div>
+        <h3 style="margin:0; font-size:1.1rem; color:#1e293b; font-weight:700;">Curriculum Mastery Matrix</h3>
+        <p style="margin:2px 0 0 0; font-size:0.8rem; color:#64748b;">Visualizing active tracking intervals vs concept gaps across the AQA Specification footprint</p>
+      </div>
+    </div>
+    <div class="heatmap-grid" style="display: grid; grid-template-columns: 100px 1fr; gap: 16px; align-items: start;">
+      <div class="heatmap-labels" style="display: flex; flex-direction: column; gap: 12px; font-size: 0.75rem; font-weight: 700; color: #64748b; padding-top: 2px;">
+        <div style="height: 14px; display: flex; align-items: center;">BIO (${subjects.biology.length})</div>
+        <div style="height: 14px; display: flex; align-items: center;">CHEM (${subjects.chemistry.length})</div>
+        <div style="height: 14px; display: flex; align-items: center;">PHYS (${subjects.physics.length})</div>
+      </div>
+      <div class="heatmap-cells-container" id="heatmapRowsTarget" style="display: flex; flex-direction: column; gap: 12px;"></div>
+    </div>
+  `;
+
+  const rowsTarget = wrapper.querySelector("#heatmapRowsTarget");
+
+  // 4. Map rows independently for each subject track
+  ['biology', 'chemistry', 'physics'].forEach(subKey => {
+    const rowEl = document.createElement("div");
+    rowEl.className = "heatmap-row";
+    rowEl.style.display = "flex";
+    rowEl.style.gap = "4px";
+    rowEl.style.flexWrap = "wrap";
+    rowEl.style.height = "14px"; /* 🌟 Matches line height of label column perfectly */
+
+    const targetPoints = subjects[subKey] || [];
+    
+    targetPoints.forEach(point => {
+      const cell = document.createElement("div");
+      cell.className = "heatmap-cell";
+      
+      cell.style.width = "14px";
+      cell.style.height = "14px";
+      cell.style.display = "block";
+      cell.style.borderRadius = "3px";
+      cell.style.cursor = "pointer";
+      
+      const srsRecord = trackingMap.get(point.id);
+      let stateClass = "cell-unattempted";
+      let baseColor = "#cbd5e1"; 
+      let borderStyle = "1px solid #94a3b8";
+      let tooltipText = `[${point.spec_ref || "Spec"}] ${point.topic_name || "Topic"} - Not Attempted Yet`;
+
+      if (srsRecord) {
+        const days = srsRecord.interval_days || 0;
+        if (days === 0 || (srsRecord.ease_factor && srsRecord.ease_factor < 2.0)) {
+          stateClass = "cell-gap";
+          baseColor = "#f59e0b"; 
+          borderStyle = "1px solid #d97706";
+          tooltipText = `⚠️ [${point.spec_ref}] ${point.topic_name} - Active Concept Gap (Review Needed)`;
+        } else {
+          borderStyle = "1px solid #166534";
+          if (days <= 3) {
+            stateClass = "cell-mastery-l1";
+            baseColor = "#bbf7d0"; 
+          } else if (days <= 10) {
+            stateClass = "cell-mastery-l2";
+            baseColor = "#4ade80"; 
+          } else {
+            stateClass = "cell-mastery-l3"; 
+            baseColor = "#16a34a"; 
+          }
+          tooltipText = `✅ [${point.spec_ref}] ${point.topic_name} - Secure (Interval: ${days} days)`;
+        }
+      }
+
+      cell.classList.add(stateClass);
+      cell.style.backgroundColor = baseColor;
+      cell.style.border = borderStyle;
+      cell.setAttribute("data-tooltip", tooltipText);
+
+      cell.setAttribute("title", tooltipText);
+
+      cell.onclick = () => {
+        if (typeof onCellClickCallback === "function") {
+          onCellClickCallback(point);
+        }
+      };
+
+      rowEl.appendChild(cell);
+    });
+
+    if (rowsTarget) {
+      rowsTarget.appendChild(rowEl);
+    }
+  });
+
+  return wrapper;
+}

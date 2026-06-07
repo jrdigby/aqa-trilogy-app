@@ -164,3 +164,154 @@ hr{
   border-left-color: #f59e0b;
   color: #78350f;
 }
+/* --- MASTERY HEATMAP CORE LAYOUT --- */
+.heatmap-container {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 24px;
+  margin: 20px 0;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+}
+
+.heatmap-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.heatmap-grid {
+  display: grid;
+  grid-template-columns: auto 1fr; /* Maps label sidebar next to grid stream */
+  gap: 16px;
+  align-items: center;
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+
+.heatmap-labels {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.heatmap-row-label {
+  height: 14px;
+  display: flex;
+  align-items: center;
+}
+
+.heatmap-cells-container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.heatmap-row {
+  display: flex;
+  gap: 4px;
+  width: 100%; 
+  flex-wrap: wrap;
+}
+
+/* --- THE KINETIC SQUARES --- */
+.heatmap-cell {
+  display: block;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  min-width: 18px;       /* Prevent flex layouts from compressing or shrinking cells */
+  min-height: 18px;
+  border-radius: 3px;
+  transition: all 0.2s ease-in-out;
+  cursor: pointer;
+  position: relative;
+}
+
+/* --- ADD A FALLBACK COLOR TO ENSURE VISIBILITY --- */
+.cell-unattempted { 
+  background-color: #cbd5e1 !important; /* 🌟 Temporarily uses a slightly darker gray to ensure visibility during initial layout engine checks */
+  border: 1px solid #94a3b8; 
+}
+.heatmap-cell:hover {
+  transform: scale(1.25);
+  z-index: 10;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+}
+
+/* --- MAP STATE SPECTRUMS --- */
+.cell-unattempted { background-color: #f1f5f9; border: 1px solid #e2e8f0; }
+.cell-gap         { background-color: #f59e0b; animation: pulseGap 2s infinite; }
+.cell-mastery-l1  { background-color: #bbf7d0; } /* Short-term secure */
+.cell-mastery-l2  { background-color: #4ade80; } /* Intermediate */
+.cell-mastery-l3  { background-color: #16a34a; } /* Long-term locked */
+
+@keyframes pulseGap {
+  0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4); }
+  70% { box-shadow: 0 0 0 4px rgba(245, 158, 11, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+}
+
+/* --- LEAN DYNAMIC TOOLTIP CONTAINER --- */
+.heatmap-cell[data-tooltip]:hover::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 22px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #1e293b;
+  color: #ffffff;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 0.7rem;
+  white-space: nowrap;
+  z-index: 100;
+  box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3);
+  pointer-events: none;
+}
+/* --- HEATMAP HOVER TOOLTIPS --- */
+.heatmap-cell {
+  position: relative; /* Essential anchoring context for tooltip placement */
+}
+
+/* 1. Craft the hidden tooltip bubble box element */
+.heatmap-cell::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 24px; /* Float exactly above the square */
+  left: 50%;
+  transform: translateX(-50%) scale(0.85); /* Centered and slightly scaled down */
+  
+  /* Styling foundations matching your theme */
+  background-color: #1e293b; /* Dark Slate background */
+  color: #ffffff;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 500;
+  white-space: nowrap;
+  z-index: 999;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  pointer-events: none; /* Prevents cursor interference */
+  
+  /* Smooth visibility transitions */
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 2. Reveal and scale the tooltip fluidly on hover */
+.heatmap-cell:hover::after {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) scale(1);
+}

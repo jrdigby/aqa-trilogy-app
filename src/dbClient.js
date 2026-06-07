@@ -27,7 +27,7 @@ export async function fetchDashboardDueItems(userId) {
   return result.data || [];
 }
 
-// ====== REVISIONdeck FAILED ATTEMPTS FETCH ======
+// ====== REVISIONDECK FAILED ATTEMPTS FETCH ======
 export async function fetchRecentConceptGaps(userId) {
   const { data, error } = await supabaseClient
     .from("attempts")
@@ -48,6 +48,31 @@ export async function fetchWeeklyForecastSchedules(userId) {
     .eq("user_id", userId);
 
   const result = await Promise.race([query, timeoutPromise(4000, "Forecast query timed out")]);
+  if (result.error) throw result.error;
+  return result.data || [];
+}
+
+// ====== ADDED: FETCH WHOLE CURRICULUM FOR HEATMAP GRID ======
+export async function fetchAllSpecificationPoints() {
+  const query = supabaseClient
+    .from("spec_points")
+    .select("id, subject, topic_name, spec_ref, spec_text")
+    .order("subject", { ascending: true })
+    .order("spec_ref", { ascending: true });
+
+  const result = await Promise.race([query, timeoutPromise(4000, "All spec points lookup timed out")]);
+  if (result.error) throw result.error;
+  return result.data || [];
+}
+
+// ====== ADDED: FETCH ALL USER RETENTION INTERVALS FOR HEATMAP STATES ======
+export async function fetchUserSRSState(userId) {
+  const query = supabaseClient
+    .from("srs_state")
+    .select("spec_point_id, interval_days, ease_factor, due_date")
+    .eq("user_id", userId);
+
+  const result = await Promise.race([query, timeoutPromise(4000, "User full SRS fetch timed out")]);
   if (result.error) throw result.error;
   return result.data || [];
 }
@@ -102,3 +127,15 @@ export async function fetchSyllabusPipelineData(userId, subject, paper, targetTi
     markPoints: markPointsRes.data || []
   };
 }
+
+// ====== EXPORT OBJECT WRAPPER FOR EXTENDED MODULE ARCHITECTURES ======
+const dbClient = {
+  fetchDashboardDueItems,
+  fetchRecentConceptGaps,
+  fetchWeeklyForecastSchedules,
+  fetchAllSpecificationPoints,
+  fetchUserSRSState,
+  fetchSyllabusPipelineData
+};
+
+export default dbClient;
