@@ -101,7 +101,7 @@ export function getAQACommandWordHelper(promptText) {
     return `
       <div class="exam-tip exam-tip--describe">
         <strong>📋 AQA GCSE Examiner Tip (DESCRIBE)</strong><br/>
-        Give facts, characteristics, steps, or features. <strong>Do not explain why!</strong> (e.g., If describing a waves experiment, explain <em>what</em> steps you take, not the theoretical physics behind them).
+        Give a detailed account of facts, characteristics, steps, or features. <strong>Do not explain why!</strong> State <em>what</em> happens or <em>how</em> a practical procedure is done without adding underlying scientific theory.
       </div>
     `;
   }
@@ -109,7 +109,7 @@ export function getAQACommandWordHelper(promptText) {
     return `
       <div class="exam-tip exam-tip--explain">
         <strong>📋 AQA GCSE Examiner Tip (EXPLAIN)</strong><br/>
-        Set out purposes or reasons. You must use scientific relationships. Try structuring your sentences with logical connectors like <strong>"because..."</strong>, <strong>"meaning that..."</strong>, or <strong>"this leads to..."</strong>.
+        Set out purposes or reasons. You must use scientific relationships and theory. Structure your statements with explicit logical connectors like <strong>"because..."</strong>, <strong>"this means that..."</strong>, or <strong>"consequently..."</strong> to claim your marks.
       </div>
     `;
   }
@@ -117,9 +117,74 @@ export function getAQACommandWordHelper(promptText) {
     return `
       <div class="exam-tip exam-tip--evaluate">
         <strong>📋 AQA GCSE Examiner Tip (EVALUATE)</strong><br/>
-        Make a qualitative judgement based on facts or evidence. You must provide <strong>advantages</strong>, <strong>disadvantages</strong>, and end with a clear, justified <strong>conclusion</strong>.
+        Make a qualitative judgement based on available facts or data criteria. You must explicitly provide <strong>advantages (pros)</strong>, <strong>disadvantages (cons)</strong>, and finish with a clear, justified <strong>conclusion</strong>.
       </div>
     `;
   }
+  if (firstWord === "calculate") {
+    return `
+      <div class="exam-tip exam-tip--calculate">
+        <strong>📋 AQA GCSE Examiner Tip (CALCULATE)</strong><br/>
+        Find a numerical answer. You must <strong>show every step of your working out</strong>. Always check if unit conversions are needed first, recall/rearrange the formula, insert values, and state the correct <strong>units</strong>.
+      </div>
+    `;
+  }
+  if (firstWord === "compare") {
+    return `
+      <div class="exam-tip exam-tip--compare">
+        <strong>📋 AQA GCSE Examiner Tip (COMPARE)</strong><br/>
+        Identify the similarities and/or differences between two or more items. Ensure you describe <strong>both variables</strong> across the comparison instead of just describing one of them in isolation.
+      </div>
+    `;
+  }
+  if (firstWord === "state" || firstWord === "give" || firstWord === "name") {
+    return `
+      <div class="exam-tip exam-tip--state">
+        <strong>📋 AQA GCSE Examiner Tip (${firstWord.toUpperCase()})</strong><br/>
+        Provide a concise, factual answer without any background explanation or computation. Keep your response short, precise, and directly focused on the required keyword, fact, or definition.
+      </div>
+    `;
+  }
+  if (firstWord === "suggest") {
+    return `
+      <div class="exam-tip exam-tip--suggest">
+        <strong>📋 AQA GCSE Examiner Tip (SUGGEST)</strong><br/>
+        Apply your scientific knowledge to a novel or unfamiliar situation. There is often more than one acceptable logical path here, so deduce a reasoned, scientifically valid hypothesis or explanation.
+      </div>
+    `;
+  }
+  if (firstWord === "discuss") {
+    return `
+      <div class="exam-tip exam-tip--discuss">
+        <strong>📋 AQA GCSE Examiner Tip (DISCUSS)</strong><br/>
+        Write about the key issues, theories, or observations surrounding the topic. Explore different scientific perspectives or factors (e.g., biological impacts vs. environmental costs) balanced evenly.
+      </div>
+    `;
+  }
+  if (firstWord === "justify") {
+    return `
+      <div class="exam-tip exam-tip--justify">
+        <strong>📋 AQA GCSE Examiner Tip (JUSTIFY)</strong><br/>
+        Provide evidence, data points, or robust theoretical reasoning to support a previously stated answer, choice, or experimental conclusion.
+      </div>
+    `;
+  }
+  if (firstWord === "determine") {
+    return `
+      <div class="exam-tip exam-tip--determine">
+        <strong>📋 AQA GCSE Examiner Tip (DETERMINE)</strong><br/>
+        Use the data provided in the prompt, or quantitative evidence from a graph/table, to calculate or logically establish the single correct value or conclusion.
+      </div>
+    `;
+  }
+  if (firstWord === "define") {
+    return `
+      <div class="exam-tip exam-tip--define">
+        <strong>📋 AQA GCSE Examiner Tip (DEFINE)</strong><br/>
+        State the exact scientific meaning of a word, term, or physical quantity. Use precise specification keywords to ensure full credit.
+      </div>
+    `;
+  }
+
   return "";
 }
