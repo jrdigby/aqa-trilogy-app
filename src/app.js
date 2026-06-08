@@ -1,9 +1,11 @@
+import { startAnyPractice, startSessionForSpecPoint } from './sessionEngine.js';
 import { showToastBanner, renderQuestionLayout, renderFeedback, renderLiveAIFeedback, renderAQAExtendedResponseFeedback, renderMasteryHeatmap } from './uiComponents.js';
 import { triggerMathTypeset } from './mathEngine.js';
 import { checkKeywordOrSynonymsMatch, updateSRS, getAQACommandWordHelper, isFuzzyMatch } from './evalEngine.js';
 import { escapeHtml, shuffleArray, todayISO, addDaysISO } from './utils.js';
 import { supabaseClient, timeoutPromise, fetchDashboardDueItems, fetchRecentConceptGaps, fetchWeeklyForecastSchedules, fetchSyllabusPipelineData } from './dbClient.js';
 import dbClient from "./dbClient.js";
+import { markResponse } from './evalEngine.js';
 
 console.log("APP VERSION", "v-" + Date.now());
 
@@ -413,7 +415,8 @@ if (btnStartDue) {
       due = result.data || [];
     } catch (err) {
       console.warn("DEBUG btnStartDue: Preflight crashed. Proceeding straight to random practice fallbacks:", err);
-      await startAnyPractice();
+      // 🌟 FIX 1: Pass engineContext to the fallback function
+      await startAnyPractice(engineContext);
       return;
     }
 
@@ -425,7 +428,8 @@ if (btnStartDue) {
     });
 
     if (filteredDue.length === 0) {
-      await startAnyPractice();
+      // 🌟 FIX 2: Pass engineContext to the fallback function
+      await startAnyPractice(engineContext);
       return;
     }
 
@@ -463,15 +467,46 @@ if (btnStartDue) {
       return;
     }
 
-    await startSessionForSpecPoint(targetedSpecPointId, qType);
+    // 🌟 FIX 3: Pass the qType filter and the engineContext bundle here
+    await startSessionForSpecPoint(targetedSpecPointId, qType || "", engineContext);
   };
 }
 
 if (btnStartAny) {
   btnStartAny.onclick = async () => {
-    await startAnyPractice();
+    // 🌟 Pass the engineContext configuration bundle into the function call here!
+    await startAnyPractice(engineContext);
   };
 }
+// Add this small adapter wrapper context bundle inside app.js:
+const engineContext = {
+  supabaseClient: supabaseClient,
+  getSelectedFilters: () => getSelectedFilters(), // assuming these functions exist in scope
+  timeoutPromise: (ms, msg) => timeoutPromise(ms, msg),
+  showToastBanner: (msg, isErr) => showToastBanner(msg, isErr),
+  shuffleArray: (arr) => shuffleArray(arr),
+  loadQuestion: () => loadQuestion(),
+  setSessionState: (questions, index) => {
+    sessionQuestions = questions;
+    idx = index;
+  },
+  getDomSections: () => ({
+    dashSection: document.getElementById('dashboard'), // replace with actual selector logic if different
+    sessionSection: document.getElementById('session')
+  })
+};
+
+// Reroute old global hooks smoothly to your isolated module execution patterns:
+async function startAnyPracticeWrapper() {
+  await startAnyPractice(engineContext);
+}
+async function startSessionForSpecPointWrapper(specPointId, qType = "") {
+  await startSessionForSpecPoint(specPointId, qType, engineContext);
+}
+
+// Make sure your buttons point to these wrappers if named globally, 
+// or just re-assign button click listener configurations directly:
+// btnStart.onclick = startAnyPracticeWrapper;
 
 // ====== 7-DAY WORKLOAD REVISION FORECAST ======
 async function loadWeeklyForecast() {
@@ -530,109 +565,6 @@ async function loadWeeklyForecast() {
 }
 
 // ====== FIXED RANDOMIZATION ENGINE ======
-async function startAnyPractice() {
-  const { subject, paper, topic, qType, tier } = getSelectedFilters();
-  const targetTiers = tier === "HT" ? ["HT", "both"] : ["FT", "both"];
-
-  console.log("DEBUG startAnyPractice: Locating practice targets...");
-  let query = supabaseClient
-    .from("spec_points")
-    .select("id, subject, paper, topic_name")
-    .eq("subject", subject)
-    .eq("paper", paper);
-
-  if (topic) {
-    query = query.eq("topic_name", topic);
-  }
-
-  let sp = [];
-  try {
-    const result = await Promise.race([query, timeoutPromise(4000, "Syllabus items query timed out")]);
-    if (result.error) throw result.error;
-    sp = result.data || [];
-  } catch (err) {
-    showToastBanner("Connection error loading syllabus definitions: " + err.message, true);
-    return;
-  }
-
-  if (!sp || sp.length === 0) {
-    showToastBanner(`No matching specification items found for your selection choices.`, true);
-    return;
-  }
-
-  const matchingSpecPointIds = sp.map(item => item.id);
-
-  let qQuery = supabaseClient
-    .from("questions")
-    .select("id,question_type,prompt,options,spec_point_id, resource_links, marking_method, max_marks, image_url, scaffold_config")
-    .in("spec_point_id", matchingSpecPointIds)
-    .in("tier", targetTiers);
-      
-  if (qType) {
-    qQuery = qQuery.eq("question_type", qType);
-  }
-    
-  let activeQs = [];
-  try {
-    const result = await Promise.race([qQuery, timeoutPromise(4000, "Practice pool matching timed out")]);
-    if (result.error) throw result.error;
-    activeQs = result.data || [];
-  } catch (err) {
-    console.error("DEBUG startAnyPractice: Questions lookup failure context:", err);
-    showToastBanner("Database error matching practice pool: " + err.message, true);
-    return;
-  }
-
-  if (activeQs.length === 0) {
-    const typeLabel = qType === "extended_response" ? "Extended Response" : (qType === "short_text" ? "Short Text / Written" : (qType || "any"));
-    showToastBanner(`No structural questions found of type "${typeLabel}" loaded for the selected ${tier} tier topics.`, true);
-    return;
-  }
-
-  sessionQuestions = shuffleArray(activeQs).slice(0, 10);
-  idx = 0;
-  if (dashSection) dashSection.classList.add("hidden");
-  if (sessionSection) sessionSection.classList.remove("hidden");
-  await loadQuestion();
-}
-
-async function startSessionForSpecPoint(specPointId, qType = "") {
-  const { tier } = getSelectedFilters();
-  const targetTiers = tier === "HT" ? ["HT", "both"] : ["FT", "both"];
-
-  console.log("DEBUG startSessionForSpecPoint: Loading question payloads...");
-  let query = supabaseClient
-    .from("questions")
-    .select("id,question_type,prompt,options,spec_point_id, resource_links, marking_method, max_marks, image_url, scaffold_config")
-    .eq("spec_point_id", specPointId)
-    .in("tier", targetTiers);
-
-  if (qType) {
-    query = query.eq("question_type", qType);
-  }
-
-  let qs = [];
-  try {
-    const result = await Promise.race([query.limit(10), timeoutPromise(4000, "Questions loading query timed out")]);
-    if (result.error) throw result.error; 
-    qs = result.data || [];
-  } catch (err) {
-    console.error("DEBUG startSessionForSpecPoint: Questions loading error:", err);
-    showToastBanner("Database error loading questions list: " + err.message, true);
-    return;
-  }
-
-  if (!qs || qs.length === 0) {
-    showToastBanner(`No structural questions found matching your filter rules for this topic folder.`, true);
-    return;
-  }
-
-  sessionQuestions = shuffleArray(qs);
-  idx = 0;
-  if (dashSection) dashSection.classList.add("hidden");
-  if (sessionSection) sessionSection.classList.remove("hidden");
-  await loadQuestion();
-}
 
 async function checkAndUpdateStreak() {
   if (!currentUser) return;
@@ -730,227 +662,6 @@ function mixWordTokens(studentText) {
   return studentText.split(/(\s+|[.,\/#!$%\^&\*;:{}=\-_`~()?])/);
 }
 
-function markResponse(q, resp, key, markPoints) {
-  let total = 0, max = q.max_marks || 1;
-  let ao = { AO1: 0, AO2: 0, AO3: 0 };
-  let maxAo = { AO1: 0, AO2: 0, AO3: 0 };
-  let missing = [], quality = 0;
-
-  if (!key) return { total: 0, max, ao, maxAo, missing, quality: 0, feedbackPayload: {} };
-
-  const cleanUrl = (q && typeof q.resource_links === "string" && q.resource_links.trim().toLowerCase().startsWith('http')) 
-    ? q.resource_links.trim() 
-    : null;
-
-  if (markPoints && markPoints.length > 0) {
-    markPoints.forEach(mp => {
-      maxAo[mp.ao] = (maxAo[mp.ao] || 0) + (mp.max_marks || 1);
-    });
-  } else {
-    if (q.question_type === "mcq") {
-      maxAo.AO1 = max;
-    } else if (q.question_type === "numeric") {
-      maxAo.AO2 = max;
-    } else if (q.question_type === "extended_response") {
-      maxAo.AO1 = Math.ceil(max / 3);
-      maxAo.AO2 = Math.floor(max / 3);
-      maxAo.AO3 = max - maxAo.AO1 - maxAo.AO2;
-    } else {
-      maxAo.AO1 = max;
-    }
-  }
-      
-  if (key.key_type === "mcq") {
-    const targetCorrect = key.key_payload?.correct || key.key_payload?.answer || "";
-    total = resp.answer === targetCorrect ? max : 0;
-    quality = total ? 5 : 1;
-    const targetAo = markPoints?.[0]?.ao || "AO1";
-    
-    if (total > 0) {
-      ao[targetAo] = max;
-    } else {
-      let feedbackText = markPoints?.[0]?.feedback_if_missing 
-        ? markPoints[0].feedback_if_missing 
-        : `The correct answer is "${targetCorrect}". Review your flashcards for this specific unit or definition.`;
-      
-      missing.push({ 
-        ao: targetAo, 
-        text: feedbackText, 
-        url: cleanUrl,
-        image_url: markPoints?.[0]?.image_url || "" 
-      });
-    }
-  }
-  else if (key.key_type === "numeric") {
-    const sc = q.scaffold_config || {};
-    
-    if (sc.has_conversion || sc.has_rearrangement) {
-      let conversionEarned = 0;
-      let rearrangementEarned = 0;
-      let finalCalculationEarned = 0;
-      let ecfApplied = false;
-      
-      const convTol = parseFloat(sc.conversion_tolerance || 0.0001);
-      const convTarget = parseFloat(sc.conversion_answer);
-      const formulaTarget = sc.rearrangement_answer;
-      
-      const ansTarget = parseFloat(key.key_payload.answer);
-      const ansTol = parseFloat(key.key_payload.tolerance ?? 0);
-      
-      if (sc.has_conversion) {
-        if (resp.conversionValue !== null && Math.abs(resp.conversionValue - convTarget) <= convTol) {
-          conversionEarned = 1;
-        } else {
-          missing.push({
-            ao: "AO2",
-            text: `Step 1 (Conversion) incorrect: Converting ${sc.conversion_label || ''} should equal ${convTarget}.`,
-            url: cleanUrl
-          });
-        }
-      }
-      
-      if (sc.has_rearrangement) {
-        if (resp.rearrangedChoice === formulaTarget && formulaTarget) {
-          rearrangementEarned = 1;
-        } else {
-          missing.push({
-            ao: "AO1",
-            text: `Step 2 (Rearrangement) incorrect: The correct rearranged formula target is "${formulaTarget}".`,
-            url: cleanUrl
-          });
-        }
-      }
-      
-      let isFinalCorrect = false;
-      if (resp.value !== null) {
-        if (Math.abs(resp.value - ansTarget) <= ansTol) {
-          isFinalCorrect = true;
-        } 
-        else if (sc.has_conversion && conversionEarned === 0 && resp.conversionValue !== null && !isNaN(resp.conversionValue) && convTarget !== 0) {
-          const ratio = resp.conversionValue / convTarget;
-          const ecfTarget = ansTarget * ratio;
-          const scaledTol = ansTol * Math.abs(ratio);
-          
-          if (Math.abs(resp.value - ecfTarget) <= Math.max(ansTol, scaledTol)) {
-            isFinalCorrect = true;
-            ecfApplied = true;
-          }
-        }
-      }
-
-      if (isFinalCorrect) {
-        finalCalculationEarned = 1;
-        if (ecfApplied) {
-          missing.push({
-            ao: "AO2",
-            text: `Error Carried Forward (ECF) applied: Final calculation graded correct based on your converted value of ${resp.conversionValue}.`,
-            isEcf: true
-          });
-        }
-      } else {
-        missing.push({
-          ao: "AO2",
-          text: `Final Step calculation incorrect: Expected magnitude ${ansTarget} ${key.key_payload.unit || ''}.`,
-          url: cleanUrl
-        });
-      }
-      
-      total = conversionEarned + rearrangementEarned + finalCalculationEarned;
-      ao.AO1 = rearrangementEarned;
-      ao.AO2 = conversionEarned + finalCalculationEarned;
-      
-      quality = (total === max) ? 5 : (total > 0 ? 3 : 0);
-    } 
-    else {
-      const ans = key.key_payload.answer;
-      const tol = key.key_payload.tolerance ?? 0;
-      total = (resp.value !== null && Math.abs(resp.value - ans) <= tol) ? max : 0;
-      quality = total ? 5 : 1;
-      
-      if (total > 0) {
-        ao.AO2 = max;
-      } else {
-        const fallbackPoint = markPoints?.find(mp => mp.point_text === "[numeric_fallback]");
-        
-        let feedbackText = (fallbackPoint && fallbackPoint.feedback_if_missing)
-          ? fallbackPoint.feedback_if_missing
-          : `The correct answer is "${ans}${key.key_payload?.unit ? ' ' + key.key_payload.unit : ''}". Review calculations or units.`;
-        
-        missing.push({ 
-          ao: "AO2", 
-          text: feedbackText, 
-          url: cleanUrl,
-          image_url: fallbackPoint?.image_url || "" 
-        });
-      }
-    }
-  } 
-  else if (key.key_type === "keywords") {
-    const required = key.key_payload.required || [];
-    const optional = key.key_payload.optional || [];
-    const minOptional = key.key_payload.min_optional || 0;
-    const textRaw = (resp.text || "").toLowerCase();
-
-    const cleanStudentText = textRaw.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "");
-    const studentWords = cleanStudentText.split(/\s+/).filter(Boolean);
-
-    if (markPoints && markPoints.length > 0) {
-      max = markPoints.reduce((sum, mp) => sum + (mp.max_marks || 1), 0);
-
-      markPoints.forEach((mp) => {
-        const pointEarned = checkKeywordOrSynonymsMatch(mp.point_text, studentWords, textRaw);
-
-        if (pointEarned) {
-          const awarded = (mp.max_marks || 1);
-          total += awarded;
-          ao[mp.ao] += awarded; 
-        } else {
-          let fbText = mp.feedback_if_missing || `Missing keyword concept: "${mp.point_text || 'required definition'}".`;
-          missing.push({ 
-            ao: mp.ao, 
-            text: fbText,
-            url: cleanUrl,
-            image_url: mp.image_url || ""
-          });
-        }
-      });
-    } else {
-      const hasAllRequired = required.every(targetKeyword => 
-        checkKeywordOrSynonymsMatch(targetKeyword, studentWords, textRaw)
-      );
-
-      const optionalHits = optional.filter(targetKeyword => 
-        checkKeywordOrSynonymsMatch(targetKeyword, studentWords, textRaw)
-      ).length;
-
-      total = (hasAllRequired && optionalHits >= minOptional) ? max : 0;
-      
-      if (total > 0) {
-        ao.AO1 = max;
-      } else {
-        let missingTerms = [];
-        required.forEach(r => {
-          const hit = checkKeywordOrSynonymsMatch(r, studentWords, textRaw);
-          if (!hit) {
-            missingTerms.push(r.replace(/\|/g, " / "));
-          }
-        });
-        
-        let feedbackText = missingTerms.length > 0 
-          ? `Your answer is missing these required terms: **${missingTerms.join(", ")}**.`
-          : "Your answer is missing some required keywords.";
-        
-        missing.push({ ao: "AO1", text: feedbackText, url: cleanUrl });
-      }
-    }
-
-    if (total === 0) quality = 0;
-    else if (total < max) quality = 3;
-    else quality = 5;
-  }
-
-  return { total, max, ao, maxAo, missing, quality, feedbackPayload: { missing } };
-}
 
 async function upsertSRS(specPointId, quality) {
   try {
