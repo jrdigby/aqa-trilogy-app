@@ -1,4 +1,4 @@
-import { startAnyPractice, startSessionForSpecPoint } from './sessionEngine.js';
+import { startAnyPractice, startSessionForSpecPoint, upsertSRS as importUpsertSRS } from './sessionEngine.js';
 import { showToastBanner, renderQuestionLayout, renderFeedback, renderLiveAIFeedback, renderAQAExtendedResponseFeedback, renderMasteryHeatmap } from './uiComponents.js';
 import { triggerMathTypeset } from './mathEngine.js';
 import { checkKeywordOrSynonymsMatch, updateSRS, getAQACommandWordHelper, isFuzzyMatch } from './evalEngine.js';
@@ -481,6 +481,10 @@ if (btnStartAny) {
 // Add this small adapter wrapper context bundle inside app.js:
 const engineContext = {
   supabaseClient: supabaseClient,
+  get currentUser() { return currentUser; }, // 🌟 Add currentUser to the context bundle
+  updateSRS: (data) => updateSRS(data), // 🌟 Pass down the SRS math algorithm
+  addDaysISO: (date, days) => addDaysISO(date, days), // 🌟 Pass down date utility
+  todayISO: () => todayISO(), // 🌟 Pass down current date generator
   getSelectedFilters: () => getSelectedFilters(), // assuming these functions exist in scope
   timeoutPromise: (ms, msg) => timeoutPromise(ms, msg),
   showToastBanner: (msg, isErr) => showToastBanner(msg, isErr),
@@ -662,45 +666,10 @@ function mixWordTokens(studentText) {
   return studentText.split(/(\s+|[.,\/#!$%\^&\*;:{}=\-_`~()?])/);
 }
 
-
+// 🌟 The Wrapper acts as a bridge, automatically injecting the engineContext bundle
 async function upsertSRS(specPointId, quality) {
-  try {
-    const { data: existing, error: existingErr } = await supabaseClient
-      .from("srs_state")
-      .select("interval_days,ease_factor,repetitions,lapses")
-      .eq("user_id", currentUser.id)
-      .eq("spec_point_id", specPointId)
-      .maybeSingle();
-
-    if (existingErr) throw existingErr;
-
-    const ef = existing?.ease_factor ?? 2.5;
-    const reps = existing?.repetitions ?? 0;
-    const interval = existing?.interval_days ?? 1;
-    const lapses = existing?.lapses ?? 0;
-
-    const upd = updateSRS({ quality, ef, reps, interval });
-    
-    const nextDue = addDaysISO(todayISO(), upd.newInterval);
-
-    const payload = {
-      user_id: currentUser.id,
-      spec_point_id: specPointId,
-      due_date: nextDue,
-      interval_days: upd.newInterval,
-      ease_factor: upd.newEF,
-      repetitions: upd.newReps,
-      lapses: lapses + upd.lapse,
-      last_quality: quality,
-      updated_at: new Date().toISOString()
-    };
-
-    const { error: upsertErr } = await supabaseClient.from("srs_state").upsert(payload);
-    if (upsertErr) throw upsertErr;
-  } catch (err) {
-    console.error("Spaced repetition schedule update failed:", err);
-    showToastBanner("SRS error saving Spaced Repetition schedule: " + err.message, true);
-  }
+  // Call the imported sessionEngine function and pass engineContext as the 3rd argument
+  await importUpsertSRS(specPointId, quality, engineContext);
 }
 
 function getResponsePayload(q) {

@@ -133,3 +133,58 @@ export async function startSessionForSpecPoint(specPointId, qType = "", context)
   if (sessionSection) sessionSection.classList.remove("hidden");
   await loadQuestion();
 }
+export async function upsertSRS(specPointId, quality, context) {
+  // 🌟 Extract our external roommates from the context bundle
+  const {
+    supabaseClient,
+    currentUser,
+    updateSRS,
+    addDaysISO,
+    todayISO,
+    showToastBanner
+  } = context;
+
+  // Safety pre-flight check to prevent unhandled crashes
+  if (!currentUser) {
+    console.error("SRS Sync Aborted: Active student session could not be verified.");
+    return;
+  }
+
+  try {
+    const { data: existing, error: existingErr } = await supabaseClient
+      .from("srs_state")
+      .select("interval_days,ease_factor,repetitions,lapses")
+      .eq("user_id", currentUser.id)
+      .eq("spec_point_id", specPointId)
+      .maybeSingle();
+
+    if (existingErr) throw existingErr;
+
+    const ef = existing?.ease_factor ?? 2.5;
+    const reps = existing?.repetitions ?? 0;
+    const interval = existing?.interval_days ?? 1;
+    const lapses = existing?.lapses ?? 0;
+
+    const upd = updateSRS({ quality, ef, reps, interval });
+    
+    const nextDue = addDaysISO(todayISO(), upd.newInterval);
+
+    const payload = {
+      user_id: currentUser.id,
+      spec_point_id: specPointId,
+      due_date: nextDue,
+      interval_days: upd.newInterval,
+      ease_factor: upd.newEF,
+      repetitions: upd.newReps,
+      lapses: lapses + upd.lapse,
+      last_quality: quality,
+      updated_at: new Date().toISOString()
+    };
+
+    const { error: upsertErr } = await supabaseClient.from("srs_state").upsert(payload);
+    if (upsertErr) throw upsertErr;
+  } catch (err) {
+    console.error("Spaced repetition schedule update failed:", err);
+    showToastBanner("SRS error saving Spaced Repetition schedule: " + err.message, true);
+  }
+}
