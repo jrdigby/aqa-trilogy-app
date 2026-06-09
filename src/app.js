@@ -185,16 +185,24 @@ async function loadDashboard() {
   }
 
   // 3. Render standard pending daily items list view elements
+  const today = todayISO();
   if (dueCount) dueCount.textContent = due.length;
   if (dueList) {
     dueList.innerHTML = due.length
-      ? due.map(d => `
+      ? due.map(d => {
+          const dueDate = String(d.due_date || "").slice(0, 10);
+          const isOverdue = dueDate && dueDate < today;
+          const dueDateDisplay = isOverdue
+            ? `<span class="bad" style="font-weight: 700;">${escapeHtml(dueDate)}</span>`
+            : escapeHtml(dueDate);
+          return `
         <div class="item">
           <div><strong>${d.spec_points?.topic_name ?? "Spec point"}</strong> <span class="chip">${d.spec_points?.spec_ref ?? ""}</span></div>
           <div class="muted">${d.spec_points?.spec_text ?? ""}</div>
-          <div class="muted">Due: ${d.due_date} • EF: ${d.ease_factor.toFixed(2)} • Interval: ${d.interval_days}d</div>
+          <div class="muted">Due: ${dueDateDisplay} • EF: ${d.ease_factor.toFixed(2)} • Interval: ${d.interval_days}d</div>
         </div>
-      `).join("")
+      `;
+        }).join("")
       : `<div class="item">Nothing due today. Start practice to create your first schedule.</div>`;
   }
   
