@@ -106,6 +106,7 @@ function getSelectedFilters() {
 // ====== AUTH ======
 if (btnSignUp) {
   btnSignUp.onclick = async () => {
+    authMsg.classList.remove("hidden");
     authMsg.textContent = "Creating account…";
     const email = el("email").value.trim();
     const password = el("password").value;
@@ -116,6 +117,7 @@ if (btnSignUp) {
 
 if (btnSignIn) {
   btnSignIn.onclick = async () => {
+    authMsg.classList.remove("hidden");
     authMsg.textContent = "Signing in…";
     const email = el("email").value.trim();
     const password = el("password").value;
@@ -1025,7 +1027,10 @@ function setSignedOutUI() {
   if (dashSection) dashSection.classList.add("hidden");
   if (sessionSection) sessionSection.classList.add("hidden");
 
-  if (authMsg) authMsg.textContent = "Not signed in.";
+  if (authMsg) {
+    authMsg.textContent = "Not signed in.";
+    authMsg.classList.remove("hidden");
+  }
 }
 
 async function syncUserTierAndLoadTopics(user) {
@@ -1060,13 +1065,13 @@ async function syncUserTierAndLoadTopics(user) {
 }
 
 function showSignedInLayout() {
-  if (btnSignOut) btnSignOut.classList.add("hidden"); 
+  if (btnSignOut) btnSignOut.classList.remove("hidden");
   if (authSection) authSection.classList.add("hidden");
   if (dashSection) dashSection.classList.remove("hidden");
 
   if (currentUser) {
     if (userChip) userChip.textContent = `${currentUser.email || currentUser.id}`;
-    if (authMsg) authMsg.textContent = "Signed in ✅";
+    if (authMsg) authMsg.classList.add("hidden");
   }
 
   const runtimeTierSelect = el("tierFilter");
