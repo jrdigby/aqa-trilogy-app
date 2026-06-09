@@ -468,20 +468,26 @@ export function renderMasteryHeatmap(allSpecPoints, srsStates, onCellClickCallba
         <p style="margin:2px 0 0 0; font-size:0.8rem; color:#64748b;">Visualizing active tracking intervals vs concept gaps across the AQA Specification footprint</p>
       </div>
     </div>
-    <div class="heatmap-grid" style="display: grid; grid-template-columns: minmax(130px, auto) 1fr; gap: 16px; align-items: start;">
-      <div class="heatmap-labels" style="display: flex; flex-direction: column; gap: 12px; font-size: 0.75rem; font-weight: 700; color: #64748b; padding-top: 2px;">
-        <div style="height: 14px; display: flex; align-items: center;">Biology (${subjects.biology.length})</div>
-        <div style="height: 14px; display: flex; align-items: center;">Chemistry (${subjects.chemistry.length})</div>
-        <div style="height: 14px; display: flex; align-items: center;">Physics (${subjects.physics.length})</div>
-      </div>
-      <div class="heatmap-cells-container" id="heatmapRowsTarget" style="display: flex; flex-direction: column; gap: 12px;"></div>
-    </div>
+    <div class="heatmap-body" id="heatmapRowsTarget"></div>
   `;
 
   const rowsTarget = wrapper.querySelector("#heatmapRowsTarget");
 
-  // 4. Map rows independently for each subject track
+  const subjectLabels = {
+    biology: `Biology (${subjects.biology.length})`,
+    chemistry: `Chemistry (${subjects.chemistry.length})`,
+    physics: `Physics (${subjects.physics.length})`
+  };
+
+  // 4. Map rows independently for each subject track (label paired with its cell row)
   ['biology', 'chemistry', 'physics'].forEach(subKey => {
+    const subjectRow = document.createElement("div");
+    subjectRow.className = "heatmap-subject-row";
+
+    const labelEl = document.createElement("div");
+    labelEl.className = "heatmap-row-label";
+    labelEl.textContent = subjectLabels[subKey];
+
     const rowEl = document.createElement("div");
     rowEl.className = "heatmap-row";
 
@@ -540,8 +546,10 @@ export function renderMasteryHeatmap(allSpecPoints, srsStates, onCellClickCallba
       rowEl.appendChild(cell);
     });
 
+    subjectRow.appendChild(labelEl);
+    subjectRow.appendChild(rowEl);
     if (rowsTarget) {
-      rowsTarget.appendChild(rowEl);
+      rowsTarget.appendChild(subjectRow);
     }
   });
 

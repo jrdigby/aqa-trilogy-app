@@ -108,6 +108,7 @@ function getSelectedFilters() {
 // ====== AUTH ======
 if (btnSignUp) {
   btnSignUp.onclick = async () => {
+    authMsg.classList.remove("hidden");
     authMsg.textContent = "Creating account…";
     const email = el("email").value.trim();
     const password = el("password").value;
@@ -118,6 +119,7 @@ if (btnSignUp) {
 
 if (btnSignIn) {
   btnSignIn.onclick = async () => {
+    authMsg.classList.remove("hidden");
     authMsg.textContent = "Signing in…";
     const email = el("email").value.trim();
     const password = el("password").value;
@@ -185,16 +187,24 @@ async function loadDashboard() {
   }
 
   // 3. Render standard pending daily items list view elements
+  const today = todayISO();
   if (dueCount) dueCount.textContent = due.length;
   if (dueList) {
     dueList.innerHTML = due.length
-      ? due.map(d => `
+      ? due.map(d => {
+          const dueDate = String(d.due_date || "").slice(0, 10);
+          const isOverdue = dueDate && dueDate < today;
+          const dueDateDisplay = isOverdue
+            ? `<span class="bad" style="font-weight: 700;">${escapeHtml(dueDate)}</span>`
+            : escapeHtml(dueDate);
+          return `
         <div class="item">
           <div><strong>${d.spec_points?.topic_name ?? "Spec point"}</strong> <span class="chip">${d.spec_points?.spec_ref ?? ""}</span></div>
           <div class="muted">${d.spec_points?.spec_text ?? ""}</div>
-          <div class="muted">Due: ${d.due_date} • EF: ${d.ease_factor.toFixed(2)} • Interval: ${d.interval_days}d</div>
+          <div class="muted">Due: ${dueDateDisplay} • EF: ${d.ease_factor.toFixed(2)} • Interval: ${d.interval_days}d</div>
         </div>
-      `).join("")
+      `;
+        }).join("")
       : `<div class="item">Nothing due today. Start practice to create your first schedule.</div>`;
   }
   
@@ -705,7 +715,10 @@ function setSignedOutUI() {
   if (dashSection) dashSection.classList.add("hidden");
   if (sessionSection) sessionSection.classList.add("hidden");
 
-  if (authMsg) authMsg.textContent = "Not signed in.";
+  if (authMsg) {
+    authMsg.textContent = "Not signed in.";
+    authMsg.classList.remove("hidden");
+  }
 }
 
 async function syncUserTierAndLoadTopics(user) {
@@ -740,13 +753,13 @@ async function syncUserTierAndLoadTopics(user) {
 }
 
 function showSignedInLayout() {
-  if (btnSignOut) btnSignOut.classList.add("hidden"); 
+  if (btnSignOut) btnSignOut.classList.remove("hidden");
   if (authSection) authSection.classList.add("hidden");
   if (dashSection) dashSection.classList.remove("hidden");
 
   if (currentUser) {
     if (userChip) userChip.textContent = `${currentUser.email || currentUser.id}`;
-    if (authMsg) authMsg.textContent = "Signed in ✅";
+    if (authMsg) authMsg.classList.add("hidden");
   }
 
   const runtimeTierSelect = el("tierFilter");
