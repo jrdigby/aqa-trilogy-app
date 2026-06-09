@@ -49,6 +49,41 @@ const topicFilter = el("topicFilter");
 const forecastWrapper = el("forecastWrapper"); 
 const masteryWrapper = el("masteryWrapper"); 
 
+const tabPractice = el("tabPractice");
+const tabAnalytics = el("tabAnalytics");
+const tabFlashcards = el("tabFlashcards");
+const panelPractice = el("dashboardTabPractice");
+const panelAnalytics = el("dashboardTabAnalytics");
+const panelFlashcards = el("dashboardTabFlashcards");
+const DASHBOARD_TAB_KEY = "dashboard_active_tab";
+const DASHBOARD_TABS = ["practice", "analytics", "flashcards"];
+
+function switchDashboardTab(tab) {
+  const active = DASHBOARD_TABS.includes(tab) ? tab : "practice";
+  if (panelPractice) panelPractice.classList.toggle("hidden", active !== "practice");
+  if (panelAnalytics) panelAnalytics.classList.toggle("hidden", active !== "analytics");
+  if (panelFlashcards) panelFlashcards.classList.toggle("hidden", active !== "flashcards");
+  if (tabPractice) {
+    tabPractice.classList.toggle("active", active === "practice");
+    tabPractice.setAttribute("aria-selected", active === "practice" ? "true" : "false");
+  }
+  if (tabAnalytics) {
+    tabAnalytics.classList.toggle("active", active === "analytics");
+    tabAnalytics.setAttribute("aria-selected", active === "analytics" ? "true" : "false");
+  }
+  if (tabFlashcards) {
+    tabFlashcards.classList.toggle("active", active === "flashcards");
+    tabFlashcards.setAttribute("aria-selected", active === "flashcards" ? "true" : "false");
+  }
+  try {
+    localStorage.setItem(DASHBOARD_TAB_KEY, active);
+  } catch (_) { /* storage unavailable */ }
+}
+
+if (tabPractice) tabPractice.onclick = () => switchDashboardTab("practice");
+if (tabAnalytics) tabAnalytics.onclick = () => switchDashboardTab("analytics");
+if (tabFlashcards) tabFlashcards.onclick = () => switchDashboardTab("flashcards");
+
 // ====== SESSION STATE ======
 let currentUser = null;
 let sessionQuestions = [];
@@ -134,25 +169,17 @@ async function loadDashboard() {
     return;
   }
 
-  // 2. Render and inject the interactive Curriculum Mastery Matrix
-  const heatmapContainer = el("heatmapViewWrapper") || document.createElement("div");
-  if (!el("heatmapViewWrapper")) {
-    heatmapContainer.id = "heatmapViewWrapper";
-    // Inserts the matrix gracefully right before the active "Due Items" list container layout
-    if (dueList && dueList.parentNode) {
-      dueList.parentNode.insertBefore(heatmapContainer, dueList);
+  // 2. Render the interactive Curriculum Mastery Matrix (#heatmapViewWrapper lives in Practice tab)
+  const heatmapContainer = el("heatmapViewWrapper");
+  if (heatmapContainer) {
+    heatmapContainer.innerHTML = "";
+    if (allSpecs && allSpecs.length > 0) {
+      const masteryHeatmapNode = renderMasteryHeatmap(allSpecs, activeSRS, async (selectedPoint) => {
+        console.log(`Heatmap target selection registered: [${selectedPoint.spec_ref}]`);
+        await startSessionForSpecPoint(selectedPoint.id);
+      });
+      heatmapContainer.appendChild(masteryHeatmapNode);
     }
-  }
-
-  // Clear previous heatmap state and append fresh visual nodes
-  heatmapContainer.innerHTML = "";
-  if (allSpecs && allSpecs.length > 0) {
-    const masteryHeatmapNode = renderMasteryHeatmap(allSpecs, activeSRS, async (selectedPoint) => {
-      console.log(`Heatmap target selection registered: [${selectedPoint.spec_ref}]`);
-      // Fixed Reference Router: Boots up the practice workspace for this unique specification node instantly
-      await startSessionForSpecPoint(selectedPoint.id); 
-    });
-    heatmapContainer.appendChild(masteryHeatmapNode);
   }
 
   // 3. Render standard pending daily items list view elements
@@ -175,34 +202,6 @@ async function loadDashboard() {
 
 // ====== "MISSING INFO" REVISION FLASHCARD COMPILER ======
 async function loadRevisionCards() {
-  const flashcardArea = el("revisionCardsWrapper");
-  if (!flashcardArea) {
-    // If not declared, dynamically craft container before the mastery wrapper
-    const dashboardGrid = el("dashboard");
-    if (!dashboardGrid) return;
-    
-    const cardSection = document.createElement("div");
-    cardSection.className = "card";
-    cardSection.style = "margin-bottom: 24px; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; background: #ffffff;";
-    cardSection.innerHTML = `
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-        <h3 style="margin:0; font-weight:700; color:var(--text); font-size:1.15rem; display:flex; align-items:center; gap:8px;">
-          📚 Personal Revision Flashcards <span style="font-size:0.8rem; background:#fee2e2; color:#991b1b; padding:2px 8px; border-radius:12px; font-weight:700;">Dynamic Gaps</span>
-        </h3>
-        <button id="btnDownloadStudyGuide" style="background:#4f46e5; color:white; border:none; padding:6px 12px; font-size:0.75rem; font-weight:600; border-radius:6px; cursor:pointer; transition: background 0.15s;">
-          📥 Download PDF Guide
-        </button>
-      </div>
-      <p style="font-size:0.8rem; color:#64748b; margin-top:0; margin-bottom:16px;">This revision deck automatically aggregates key concepts you missed in your recent practice sessions. Flip them to self-test.</p>
-      <div id="revisionCardsWrapper" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap:16px;"></div>
-    `;
-    
-    const referenceNode = el("masteryWrapper")?.parentNode;
-    if (referenceNode) {
-      referenceNode.parentNode.insertBefore(cardSection, referenceNode);
-    }
-  }
-
   const container = el("revisionCardsWrapper");
   if (!container) return;
 
@@ -1077,6 +1076,9 @@ function showSignedInLayout() {
     console.log("DEBUG: Rendered tier dropdown instantly via cache:", cachedTier);
   }
 
+  const savedTab = localStorage.getItem(DASHBOARD_TAB_KEY);
+  switchDashboardTab(DASHBOARD_TABS.includes(savedTab) ? savedTab : "practice");
+
   if (dueCount) dueCount.textContent = "…";
   if (dueList) dueList.innerHTML = `<div class="item muted">Refreshing scheduled deck…</div>`;
   if (forecastWrapper) forecastWrapper.innerHTML = `<div class="muted" style="margin: auto; font-size: 0.8rem;">Loading forecast chart…</div>`;
@@ -1084,7 +1086,7 @@ function showSignedInLayout() {
   
   const aoMasteryWrapper = el("aoMasteryWrapper");
   if (aoMasteryWrapper) {
-    aoMasteryWrapper.innerHTML = `<div class="muted" style="text-align: center; width: 100%; grid-column: 1/-1; padding: 12px;">Syncing performance indicators…</div>`;
+    aoMasteryWrapper.innerHTML = `<div class="muted" style="text-align: center; padding: 12px;">Syncing performance indicators…</div>`;
   }
 }
 
@@ -1255,23 +1257,7 @@ async function loadTopics() {
     }
   }
 
-  let aoMasteryWrapper = el("aoMasteryWrapper");
-  if (!aoMasteryWrapper && masteryWrapper) {
-    const parent = masteryWrapper.parentNode;
-    
-    const header = document.createElement("div");
-    header.innerHTML = `<h3 style="margin-top: 24px; margin-bottom: 12px; font-weight: 700; color: var(--text);">Assessment Objective (AO) Mastery</h3>`;
-    
-    aoMasteryWrapper = document.createElement("div");
-    aoMasteryWrapper.id = "aoMasteryWrapper";
-    aoMasteryWrapper.style.display = "grid";
-    aoMasteryWrapper.style.gridTemplateColumns = "repeat(auto-fit, minmax(220px, 1fr))";
-    aoMasteryWrapper.style.gap = "16px";
-    aoMasteryWrapper.style.marginBottom = "24px";
-    
-    parent.insertBefore(header, masteryWrapper.nextSibling);
-    parent.insertBefore(aoMasteryWrapper, header.nextSibling);
-  }
+  const aoMasteryWrapper = el("aoMasteryWrapper");
 
   if (aoMasteryWrapper && currentUser) {
     try {
@@ -1352,22 +1338,18 @@ async function loadTopics() {
         const percentage = hasAttempts ? Math.round((stats.earned / stats.max) * 100) : 0;
 
         return `
-          <div style="background: #ffffff; border: 1px solid ${ao.border}; padding: 66px; border-radius: 12px; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-            <div>
-              <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
-                <span style="font-weight: 700; color: #1e293b; font-size: 0.95rem; line-height: 1.3;">${ao.name}</span>
-                <span style="font-size: 1.1rem; font-weight: 800; color: ${ao.color};">${hasAttempts ? `${percentage}%` : "0%"}</span>
-              </div>
-              <p style="font-size: 0.76rem; color: #64748b; line-height: 1.4; margin-bottom: 12px;">${ao.desc}</p>
+          <div style="background: #ffffff; border: 1px solid ${ao.border}; padding: 16px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 8px; flex-wrap: wrap;">
+              <span style="font-weight: 700; color: #1e293b; font-size: 0.95rem; line-height: 1.3;">${ao.name}</span>
+              <span style="font-size: 1.1rem; font-weight: 800; color: ${ao.color};">${hasAttempts ? `${percentage}%` : "0%"}</span>
             </div>
-            <div>
-              <div style="width: 100%; height: 8px; background: #f1f5f9; border-radius: 4px; overflow: hidden; margin-bottom: 6px;">
-                <div style="width: ${percentage}%; height: 100%; background: ${ao.color}; border-radius: 4px; transition: width 0.5s ease-out;"></div>
-              </div>
-              <div style="font-size: 0.72rem; color: #475569; display: flex; justify-content: space-between;">
-                <span>Earned: <strong>${stats.earned}</strong> of <strong>${stats.max}</strong> max marks</span>
-                <span style="font-weight: 600; color: #64748b;">${hasAttempts ? 'Active Mastery' : 'No Attempts'}</span>
-              </div>
+            <p style="font-size: 0.76rem; color: #64748b; line-height: 1.4; margin-bottom: 12px;">${ao.desc}</p>
+            <div style="width: 100%; height: 8px; background: #f1f5f9; border-radius: 4px; overflow: hidden; margin-bottom: 6px;">
+              <div style="width: ${percentage}%; height: 100%; background: ${ao.color}; border-radius: 4px; transition: width 0.5s ease-out;"></div>
+            </div>
+            <div style="font-size: 0.72rem; color: #475569; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px;">
+              <span>Earned: <strong>${stats.earned}</strong> of <strong>${stats.max}</strong> max marks</span>
+              <span style="font-weight: 600; color: #64748b;">${hasAttempts ? "Active Mastery" : "No Attempts"}</span>
             </div>
           </div>
         `;

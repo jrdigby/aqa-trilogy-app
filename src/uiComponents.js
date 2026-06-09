@@ -468,11 +468,11 @@ export function renderMasteryHeatmap(allSpecPoints, srsStates, onCellClickCallba
         <p style="margin:2px 0 0 0; font-size:0.8rem; color:#64748b;">Visualizing active tracking intervals vs concept gaps across the AQA Specification footprint</p>
       </div>
     </div>
-    <div class="heatmap-grid" style="display: grid; grid-template-columns: 100px 1fr; gap: 16px; align-items: start;">
+    <div class="heatmap-grid" style="display: grid; grid-template-columns: minmax(130px, auto) 1fr; gap: 16px; align-items: start;">
       <div class="heatmap-labels" style="display: flex; flex-direction: column; gap: 12px; font-size: 0.75rem; font-weight: 700; color: #64748b; padding-top: 2px;">
-        <div style="height: 14px; display: flex; align-items: center;">BIO (${subjects.biology.length})</div>
-        <div style="height: 14px; display: flex; align-items: center;">CHEM (${subjects.chemistry.length})</div>
-        <div style="height: 14px; display: flex; align-items: center;">PHYS (${subjects.physics.length})</div>
+        <div style="height: 14px; display: flex; align-items: center;">Biology (${subjects.biology.length})</div>
+        <div style="height: 14px; display: flex; align-items: center;">Chemistry (${subjects.chemistry.length})</div>
+        <div style="height: 14px; display: flex; align-items: center;">Physics (${subjects.physics.length})</div>
       </div>
       <div class="heatmap-cells-container" id="heatmapRowsTarget" style="display: flex; flex-direction: column; gap: 12px;"></div>
     </div>
@@ -484,10 +484,6 @@ export function renderMasteryHeatmap(allSpecPoints, srsStates, onCellClickCallba
   ['biology', 'chemistry', 'physics'].forEach(subKey => {
     const rowEl = document.createElement("div");
     rowEl.className = "heatmap-row";
-    rowEl.style.display = "flex";
-    rowEl.style.gap = "4px";
-    rowEl.style.flexWrap = "wrap";
-    rowEl.style.height = "14px"; /* 🌟 Matches line height of label column perfectly */
 
     const targetPoints = subjects[subKey] || [];
     
@@ -534,8 +530,6 @@ export function renderMasteryHeatmap(allSpecPoints, srsStates, onCellClickCallba
       cell.style.backgroundColor = baseColor;
       cell.style.border = borderStyle;
       cell.setAttribute("data-tooltip", tooltipText);
-
-      cell.setAttribute("title", tooltipText);
 
       cell.onclick = () => {
         if (typeof onCellClickCallback === "function") {
