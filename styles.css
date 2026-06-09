@@ -1,107 +1,34 @@
-:root {
-  --bg:#ffffff; 
-  --card:#ffffff; 
-  --text:#000000; 
-  --muted:#666666; 
-  --accent:#4a90e2; 
-  --ok:#2e9e5b; 
-  --bad:#d64545; 
-}
-*{box-sizing:border-box}
-body{
-  margin:0;
-  font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;
-  background:#f7f9fc;
-  color:var(--text)
-}
-.wrap{max-width:860px;margin:0 auto;padding:20px}
-header{margin-bottom:14px}
-.card{
-  background:var(--card);
-  border:1px solid #ddd;
-  border-radius:16px;
-  padding:16px;
-  margin:14px 0;
-  box-shadow:0 4px 12px rgba(0,0,0,.08)
-}
-
-input{
-  flex:1;
-  min-width:220px;
-  padding:10px 12px;
-  border-radius:10px;
-  border:1px solid #ccc;
-  background:#ffffff;
-  color:#000000
-}
-button{
-  padding:10px 14px;
-  border-radius:12px;
-  border:1px solid #ccc;
-  background:var(--accent);
-  color:#ffffff;
-  font-weight:700;
-  cursor:pointer
-}
-button:hover{
-  opacity:0.9;
-}
-button.secondary{
-  background:#f0f0f0;
-  color:#000;
-}
-button:disabled{opacity:.5;cursor:not-allowed}
-.hidden{display:none}
-.muted{color:var(--muted)}
-.chip{padding:6px 10px;border-radius:999px;background:#f5f5f5;border:1px solid rgba(110,168,254,.25);color:var(--muted);font-size:12px}
-.list{margin-top:10px}
-.item{padding:10px;border-radius:12px;border:1px solid rgba(110,168,254,.18);background:#f5f5f5;margin-bottom:8px}
-.feedback{margin-top:12px;padding:12px;border-radius:12px;background:#f5f5f5;border:1px solid rgba(110,168,254,.18)}
-.good{color:var(--ok);font-weight:700}
-.bad{color:var(--bad);font-weight:700}
-hr{
-  border:none;
-  border-top:1px solid #ddd;
-  margin:12px 0
-}
+/* Component styles for student app — linked from index.html.
+   Global layout resets live in index.html inline <style>. */
 
 /* ===== SIMPLE MCQ LAYOUT ===== */
 .mcq-container {
   display: flex;
-  flex-direction: column;     /* ✅ one column ONLY */
-  align-items: center;        /* ✅ centre the whole block */
+  flex-direction: column;
+  align-items: center;
   gap: 10px;
   margin-top: 10px;
 }
 
-/* each answer row */
 .mcq-option {
   display: flex;
   align-items: center;
   gap: 10px;
-
   width: 100%;
-  max-width: 500px;           /* ✅ keeps it tidy */
-
+  max-width: 500px;
   padding: 6px 0;
 }
 
-/* text */
 .mcq-option span {
   flex: 1;
-  text-align: left;           /* ✅ left-align the text */
+  text-align: left;
 }
 
-/* radio */
 .mcq-option input[type="radio"] {
   transform: scale(1.2);
 }
 
-/* ================================================================= */
-/* 🔎 SHORT ANSWER VISUAL MARKUP HIGHLIGHTS ENGINE                   */
-/* ================================================================= */
-
-/* Exact matches found in student raw text */
+/* ===== SHORT ANSWER VISUAL MARKUP HIGHLIGHTS ===== */
 .match-exact {
   background-color: #d1fae5;
   color: #065f46;
@@ -112,7 +39,6 @@ hr{
   display: inline-block;
 }
 
-/* Fuzzy near-miss typographical items identified via Levenshtein */
 .match-fuzzy {
   background-color: #ffedd5;
   color: #9a3412;
@@ -123,7 +49,6 @@ hr{
   display: inline-block;
 }
 
-/* General design container parameters for baseline criteria badges */
 .keyword-badge {
   display: inline-block;
   background: #f1f5f9;
@@ -136,7 +61,8 @@ hr{
   border: 1px solid #cbd5e1;
   transition: all 0.2s ease;
 }
-/* Base styles for all examination advice callouts */
+
+/* ===== EXAMINATION ADVICE CALLOUTS ===== */
 .exam-tip {
   margin-top: 10px;
   padding: 10px 14px;
@@ -146,25 +72,19 @@ hr{
   line-height: 1.4;
 }
 
-/* Specific variant accents */
-.exam-tip--describe {
-  background: #eff6ff;
-  border-left-color: #3b82f6;
-  color: #1e40af;
-}
+.exam-tip--describe  { background: #eff6ff; border-left-color: #3b82f6; color: #1e40af; }
+.exam-tip--explain   { background: #ecfdf5; border-left-color: #10b981; color: #065f46; }
+.exam-tip--evaluate  { background: #fffbeb; border-left-color: #f59e0b; color: #78350f; }
+.exam-tip--calculate { background: #f5f3ff; border-left-color: #8b5cf6; color: #5b21b6; }
+.exam-tip--compare    { background: #fdf4ff; border-left-color: #d946ef; color: #86198f; }
+.exam-tip--state      { background: #f0f9ff; border-left-color: #0ea5e9; color: #0c4a6e; }
+.exam-tip--suggest    { background: #fff7ed; border-left-color: #f97316; color: #9a3412; }
+.exam-tip--discuss    { background: #f8fafc; border-left-color: #64748b; color: #334155; }
+.exam-tip--justify    { background: #fef2f2; border-left-color: #ef4444; color: #991b1b; }
+.exam-tip--determine  { background: #ecfeff; border-left-color: #06b6d4; color: #155e75; }
+.exam-tip--define     { background: #f0fdf4; border-left-color: #22c55e; color: #14532d; }
 
-.exam-tip--explain {
-  background: #ecfdf5;
-  border-left-color: #10b981;
-  color: #065f46;
-}
-
-.exam-tip--evaluate {
-  background: #fffbeb;
-  border-left-color: #f59e0b;
-  color: #78350f;
-}
-/* --- MASTERY HEATMAP CORE LAYOUT --- */
+/* ===== MASTERY HEATMAP ===== */
 .heatmap-container {
   background: #ffffff;
   border: 1px solid #e2e8f0;
@@ -172,6 +92,11 @@ hr{
   padding: 24px;
   margin: 20px 0;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  overflow: visible;
+}
+
+#heatmapViewWrapper {
+  overflow: visible;
 }
 
 .heatmap-header {
@@ -185,11 +110,10 @@ hr{
 
 .heatmap-grid {
   display: grid;
-  grid-template-columns: auto 1fr; /* Maps label sidebar next to grid stream */
+  grid-template-columns: auto 1fr;
   gap: 16px;
-  align-items: center;
-  overflow-x: auto;
-  padding-bottom: 8px;
+  align-items: start;
+  overflow: visible;
 }
 
 .heatmap-labels {
@@ -214,22 +138,24 @@ hr{
   flex-direction: column;
   gap: 10px;
   width: 100%;
+  overflow: visible;
 }
 
 .heatmap-row {
   display: flex;
   gap: 4px;
-  width: 100%; 
+  width: 100%;
   flex-wrap: wrap;
+  min-height: 14px;
+  overflow: visible;
 }
 
-/* --- THE KINETIC SQUARES --- */
 .heatmap-cell {
   display: block;
   width: 18px;
   height: 18px;
   flex-shrink: 0;
-  min-width: 18px;       /* Prevent flex layouts from compressing or shrinking cells */
+  min-width: 18px;
   min-height: 18px;
   border-radius: 3px;
   transition: all 0.2s ease-in-out;
@@ -237,79 +163,51 @@ hr{
   position: relative;
 }
 
-/* --- ADD A FALLBACK COLOR TO ENSURE VISIBILITY --- */
-.cell-unattempted { 
-  background-color: #cbd5e1 !important; /* 🌟 Temporarily uses a slightly darker gray to ensure visibility during initial layout engine checks */
-  border: 1px solid #94a3b8; 
-}
 .heatmap-cell:hover {
   transform: scale(1.25);
   z-index: 10;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
 }
 
-/* --- MAP STATE SPECTRUMS --- */
 .cell-unattempted { background-color: #f1f5f9; border: 1px solid #e2e8f0; }
 .cell-gap         { background-color: #f59e0b; animation: pulseGap 2s infinite; }
-.cell-mastery-l1  { background-color: #bbf7d0; } /* Short-term secure */
-.cell-mastery-l2  { background-color: #4ade80; } /* Intermediate */
-.cell-mastery-l3  { background-color: #16a34a; } /* Long-term locked */
+.cell-mastery-l1  { background-color: #bbf7d0; }
+.cell-mastery-l2  { background-color: #4ade80; }
+.cell-mastery-l3  { background-color: #16a34a; }
 
 @keyframes pulseGap {
-  0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4); }
-  70% { box-shadow: 0 0 0 4px rgba(245, 158, 11, 0); }
+  0%   { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4); }
+  70%  { box-shadow: 0 0 0 4px rgba(245, 158, 11, 0); }
   100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
 }
 
-/* --- LEAN DYNAMIC TOOLTIP CONTAINER --- */
-.heatmap-cell[data-tooltip]:hover::after {
-  content: attr(data-tooltip);
-  position: absolute;
-  bottom: 22px;
-  left: 50%;
-  transform: translateX(-50%);
-  background-color: #1e293b;
-  color: #ffffff;
-  padding: 6px 10px;
-  border-radius: 6px;
-  font-size: 0.7rem;
-  white-space: nowrap;
-  z-index: 100;
-  box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3);
-  pointer-events: none;
-}
-/* --- HEATMAP HOVER TOOLTIPS --- */
-.heatmap-cell {
-  position: relative; /* Essential anchoring context for tooltip placement */
-}
-
-/* 1. Craft the hidden tooltip bubble box element */
 .heatmap-cell::after {
   content: attr(data-tooltip);
+  display: block;
+  box-sizing: border-box;
   position: absolute;
-  bottom: 24px; /* Float exactly above the square */
+  top: calc(100% + 8px);
   left: 50%;
-  transform: translateX(-50%) scale(0.85); /* Centered and slightly scaled down */
-  
-  /* Styling foundations matching your theme */
-  background-color: #1e293b; /* Dark Slate background */
+  transform: translateX(-50%) scale(0.92);
+  width: min(300px, 90vw);
+  background-color: #1e293b;
   color: #ffffff;
-  padding: 6px 10px;
+  padding: 8px 14px;
   border-radius: 6px;
   font-size: 0.72rem;
   font-weight: 500;
-  white-space: nowrap;
-  z-index: 999;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  pointer-events: none; /* Prevents cursor interference */
-  
-  /* Smooth visibility transitions */
+  white-space: normal;
+  overflow-wrap: break-word;
+  line-height: 1.35;
+  text-align: center;
+  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+  pointer-events: none;
   opacity: 0;
   visibility: hidden;
-  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: opacity 0.15s ease, visibility 0.15s ease, transform 0.15s ease;
 }
 
-/* 2. Reveal and scale the tooltip fluidly on hover */
 .heatmap-cell:hover::after {
   opacity: 1;
   visibility: visible;

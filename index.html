@@ -224,7 +224,59 @@
       cursor: pointer;
     }
     .mcq-option input { margin-right: 12px; transform: scale(1.1); }
+
+    /* ====== DASHBOARD TABS ====== */
+    .dashboard-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 20px;
+      border-bottom: 2px solid var(--border);
+      padding-bottom: 0;
+    }
+
+    .dashboard-tab {
+      flex: none;
+      padding: 10px 20px;
+      font-size: 0.92rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 8px 8px 0 0;
+      background: transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: color 0.15s, background 0.15s;
+      margin-bottom: -2px;
+      border-bottom: 2px solid transparent;
+    }
+
+    .dashboard-tab:hover {
+      color: var(--text);
+      background: #edf2f7;
+    }
+
+    .dashboard-tab.active {
+      color: var(--primary);
+      background: #ffffff;
+      border-bottom-color: var(--primary);
+    }
+
+    .dashboard-tab-panel {
+      animation: tabFadeIn 0.2s ease;
+    }
+
+    @keyframes tabFadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .ao-mastery-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      margin-bottom: 8px;
+    }
   </style>
+  <link rel="stylesheet" href="styles.css">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -308,37 +360,71 @@
         </div>
       </div>
 
-      <div class="practice-context-block">
-        <div id="topicCountSummary">Calculating baseline questions footprint...</div>
-        <button id="btnStartAny" class="btn-secondary" style="flex: none; padding: 8px 16px; font-size: 0.88rem; width: auto;">Open practice mode for selected topic(s)</button>
+      <div class="dashboard-tabs" role="tablist" aria-label="Dashboard views">
+        <button type="button" id="tabPractice" class="dashboard-tab active" role="tab" aria-selected="true" aria-controls="dashboardTabPractice">📝 Practice</button>
+        <button type="button" id="tabAnalytics" class="dashboard-tab" role="tab" aria-selected="false" aria-controls="dashboardTabAnalytics">📊 Analytics</button>
+        <button type="button" id="tabFlashcards" class="dashboard-tab" role="tab" aria-selected="false" aria-controls="dashboardTabFlashcards">📚 Flashcards</button>
       </div>
 
-      <hr/>
+      <div id="dashboardTabPractice" class="dashboard-tab-panel" role="tabpanel">
+        <div class="practice-context-block">
+          <div id="topicCountSummary">Calculating baseline questions footprint...</div>
+          <button id="btnStartAny" class="btn-secondary" style="flex: none; padding: 8px 16px; font-size: 0.88rem; width: auto;">Open practice mode for selected topic(s)</button>
+        </div>
 
-      <div style="margin: 20px 0; display: flex; justify-content: space-between; align-items: center;">
-        <h3>Due Item Queue: <span id="dueCount" style="color: var(--primary);">0</span> target objectives waiting</h3>
-        <button id="btnStartDue" class="btn-primary" style="flex: none; width: auto; padding: 10px 20px;">Start Due Questions for selected topic(s)</button>
+        <hr/>
+
+        <div style="margin: 20px 0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+          <h3>Due Item Queue: <span id="dueCount" style="color: var(--primary);">0</span> target objectives waiting</h3>
+          <button id="btnStartDue" class="btn-primary" style="flex: none; width: auto; padding: 10px 20px;">Start Due Questions for selected topic(s)</button>
+        </div>
+
+        <div id="heatmapViewWrapper"></div>
+
+        <div style="margin-bottom: 10px; font-weight: 600; font-size: 0.9rem; color: var(--text-muted);">Active Schedule Forecast:</div>
+        <div id="dueList"></div>
       </div>
-<div class="item" style="background: #ffffff; padding: 20px; border: 1px solid var(--border); border-radius: 12px; margin: 20px 0;">
-        <h3 style="font-size: 1rem; margin-bottom: 5px; color: #2c3e50; display: flex; align-items: center; gap: 6px;">
-          📊 Subject Mastery Index
-        </h3>
-        <p class="muted" style="margin-bottom: 15px;">Your real-time performance strength based on aggregate exam marks earned within this paper.</p>
-        <div id="masteryWrapper" style="display: flex; flex-direction: column; gap: 12px;">
-          <div class="muted" style="text-align: center; padding: 10px;">Loading syllabus data nodes...</div>
+
+      <div id="dashboardTabAnalytics" class="dashboard-tab-panel hidden" role="tabpanel">
+        <div class="item" style="background: #ffffff; padding: 20px; border: 1px solid var(--border); border-radius: 12px; margin: 20px 0;">
+          <h3 style="font-size: 1rem; margin-bottom: 15px; color: #2c3e50; display: flex; align-items: center; gap: 6px;">
+            📅 7-Day Revision Workload Forecast
+          </h3>
+          <div id="forecastWrapper" style="display: flex; justify-content: space-between; align-items: flex-end; height: 110px; padding: 10px 5px 0 5px; background: #fafbfc; border-radius: 8px; border: 1px dashed #e2e8f0;">
+            <div class="muted" style="width: 100%; text-align: center; margin-bottom: 35px;">Loading upcoming workload metrics...</div>
+          </div>
+        </div>
+
+        <div class="item" style="background: #ffffff; padding: 20px; border: 1px solid var(--border); border-radius: 12px; margin: 20px 0;">
+          <h3 style="font-size: 1rem; margin-bottom: 5px; color: #2c3e50; display: flex; align-items: center; gap: 6px;">
+            📊 Subject Mastery Index
+          </h3>
+          <p class="muted" style="margin-bottom: 15px;">Your real-time performance strength based on aggregate exam marks earned within this paper.</p>
+          <div id="masteryWrapper" style="display: flex; flex-direction: column; gap: 12px;">
+            <div class="muted" style="text-align: center; padding: 10px;">Loading syllabus data nodes...</div>
+          </div>
+
+          <h3 id="aoMasteryHeader" style="margin-top: 24px; margin-bottom: 12px; font-weight: 700; color: var(--text); font-size: 1rem;">Assessment Objective (AO) Mastery</h3>
+          <div id="aoMasteryWrapper" class="ao-mastery-stack">
+            <div class="muted" style="text-align: center; padding: 10px;">Syncing performance indicators…</div>
+          </div>
         </div>
       </div>
-      <div class="item" style="background: #ffffff; padding: 20px; border: 1px solid var(--border); border-radius: 12px; margin: 20px 0;">
-        <h3 style="font-size: 1rem; margin-bottom: 15px; color: #2c3e50; display: flex; align-items: center; gap: 6px;">
-          📅 7-Day Revision Workload Forecast
-        </h3>
-        <div id="forecastWrapper" style="display: flex; justify-content: space-between; align-items: flex-end; height: 110px; padding: 10px 5px 0 5px; background: #fafbfc; border-radius: 8px; border: 1px dashed #e2e8f0;">
-          <div class="muted" style="width: 100%; text-align: center; margin-bottom: 35px;">Loading upcoming workload metrics...</div>
+
+      <div id="dashboardTabFlashcards" class="dashboard-tab-panel hidden" role="tabpanel">
+        <div class="item" style="background: #ffffff; padding: 20px; border: 1px solid var(--border); border-radius: 12px; margin: 20px 0;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 10px;">
+            <h3 style="margin:0; font-weight:700; color:var(--text); font-size:1.15rem; display:flex; align-items:center; gap:8px;">
+              📚 Personal Revision Flashcards <span style="font-size:0.8rem; background:#fee2e2; color:#991b1b; padding:2px 8px; border-radius:12px; font-weight:700;">Dynamic Gaps</span>
+            </h3>
+            <button id="btnDownloadStudyGuide" class="btn-secondary" style="flex: none; padding: 6px 12px; font-size: 0.75rem; width: auto; display: none;">📥 Download PDF Guide</button>
+          </div>
+          <p class="muted" style="margin-top: 0; margin-bottom: 16px;">This revision deck automatically aggregates key concepts you missed in your recent practice sessions. Flip them to self-test.</p>
+          <div id="revisionCardsWrapper" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;">
+            <div class="muted" style="grid-column: 1/-1; text-align: center; padding: 24px;">Loading revision flashcards…</div>
+          </div>
         </div>
       </div>
-      
-      <div style="margin-bottom: 10px; font-weight: 600; font-size: 0.9rem; color: var(--text-muted);">Active Schedule Forecast:</div>
-      <div id="dueList"></div>
     </section>
 
     <section id="session" class="card hidden">
