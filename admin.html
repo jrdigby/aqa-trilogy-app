@@ -1661,8 +1661,15 @@
         q._severityWeight = severityScore;
       });
 
-      // Sort by calculated severity weight descending (highest weights move to the top!)
-      filtered.sort((a, b) => b._severityWeight - a._severityWeight);
+      // Sort by severity descending, then syllabus spec ref ascending
+      filtered.sort((a, b) => {
+        const severityDiff = b._severityWeight - a._severityWeight;
+        if (severityDiff !== 0) return severityDiff;
+
+        const refA = specMap[a.spec_point_id]?.spec_ref || "";
+        const refB = specMap[b.spec_point_id]?.spec_ref || "";
+        return refA.localeCompare(refB, undefined, { numeric: true, sensitivity: "base" });
+      });
       
       // Store in memory cache for Sandbox loading & modal populates
       loadedQuestionsCache = filtered;
