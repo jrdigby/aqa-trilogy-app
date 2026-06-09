@@ -108,37 +108,31 @@
   gap: 12px;
 }
 
-.heatmap-grid {
+.heatmap-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow: visible;
+}
+
+.heatmap-subject-row {
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: minmax(130px, auto) 1fr;
   gap: 16px;
   align-items: start;
   overflow: visible;
 }
 
-.heatmap-labels {
+.heatmap-row-label {
   display: flex;
-  flex-direction: column;
-  gap: 10px;
+  align-items: flex-start;
+  min-height: 14px;
+  padding-top: 0;
   font-size: 0.75rem;
   font-weight: 700;
   color: #64748b;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.heatmap-row-label {
-  height: 14px;
-  display: flex;
-  align-items: center;
-}
-
-.heatmap-cells-container {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  width: 100%;
-  overflow: visible;
+  letter-spacing: 0.02em;
+  line-height: 14px;
 }
 
 .heatmap-row {
