@@ -474,9 +474,9 @@ export function renderMasteryHeatmap(allSpecPoints, srsStates, onCellClickCallba
   const rowsTarget = wrapper.querySelector("#heatmapRowsTarget");
 
   const subjectLabels = {
-    biology: `Biology (${subjects.biology.length})`,
-    chemistry: `Chemistry (${subjects.chemistry.length})`,
-    physics: `Physics (${subjects.physics.length})`
+    biology: `Biology`,
+    chemistry: `Chemistry`,
+    physics: `Physics`
   };
 
   // 4. Map rows independently for each subject track (label paired with its cell row)
@@ -496,12 +496,6 @@ export function renderMasteryHeatmap(allSpecPoints, srsStates, onCellClickCallba
     targetPoints.forEach(point => {
       const cell = document.createElement("div");
       cell.className = "heatmap-cell";
-      
-      cell.style.width = "14px";
-      cell.style.height = "14px";
-      cell.style.display = "block";
-      cell.style.borderRadius = "3px";
-      cell.style.cursor = "pointer";
       
       const srsRecord = trackingMap.get(point.id);
       let stateClass = "cell-unattempted";

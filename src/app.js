@@ -575,20 +575,37 @@ async function startSessionForSpecPointWrapper(specPointId, qType = "") {
 // btnStart.onclick = startAnyPracticeWrapper;
 
 // ====== 7-DAY WORKLOAD REVISION FORECAST ======
+function renderForecastColumn({ label, count, maxCount, isOverdue = false }) {
+  const barHeightPx = Math.round((count / maxCount) * 75);
+  const isActiveBar = count > 0;
+  const activeColor = isOverdue ? "var(--error)" : "var(--primary)";
+
+  return `
+    <div style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; justify-content: flex-end; min-width: 0;">
+      <span style="font-size: 0.75rem; font-weight: 700; color: ${isActiveBar ? activeColor : "var(--text-muted)"};">
+        ${count}
+      </span>
+      <div style="width: 70%; max-width: 28px; height: ${barHeightPx}px; background: ${isActiveBar ? activeColor : "#e2e8f0"}; border-radius: 4px 4px 0 0; transition: height 0.3s ease;"></div>
+      <span style="font-size: 0.7rem; font-weight: 600; color: var(--text-muted); margin-bottom: 2px; text-align: center; line-height: 1.2;">
+        ${label}
+      </span>
+    </div>
+  `;
+}
+
 async function loadWeeklyForecast() {
   if (!currentUser || !forecastWrapper) return;
 
   const weekdayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const today = todayISO();
   const datesArray = [];
   const countsMap = {};
 
   for (let i = 0; i < 7; i++) {
-    const targetDate = new Date();
-    targetDate.setDate(targetDate.getDate() + i);
-    
-    const dateString = targetDate.toISOString().slice(0, 10);
+    const dateString = addDaysISO(today, i);
+    const targetDate = new Date(`${dateString}T00:00:00`);
     const dayLabel = i === 0 ? "Today" : weekdayNames[targetDate.getDay()];
-    
+
     datesArray.push({ dateString, dayLabel });
     countsMap[dateString] = 0;
   }
@@ -603,31 +620,25 @@ async function loadWeeklyForecast() {
     return;
   }
 
+  let overdueCount = 0;
   (schedules || []).forEach(s => {
-    if (countsMap[s.due_date] !== undefined) {
-      countsMap[s.due_date]++;
+    const dueDate = String(s.due_date || "").slice(0, 10);
+    if (dueDate < today) {
+      overdueCount++;
+    } else if (countsMap[dueDate] !== undefined) {
+      countsMap[dueDate]++;
     }
   });
 
-  const maxCount = Math.max(...Object.values(countsMap), 1);
+  const maxCount = Math.max(overdueCount, ...Object.values(countsMap), 1);
 
-  forecastWrapper.innerHTML = datesArray.map(d => {
-    const totalDueOnDay = countsMap[d.dateString];
-    const barHeightPx = Math.round((totalDueOnDay / maxCount) * 75);
-    const isActiveBar = totalDueOnDay > 0;
-
-    return `
-      <div style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; justify-content: flex-end;">
-        <span style="font-size: 0.75rem; font-weight: 700; color: ${isActiveBar ? 'var(--primary)' : 'var(--text-muted)'};">
-          ${totalDueOnDay}
-        </span>
-        <div style="width: 70%; max-width: 35px; height: ${barHeightPx}px; background: ${isActiveBar ? 'var(--primary)' : '#e2e8f0'}; border-radius: 4px 4px 0 0; transition: height 0.3s ease;"></div>
-        <span style="font-size: 0.75rem; font-weight: 600; color: var(--text-muted); margin-bottom: 2px;">
-          ${d.dayLabel}
-        </span>
-      </div>
-    `;
-  }).join("");
+  forecastWrapper.innerHTML =
+    renderForecastColumn({ label: "Overdue", count: overdueCount, maxCount, isOverdue: true }) +
+    datesArray.map(d => renderForecastColumn({
+      label: d.dayLabel,
+      count: countsMap[d.dateString],
+      maxCount
+    })).join("");
 }
 
 // ====== FIXED RANDOMIZATION ENGINE ======
