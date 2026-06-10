@@ -92,6 +92,17 @@ export function updateSRS({ quality, ef, reps, interval }) {
   return { newEF, newReps, newInterval, lapse };
 }
 
+export function computeSessionQuality(qualities) {
+  if (!qualities.length) return 0;
+  const passCount = qualities.filter(q => q >= 3).length;
+  const rate = passCount / qualities.length;
+  if (rate >= 0.9) return 5;
+  if (rate >= 0.7) return 4;
+  if (rate >= 0.5) return 3;
+  if (rate >= 0.25) return 1;
+  return 0;
+}
+
 // Formats AQA GCSE standard examiner tips dynamically based on prompt words
 export function getAQACommandWordHelper(promptText) {
   const words = promptText.toLowerCase().trim().split(/\s+/);
