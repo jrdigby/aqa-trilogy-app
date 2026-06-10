@@ -28,17 +28,26 @@ export async function fetchDashboardDueItems(userId) {
 }
 
 // ====== REVISIONDECK FAILED ATTEMPTS FETCH ======
-export async function fetchRecentConceptGaps(userId) {
+export async function fetchConceptGapAttempts(userId) {
   const { data, error } = await supabaseClient
     .from("attempts")
-    .select("submitted_at, question_id, score_total, score_max, feedback_payload, questions(prompt, spec_points(topic_name, spec_ref))")
+    .select(`
+      submitted_at, question_id, score_total, score_max, feedback_payload,
+      questions(
+        question_type, prompt,
+        spec_points(subject, paper, topic_name, spec_ref)
+      )
+    `)
     .eq("user_id", userId)
     .order("submitted_at", { ascending: false })
-    .limit(10);
+    .limit(100);
 
   if (error) throw error;
   return data || [];
 }
+
+/** @deprecated Use fetchConceptGapAttempts */
+export const fetchRecentConceptGaps = fetchConceptGapAttempts;
 
 // ====== FORECAST SCHEDULES GATHERER ======
 export async function fetchWeeklyForecastSchedules(userId) {
@@ -131,6 +140,7 @@ export async function fetchSyllabusPipelineData(userId, subject, paper, targetTi
 // ====== EXPORT OBJECT WRAPPER FOR EXTENDED MODULE ARCHITECTURES ======
 const dbClient = {
   fetchDashboardDueItems,
+  fetchConceptGapAttempts,
   fetchRecentConceptGaps,
   fetchWeeklyForecastSchedules,
   fetchAllSpecificationPoints,
