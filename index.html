@@ -351,7 +351,7 @@
           </select>
         </div>
 
-        <div class="filter-group">
+        <div class="filter-group" id="typeFilterGroup">
           <label for="typeFilter">Question Type</label>
           <select id="typeFilter" class="custom-select">
             <option value="">All Question Types</option>
@@ -428,7 +428,7 @@
             </h3>
             <button id="btnDownloadStudyGuide" class="btn-secondary" style="flex: none; padding: 6px 12px; font-size: 0.75rem; width: auto; display: none;">📥 Download PDF Guide</button>
           </div>
-          <p class="muted" style="margin-top: 0; margin-bottom: 16px;">This revision deck automatically aggregates key concepts you missed in your recent practice sessions. Flip them to self-test.</p>
+          <p class="muted" style="margin-top: 0; margin-bottom: 16px;">This revision deck aggregates key concepts you missed in recent practice, filtered by the Subject, Paper, and Topic selectors above. Flip cards to self-test.</p>
           <div id="revisionCardsWrapper" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;">
             <div class="muted" style="grid-column: 1/-1; text-align: center; padding: 24px;">Loading revision flashcards…</div>
           </div>

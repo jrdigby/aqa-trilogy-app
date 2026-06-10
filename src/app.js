@@ -3,7 +3,7 @@ import { showToastBanner, renderQuestionLayout, renderFeedback, renderLiveAIFeed
 import { triggerMathTypeset } from './mathEngine.js';
 import { checkKeywordOrSynonymsMatch, updateSRS, getAQACommandWordHelper, isFuzzyMatch } from './evalEngine.js';
 import { escapeHtml, shuffleArray, todayISO, addDaysISO } from './utils.js';
-import { supabaseClient, timeoutPromise, fetchDashboardDueItems, fetchRecentConceptGaps, fetchWeeklyForecastSchedules, fetchSyllabusPipelineData } from './dbClient.js';
+import { supabaseClient, timeoutPromise, fetchDashboardDueItems, fetchConceptGapAttempts, fetchWeeklyForecastSchedules, fetchSyllabusPipelineData } from './dbClient.js';
 import dbClient from "./dbClient.js";
 import { markResponse } from './evalEngine.js';
 
@@ -77,9 +77,16 @@ function switchDashboardTab(tab) {
     tabFlashcards.classList.toggle("active", active === "flashcards");
     tabFlashcards.setAttribute("aria-selected", active === "flashcards" ? "true" : "false");
   }
+  const typeFilterGroup = el("typeFilterGroup");
+  if (typeFilterGroup) {
+    typeFilterGroup.classList.toggle("hidden", active === "flashcards");
+  }
   try {
     localStorage.setItem(DASHBOARD_TAB_KEY, active);
   } catch (_) { /* storage unavailable */ }
+  if (active === "flashcards" && currentUser) {
+    loadRevisionCards();
+  }
 }
 
 if (tabPractice) tabPractice.onclick = () => switchDashboardTab("practice");
@@ -212,24 +219,70 @@ async function loadDashboard() {
   await loadRevisionCards();
 }
 
+function flashcardFilterLabel({ subject, paper, topic }) {
+  const subjectLabel = subject.charAt(0).toUpperCase() + subject.slice(1);
+  const paperLabel = paper === "paper2" ? "Paper 2" : "Paper 1";
+  const topicPart = topic ? ` · ${topic}` : "";
+  return `${subjectLabel} · ${paperLabel}${topicPart}`;
+}
+
+function compileFlashcardDeck(attempts, { subject, paper, topic }) {
+  const qualified = [];
+  const subjectNorm = subject.toLowerCase().trim();
+
+  for (const att of attempts || []) {
+    if (att.score_total >= att.score_max) continue;
+    if (!att.feedback_payload) continue;
+    const q = att.questions;
+    if (!q) continue;
+    if (q.question_type === "extended_response") continue;
+    const spec = q.spec_points;
+    if (!spec) continue;
+    if (spec.subject?.toString().toLowerCase().trim() !== subjectNorm) continue;
+    if (spec.paper !== paper) continue;
+    if (topic && spec.topic_name !== topic) continue;
+    qualified.push(att);
+  }
+
+  const failureCounts = new Map();
+  for (const att of qualified) {
+    failureCounts.set(att.question_id, (failureCounts.get(att.question_id) || 0) + 1);
+  }
+
+  const seen = new Set();
+  const deduped = [];
+  for (const att of qualified) {
+    if (seen.has(att.question_id)) continue;
+    seen.add(att.question_id);
+    deduped.push({ ...att, _failureCount: failureCounts.get(att.question_id) || 1 });
+  }
+
+  deduped.sort((a, b) => {
+    const countDiff = (b._failureCount || 0) - (a._failureCount || 0);
+    if (countDiff !== 0) return countDiff;
+    return String(b.submitted_at || "").localeCompare(String(a.submitted_at || ""));
+  });
+
+  return deduped;
+}
+
 // ====== "MISSING INFO" REVISION FLASHCARD COMPILER ======
 async function loadRevisionCards() {
   const container = el("revisionCardsWrapper");
-  if (!container) return;
+  if (!container || !currentUser) return;
 
   try {
-    // FIXED: Query recent incorrect attempts via decoupled database abstraction client pipeline
-    const attempts = await fetchRecentConceptGaps(currentUser.id);
-
-    // Filter out attempts that didn't achieve full marks and have feedback reports
-    const failedAttempts = (attempts || []).filter(a => a.score_total < a.score_max && a.feedback_payload);
+    const filters = getSelectedFilters();
+    const attempts = await fetchConceptGapAttempts(currentUser.id);
+    const failedAttempts = compileFlashcardDeck(attempts, filters);
+    const filterLabel = flashcardFilterLabel(filters);
 
     if (failedAttempts.length === 0) {
       container.innerHTML = `
         <div style="grid-column: 1/-1; text-align: center; padding: 24px; border: 2px dashed #e2e8f0; border-radius: 8px; color: #64748b;">
           <span style="font-size: 1.5rem; display: block; margin-bottom: 6px;">🎉</span>
-          <strong style="font-size:0.85rem; color:#334155;">No concept gaps registered!</strong>
-          <p style="font-size:0.75rem; margin:4px 0 0 0;">Complete more practice sessions. Gaps or missed keywords will construct flashcards here.</p>
+          <strong style="font-size:0.85rem; color:#334155;">No concept gaps for ${escapeHtml(filterLabel)}</strong>
+          <p style="font-size:0.75rem; margin:4px 0 0 0;">Complete more practice sessions in this selection. Gaps or missed keywords will construct flashcards here.</p>
         </div>
       `;
       const btnDl = el("btnDownloadStudyGuide");
@@ -1061,7 +1114,9 @@ if (subjectFilter) {
   subjectFilter.addEventListener("change", () => {
     console.log("DEBUG EVENT: Subject changed ->", subjectFilter.value);
     if (!currentUser) return;
+    if (topicFilter) topicFilter.value = "";
     loadTopics();
+    loadRevisionCards();
   });
 }
 
@@ -1069,7 +1124,9 @@ if (paperFilter) {
   paperFilter.addEventListener("change", () => {
     console.log("DEBUG EVENT: Paper changed ->", paperFilter.value);
     if (!currentUser) return;
+    if (topicFilter) topicFilter.value = "";
     loadTopics();
+    loadRevisionCards();
   });
 }
 
@@ -1078,6 +1135,7 @@ if (topicFilter) {
     console.log("DEBUG EVENT: Topic changed ->", topicFilter.value);
     if (!currentUser) return;
     loadTopics();
+    loadRevisionCards();
   });
 }
 
