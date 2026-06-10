@@ -1,7 +1,7 @@
 import { startAnyPractice, startSessionForSpecPoint, upsertSRS as importUpsertSRS } from './sessionEngine.js';
 import { showToastBanner, renderQuestionLayout, renderFeedback, renderLiveAIFeedback, renderAQAExtendedResponseFeedback, renderMasteryHeatmap } from './uiComponents.js';
 import { triggerMathTypeset } from './mathEngine.js';
-import { checkKeywordOrSynonymsMatch, updateSRS, getAQACommandWordHelper, isFuzzyMatch } from './evalEngine.js';
+import { checkKeywordOrSynonymsMatch, updateSRS, computeSessionQuality, getAQACommandWordHelper, isFuzzyMatch } from './evalEngine.js';
 import { escapeHtml, shuffleArray, todayISO, addDaysISO } from './utils.js';
 import { supabaseClient, timeoutPromise, fetchDashboardDueItems, fetchConceptGapAttempts, fetchWeeklyForecastSchedules, fetchSyllabusPipelineData } from './dbClient.js';
 import dbClient from "./dbClient.js";
@@ -96,6 +96,7 @@ if (tabFlashcards) tabFlashcards.onclick = () => switchDashboardTab("flashcards"
 // ====== SESSION STATE ======
 let currentUser = null;
 let sessionQuestions = [];
+let sessionQualityLog = [];
 let idx = 0;
 let currentQ = null;
 let currentKey = null;
@@ -555,6 +556,7 @@ const engineContext = {
   setSessionState: (questions, index) => {
     sessionQuestions = questions;
     idx = index;
+    sessionQualityLog = [];
   },
   getDomSections: () => ({
     dashSection: document.getElementById('dashboard'), // replace with actual selector logic if different
@@ -743,6 +745,19 @@ function mixWordTokens(studentText) {
 async function upsertSRS(specPointId, quality) {
   // Call the imported sessionEngine function and pass engineContext as the 3rd argument
   await importUpsertSRS(specPointId, quality, engineContext);
+}
+
+async function finalizeSessionSRS() {
+  const bySpec = new Map();
+  for (const { specPointId, quality } of sessionQualityLog) {
+    if (!bySpec.has(specPointId)) bySpec.set(specPointId, []);
+    bySpec.get(specPointId).push(quality);
+  }
+  for (const [specPointId, qualities] of bySpec) {
+    const sessionQuality = computeSessionQuality(qualities);
+    await upsertSRS(specPointId, sessionQuality);
+  }
+  sessionQualityLog = [];
 }
 
 function getResponsePayload(q) {
@@ -1336,7 +1351,7 @@ if (btnSubmit) {
         else if (data.score_total >= 1) srsQuality = 1;
         else srsQuality = 0;
 
-        await upsertSRS(currentQ.spec_point_id, srsQuality);
+        sessionQualityLog.push({ specPointId: currentQ.spec_point_id, quality: srsQuality });
 
       } catch (err) {
         console.error("AI Marking route failed, applying local self-assessment failover:", err);
@@ -1365,7 +1380,7 @@ if (btnSubmit) {
 
         feedback.innerHTML = renderAQAExtendedResponseFeedback(studentTextRaw, customPayload, localKeywords, matchedKeywords);
         triggerMathTypeset();
-        await upsertSRS(currentQ.spec_point_id, 3);
+        sessionQualityLog.push({ specPointId: currentQ.spec_point_id, quality: 3 });
       }
 
     } else {
@@ -1390,7 +1405,7 @@ if (btnSubmit) {
         });
 
         if (result.error) throw result.error;
-        await upsertSRS(currentQ.spec_point_id, marking.quality);
+        sessionQualityLog.push({ specPointId: currentQ.spec_point_id, quality: marking.quality });
       } catch(err) {
         console.error("Sync backup failure logged:", err);
         showToastBanner("Warning: Failed to log performance metric: " + err.message, true);
@@ -1406,7 +1421,8 @@ if (btnNext) {
     if (idx >= sessionQuestions.length) {
       if (sessionSection) sessionSection.classList.add("hidden");
       if (dashSection) dashSection.classList.remove("hidden");
-      
+
+      await finalizeSessionSRS();
       await loadDashboard();
       await loadWeeklyForecast();
       
