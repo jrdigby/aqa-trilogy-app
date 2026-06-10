@@ -228,45 +228,44 @@
     /* ====== DASHBOARD TABS ====== */
     .dashboard-tabs {
       display: flex;
-      gap: 10px;
-      margin-bottom: 24px;
-      padding: 6px;
-      background: #edf2f7;
-      border: 1px solid var(--border);
-      border-radius: 12px;
+      gap: 4px;
+      margin-bottom: 14px;
+      padding: 0;
+      background: transparent;
+      border-bottom: 1px solid var(--border);
     }
 
     .dashboard-tab {
-      flex: 1;
-      padding: 12px 16px;
-      font-size: 1rem;
-      font-weight: 700;
-      border: 1px solid transparent;
-      border-radius: 8px;
+      flex: 0 0 auto;
+      padding: 10px 18px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      border: none;
+      border-bottom: 2px solid transparent;
+      border-radius: 0;
+      margin-bottom: -1px;
       background: transparent;
-      color: #475569;
+      color: var(--text-muted);
       cursor: pointer;
-      transition: color 0.15s, background 0.15s, border-color 0.15s, box-shadow 0.15s;
+      transition: color 0.15s, background 0.15s, border-color 0.15s;
       text-align: center;
       letter-spacing: 0.01em;
     }
 
     .dashboard-tab:hover {
-      color: #1e293b;
-      background: #ffffff;
-      border-color: #cbd5e1;
+      color: #334155;
+      background: #f1f5f9;
     }
 
     .dashboard-tab.active {
-      color: #ffffff;
-      background: #35BBB9;
-      border-color: #2ea9a7;
-      box-shadow: 0 2px 8px rgba(53, 187, 185, 0.35);
+      color: var(--text);
+      background: #f8fafc;
+      border-bottom-color: var(--primary);
     }
 
     .dashboard-tab.active:hover {
-      color: #ffffff;
-      background: #2ea9a7;
+      color: var(--text);
+      background: #f8fafc;
     }
 
     .dashboard-tab-panel {
@@ -333,6 +332,12 @@
         </div>
       </div>
 
+      <div class="dashboard-tabs" role="tablist" aria-label="Dashboard views">
+        <button type="button" id="tabPractice" class="dashboard-tab active" role="tab" aria-selected="true" aria-controls="dashboardTabPractice">📝 Practice</button>
+        <button type="button" id="tabAnalytics" class="dashboard-tab" role="tab" aria-selected="false" aria-controls="dashboardTabAnalytics">📊 Analytics</button>
+        <button type="button" id="tabFlashcards" class="dashboard-tab" role="tab" aria-selected="false" aria-controls="dashboardTabFlashcards">📚 Flashcards</button>
+      </div>
+
       <div class="filter-row">
         <div class="filter-group">
           <label for="subjectFilter">Subject</label>
@@ -369,12 +374,6 @@
         </div>
       </div>
 
-      <div class="dashboard-tabs" role="tablist" aria-label="Dashboard views">
-        <button type="button" id="tabPractice" class="dashboard-tab active" role="tab" aria-selected="true" aria-controls="dashboardTabPractice">📝 Practice</button>
-        <button type="button" id="tabAnalytics" class="dashboard-tab" role="tab" aria-selected="false" aria-controls="dashboardTabAnalytics">📊 Analytics</button>
-        <button type="button" id="tabFlashcards" class="dashboard-tab" role="tab" aria-selected="false" aria-controls="dashboardTabFlashcards">📚 Flashcards</button>
-      </div>
-
       <div id="dashboardTabPractice" class="dashboard-tab-panel" role="tabpanel">
         <div class="practice-context-block">
           <div id="topicCountSummary">Calculating baseline questions footprint...</div>
@@ -383,27 +382,27 @@
 
         <hr/>
 
+        <div id="heatmapViewWrapper"></div>
+
+        <div class="item" style="background: #ffffff; padding: 20px; border: 1px solid var(--border); border-radius: 12px; margin: 20px 0;">
+          <h3 style="font-size: 1rem; margin-bottom: 15px; color: #2c3e50; display: flex; align-items: center; gap: 6px;">
+            📅 7-Day Revision Workload Forecast
+          </h3>
+          <div id="forecastWrapper" style="display: flex; justify-content: space-between; align-items: flex-end; gap: 4px; height: 110px; padding: 10px 5px 0 5px; background: #fafbfc; border-radius: 8px; border: 1px dashed #e2e8f0;">
+            <div class="muted" style="width: 100%; text-align: center; margin-bottom: 35px;">Loading upcoming workload metrics...</div>
+          </div>
+        </div>
+
         <div style="margin: 20px 0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
           <h3>Due Item Queue: <span id="dueCount" style="color: var(--primary);">0</span> target objectives waiting</h3>
           <button id="btnStartDue" class="btn-primary" style="flex: none; width: auto; padding: 10px 20px;">Start Due Questions for selected topic(s)</button>
         </div>
-
-        <div id="heatmapViewWrapper"></div>
 
         <div style="margin-bottom: 10px; font-weight: 600; font-size: 0.9rem; color: var(--text-muted);">Active Schedule Forecast:</div>
         <div id="dueList"></div>
       </div>
 
       <div id="dashboardTabAnalytics" class="dashboard-tab-panel hidden" role="tabpanel">
-        <div class="item" style="background: #ffffff; padding: 20px; border: 1px solid var(--border); border-radius: 12px; margin: 20px 0;">
-          <h3 style="font-size: 1rem; margin-bottom: 15px; color: #2c3e50; display: flex; align-items: center; gap: 6px;">
-            📅 7-Day Revision Workload Forecast
-          </h3>
-          <div id="forecastWrapper" style="display: flex; justify-content: space-between; align-items: flex-end; height: 110px; padding: 10px 5px 0 5px; background: #fafbfc; border-radius: 8px; border: 1px dashed #e2e8f0;">
-            <div class="muted" style="width: 100%; text-align: center; margin-bottom: 35px;">Loading upcoming workload metrics...</div>
-          </div>
-        </div>
-
         <div class="item" style="background: #ffffff; padding: 20px; border: 1px solid var(--border); border-radius: 12px; margin: 20px 0;">
           <h3 style="font-size: 1rem; margin-bottom: 5px; color: #2c3e50; display: flex; align-items: center; gap: 6px;">
             📊 Subject Mastery Index
