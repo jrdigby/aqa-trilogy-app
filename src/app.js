@@ -180,7 +180,7 @@ async function loadDashboard() {
     if (allSpecs && allSpecs.length > 0) {
       const masteryHeatmapNode = renderMasteryHeatmap(allSpecs, activeSRS, async (selectedPoint) => {
         console.log(`Heatmap target selection registered: [${selectedPoint.spec_ref}]`);
-        await startSessionForSpecPoint(selectedPoint.id);
+        await startSessionForSpecPointWrapper(selectedPoint.id);
       });
       heatmapContainer.appendChild(masteryHeatmapNode);
     }
