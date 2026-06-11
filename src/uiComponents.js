@@ -1,6 +1,6 @@
 // src/uiComponents.js
 import { escapeHtml } from './utils.js';
-import { isFuzzyMatch } from './evalEngine.js';
+import { isFuzzyMatch, highlightCommandWordsInPrompt } from './evalEngine.js';
 
 // Dom element selector shortcut helper used internally
 const el = (id) => document.getElementById(id);
@@ -36,7 +36,7 @@ export function renderQuestionLayout(q, commandWordBanner, currentKey) {
   let html = `
     <div class="item">
       <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 15px; margin-bottom: 8px;">
-        <div style="font-weight: 700; font-size: 1rem; line-height: 1.4; color: var(--text);">${escapeHtml(q.prompt)}</div>
+        <div style="font-weight: 700; font-size: 1rem; line-height: 1.4; color: var(--text);">${highlightCommandWordsInPrompt(q.prompt)}</div>
         <span class="chip" style="background: #e2e8f0; color: #475569; font-weight: 700; font-size: 0.76rem; padding: 3px 8px; border-radius: 6px; white-space: nowrap; flex-shrink: 0; align-self: flex-start; border: 1px solid #cbd5e1;">
           ${marksLabel}
         </span>

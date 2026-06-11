@@ -84,6 +84,28 @@
 .exam-tip--determine  { background: #ecfeff; border-left-color: #06b6d4; color: #155e75; }
 .exam-tip--define     { background: #f0fdf4; border-left-color: #22c55e; color: #14532d; }
 
+.command-word {
+  font-weight: 800;
+  padding: 1px 4px;
+  border-radius: 4px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.command-word--describe  { background: #dbeafe; color: #1e40af; }
+.command-word--explain   { background: #d1fae5; color: #065f46; }
+.command-word--evaluate  { background: #fef3c7; color: #78350f; }
+.command-word--calculate { background: #ede9fe; color: #5b21b6; }
+.command-word--compare   { background: #fae8ff; color: #86198f; }
+.command-word--state,
+.command-word--give,
+.command-word--name      { background: #e0f2fe; color: #0c4a6e; }
+.command-word--suggest   { background: #ffedd5; color: #9a3412; }
+.command-word--discuss   { background: #e2e8f0; color: #334155; }
+.command-word--justify   { background: #fee2e2; color: #991b1b; }
+.command-word--determine { background: #cffafe; color: #155e75; }
+.command-word--define    { background: #dcfce7; color: #14532d; }
+
 /* ===== MASTERY HEATMAP ===== */
 .heatmap-container {
   background: #ffffff;
