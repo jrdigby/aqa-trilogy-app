@@ -34,7 +34,7 @@
 
     .container {
       width: 100%;
-      max-width: 800px;
+      max-width: 1200px;
     }
 
     header {
@@ -61,38 +61,6 @@
       font-size: 1.25rem;
       margin-bottom: 15px;
       color: #34495e;
-    }
-
-    /* ====== UPDATED COMPACT FILTER ROW LAYOUT ====== */
-    .filter-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 12px;
-      margin-bottom: 12px;
-      align-items: flex-end; /* Aligns all inputs perfectly along their bottom edge */
-    }
-
-    .filter-group {
-      display: flex;
-      flex-direction: column;
-    }
-
-    /* Target specific dropdown widths to comfortably match their text labels */
-    .filter-group:has(#subjectFilter) {
-      width: 130px; /* Perfectly sizes Physics, Biology, Chemistry */
-    }
-
-    .filter-group:has(#paperFilter) {
-      width: 110px; /* Sized precisely for "Paper 1" and "Paper 2" */
-    }
-
-    .filter-group:has(#typeFilter) {
-      width: 220px; /* Widened to comfortably fit longer question type options */
-    }
-
-    .filter-group:has(#topicFilter) {
-      flex: 1;          /* Allows the Topic dropdown to take up all remaining space on the row */
-      min-width: 240px; /* Ensures it stays wide enough to avoid squeezing long syllabus titles */
     }
 
     .custom-select {
@@ -124,24 +92,6 @@
     .custom-select:focus {
       border-color: var(--primary);
       box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.15);
-    }
-
-    /* CONTAINER PAIRING DYNAMIC COUNTS NEXT TO PRACTICE INITIATOR ELEMENT */
-    .practice-context-block {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 15px;
-      margin-bottom: 25px;
-      background: #edf2f7;
-      padding: 10px 14px;
-      border-radius: 10px;
-    }
-
-    #topicCountSummary {
-      font-size: 0.88rem;
-      color: var(--text-muted);
-      font-weight: 500;
     }
 
     /* ====== BUTTONS & UTILITIES ====== */
@@ -417,46 +367,62 @@
         <button type="button" id="tabFlashcards" class="dashboard-tab" role="tab" aria-selected="false" aria-controls="dashboardTabFlashcards">📚 Flashcards</button>
       </div>
 
-      <div class="filter-row">
-        <div class="filter-group">
-          <label for="subjectFilter">Subject</label>
-          <select id="subjectFilter" class="custom-select">
-            <option value="physics">Physics</option>
-            <option value="biology">Biology</option>
-            <option value="chemistry">Chemistry</option>
-          </select>
-        </div>
-
-        <div class="filter-group">
-          <label for="paperFilter">Paper</label>
-          <select id="paperFilter" class="custom-select">
-            <option value="paper1">Paper 1</option>
-            <option value="paper2">Paper 2</option>
-          </select>
-        </div>
-
-        <div class="filter-group" id="typeFilterGroup">
-          <label for="typeFilter">Question Type</label>
-          <select id="typeFilter" class="custom-select">
-            <option value="">All Question Types</option>
-            <option value="short_text">Short Text / Written</option>
-            <option value="mcq">Multiple Choice (MCQs)</option>
-            <option value="numeric">Numeric / Calculations</option>
-          </select>
-        </div>
-
-        <div class="filter-group">
-          <label for="topicFilter">Topic</label>
-          <select id="topicFilter" class="custom-select">
-            <option value="">All topics</option>
-          </select>
-        </div>
+      <div class="schedule-practice-block">
+        <button id="btnStartPractice" class="btn-primary practice-action-btn" disabled>Start Practice</button>
+        <p id="startPracticePreview" class="practice-preview-text muted">Loading schedule…</p>
       </div>
 
       <div id="dashboardTabPractice" class="dashboard-tab-panel" role="tabpanel">
-        <div class="practice-context-block">
-          <div id="topicCountSummary">Calculating baseline questions footprint...</div>
-          <button id="btnStartAny" class="btn-secondary" style="flex: none; padding: 8px 16px; font-size: 0.88rem; width: auto;">Open practice mode for selected topic(s)</button>
+        <div class="dashboard-scoped-panel dashboard-scoped-panel--exam-prep">
+          <p class="scoped-panel-label">Exam preparation</p>
+          <div id="filterMountPractice" class="filter-mount">
+          <div id="filterRow" class="filter-row">
+            <div class="filter-group">
+              <label for="subjectFilter">Subject</label>
+              <select id="subjectFilter" class="custom-select">
+                <option value="physics">Physics</option>
+                <option value="biology">Biology</option>
+                <option value="chemistry">Chemistry</option>
+              </select>
+            </div>
+
+            <div class="filter-group">
+              <label for="paperFilter">Paper</label>
+              <select id="paperFilter" class="custom-select">
+                <option value="paper1">Paper 1</option>
+                <option value="paper2">Paper 2</option>
+              </select>
+            </div>
+
+            <div class="filter-group" id="typeFilterGroup">
+              <label for="typeFilter">Question Type</label>
+              <select id="typeFilter" class="custom-select">
+                <option value="">All Question Types</option>
+                <option value="short_text">Short Text / Written</option>
+                <option value="mcq">Multiple Choice (MCQs)</option>
+                <option value="numeric">Numeric / Calculations</option>
+              </select>
+            </div>
+
+            <div class="filter-group">
+              <label for="topicFilter">Topic</label>
+              <select id="topicFilter" class="custom-select">
+                <option value="">All topics</option>
+              </select>
+            </div>
+          </div>
+          </div>
+          <div class="practice-context-block">
+            <div id="topicCountSummary">Calculating baseline questions footprint...</div>
+            <div class="exam-prep-controls">
+              <select id="examPrepCount" class="custom-select exam-prep-count-select" aria-label="Number of questions">
+                <option value="10" selected>10 questions</option>
+                <option value="20">20 questions</option>
+                <option value="30">30 questions</option>
+              </select>
+              <button id="btnExamPrep" class="btn-secondary practice-action-btn">Exam preparation</button>
+            </div>
+          </div>
         </div>
 
         <hr/>
@@ -472,9 +438,8 @@
           </div>
         </div>
 
-        <div style="margin: 20px 0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+        <div style="margin: 20px 0;">
           <h3>Due Item Queue: <span id="dueCount" style="color: var(--primary);">0</span> target objectives waiting</h3>
-          <button id="btnStartDue" class="btn-primary" style="flex: none; width: auto; padding: 10px 20px;">Start Due Questions for selected topic(s)</button>
         </div>
 
         <div style="margin-bottom: 10px; font-weight: 600; font-size: 0.9rem; color: var(--text-muted);">Active Schedule Forecast:</div>
@@ -482,8 +447,9 @@
       </div>
 
       <div id="dashboardTabAnalytics" class="dashboard-tab-panel hidden" role="tabpanel">
-        <div class="item" style="background: #ffffff; padding: 20px; border: 1px solid var(--border); border-radius: 12px; margin: 20px 0;">
-          <h3 style="font-size: 1rem; margin-bottom: 5px; color: #2c3e50; display: flex; align-items: center; gap: 6px;">
+        <div class="dashboard-scoped-panel dashboard-scoped-panel--analytics">
+          <div id="filterMountAnalytics" class="filter-mount"></div>
+          <h3 class="scoped-panel-heading">
             📈 Recent Practice Activity
           </h3>
           <p id="activityFilterContext" class="muted" style="margin-bottom: 10px; font-size: 0.85rem;">How many questions you've attempted over time for your current filters.</p>
@@ -524,14 +490,15 @@
       </div>
 
       <div id="dashboardTabFlashcards" class="dashboard-tab-panel hidden" role="tabpanel">
-        <div class="item" style="background: #ffffff; padding: 20px; border: 1px solid var(--border); border-radius: 12px; margin: 20px 0;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 10px;">
-            <h3 style="margin:0; font-weight:700; color:var(--text); font-size:1.15rem; display:flex; align-items:center; gap:8px;">
-              📚 Personal Revision Flashcards <span style="font-size:0.8rem; background:#fee2e2; color:#991b1b; padding:2px 8px; border-radius:12px; font-weight:700;">Dynamic Gaps</span>
+        <div class="dashboard-scoped-panel dashboard-scoped-panel--flashcards">
+          <div id="filterMountFlashcards" class="filter-mount"></div>
+          <div class="flashcards-panel-header">
+            <h3 class="scoped-panel-heading scoped-panel-heading--flashcards">
+              📚 Personal Revision Flashcards <span class="flashcards-badge">Dynamic Gaps</span>
             </h3>
-            <button id="btnDownloadStudyGuide" class="btn-secondary" style="flex: none; padding: 6px 12px; font-size: 0.75rem; width: auto; display: none;">📥 Download PDF Guide</button>
+            <button id="btnDownloadStudyGuide" class="btn-secondary btn-download-guide" style="display: none;">📥 Download PDF Guide</button>
           </div>
-          <p class="muted" style="margin-top: 0; margin-bottom: 16px;">This revision deck aggregates key concepts you missed in recent practice, filtered by the Subject, Paper, and Topic selectors above. Flip cards to self-test.</p>
+          <p class="muted flashcards-intro">This revision deck aggregates key concepts you missed in recent practice, filtered by the Subject, Paper, and Topic selectors above. Flip cards to self-test.</p>
           <div id="revisionCardsWrapper" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;">
             <div class="muted" style="grid-column: 1/-1; text-align: center; padding: 24px;">Loading revision flashcards…</div>
           </div>

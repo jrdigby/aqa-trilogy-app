@@ -261,9 +261,18 @@
   font-size: 0.8rem;
 }
 
-.session-summary-table .outcome-cell {
+.session-summary-table .marks-cell {
   text-align: center;
-  width: 22%;
+  width: 18%;
+}
+
+.session-summary-table .marks-count {
+  font-weight: 700;
+  color: var(--text, #1e293b);
+}
+
+.session-summary-table .marks-pct {
+  font-weight: 700;
 }
 
 .session-summary-header {
@@ -342,4 +351,242 @@
   font-size: 0.88rem;
   line-height: 1.4;
   color: var(--text, #1e293b);
+}
+
+/* ===== SCOPED DASHBOARD PANELS (filters + tab content) ===== */
+.dashboard-scoped-panel {
+  background: #ffffff;
+  border: 1px solid var(--border, #dcdde1);
+  border-radius: 12px;
+  padding: 18px 20px;
+  margin-bottom: 20px;
+}
+
+.scoped-panel-label {
+  margin: 0 0 12px 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted, #666);
+}
+
+.dashboard-scoped-panel .filter-mount {
+  margin-bottom: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #edf2f7;
+}
+
+.dashboard-scoped-panel .filter-mount .filter-row {
+  margin-bottom: 0;
+}
+
+/* ===== FILTER DROPDOWNS (auto-sized via JS) ===== */
+.filter-select-measurer {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  visibility: hidden;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 12px;
+  margin-bottom: 0;
+  align-items: flex-end;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.filter-group label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text-muted, #666);
+  margin-bottom: 4px;
+}
+
+.filter-row .custom-select {
+  width: auto;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.scoped-panel-heading {
+  font-size: 1rem;
+  margin: 0 0 8px 0;
+  color: #2c3e50;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.flashcards-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.scoped-panel-heading--flashcards {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text, #333);
+}
+
+.flashcards-badge {
+  font-size: 0.8rem;
+  background: #fee2e2;
+  color: #991b1b;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-weight: 700;
+}
+
+.flashcards-intro {
+  margin: 0 0 16px 0;
+}
+
+.btn-download-guide {
+  flex: none;
+  padding: 6px 12px;
+  font-size: 0.75rem;
+  width: auto;
+}
+
+.dashboard-scoped-panel--analytics hr {
+  border: none;
+  border-top: 1px solid #edf2f7;
+  margin: 24px 0;
+}
+
+/* ===== PRACTICE ACTION BLOCKS ===== */
+.schedule-practice-block {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  background: #edf2f7;
+  padding: 12px 14px;
+  border-radius: 10px;
+}
+
+.practice-context-block {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  margin-bottom: 0;
+  background: #edf2f7;
+  padding: 12px 14px;
+  border-radius: 10px;
+}
+
+.dashboard-scoped-panel--exam-prep .practice-context-block {
+  margin-top: 4px;
+}
+
+.practice-preview-text {
+  flex: 1 1 200px;
+  min-width: 0;
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--text-muted, #666);
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+#topicCountSummary {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--text-muted, #666);
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.exam-prep-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+  margin-left: 4px;
+}
+
+.exam-prep-count-select {
+  width: auto;
+  min-width: 130px;
+  padding: 8px 35px 8px 12px;
+  font-size: 0.88rem;
+}
+
+.schedule-practice-block .practice-action-btn,
+.practice-context-block .practice-action-btn,
+.exam-prep-controls .practice-action-btn {
+  flex: 0 1 auto;
+  white-space: normal;
+  text-align: center;
+  padding: 10px 18px;
+  font-size: 0.9rem;
+}
+
+@media (max-width: 600px) {
+  .schedule-practice-block,
+  .practice-context-block {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 12px;
+  }
+
+  .practice-preview-text,
+  #topicCountSummary {
+    font-size: 0.82rem;
+  }
+
+  .exam-prep-controls {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+  }
+
+  .exam-prep-count-select,
+  .schedule-practice-block .practice-action-btn,
+  .exam-prep-controls .practice-action-btn {
+    width: 100%;
+  }
+
+  .dashboard-scoped-panel .filter-row .filter-group,
+  .filter-row .filter-group {
+    flex: 1 1 100%;
+    max-width: 100%;
+  }
+
+  .filter-row .custom-select {
+    width: 100% !important;
+  }
+
+  #summaryActions.btn-group {
+    flex-direction: column;
+  }
+
+  #summaryActions.btn-group button {
+    width: 100%;
+  }
 }
