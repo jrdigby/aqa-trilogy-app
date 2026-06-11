@@ -49,6 +49,20 @@ export async function fetchConceptGapAttempts(userId) {
 /** @deprecated Use fetchConceptGapAttempts */
 export const fetchRecentConceptGaps = fetchConceptGapAttempts;
 
+// ====== RECENT PRACTICE ACTIVITY (ANALYTICS CHART) ======
+export async function fetchAttemptActivity(userId, sinceISO) {
+  const query = supabaseClient
+    .from("attempts")
+    .select("submitted_at, question_id, score_total, score_max")
+    .eq("user_id", userId)
+    .gte("submitted_at", `${sinceISO}T00:00:00`)
+    .order("submitted_at", { ascending: true });
+
+  const result = await Promise.race([query, timeoutPromise(4000, "Activity attempts lookup timed out")]);
+  if (result.error) throw result.error;
+  return result.data || [];
+}
+
 // ====== FORECAST SCHEDULES GATHERER ======
 export async function fetchWeeklyForecastSchedules(userId) {
   const query = supabaseClient
@@ -145,7 +159,8 @@ const dbClient = {
   fetchWeeklyForecastSchedules,
   fetchAllSpecificationPoints,
   fetchUserSRSState,
-  fetchSyllabusPipelineData
+  fetchSyllabusPipelineData,
+  fetchAttemptActivity
 };
 
 export default dbClient;

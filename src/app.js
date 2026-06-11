@@ -3,7 +3,7 @@ import { showToastBanner, renderQuestionLayout, renderFeedback, renderLiveAIFeed
 import { triggerMathTypeset } from './mathEngine.js';
 import { checkKeywordOrSynonymsMatch, updateSRS, computeSessionQuality, getAQACommandWordHelper, isFuzzyMatch } from './evalEngine.js';
 import { escapeHtml, shuffleArray, todayISO, addDaysISO } from './utils.js';
-import { supabaseClient, timeoutPromise, fetchDashboardDueItems, fetchConceptGapAttempts, fetchWeeklyForecastSchedules, fetchSyllabusPipelineData } from './dbClient.js';
+import { supabaseClient, timeoutPromise, fetchDashboardDueItems, fetchConceptGapAttempts, fetchWeeklyForecastSchedules, fetchSyllabusPipelineData, fetchAttemptActivity } from './dbClient.js';
 import dbClient from "./dbClient.js";
 import { markResponse } from './evalEngine.js';
 
@@ -49,7 +49,16 @@ const subjectFilter = el("subjectFilter");
 const paperFilter = el("paperFilter");
 const topicFilter = el("topicFilter");
 const forecastWrapper = el("forecastWrapper"); 
-const masteryWrapper = el("masteryWrapper"); 
+const masteryWrapper = el("masteryWrapper");
+const activityChartWrapper = el("activityChartWrapper");
+const activitySummary = el("activitySummary");
+const activityFilterContext = el("activityFilterContext");
+const activityRangePicker = el("activityRangePicker");
+const activityChartLegend = el("activityChartLegend");
+
+const ACTIVITY_RANGE_KEY = "activity_range_days";
+const ACTIVITY_RANGES = [7, 14, 30, 90];
+let lastActivityContext = null;
 
 const tabPractice = el("tabPractice");
 const tabAnalytics = el("tabAnalytics");
@@ -92,6 +101,23 @@ function switchDashboardTab(tab) {
 if (tabPractice) tabPractice.onclick = () => switchDashboardTab("practice");
 if (tabAnalytics) tabAnalytics.onclick = () => switchDashboardTab("analytics");
 if (tabFlashcards) tabFlashcards.onclick = () => switchDashboardTab("flashcards");
+
+if (activityRangePicker) {
+  activityRangePicker.querySelectorAll(".activity-range-btn").forEach(btn => {
+    btn.onclick = () => {
+      const days = parseInt(btn.dataset.range, 10);
+      if (!ACTIVITY_RANGES.includes(days)) return;
+      try {
+        localStorage.setItem(ACTIVITY_RANGE_KEY, String(days));
+      } catch (_) { /* storage unavailable */ }
+      syncActivityRangeButtons();
+      if (lastActivityContext) {
+        loadActivityChart(lastActivityContext.validQuestionIds, lastActivityContext.filterContext);
+      }
+    };
+  });
+  syncActivityRangeButtons();
+}
 
 // ====== SESSION STATE ======
 let currentUser = null;
@@ -595,6 +621,249 @@ function renderForecastColumn({ label, count, maxCount, isOverdue = false }) {
   `;
 }
 
+function getActivityRangeDays() {
+  const saved = parseInt(localStorage.getItem(ACTIVITY_RANGE_KEY) || "7", 10);
+  return ACTIVITY_RANGES.includes(saved) ? saved : 7;
+}
+
+function syncActivityRangeButtons() {
+  if (!activityRangePicker) return;
+  const activeDays = getActivityRangeDays();
+  activityRangePicker.querySelectorAll(".activity-range-btn").forEach(btn => {
+    const isActive = parseInt(btn.dataset.range, 10) === activeDays;
+    btn.classList.toggle("active", isActive);
+  });
+}
+
+function formatShortDate(isoStr) {
+  const d = new Date(`${isoStr}T00:00:00`);
+  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+}
+
+function getWeekStartISO(isoStr) {
+  const d = new Date(`${isoStr}T00:00:00`);
+  const day = d.getDay();
+  const diff = day === 0 ? 6 : day - 1;
+  d.setDate(d.getDate() - diff);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const dayNum = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${dayNum}`;
+}
+
+function buildActivityBuckets(rangeDays) {
+  const today = todayISO();
+  const weekdayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const useWeekly = rangeDays >= 90;
+
+  if (useWeekly) {
+    const sinceISO = addDaysISO(today, -(rangeDays - 1));
+    let weekStart = getWeekStartISO(sinceISO);
+    const endWeekStart = getWeekStartISO(today);
+    const buckets = [];
+    while (weekStart <= endWeekStart) {
+      const weekLabel = formatShortDate(weekStart);
+      buckets.push({
+        key: weekStart,
+        label: weekLabel,
+        tooltip: `Week of ${weekLabel}`,
+        showLabel: true
+      });
+      weekStart = addDaysISO(weekStart, 7);
+    }
+    return buckets;
+  }
+
+  const labelInterval = rangeDays <= 7 ? 1 : rangeDays <= 14 ? 2 : 5;
+  const buckets = [];
+  for (let offset = rangeDays - 1; offset >= 0; offset--) {
+    const dateString = addDaysISO(today, -offset);
+    const targetDate = new Date(`${dateString}T00:00:00`);
+    const bucketIndex = rangeDays - 1 - offset;
+    const isToday = offset === 0;
+    const tooltip = isToday ? `Today (${formatShortDate(dateString)})` : formatShortDate(dateString);
+
+    let label;
+    if (isToday) {
+      label = "Today";
+    } else if (rangeDays <= 7) {
+      label = weekdayNames[targetDate.getDay()];
+    } else {
+      label = formatShortDate(dateString);
+    }
+
+    const showLabel = isToday || bucketIndex % labelInterval === 0;
+    buckets.push({ key: dateString, label: showLabel ? label : "", tooltip, showLabel });
+  }
+  return buckets;
+}
+
+function classifyAttemptOutcome(att) {
+  const total = att.score_total || 0;
+  const max = att.score_max || 0;
+  if (max <= 0) return "fail";
+  if (total >= max) return "full";
+  if (total >= Math.ceil(max / 2)) return "partial";
+  return "fail";
+}
+
+function renderActivityStackedBar(barHeightPx, full, partial, fail) {
+  const total = full + partial + fail;
+  if (total <= 0 || barHeightPx <= 0) {
+    return `<div style="width: 100%; height: 4px; background: #e2e8f0; border-radius: 4px;"></div>`;
+  }
+
+  let greenH = Math.round((full / total) * barHeightPx);
+  let amberH = Math.round((partial / total) * barHeightPx);
+  let redH = barHeightPx - greenH - amberH;
+  if (redH < 0) redH = 0;
+
+  const segments = [
+    { height: greenH, color: "var(--success)" },
+    { height: amberH, color: "#f39c12" },
+    { height: redH, color: "var(--error)" }
+  ].filter(s => s.height > 0);
+
+  return segments.map((seg, i) => {
+    const isTop = i === segments.length - 1;
+    const radius = isTop ? "4px 4px 0 0" : "0";
+    return `<div style="width: 100%; height: ${seg.height}px; background: ${seg.color}; border-radius: ${radius}; flex-shrink: 0;"></div>`;
+  }).join("");
+}
+
+function renderActivityColumn({ label, tooltip, count, maxCount, full, partial, fail, barCount }) {
+  const barHeightPx = Math.round((count / maxCount) * 75);
+  const isActiveBar = count > 0;
+  const minColWidth = barCount > 20 ? "14px" : barCount > 14 ? "12px" : "0";
+
+  return `
+    <div title="${escapeHtml(tooltip || label || "")}" style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; justify-content: flex-end; min-width: ${minColWidth};">
+      <span style="font-size: 0.7rem; font-weight: 700; color: ${isActiveBar ? "#1e293b" : "var(--text-muted)"};">
+        ${count > 0 ? count : ""}
+      </span>
+      <div style="width: 70%; max-width: 28px; min-width: 6px; height: ${isActiveBar ? barHeightPx : 4}px; display: flex; flex-direction: column; justify-content: flex-end; transition: height 0.3s ease;">
+        ${isActiveBar ? renderActivityStackedBar(barHeightPx, full, partial, fail) : `<div style="width: 100%; height: 4px; background: #e2e8f0; border-radius: 4px;"></div>`}
+      </div>
+      <span style="font-size: 0.65rem; font-weight: 600; color: var(--text-muted); margin-bottom: 2px; text-align: center; line-height: 1.1; white-space: nowrap; min-height: 0.8rem;">
+        ${label}
+      </span>
+    </div>
+  `;
+}
+
+function buildActivityFilterLabel({ subject, paper, topic, qType }) {
+  const subjectLabel = (subject || "biology").charAt(0).toUpperCase() + (subject || "biology").slice(1);
+  const paperLabel = (paper || "paper1").replace("paper", "Paper ");
+  const topicLabel = topic ? topic : "All topics";
+  let typeLabel = "";
+  if (qType === "short_text") typeLabel = " · Short text";
+  else if (qType === "mcq") typeLabel = " · MCQ";
+  else if (qType === "numeric") typeLabel = " · Numeric";
+  else if (qType === "extended_response") typeLabel = " · Extended response";
+  return `${subjectLabel} · ${paperLabel} · ${topicLabel}${typeLabel}`;
+}
+
+async function loadActivityChart(validQuestionIds, filterContext) {
+  if (!activityChartWrapper || !currentUser) return;
+
+  const rangeDays = getActivityRangeDays();
+  syncActivityRangeButtons();
+
+  if (activityFilterContext && filterContext) {
+    activityFilterContext.textContent = `Questions attempted for ${buildActivityFilterLabel(filterContext)}.`;
+  }
+
+  const today = todayISO();
+  const sinceISO = addDaysISO(today, -(rangeDays - 1));
+  const useWeekly = rangeDays >= 90;
+  const buckets = buildActivityBuckets(rangeDays);
+  const bucketStats = {};
+  buckets.forEach(b => {
+    bucketStats[b.key] = { count: 0, full: 0, partial: 0, fail: 0, label: b.label };
+  });
+
+  let attempts = [];
+  try {
+    attempts = await fetchAttemptActivity(currentUser.id, sinceISO);
+  } catch (err) {
+    console.error("Activity chart fetch failed:", err);
+    if (activitySummary) {
+      activitySummary.innerHTML = `<span class="muted">Activity data unavailable (connection slow).</span>`;
+    }
+    activityChartWrapper.innerHTML = `<div class="muted" style="width: 100%; text-align: center; margin: auto; font-size: 0.8rem;">Unable to load practice activity.</div>`;
+    if (activityChartLegend) {
+      activityChartLegend.style.display = "none";
+      activityChartLegend.setAttribute("aria-hidden", "true");
+    }
+    return;
+  }
+
+  (attempts || []).forEach(att => {
+    if (!validQuestionIds.has(att.question_id)) return;
+    const attemptDate = String(att.submitted_at || "").slice(0, 10);
+    const bucketKey = useWeekly ? getWeekStartISO(attemptDate) : attemptDate;
+    if (!bucketStats[bucketKey]) return;
+    bucketStats[bucketKey].count += 1;
+    const outcome = classifyAttemptOutcome(att);
+    if (outcome === "full") bucketStats[bucketKey].full += 1;
+    else if (outcome === "partial") bucketStats[bucketKey].partial += 1;
+    else bucketStats[bucketKey].fail += 1;
+  });
+
+  const counts = buckets.map(b => bucketStats[b.key].count);
+  const totalAttempts = counts.reduce((sum, n) => sum + n, 0);
+  const maxCount = Math.max(...counts, 1);
+  const divisor = useWeekly ? buckets.length : rangeDays;
+  const dailyAvg = divisor > 0 ? (totalAttempts / divisor).toFixed(1) : "0";
+
+  let bestLabel = "—";
+  let bestCount = 0;
+  buckets.forEach(b => {
+    const c = bucketStats[b.key].count;
+    if (c > bestCount) {
+      bestCount = c;
+      bestLabel = b.label;
+    }
+  });
+
+  if (activitySummary) {
+    if (totalAttempts === 0) {
+      activitySummary.innerHTML = `<span class="muted">No questions attempted in this period.</span>`;
+    } else {
+      const periodWord = useWeekly ? "week" : "day";
+      activitySummary.innerHTML = `
+        <span><strong>${totalAttempts}</strong> attempt${totalAttempts === 1 ? "" : "s"}</span>
+        <span><strong>${dailyAvg}</strong>/${periodWord} avg</span>
+        <span>Best ${useWeekly ? "week" : "day"}: <strong>${bestCount}</strong> (${bestLabel})</span>
+      `;
+    }
+  }
+
+  if (activityChartLegend) {
+    activityChartLegend.style.display = totalAttempts === 0 ? "none" : "flex";
+    activityChartLegend.setAttribute("aria-hidden", totalAttempts === 0 ? "true" : "false");
+  }
+
+  if (totalAttempts === 0) {
+    activityChartWrapper.innerHTML = `<div class="muted" style="width: 100%; text-align: center; margin: auto; font-size: 0.85rem; padding: 20px 0;">No practice in this period — start a session from the Practice tab.</div>`;
+    return;
+  }
+
+  activityChartWrapper.innerHTML = buckets.map(b => {
+    const stats = bucketStats[b.key];
+    return renderActivityColumn({
+      label: b.label,
+      tooltip: b.tooltip || b.label,
+      count: stats.count,
+      maxCount,
+      full: stats.full,
+      partial: stats.partial,
+      fail: stats.fail,
+      barCount: buckets.length
+    });
+  }).join("");
+}
+
 async function loadWeeklyForecast() {
   if (!currentUser || !forecastWrapper) return;
 
@@ -855,7 +1124,14 @@ function showSignedInLayout() {
   if (dueList) dueList.innerHTML = `<div class="item muted">Refreshing scheduled deck…</div>`;
   if (forecastWrapper) forecastWrapper.innerHTML = `<div class="muted" style="margin: auto; font-size: 0.8rem;">Loading forecast chart…</div>`;
   if (masteryWrapper) masteryWrapper.innerHTML = `<div class="muted" style="text-align: center; padding: 12px;">Crunching syllabus stats…</div>`;
-  
+  if (activityChartWrapper) activityChartWrapper.innerHTML = `<div class="muted" style="width: 100%; text-align: center; margin-bottom: 35px;">Loading practice activity…</div>`;
+  if (activitySummary) activitySummary.innerHTML = `<span>Loading activity…</span>`;
+  if (activityChartLegend) {
+    activityChartLegend.style.display = "none";
+    activityChartLegend.setAttribute("aria-hidden", "true");
+  }
+  syncActivityRangeButtons();
+
   const aoMasteryWrapper = el("aoMasteryWrapper");
   if (aoMasteryWrapper) {
     aoMasteryWrapper.innerHTML = `<div class="muted" style="text-align: center; padding: 12px;">Syncing performance indicators…</div>`;
@@ -943,6 +1219,20 @@ async function loadTopics() {
     } else {
       summaryDiv.textContent = `Found ${displayCount} total questions for ${scopeLabel}${subject.toUpperCase()} ${paper.toUpperCase()} (${tier}).`;
     }
+  }
+
+  const validQuestionIds = new Set();
+  (questions || []).forEach(q => {
+    const matchedTopic = specToTopicMap[q.spec_point_id];
+    if (matchedTopic === undefined) return;
+    if (topic && matchedTopic !== topic) return;
+    validQuestionIds.add(q.id);
+  });
+
+  const activityFilterCtx = { subject, paper, topic, qType };
+  lastActivityContext = { validQuestionIds, filterContext: activityFilterCtx };
+  if (currentUser) {
+    loadActivityChart(validQuestionIds, activityFilterCtx);
   }
 
   const dueBtn = el("btnStartDue");

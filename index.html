@@ -283,6 +283,85 @@
       gap: 16px;
       margin-bottom: 8px;
     }
+
+    .activity-range-picker {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+
+    .activity-range-btn {
+      padding: 5px 12px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      background: #f8fafc;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+
+    .activity-range-btn:hover {
+      background: #f1f5f9;
+      color: #334155;
+    }
+
+    .activity-range-btn.active {
+      background: var(--primary);
+      color: #ffffff;
+      border-color: var(--primary);
+    }
+
+    .activity-summary {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px 14px;
+      font-size: 0.8rem;
+      color: #475569;
+      margin-bottom: 12px;
+    }
+
+    .activity-summary strong {
+      color: #1e293b;
+    }
+
+    #activityChartWrapper {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: 2px;
+      height: 120px;
+      padding: 10px 5px 0 5px;
+      background: #fafbfc;
+      border-radius: 8px;
+      border: 1px dashed #e2e8f0;
+      overflow-x: auto;
+    }
+
+    .activity-chart-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 16px;
+      margin-top: 10px;
+      font-size: 0.72rem;
+      color: #64748b;
+    }
+
+    .activity-chart-legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .activity-legend-swatch {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
   </style>
   <link rel="stylesheet" href="styles.css">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -404,6 +483,31 @@
 
       <div id="dashboardTabAnalytics" class="dashboard-tab-panel hidden" role="tabpanel">
         <div class="item" style="background: #ffffff; padding: 20px; border: 1px solid var(--border); border-radius: 12px; margin: 20px 0;">
+          <h3 style="font-size: 1rem; margin-bottom: 5px; color: #2c3e50; display: flex; align-items: center; gap: 6px;">
+            📈 Recent Practice Activity
+          </h3>
+          <p id="activityFilterContext" class="muted" style="margin-bottom: 10px; font-size: 0.85rem;">How many questions you've attempted over time for your current filters.</p>
+          <div id="activityRangePicker" class="activity-range-picker" role="group" aria-label="Activity date range">
+            <button type="button" class="activity-range-btn active" data-range="7">7 days</button>
+            <button type="button" class="activity-range-btn" data-range="14">14 days</button>
+            <button type="button" class="activity-range-btn" data-range="30">30 days</button>
+            <button type="button" class="activity-range-btn" data-range="90">90 days</button>
+          </div>
+          <div id="activitySummary" class="activity-summary">
+            <span>Loading activity…</span>
+          </div>
+          <div id="activityChartWrapper">
+            <div class="muted" style="width: 100%; text-align: center; margin-bottom: 35px;">Loading practice activity…</div>
+          </div>
+          <div id="activityChartLegend" class="activity-chart-legend" aria-hidden="true">
+            <span><span class="activity-legend-swatch" style="background: var(--success);"></span> Full marks</span>
+            <span><span class="activity-legend-swatch" style="background: #f39c12;"></span> Partial pass (≥ half marks)</span>
+            <span><span class="activity-legend-swatch" style="background: var(--error);"></span> Below half marks</span>
+            <span class="muted">Bar height = number of attempts</span>
+          </div>
+
+          <hr style="border: none; border-top: 1px solid #edf2f7; margin: 24px 0;" />
+
           <h3 style="font-size: 1rem; margin-bottom: 5px; color: #2c3e50; display: flex; align-items: center; gap: 6px;">
             📊 Subject Mastery Index
           </h3>
