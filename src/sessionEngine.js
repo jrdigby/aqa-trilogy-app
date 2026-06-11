@@ -42,7 +42,7 @@ export async function startAnyPractice(context) {
 
   let qQuery = supabaseClient
     .from("questions")
-    .select("id,question_type,prompt,options,spec_point_id, resource_links, marking_method, max_marks, image_url, scaffold_config")
+    .select("id,question_type,prompt,options,spec_point_id, resource_links, marking_method, max_marks, image_url, scaffold_config, spec_points(subject, paper, topic_name, spec_ref, spec_text)")
     .in("spec_point_id", matchingSpecPointIds)
     .in("tier", targetTiers);
       
@@ -69,7 +69,7 @@ export async function startAnyPractice(context) {
 
   // 🌟 1. Safe state update via the context bundle helper
   const localizedQs = shuffleArray(activeQs).slice(0, 10);
-  setSessionState(localizedQs, 0);
+  setSessionState(localizedQs, 0, { mode: "any_practice" });
 
   // 🌟 2. Extract the actual DOM elements from our context helper
   const { dashSection, sessionSection } = getDomSections();
@@ -98,7 +98,7 @@ export async function startSessionForSpecPoint(specPointId, qType = "", context)
   console.log("DEBUG startSessionForSpecPoint: Loading question payloads...");
   let query = supabaseClient
     .from("questions")
-    .select("id,question_type,prompt,options,spec_point_id, resource_links, marking_method, max_marks, image_url, scaffold_config")
+    .select("id,question_type,prompt,options,spec_point_id, resource_links, marking_method, max_marks, image_url, scaffold_config, spec_points(subject, paper, topic_name, spec_ref, spec_text)")
     .eq("spec_point_id", specPointId)
     .in("tier", targetTiers);
 
@@ -124,7 +124,7 @@ export async function startSessionForSpecPoint(specPointId, qType = "", context)
 
   // 🌟 1. Safe state update via the context bundle helper
   const localizedQs = shuffleArray(qs);
-  setSessionState(localizedQs, 0);
+  setSessionState(localizedQs, 0, { mode: "spec_point", specPointId });
 
   // 🌟 2. Extract the actual DOM elements from our context helper
   const { dashSection, sessionSection } = getDomSections();

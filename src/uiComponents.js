@@ -549,3 +549,233 @@ export function renderMasteryHeatmap(allSpecPoints, srsStates, onCellClickCallba
 
   return wrapper;
 }
+
+// ====== SESSION CONTEXT & SUMMARY ======
+
+export const QUESTION_TYPE_LABELS = {
+  mcq: "Multiple Choice",
+  numeric: "Numeric / Calculations",
+  short_text: "Short Text / Written",
+  extended_response: "Extended Response"
+};
+
+function formatSubjectLabel(subject) {
+  if (!subject) return "Unknown";
+  const s = String(subject);
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+function formatPaperLabel(paper) {
+  if (paper === "paper2") return "Paper 2";
+  if (paper === "paper1") return "Paper 1";
+  return paper || "";
+}
+
+export function computeSessionMarksSummary(log) {
+  let scoreTotal = 0;
+  let scoreMax = 0;
+  for (const entry of log || []) {
+    scoreTotal += entry.scoreTotal || 0;
+    scoreMax += entry.scoreMax || 0;
+  }
+  return { scoreTotal, scoreMax };
+}
+
+export function computeOutcomeTotals(log) {
+  const totals = { full: 0, partial: 0, fail: 0, total: 0 };
+  for (const entry of log || []) {
+    if (entry.outcome === "full") totals.full++;
+    else if (entry.outcome === "partial") totals.partial++;
+    else totals.fail++;
+  }
+  totals.total = totals.full + totals.partial + totals.fail;
+  return totals;
+}
+
+function getMarksColorClass(scoreTotal, scoreMax) {
+  if (scoreMax <= 0) return "session-summary-marks--red";
+  if (scoreTotal >= scoreMax) return "session-summary-marks--green";
+  if (scoreTotal >= Math.ceil(scoreMax / 2)) return "session-summary-marks--amber";
+  return "session-summary-marks--red";
+}
+
+export function buildSessionSummaryData(attemptLog) {
+  const marksSummary = computeSessionMarksSummary(attemptLog);
+  const outcomeTotals = computeOutcomeTotals(attemptLog);
+  const bySpecPoint = aggregateOutcomesBySpecPoint(attemptLog);
+
+  const tableTotals = bySpecPoint.reduce(
+    (acc, row) => {
+      acc.full += row.full;
+      acc.partial += row.partial;
+      acc.fail += row.fail;
+      return acc;
+    },
+    { full: 0, partial: 0, fail: 0 }
+  );
+  tableTotals.total = tableTotals.full + tableTotals.partial + tableTotals.fail;
+
+  return { marksSummary, outcomeTotals, bySpecPoint, tableTotals };
+}
+
+function renderSpecPointRowCell(specPoint) {
+  const ref = specPoint?.spec_ref || "";
+  const text = specPoint?.spec_text || "Unknown spec point";
+  return `
+    <div class="session-summary-spec-row">
+      ${ref ? `<span class="chip">${escapeHtml(ref)}</span>` : ""}
+      <span class="session-summary-spec-row-text">${escapeHtml(text)}</span>
+    </div>
+  `;
+}
+
+export function renderSessionSummaryHeader(meta, marksSummary) {
+  const subject = formatSubjectLabel(meta?.subject);
+  const paper = formatPaperLabel(meta?.paper);
+  const topic = meta?.topic_name || "All topics";
+  const { scoreTotal, scoreMax } = marksSummary;
+  const marksLabel = scoreMax > 0 ? `${scoreTotal}/${scoreMax}` : "0/0";
+  const colorClass = getMarksColorClass(scoreTotal, scoreMax);
+
+  return `
+    <div class="session-summary-header">
+      <h3 class="session-summary-title">Session complete</h3>
+      <div class="session-summary-meta-row">
+        <div class="session-summary-breadcrumb">${escapeHtml(subject)} · ${escapeHtml(paper)} · ${escapeHtml(topic)}</div>
+        <div class="session-summary-marks ${colorClass}">
+          ${escapeHtml(marksLabel)} <span class="session-summary-marks-label">marks</span>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+export function renderSessionContext(specPoint) {
+  if (!specPoint) {
+    return `<div class="session-context-inner muted">Specification context unavailable</div>`;
+  }
+  const subject = formatSubjectLabel(specPoint.subject);
+  const paper = formatPaperLabel(specPoint.paper);
+  const topic = specPoint.topic_name || "Unknown topic";
+  const specRef = specPoint.spec_ref || "";
+  const specText = specPoint.spec_text || "";
+
+  return `
+    <div class="session-context-inner">
+      <div class="session-context-breadcrumb muted">
+        ${escapeHtml(subject)} · ${escapeHtml(paper)} · ${escapeHtml(topic)}
+      </div>
+      <div class="session-context-spec">
+        ${specRef ? `<span class="chip">${escapeHtml(specRef)}</span>` : ""}
+        <span class="session-context-spec-text">${escapeHtml(specText)}</span>
+      </div>
+    </div>
+  `;
+}
+
+export function aggregateOutcomesByQuestionType(log) {
+  const byType = {};
+  for (const entry of log || []) {
+    const type = entry.questionType || "unknown";
+    if (!byType[type]) byType[type] = { full: 0, partial: 0, fail: 0 };
+    if (entry.outcome === "full") byType[type].full++;
+    else if (entry.outcome === "partial") byType[type].partial++;
+    else byType[type].fail++;
+  }
+  return byType;
+}
+
+export function aggregateOutcomesBySpecPoint(log) {
+  const bySpec = new Map();
+  for (const entry of log || []) {
+    const id = entry.specPointId;
+    if (!bySpec.has(id)) {
+      bySpec.set(id, {
+        specPointId: id,
+        specPoint: entry.specPoint,
+        full: 0,
+        partial: 0,
+        fail: 0
+      });
+    }
+    const row = bySpec.get(id);
+    if (entry.outcome === "full") row.full++;
+    else if (entry.outcome === "partial") row.partial++;
+    else row.fail++;
+  }
+  return [...bySpec.values()];
+}
+
+function renderOutcomeCount(value, colorVar) {
+  return `<span class="outcome-count" style="color: ${colorVar}; font-weight: 700;">${value}</span>`;
+}
+
+export function renderOutcomeBreakdownTable(rows, tableTotals) {
+  if (!rows.length) {
+    return `<div class="muted" style="padding: 12px;">No questions were answered in this session.</div>`;
+  }
+
+  const body = rows.map(row => `
+    <tr>
+      <td class="session-summary-spec-cell">${row.labelHtml || escapeHtml(row.label || "")}</td>
+      <td class="outcome-cell">${renderOutcomeCount(row.full, "var(--success)")}</td>
+      <td class="outcome-cell">${renderOutcomeCount(row.partial, "#f39c12")}</td>
+      <td class="outcome-cell">${renderOutcomeCount(row.fail, "var(--error)")}</td>
+    </tr>
+  `).join("");
+
+  const footer = tableTotals ? `
+    <tfoot>
+      <tr class="session-summary-totals-row">
+        <td><strong>Total</strong></td>
+        <td class="outcome-cell">${renderOutcomeCount(tableTotals.full, "var(--success)")}</td>
+        <td class="outcome-cell">${renderOutcomeCount(tableTotals.partial, "#f39c12")}</td>
+        <td class="outcome-cell">${renderOutcomeCount(tableTotals.fail, "var(--error)")}</td>
+      </tr>
+    </tfoot>
+  ` : "";
+
+  return `
+    <table class="session-summary-table">
+      <thead>
+        <tr>
+          <th>Spec point</th>
+          <th>Right</th>
+          <th>Partially right</th>
+          <th>Wrong</th>
+        </tr>
+      </thead>
+      <tbody>${body}</tbody>
+      ${footer}
+    </table>
+  `;
+}
+
+function buildSpecPointSummaryRows(bySpecPoint) {
+  return bySpecPoint.map(row => ({
+    labelHtml: renderSpecPointRowCell(row.specPoint),
+    full: row.full,
+    partial: row.partial,
+    fail: row.fail
+  }));
+}
+
+export function renderSessionCompleteSummary(meta, attemptLog) {
+  const { marksSummary, bySpecPoint, tableTotals } = buildSessionSummaryData(attemptLog);
+  const rows = buildSpecPointSummaryRows(bySpecPoint);
+
+  return `
+    ${renderSessionSummaryHeader(meta, marksSummary)}
+    <div class="session-summary-results">
+      ${renderOutcomeBreakdownTable(rows, tableTotals)}
+    </div>
+  `;
+}
+
+export function renderSpecPointSessionSummary(meta, attemptLog) {
+  return renderSessionCompleteSummary(meta, attemptLog);
+}
+
+export function renderAnyPracticeSessionSummary(meta, attemptLog) {
+  return renderSessionCompleteSummary(meta, attemptLog);
+}
