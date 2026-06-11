@@ -599,21 +599,38 @@ function getMarksColorClass(scoreTotal, scoreMax) {
   return "session-summary-marks--red";
 }
 
+export function aggregateMarksBySpecPoint(log) {
+  const bySpec = new Map();
+  for (const entry of log || []) {
+    const id = entry.specPointId;
+    if (!bySpec.has(id)) {
+      bySpec.set(id, {
+        specPointId: id,
+        specPoint: entry.specPoint,
+        marksAchieved: 0,
+        marksAvailable: 0
+      });
+    }
+    const row = bySpec.get(id);
+    row.marksAchieved += entry.scoreTotal || 0;
+    row.marksAvailable += entry.scoreMax || 0;
+  }
+  return [...bySpec.values()];
+}
+
 export function buildSessionSummaryData(attemptLog) {
   const marksSummary = computeSessionMarksSummary(attemptLog);
   const outcomeTotals = computeOutcomeTotals(attemptLog);
-  const bySpecPoint = aggregateOutcomesBySpecPoint(attemptLog);
+  const bySpecPoint = aggregateMarksBySpecPoint(attemptLog);
 
   const tableTotals = bySpecPoint.reduce(
     (acc, row) => {
-      acc.full += row.full;
-      acc.partial += row.partial;
-      acc.fail += row.fail;
+      acc.marksAchieved += row.marksAchieved;
+      acc.marksAvailable += row.marksAvailable;
       return acc;
     },
-    { full: 0, partial: 0, fail: 0 }
+    { marksAchieved: 0, marksAvailable: 0 }
   );
-  tableTotals.total = tableTotals.full + tableTotals.partial + tableTotals.fail;
 
   return { marksSummary, outcomeTotals, bySpecPoint, tableTotals };
 }
@@ -706,11 +723,22 @@ export function aggregateOutcomesBySpecPoint(log) {
   return [...bySpec.values()];
 }
 
-function renderOutcomeCount(value, colorVar) {
-  return `<span class="outcome-count" style="color: ${colorVar}; font-weight: 700;">${value}</span>`;
+function formatMarksPercentage(marksAchieved, marksAvailable) {
+  if (marksAvailable <= 0) return 0;
+  return Math.round((marksAchieved / marksAvailable) * 100);
 }
 
-export function renderOutcomeBreakdownTable(rows, tableTotals) {
+function renderMarksCell(value) {
+  return `<span class="marks-count">${value}</span>`;
+}
+
+function renderPercentageCell(marksAchieved, marksAvailable) {
+  const pct = formatMarksPercentage(marksAchieved, marksAvailable);
+  const colorClass = getMarksColorClass(marksAchieved, marksAvailable);
+  return `<span class="marks-pct ${colorClass}">${pct}%</span>`;
+}
+
+export function renderMarksBreakdownTable(rows, tableTotals) {
   if (!rows.length) {
     return `<div class="muted" style="padding: 12px;">No questions were answered in this session.</div>`;
   }
@@ -718,19 +746,19 @@ export function renderOutcomeBreakdownTable(rows, tableTotals) {
   const body = rows.map(row => `
     <tr>
       <td class="session-summary-spec-cell">${row.labelHtml || escapeHtml(row.label || "")}</td>
-      <td class="outcome-cell">${renderOutcomeCount(row.full, "var(--success)")}</td>
-      <td class="outcome-cell">${renderOutcomeCount(row.partial, "#f39c12")}</td>
-      <td class="outcome-cell">${renderOutcomeCount(row.fail, "var(--error)")}</td>
+      <td class="marks-cell">${renderMarksCell(row.marksAchieved)}</td>
+      <td class="marks-cell">${renderMarksCell(row.marksAvailable)}</td>
+      <td class="marks-cell">${renderPercentageCell(row.marksAchieved, row.marksAvailable)}</td>
     </tr>
   `).join("");
 
-  const footer = tableTotals ? `
+  const footer = tableTotals && rows.length > 1 ? `
     <tfoot>
       <tr class="session-summary-totals-row">
         <td><strong>Total</strong></td>
-        <td class="outcome-cell">${renderOutcomeCount(tableTotals.full, "var(--success)")}</td>
-        <td class="outcome-cell">${renderOutcomeCount(tableTotals.partial, "#f39c12")}</td>
-        <td class="outcome-cell">${renderOutcomeCount(tableTotals.fail, "var(--error)")}</td>
+        <td class="marks-cell">${renderMarksCell(tableTotals.marksAchieved)}</td>
+        <td class="marks-cell">${renderMarksCell(tableTotals.marksAvailable)}</td>
+        <td class="marks-cell">${renderPercentageCell(tableTotals.marksAchieved, tableTotals.marksAvailable)}</td>
       </tr>
     </tfoot>
   ` : "";
@@ -740,9 +768,9 @@ export function renderOutcomeBreakdownTable(rows, tableTotals) {
       <thead>
         <tr>
           <th>Spec point</th>
-          <th>Right</th>
-          <th>Partially right</th>
-          <th>Wrong</th>
+          <th>Marks achieved</th>
+          <th>Marks available</th>
+          <th>Percentage</th>
         </tr>
       </thead>
       <tbody>${body}</tbody>
@@ -754,9 +782,8 @@ export function renderOutcomeBreakdownTable(rows, tableTotals) {
 function buildSpecPointSummaryRows(bySpecPoint) {
   return bySpecPoint.map(row => ({
     labelHtml: renderSpecPointRowCell(row.specPoint),
-    full: row.full,
-    partial: row.partial,
-    fail: row.fail
+    marksAchieved: row.marksAchieved,
+    marksAvailable: row.marksAvailable
   }));
 }
 
@@ -767,7 +794,7 @@ export function renderSessionCompleteSummary(meta, attemptLog) {
   return `
     ${renderSessionSummaryHeader(meta, marksSummary)}
     <div class="session-summary-results">
-      ${renderOutcomeBreakdownTable(rows, tableTotals)}
+      ${renderMarksBreakdownTable(rows, tableTotals)}
     </div>
   `;
 }

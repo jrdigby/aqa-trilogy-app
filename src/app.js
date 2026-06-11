@@ -45,8 +45,9 @@ const btnSignUp = el("btnSignUp");
 const btnSignIn = el("btnSignIn");
 const btnSignOut = el("btnSignOut");    
 
-const btnStartDue = el("btnStartDue");
-const btnStartAny = el("btnStartAny");
+const btnStartPractice = el("btnStartPractice");
+const btnExamPrep = el("btnExamPrep");
+const startPracticePreview = el("startPracticePreview");
 const btnSubmit = el("btnSubmit");
 const btnNext = el("btnNext");
 
@@ -74,11 +75,29 @@ const panelFlashcards = el("dashboardTabFlashcards");
 const DASHBOARD_TAB_KEY = "dashboard_active_tab";
 const DASHBOARD_TABS = ["practice", "analytics", "flashcards"];
 
+const FILTER_MOUNTS = {
+  practice: () => el("filterMountPractice"),
+  analytics: () => el("filterMountAnalytics"),
+  flashcards: () => el("filterMountFlashcards")
+};
+
+function mountFiltersForTab(tab) {
+  const filterRow = el("filterRow");
+  const mount = FILTER_MOUNTS[tab]?.();
+  if (!filterRow || !mount || filterRow.parentElement === mount) return;
+  mount.appendChild(filterRow);
+}
+
 function switchDashboardTab(tab) {
   const active = DASHBOARD_TABS.includes(tab) ? tab : "practice";
   if (panelPractice) panelPractice.classList.toggle("hidden", active !== "practice");
   if (panelAnalytics) panelAnalytics.classList.toggle("hidden", active !== "analytics");
   if (panelFlashcards) panelFlashcards.classList.toggle("hidden", active !== "flashcards");
+  mountFiltersForTab(active);
+  const schedulePracticeBlock = document.querySelector(".schedule-practice-block");
+  if (schedulePracticeBlock) {
+    schedulePracticeBlock.classList.toggle("hidden", active !== "practice");
+  }
   if (tabPractice) {
     tabPractice.classList.toggle("active", active === "practice");
     tabPractice.setAttribute("aria-selected", active === "practice" ? "true" : "false");
@@ -101,6 +120,7 @@ function switchDashboardTab(tab) {
   if (active === "flashcards" && currentUser) {
     loadRevisionCards();
   }
+  requestAnimationFrame(() => autoSizeFilterSelects());
 }
 
 if (tabPractice) tabPractice.onclick = () => switchDashboardTab("practice");
@@ -136,15 +156,61 @@ let currentQ = null;
 let currentKey = null;
 let currentMarkPoints = [];
 let isInitializingPipeline = false; 
-let hasImprovedCurrentQ = false; 
+let hasImprovedCurrentQ = false;
+let cachedDueItems = []; 
 
 function getSelectedFilters() {
   const subject = subjectFilter?.value || "biology";
   const paper = paperFilter?.value || "paper1";
-  const topic = topicFilter?.value || "";   
-  const qType = el("typeFilter")?.value || ""; 
-  const tier = el("tierFilter")?.value || "FT"; 
+  const topic = topicFilter?.value || "";
+  const qType = el("typeFilter")?.value || "";
+  const tier = el("tierFilter")?.value || "FT";
   return { subject, paper, topic, qType, tier };
+}
+
+let filterSelectMeasurer = null;
+
+function getFilterSelectMeasurer() {
+  if (!filterSelectMeasurer) {
+    filterSelectMeasurer = document.createElement("span");
+    filterSelectMeasurer.className = "filter-select-measurer";
+    document.body.appendChild(filterSelectMeasurer);
+  }
+  return filterSelectMeasurer;
+}
+
+function autoSizeSelect(select) {
+  if (!select) return;
+  const measurer = getFilterSelectMeasurer();
+  const cs = getComputedStyle(select);
+  measurer.style.fontFamily = cs.fontFamily;
+  measurer.style.fontSize = cs.fontSize;
+  measurer.style.fontWeight = cs.fontWeight;
+  measurer.style.letterSpacing = cs.letterSpacing;
+
+  let maxTextWidth = 0;
+  for (const opt of select.options) {
+    measurer.textContent = opt.textContent;
+    maxTextWidth = Math.max(maxTextWidth, measurer.getBoundingClientRect().width);
+  }
+
+  const padX =
+    parseFloat(cs.paddingLeft) +
+    parseFloat(cs.paddingRight) +
+    parseFloat(cs.borderLeftWidth) +
+    parseFloat(cs.borderRightWidth);
+  select.style.width = `${Math.ceil(maxTextWidth + padX + 2)}px`;
+}
+
+function autoSizeFilterSelects() {
+  if (window.matchMedia("(max-width: 600px)").matches) return;
+
+  const selects = [subjectFilter, paperFilter, el("typeFilter"), topicFilter];
+  for (const select of selects) {
+    if (!select) continue;
+    if (select.id === "typeFilter" && el("typeFilterGroup")?.classList.contains("hidden")) continue;
+    autoSizeSelect(select);
+  }
 }
 
 // ====== AUTH ======
@@ -202,6 +268,7 @@ async function loadDashboard() {
     ]);
 
     due = dueResult;
+    cachedDueItems = due;
     allSpecs = specsResult;
     activeSRS = srsResult;
 
@@ -210,8 +277,11 @@ async function loadDashboard() {
     console.log("DEBUG loadDashboard: Dashboard data pipeline complete.", due.length, "items due.");
   } catch (err) {
     console.error("DEBUG loadDashboard: Dashboard failed to load, applying empty state fallback:", err);
+    cachedDueItems = [];
     if (dueCount) dueCount.textContent = "0";
     if (dueList) dueList.innerHTML = `<div class="item text-orange"><span class="bad">Warning:</span> Connection slow or RLS blocked table. ${err.message || err}</div>`;
+    if (startPracticePreview) startPracticePreview.textContent = "Could not load schedule.";
+    if (btnStartPractice) btnStartPractice.disabled = true;
     return;
   }
 
@@ -249,6 +319,8 @@ async function loadDashboard() {
         }).join("")
       : `<div class="item">Nothing due today. Start practice to create your first schedule.</div>`;
   }
+
+  await updateStartPracticePreview(due);
   
   // 4. Call the interactive Flashcard Generator
   await loadRevisionCards();
@@ -492,97 +564,119 @@ async function downloadStudyGuideText(attempts) {
 }
 
 // ====== PRACTICE SESSION ENGINE ======
-async function pickNextDueSpecPoint({ excludeSpecPointId } = {}) {
-  if (!currentUser) return { noDue: true };
-
-  const today = todayISO();
-  const { subject, paper, topic, qType, tier } = getSelectedFilters();
+async function resolveScheduledSpecPoint(dueItems, { excludeSpecPointId } = {}) {
+  const { tier } = getSelectedFilters();
   const targetTiers = tier === "HT" ? ["HT", "both"] : ["FT", "both"];
 
-  let due = [];
-  try {
-    const query = supabaseClient
-      .from("srs_state")
-      .select(`spec_point_id, due_date, spec_points(subject, paper, topic_name)`)
-      .eq("user_id", currentUser.id)
-      .lte("due_date", today);
+  const candidates = (dueItems || []).filter(d =>
+    !excludeSpecPointId || d.spec_point_id !== excludeSpecPointId
+  );
 
-    const result = await Promise.race([query, timeoutPromise(4000, "SRS questions preflight query timed out")]);
-    if (result.error) throw result.error;
-    due = result.data || [];
-  } catch (err) {
-    console.warn("DEBUG pickNextDueSpecPoint: Preflight failed:", err);
-    throw err;
-  }
+  if (candidates.length === 0) return { noDue: true };
 
-  const filteredDue = (due || []).filter(d => {
-    const matchSubj = d.spec_points?.subject === subject;
-    const matchPaper = d.spec_points?.paper === paper;
-    const matchTopic = topic ? (d.spec_points?.topic_name === topic) : true;
-    const notExcluded = excludeSpecPointId ? d.spec_point_id !== excludeSpecPointId : true;
-    return matchSubj && matchPaper && matchTopic && notExcluded;
-  });
-
-  if (filteredDue.length === 0) return { noDue: true };
-
-  const dueSpecIds = filteredDue.map(d => d.spec_point_id);
-  let qQuery = supabaseClient
-    .from("questions")
-    .select("spec_point_id, question_type")
-    .in("spec_point_id", dueSpecIds)
-    .in("tier", targetTiers);
-
-  if (qType) {
-    qQuery = qQuery.eq("question_type", qType);
-  }
-
+  const dueSpecIds = candidates.map(d => d.spec_point_id);
   let matchingQs = [];
   try {
+    const qQuery = supabaseClient
+      .from("questions")
+      .select("spec_point_id")
+      .in("spec_point_id", dueSpecIds)
+      .in("tier", targetTiers);
+
     const result = await Promise.race([qQuery, timeoutPromise(4000, "Questions resolution query timed out")]);
     if (result.error) throw result.error;
     matchingQs = result.data || [];
   } catch (err) {
-    console.error("DEBUG pickNextDueSpecPoint: Question filtering failed:", err);
+    console.error("DEBUG resolveScheduledSpecPoint: Question filtering failed:", err);
     throw err;
   }
 
-  if (!matchingQs || matchingQs.length === 0) return { noQuestions: true };
+  const idsWithQuestions = new Set(matchingQs.map(q => q.spec_point_id));
+  for (const item of candidates) {
+    if (idsWithQuestions.has(item.spec_point_id)) {
+      return { specPointId: item.spec_point_id, specMeta: item.spec_points };
+    }
+  }
 
-  return { specPointId: matchingQs[0].spec_point_id };
+  return { noQuestions: true };
 }
 
-if (btnStartDue) {
-  btnStartDue.onclick = async () => {
+async function pickNextScheduledSpecPoint({ excludeSpecPointId } = {}) {
+  if (!currentUser) return { noDue: true };
+
+  try {
+    const dueItems = await fetchDashboardDueItems(currentUser.id);
+    cachedDueItems = dueItems;
+    return resolveScheduledSpecPoint(dueItems, { excludeSpecPointId });
+  } catch (err) {
+    console.warn("DEBUG pickNextScheduledSpecPoint: Preflight failed:", err);
+    throw err;
+  }
+}
+
+async function updateStartPracticePreview(dueItems) {
+  if (!startPracticePreview || !btnStartPractice) return;
+
+  if (!dueItems?.length) {
+    startPracticePreview.textContent = "Nothing due in your schedule.";
+    btnStartPractice.disabled = true;
+    return;
+  }
+
+  try {
+    const result = await resolveScheduledSpecPoint(dueItems);
+    if (result.specPointId) {
+      const topic = result.specMeta?.topic_name ?? "your next due topic";
+      const ref = result.specMeta?.spec_ref ?? "";
+      startPracticePreview.textContent = ref
+        ? `10 questions on ${topic} (${ref})`
+        : `10 questions on ${topic}`;
+      btnStartPractice.disabled = false;
+    } else if (result.noQuestions) {
+      startPracticePreview.textContent = "Due items found but no questions match your tier.";
+      btnStartPractice.disabled = true;
+    } else {
+      startPracticePreview.textContent = "Nothing due in your schedule.";
+      btnStartPractice.disabled = true;
+    }
+  } catch (err) {
+    console.warn("DEBUG updateStartPracticePreview:", err);
+    startPracticePreview.textContent = "Could not load schedule preview.";
+    btnStartPractice.disabled = true;
+  }
+}
+
+if (btnStartPractice) {
+  btnStartPractice.onclick = async () => {
     if (!currentUser) return;
 
     let targeted = null;
     try {
-      targeted = await pickNextDueSpecPoint();
+      targeted = await pickNextScheduledSpecPoint();
     } catch (err) {
-      console.warn("DEBUG btnStartDue: Preflight crashed. Proceeding straight to random practice fallbacks:", err);
-      await startAnyPractice(engineContext);
+      console.error("DEBUG btnStartPractice: Preflight failed:", err);
+      showToastBanner("Could not load your next due spec point.", true);
       return;
     }
 
     if (targeted.noDue) {
-      await startAnyPractice(engineContext);
+      showToastBanner("Nothing due in your schedule.", false);
       return;
     }
 
     if (targeted.noQuestions) {
-      showToastBanner("No questions found matching your specific tier/type parameters for this due topic.", true);
+      showToastBanner("No questions found for your tier on the next due spec point.", true);
       return;
     }
 
-    const { qType } = getSelectedFilters();
-    await startSessionForSpecPoint(targeted.specPointId, qType || "", engineContext);
+    await startSessionForSpecPoint(targeted.specPointId, "", engineContext);
   };
 }
 
-if (btnStartAny) {
-  btnStartAny.onclick = async () => {
-    // 🌟 Pass the engineContext configuration bundle into the function call here!
-    await startAnyPractice(engineContext);
+if (btnExamPrep) {
+  btnExamPrep.onclick = async () => {
+    const count = parseInt(el("examPrepCount")?.value || "10", 10);
+    await startAnyPractice(engineContext, count);
   };
 }
 // Add this small adapter wrapper context bundle inside app.js:
@@ -802,17 +896,16 @@ async function showSessionSummary() {
       btnMore.className = "btn-primary";
       btnMore.textContent = "More questions for this spec point";
       btnMore.onclick = async () => {
-        const { qType } = getSelectedFilters();
-        await startSessionForSpecPoint(sessionSpecPointId, qType || "", engineContext);
+        await startSessionForSpecPoint(sessionSpecPointId, "", engineContext);
       };
 
       const btnNextDue = document.createElement("button");
-      btnNextDue.className = "btn-secondary";
+      btnNextDue.className = "btn-secondary practice-action-btn";
       btnNextDue.textContent = "Next due spec point";
       btnNextDue.onclick = async () => {
         let next = null;
         try {
-          next = await pickNextDueSpecPoint({ excludeSpecPointId: sessionSpecPointId });
+          next = await pickNextScheduledSpecPoint({ excludeSpecPointId: sessionSpecPointId });
         } catch (err) {
           console.error("DEBUG summary: Failed to pick next due spec point:", err);
           showToastBanner("Could not load next due spec point.", true);
@@ -821,13 +914,12 @@ async function showSessionSummary() {
         }
 
         if (next?.specPointId) {
-          const { qType } = getSelectedFilters();
-          await startSessionForSpecPoint(next.specPointId, qType || "", engineContext);
+          await startSessionForSpecPoint(next.specPointId, "", engineContext);
         } else if (next?.noQuestions) {
-          showToastBanner("No questions found matching your filters for the next due spec point.", true);
+          showToastBanner("No questions found for your tier on the next due spec point.", true);
           await exitSessionToDashboard();
         } else {
-          showToastBanner("No other due spec points for your current filters.", false);
+          showToastBanner("No other due spec points in your schedule.", false);
           await exitSessionToDashboard();
         }
       };
@@ -1363,6 +1455,7 @@ async function loadTopics() {
       <option value="${t}">${t} (${topicCounts[t]})</option>
     `).join("");
   topicFilter.value = currentSelectedTopic;
+  autoSizeFilterSelects();
 
   const summaryDiv = el("topicCountSummary");
   if (summaryDiv) {
@@ -1393,32 +1486,10 @@ async function loadTopics() {
     loadActivityChart(validQuestionIds, activityFilterCtx);
   }
 
-  const dueBtn = el("btnStartDue");
-  if (dueBtn) {
-    const dueSpecIds = new Set((rawDue || []).map(d => d.spec_point_id));
-    let totalDueQuestionsAvailable = 0;
-
-    (questions || []).forEach(q => {
-      const parentTopic = specToTopicMap[q.spec_point_id];
-      const isSpecDue = dueSpecIds.has(q.spec_point_id);
-      const matchesTopicFilter = topic ? (parentTopic === topic) : (parentTopic !== undefined);
-
-      if (isSpecDue && matchesTopicFilter) {
-        totalDueQuestionsAvailable++;
-      }
-    });
-
-    const targetSessionCount = Math.min(totalDueQuestionsAvailable, 10);
-
-    if (targetSessionCount > 0) {
-      dueBtn.textContent = `You have ${targetSessionCount} due questions for selected topic(s)`;
-      dueBtn.disabled = false;
-    } else {
-      dueBtn.textContent = "No Scheduled Items Due for Type/Topic";
-      dueBtn.disabled = true;
-    }
+  if (cachedDueItems.length) {
+    await updateStartPracticePreview(cachedDueItems);
   }
-  
+
   if (masteryWrapper && currentUser) {
     try {
       const questionToSpecMap = {};
@@ -1615,12 +1686,16 @@ if (topicFilter) {
 
 const liveTypeFilter = el("typeFilter");
 if (liveTypeFilter) {
-  if (!liveTypeFilter.querySelector('option[value="extended_response"]')) {
+  const extOpt = liveTypeFilter.querySelector('option[value="extended_response"]');
+  if (extOpt) {
+    extOpt.textContent = "Extended response";
+  } else {
     const opt = document.createElement("option");
     opt.value = "extended_response";
-    opt.textContent = "Extended Response (AI Rubric)";
+    opt.textContent = "Extended response";
     liveTypeFilter.appendChild(opt);
   }
+  autoSizeFilterSelects();
 
   liveTypeFilter.addEventListener("change", () => {
     console.log("DEBUG EVENT: Type Filter changed ->", liveTypeFilter.value);
@@ -1628,6 +1703,12 @@ if (liveTypeFilter) {
     loadTopics();
   });
 }
+
+let filterResizeTimer = null;
+window.addEventListener("resize", () => {
+  clearTimeout(filterResizeTimer);
+  filterResizeTimer = setTimeout(() => autoSizeFilterSelects(), 120);
+});
 
 console.log("DEBUG: Hooking up supabaseClient.auth.onAuthStateChange...");
 

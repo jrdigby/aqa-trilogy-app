@@ -1,4 +1,4 @@
-export async function startAnyPractice(context) {
+export async function startAnyPractice(context, questionCount = 10) {
   const { 
     supabaseClient,
     getSelectedFilters, 
@@ -68,7 +68,8 @@ export async function startAnyPractice(context) {
   }
 
   // 🌟 1. Safe state update via the context bundle helper
-  const localizedQs = shuffleArray(activeQs).slice(0, 10);
+  const count = Math.max(1, Math.min(30, Number(questionCount) || 10));
+  const localizedQs = shuffleArray(activeQs).slice(0, count);
   setSessionState(localizedQs, 0, { mode: "any_practice" });
 
   // 🌟 2. Extract the actual DOM elements from our context helper
