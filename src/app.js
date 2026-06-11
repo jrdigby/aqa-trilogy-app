@@ -718,13 +718,29 @@ async function startSessionForSpecPointWrapper(specPointId, qType = "") {
 // btnStart.onclick = startAnyPracticeWrapper;
 
 // ====== 7-DAY WORKLOAD REVISION FORECAST ======
-function renderForecastColumn({ label, count, maxCount, isOverdue = false }) {
+function formatForecastSpecLine(schedule) {
+  const sp = schedule?.spec_points || {};
+  const ref = sp.spec_ref ? `[${sp.spec_ref}] ` : "";
+  return `${ref}${sp.topic_name || "Topic"}`;
+}
+
+function buildForecastTooltip(label, items) {
+  if (!items?.length) return label || "None due";
+  const header = label ? `${label} — ${items.length} due` : `${items.length} due`;
+  return [header, ...items.map(formatForecastSpecLine)].join("\n");
+}
+
+function buildActivityBreakdownTooltip(dateTooltip, full, partial, fail) {
+  return `${dateTooltip}\nGreen: ${full} · Amber: ${partial} · Red: ${fail}`;
+}
+
+function renderForecastColumn({ label, tooltip, count, maxCount, isOverdue = false }) {
   const barHeightPx = Math.round((count / maxCount) * 75);
   const isActiveBar = count > 0;
   const activeColor = isOverdue ? "var(--error)" : "var(--primary)";
 
   return `
-    <div style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; justify-content: flex-end; min-width: 0;">
+    <div title="${escapeHtml(tooltip || label || "")}" style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; justify-content: flex-end; min-width: 0;">
       <span style="font-size: 0.75rem; font-weight: 700; color: ${isActiveBar ? activeColor : "var(--text-muted)"};">
         ${count}
       </span>
@@ -1088,7 +1104,7 @@ async function loadActivityChart(validQuestionIds, filterContext) {
     const stats = bucketStats[b.key];
     return renderActivityColumn({
       label: b.label,
-      tooltip: b.tooltip || b.label,
+      tooltip: buildActivityBreakdownTooltip(b.tooltip || b.label, stats.full, stats.partial, stats.fail),
       count: stats.count,
       maxCount,
       full: stats.full,
@@ -1106,6 +1122,8 @@ async function loadWeeklyForecast() {
   const today = todayISO();
   const datesArray = [];
   const countsMap = {};
+  const itemsMap = {};
+  const overdueItems = [];
 
   for (let i = 0; i < 7; i++) {
     const dateString = addDaysISO(today, i);
@@ -1114,6 +1132,7 @@ async function loadWeeklyForecast() {
 
     datesArray.push({ dateString, dayLabel });
     countsMap[dateString] = 0;
+    itemsMap[dateString] = [];
   }
 
   console.log("DEBUG loadWeeklyForecast: Loading schedules forecast...");
@@ -1131,20 +1150,35 @@ async function loadWeeklyForecast() {
     const dueDate = String(s.due_date || "").slice(0, 10);
     if (dueDate < today) {
       overdueCount++;
+      overdueItems.push(s);
     } else if (countsMap[dueDate] !== undefined) {
       countsMap[dueDate]++;
+      itemsMap[dueDate].push(s);
     }
   });
 
   const maxCount = Math.max(overdueCount, ...Object.values(countsMap), 1);
 
   forecastWrapper.innerHTML =
-    renderForecastColumn({ label: "Overdue", count: overdueCount, maxCount, isOverdue: true }) +
-    datesArray.map(d => renderForecastColumn({
-      label: d.dayLabel,
-      count: countsMap[d.dateString],
-      maxCount
-    })).join("");
+    renderForecastColumn({
+      label: "Overdue",
+      tooltip: buildForecastTooltip("Overdue", overdueItems),
+      count: overdueCount,
+      maxCount,
+      isOverdue: true
+    }) +
+    datesArray.map(d => {
+      const items = itemsMap[d.dateString];
+      const dateTooltip = d.dayLabel === "Today"
+        ? `Today (${formatShortDate(d.dateString)})`
+        : `${d.dayLabel} (${formatShortDate(d.dateString)})`;
+      return renderForecastColumn({
+        label: d.dayLabel,
+        tooltip: buildForecastTooltip(dateTooltip, items),
+        count: countsMap[d.dateString],
+        maxCount
+      });
+    }).join("");
 }
 
 // ====== FIXED RANDOMIZATION ENGINE ======
