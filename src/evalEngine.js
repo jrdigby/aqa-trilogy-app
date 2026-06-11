@@ -1,4 +1,5 @@
 // src/evalEngine.js
+import { escapeHtml } from './utils.js';
 
 // ====== 🧠 FUZZY STRING MATCHING ENGINE (LEVENSHTEIN DISTANCE) ======
 export function getLevenshteinDistance(s1, s2) {
@@ -103,12 +104,10 @@ export function computeSessionQuality(qualities) {
   return 0;
 }
 
-// Formats AQA GCSE standard examiner tips dynamically based on prompt words
-export function getAQACommandWordHelper(promptText) {
-  const words = promptText.toLowerCase().trim().split(/\s+/);
-  const firstWord = words[0]?.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "");
-  
-  if (firstWord === "describe") {
+const PUNCTUATION_STRIP = /[.,\/#!$%\^&\*;:{}=\-_`~()?]/g;
+
+function getTipHtmlForCommandWord(word) {
+  if (word === "describe") {
     return `
       <div class="exam-tip exam-tip--describe">
         <strong>📋 AQA GCSE Examiner Tip (DESCRIBE)</strong><br/>
@@ -116,7 +115,7 @@ export function getAQACommandWordHelper(promptText) {
       </div>
     `;
   }
-  if (firstWord === "explain") {
+  if (word === "explain") {
     return `
       <div class="exam-tip exam-tip--explain">
         <strong>📋 AQA GCSE Examiner Tip (EXPLAIN)</strong><br/>
@@ -124,7 +123,7 @@ export function getAQACommandWordHelper(promptText) {
       </div>
     `;
   }
-  if (firstWord === "evaluate") {
+  if (word === "evaluate") {
     return `
       <div class="exam-tip exam-tip--evaluate">
         <strong>📋 AQA GCSE Examiner Tip (EVALUATE)</strong><br/>
@@ -132,7 +131,7 @@ export function getAQACommandWordHelper(promptText) {
       </div>
     `;
   }
-  if (firstWord === "calculate") {
+  if (word === "calculate") {
     return `
       <div class="exam-tip exam-tip--calculate">
         <strong>📋 AQA GCSE Examiner Tip (CALCULATE)</strong><br/>
@@ -140,7 +139,7 @@ export function getAQACommandWordHelper(promptText) {
       </div>
     `;
   }
-  if (firstWord === "compare") {
+  if (word === "compare") {
     return `
       <div class="exam-tip exam-tip--compare">
         <strong>📋 AQA GCSE Examiner Tip (COMPARE)</strong><br/>
@@ -148,15 +147,15 @@ export function getAQACommandWordHelper(promptText) {
       </div>
     `;
   }
-  if (firstWord === "state" || firstWord === "give" || firstWord === "name") {
+  if (word === "state" || word === "give" || word === "name") {
     return `
       <div class="exam-tip exam-tip--state">
-        <strong>📋 AQA GCSE Examiner Tip (${firstWord.toUpperCase()})</strong><br/>
+        <strong>📋 AQA GCSE Examiner Tip (${word.toUpperCase()})</strong><br/>
         Provide a concise, factual answer without any background explanation or computation. Keep your response short, precise, and directly focused on the required keyword, fact, or definition.
       </div>
     `;
   }
-  if (firstWord === "suggest") {
+  if (word === "suggest") {
     return `
       <div class="exam-tip exam-tip--suggest">
         <strong>📋 AQA GCSE Examiner Tip (SUGGEST)</strong><br/>
@@ -164,7 +163,7 @@ export function getAQACommandWordHelper(promptText) {
       </div>
     `;
   }
-  if (firstWord === "discuss") {
+  if (word === "discuss") {
     return `
       <div class="exam-tip exam-tip--discuss">
         <strong>📋 AQA GCSE Examiner Tip (DISCUSS)</strong><br/>
@@ -172,7 +171,7 @@ export function getAQACommandWordHelper(promptText) {
       </div>
     `;
   }
-  if (firstWord === "justify") {
+  if (word === "justify") {
     return `
       <div class="exam-tip exam-tip--justify">
         <strong>📋 AQA GCSE Examiner Tip (JUSTIFY)</strong><br/>
@@ -180,7 +179,7 @@ export function getAQACommandWordHelper(promptText) {
       </div>
     `;
   }
-  if (firstWord === "determine") {
+  if (word === "determine") {
     return `
       <div class="exam-tip exam-tip--determine">
         <strong>📋 AQA GCSE Examiner Tip (DETERMINE)</strong><br/>
@@ -188,7 +187,7 @@ export function getAQACommandWordHelper(promptText) {
       </div>
     `;
   }
-  if (firstWord === "define") {
+  if (word === "define") {
     return `
       <div class="exam-tip exam-tip--define">
         <strong>📋 AQA GCSE Examiner Tip (DEFINE)</strong><br/>
@@ -198,6 +197,111 @@ export function getAQACommandWordHelper(promptText) {
   }
 
   return "";
+}
+
+function isKnownCommandWord(word) {
+  return Boolean(word && getTipHtmlForCommandWord(word));
+}
+
+function getLeadingCommandWordInfo(segment) {
+  const tokens = segment.trim().split(/\s+/);
+  for (let tokenIndex = 0; tokenIndex < tokens.length; tokenIndex++) {
+    const word = tokens[tokenIndex].toLowerCase().replace(PUNCTUATION_STRIP, "");
+    if (!word) continue;
+    if (/^\(?[a-z]\)?$/.test(word) || /^\d+\.?$/.test(word)) continue;
+    return { word, tokenIndex };
+  }
+  return null;
+}
+
+function getLeadingCommandWord(segment) {
+  return getLeadingCommandWordInfo(segment)?.word ?? null;
+}
+
+function splitPromptSegments(promptText) {
+  return promptText.split(/(?<=[.!?])\s+|\n+/).map(s => s.trim()).filter(Boolean);
+}
+
+function findCommandWordRangeInSegment(segment, tokenIndex) {
+  let count = 0;
+  const regex = /\S+/g;
+  let match;
+  while ((match = regex.exec(segment)) !== null) {
+    if (count === tokenIndex) {
+      return { start: match.index, end: match.index + match[0].length };
+    }
+    count++;
+  }
+  return null;
+}
+
+export function highlightCommandWordsInPrompt(promptText) {
+  const text = promptText || "";
+  if (!text) return "";
+
+  const segments = splitPromptSegments(text);
+  if (!segments.length) return escapeHtml(text);
+
+  const highlights = [];
+  let searchFrom = 0;
+
+  for (const segment of segments) {
+    const segmentStart = text.indexOf(segment, searchFrom);
+    if (segmentStart === -1) continue;
+    searchFrom = segmentStart + segment.length;
+
+    const info = getLeadingCommandWordInfo(segment);
+    if (!info || !isKnownCommandWord(info.word)) continue;
+
+    const range = findCommandWordRangeInSegment(segment, info.tokenIndex);
+    if (!range) continue;
+
+    highlights.push({
+      start: segmentStart + range.start,
+      end: segmentStart + range.end,
+      word: info.word,
+    });
+  }
+
+  if (!highlights.length) return escapeHtml(text);
+
+  highlights.sort((a, b) => a.start - b.start);
+  const parts = [];
+  let last = 0;
+
+  for (const highlight of highlights) {
+    parts.push(escapeHtml(text.slice(last, highlight.start)));
+    parts.push(
+      `<span class="command-word command-word--${highlight.word}">${escapeHtml(text.slice(highlight.start, highlight.end))}</span>`
+    );
+    last = highlight.end;
+  }
+  parts.push(escapeHtml(text.slice(last)));
+
+  return parts.join("");
+}
+
+// Formats AQA GCSE standard examiner tips dynamically based on prompt words
+export function getAQACommandWordHelper(promptText) {
+  const segments = splitPromptSegments(promptText || "");
+  if (!segments.length) return "";
+
+  const seen = new Set();
+  const banners = [];
+
+  for (const segment of segments) {
+    const word = getLeadingCommandWord(segment);
+    if (!word || seen.has(word)) continue;
+
+    if (!isKnownCommandWord(word)) continue;
+
+    const tipHtml = getTipHtmlForCommandWord(word);
+
+    seen.add(word);
+    banners.push(tipHtml);
+  }
+
+  return banners.join("");
 }
 export function markResponse(q, resp, key, markPoints) {
   let total = 0, max = q.max_marks || 1;
