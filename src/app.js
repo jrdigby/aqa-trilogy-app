@@ -1,5 +1,5 @@
 import { startAnyPractice, startSessionForSpecPoint, upsertSRS as importUpsertSRS } from './sessionEngine.js';
-import { showToastBanner, renderQuestionLayout, renderFeedback, renderLiveAIFeedback, renderAQAExtendedResponseFeedback, renderMasteryHeatmap } from './uiComponents.js';
+import { showToastBanner, renderQuestionLayout, renderFeedback, renderLiveAIFeedback, renderAQAExtendedResponseFeedback, renderMasteryHeatmap, renderSessionContext, renderSessionCompleteSummary } from './uiComponents.js';
 import { triggerMathTypeset } from './mathEngine.js';
 import { checkKeywordOrSynonymsMatch, updateSRS, computeSessionQuality, getAQACommandWordHelper, isFuzzyMatch } from './evalEngine.js';
 import { escapeHtml, shuffleArray, todayISO, addDaysISO } from './utils.js';
@@ -35,6 +35,11 @@ const userChip = el("userChip");
 const qBox = el("qBox");
 const feedback = el("feedback");
 const progress = el("progress");
+const sessionContext = el("sessionContext");
+const questionView = el("questionView");
+const sessionSummary = el("sessionSummary");
+const summaryContent = el("summaryContent");
+const summaryActions = el("summaryActions");
 
 const btnSignUp = el("btnSignUp");
 const btnSignIn = el("btnSignIn");
@@ -123,6 +128,9 @@ if (activityRangePicker) {
 let currentUser = null;
 let sessionQuestions = [];
 let sessionQualityLog = [];
+let sessionAttemptLog = [];
+let sessionMode = null;
+let sessionSpecPointId = null;
 let idx = 0;
 let currentQ = null;
 let currentKey = null;
@@ -484,80 +492,90 @@ async function downloadStudyGuideText(attempts) {
 }
 
 // ====== PRACTICE SESSION ENGINE ======
+async function pickNextDueSpecPoint({ excludeSpecPointId } = {}) {
+  if (!currentUser) return { noDue: true };
+
+  const today = todayISO();
+  const { subject, paper, topic, qType, tier } = getSelectedFilters();
+  const targetTiers = tier === "HT" ? ["HT", "both"] : ["FT", "both"];
+
+  let due = [];
+  try {
+    const query = supabaseClient
+      .from("srs_state")
+      .select(`spec_point_id, due_date, spec_points(subject, paper, topic_name)`)
+      .eq("user_id", currentUser.id)
+      .lte("due_date", today);
+
+    const result = await Promise.race([query, timeoutPromise(4000, "SRS questions preflight query timed out")]);
+    if (result.error) throw result.error;
+    due = result.data || [];
+  } catch (err) {
+    console.warn("DEBUG pickNextDueSpecPoint: Preflight failed:", err);
+    throw err;
+  }
+
+  const filteredDue = (due || []).filter(d => {
+    const matchSubj = d.spec_points?.subject === subject;
+    const matchPaper = d.spec_points?.paper === paper;
+    const matchTopic = topic ? (d.spec_points?.topic_name === topic) : true;
+    const notExcluded = excludeSpecPointId ? d.spec_point_id !== excludeSpecPointId : true;
+    return matchSubj && matchPaper && matchTopic && notExcluded;
+  });
+
+  if (filteredDue.length === 0) return { noDue: true };
+
+  const dueSpecIds = filteredDue.map(d => d.spec_point_id);
+  let qQuery = supabaseClient
+    .from("questions")
+    .select("spec_point_id, question_type")
+    .in("spec_point_id", dueSpecIds)
+    .in("tier", targetTiers);
+
+  if (qType) {
+    qQuery = qQuery.eq("question_type", qType);
+  }
+
+  let matchingQs = [];
+  try {
+    const result = await Promise.race([qQuery, timeoutPromise(4000, "Questions resolution query timed out")]);
+    if (result.error) throw result.error;
+    matchingQs = result.data || [];
+  } catch (err) {
+    console.error("DEBUG pickNextDueSpecPoint: Question filtering failed:", err);
+    throw err;
+  }
+
+  if (!matchingQs || matchingQs.length === 0) return { noQuestions: true };
+
+  return { specPointId: matchingQs[0].spec_point_id };
+}
+
 if (btnStartDue) {
   btnStartDue.onclick = async () => {
     if (!currentUser) return;
-    const today = todayISO();
-    const { subject, paper, topic, qType, tier } = getSelectedFilters(); 
 
-    console.log("DEBUG btnStartDue: Querying due items to prepare practice queue...");
-    let due = [];
+    let targeted = null;
     try {
-      const query = supabaseClient
-        .from("srs_state")
-        .select(`spec_point_id, due_date, spec_points(subject, paper, topic_name)`)
-        .eq("user_id", currentUser.id)
-        .lte("due_date", today);
-
-      const result = await Promise.race([query, timeoutPromise(4000, "SRS questions preflight query timed out")]);
-      if (result.error) throw result.error;
-      due = result.data || [];
+      targeted = await pickNextDueSpecPoint();
     } catch (err) {
       console.warn("DEBUG btnStartDue: Preflight crashed. Proceeding straight to random practice fallbacks:", err);
-      // 🌟 FIX 1: Pass engineContext to the fallback function
       await startAnyPractice(engineContext);
       return;
     }
 
-    const filteredDue = (due || []).filter(d => {
-      const matchSubj = d.spec_points?.subject === subject;
-      const matchPaper = d.spec_points?.paper === paper;
-      const matchTopic = topic ? (d.spec_points?.topic_name === topic) : true;
-      return matchSubj && matchPaper && matchTopic;
-    });
-
-    if (filteredDue.length === 0) {
-      // 🌟 FIX 2: Pass engineContext to the fallback function
+    if (targeted.noDue) {
       await startAnyPractice(engineContext);
       return;
     }
 
-    let targetedSpecPointId = null;
-    const targetTiers = tier === "HT" ? ["HT", "both"] : ["FT", "both"];
-
-    const dueSpecIds = filteredDue.map(d => d.spec_point_id);
-    let qQuery = supabaseClient
-      .from("questions")
-      .select("spec_point_id, question_type")
-      .in("spec_point_id", dueSpecIds)
-      .in("tier", targetTiers);
-
-    if (qType) {
-      qQuery = qQuery.eq("question_type", qType);
-    }
-
-    let matchingQs = [];
-    try {
-      const result = await Promise.race([qQuery, timeoutPromise(4000, "Questions resolution query timed out")]);
-      if (result.error) throw result.error;
-      matchingQs = result.data || [];
-    } catch (err) {
-      console.error("DEBUG btnStartDue: Question filtering failed:", err);
-      showToastBanner("Error matching due questions: " + err.message, true);
-      return;
-    }
-
-    if (matchingQs && matchingQs.length > 0) {
-      targetedSpecPointId = matchingQs[0].spec_point_id;
-    }
-
-    if (!targetedSpecPointId) {
+    if (targeted.noQuestions) {
       showToastBanner("No questions found matching your specific tier/type parameters for this due topic.", true);
       return;
     }
 
-    // 🌟 FIX 3: Pass the qType filter and the engineContext bundle here
-    await startSessionForSpecPoint(targetedSpecPointId, qType || "", engineContext);
+    const { qType } = getSelectedFilters();
+    await startSessionForSpecPoint(targeted.specPointId, qType || "", engineContext);
   };
 }
 
@@ -579,10 +597,13 @@ const engineContext = {
   showToastBanner: (msg, isErr) => showToastBanner(msg, isErr),
   shuffleArray: (arr) => shuffleArray(arr),
   loadQuestion: () => loadQuestion(),
-  setSessionState: (questions, index) => {
+  setSessionState: (questions, index, config = {}) => {
     sessionQuestions = questions;
     idx = index;
     sessionQualityLog = [];
+    sessionAttemptLog = [];
+    sessionMode = config.mode || null;
+    sessionSpecPointId = config.specPointId || null;
   },
   getDomSections: () => ({
     dashSection: document.getElementById('dashboard'), // replace with actual selector logic if different
@@ -705,6 +726,128 @@ function classifyAttemptOutcome(att) {
   if (total >= max) return "full";
   if (total >= Math.ceil(max / 2)) return "partial";
   return "fail";
+}
+
+function logSessionAttempt({ questionId, questionType, specPointId, specPoint, scoreTotal, scoreMax }) {
+  sessionAttemptLog.push({
+    questionId,
+    questionType,
+    specPointId,
+    specPoint,
+    scoreTotal,
+    scoreMax,
+    outcome: classifyAttemptOutcome({ score_total: scoreTotal, score_max: scoreMax })
+  });
+}
+
+function getSessionSpecPointMeta() {
+  const first = sessionQuestions[0];
+  return first?.spec_points || null;
+}
+
+async function exitSessionToDashboard() {
+  if (sessionSection) sessionSection.classList.add("hidden");
+  if (sessionSummary) sessionSummary.classList.add("hidden");
+  if (questionView) questionView.classList.remove("hidden");
+  if (dashSection) dashSection.classList.remove("hidden");
+
+  sessionMode = null;
+  sessionSpecPointId = null;
+  sessionQuestions = [];
+  sessionAttemptLog = [];
+  sessionQualityLog = [];
+  idx = 0;
+
+  await loadDashboard();
+  await loadWeeklyForecast();
+
+  try {
+    await loadTopics();
+  } catch (topicErr) {
+    console.warn("Background syllabus metric reload bypassed during session reset:", topicErr);
+  }
+}
+
+function getSessionSummaryMeta() {
+  const sp = getSessionSpecPointMeta();
+  if (sp?.subject && sp?.paper) return sp;
+  const { subject, paper, topic } = getSelectedFilters();
+  return {
+    subject,
+    paper,
+    topic_name: topic || "All topics"
+  };
+}
+
+async function showSessionSummary() {
+  await finalizeSessionSRS();
+
+  if (questionView) questionView.classList.add("hidden");
+  if (sessionContext) sessionContext.classList.add("hidden");
+  if (sessionSummary) sessionSummary.classList.remove("hidden");
+  if (progress) progress.textContent = "Session complete";
+
+  if (summaryContent) {
+    summaryContent.innerHTML = renderSessionCompleteSummary(
+      getSessionSummaryMeta(),
+      sessionAttemptLog
+    );
+  }
+
+  if (summaryActions) {
+    summaryActions.innerHTML = "";
+
+    if (sessionMode === "spec_point") {
+      const btnMore = document.createElement("button");
+      btnMore.className = "btn-primary";
+      btnMore.textContent = "More questions for this spec point";
+      btnMore.onclick = async () => {
+        const { qType } = getSelectedFilters();
+        await startSessionForSpecPoint(sessionSpecPointId, qType || "", engineContext);
+      };
+
+      const btnNextDue = document.createElement("button");
+      btnNextDue.className = "btn-secondary";
+      btnNextDue.textContent = "Next due spec point";
+      btnNextDue.onclick = async () => {
+        let next = null;
+        try {
+          next = await pickNextDueSpecPoint({ excludeSpecPointId: sessionSpecPointId });
+        } catch (err) {
+          console.error("DEBUG summary: Failed to pick next due spec point:", err);
+          showToastBanner("Could not load next due spec point.", true);
+          await exitSessionToDashboard();
+          return;
+        }
+
+        if (next?.specPointId) {
+          const { qType } = getSelectedFilters();
+          await startSessionForSpecPoint(next.specPointId, qType || "", engineContext);
+        } else if (next?.noQuestions) {
+          showToastBanner("No questions found matching your filters for the next due spec point.", true);
+          await exitSessionToDashboard();
+        } else {
+          showToastBanner("No other due spec points for your current filters.", false);
+          await exitSessionToDashboard();
+        }
+      };
+
+      const btnReturn = document.createElement("button");
+      btnReturn.className = "btn-secondary";
+      btnReturn.textContent = "Return to dashboard";
+      btnReturn.onclick = () => exitSessionToDashboard();
+
+      summaryActions.appendChild(btnMore);
+      summaryActions.appendChild(btnNextDue);
+      summaryActions.appendChild(btnReturn);
+    } else {
+      const btnReturn = document.createElement("button");
+      btnReturn.className = "btn-primary";
+      btnReturn.textContent = "Return to dashboard";
+      btnReturn.onclick = () => exitSessionToDashboard();
+      summaryActions.appendChild(btnReturn);
+    }
+  }
 }
 
 function renderActivityStackedBar(barHeightPx, full, partial, fail) {
@@ -970,11 +1113,26 @@ async function checkAndUpdateStreak() {
 }
 
 // ====== QUESTION RENDERING + MARKING ======
+function showAdvanceButton() {
+  if (!btnNext) return;
+  const isLastQuestion = idx >= sessionQuestions.length - 1;
+  btnNext.textContent = isLastQuestion ? "See summary" : "Advance to Next Question →";
+  btnNext.classList.remove("hidden");
+}
+
 async function loadQuestion() {
+  if (questionView) questionView.classList.remove("hidden");
+  if (sessionSummary) sessionSummary.classList.add("hidden");
+
   currentQ = sessionQuestions[idx];
   if (progress) progress.textContent = `Question ${idx + 1} of ${sessionQuestions.length}`;
   if (feedback) feedback.innerHTML = "";
   if (btnNext) btnNext.classList.add("hidden");
+
+  if (sessionContext) {
+    sessionContext.innerHTML = renderSessionContext(currentQ?.spec_points);
+    sessionContext.classList.remove("hidden");
+  }
   
   hasImprovedCurrentQ = false;
 
@@ -1579,7 +1737,7 @@ if (btnSubmit) {
           @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         </style>
       `;
-      if (btnNext) btnNext.classList.remove("hidden");
+      if (btnNext) showAdvanceButton();
 
       try {
         console.log("Invoking Edge Function 'mark-long-answer' for Question ID:", currentQ.id);
@@ -1642,6 +1800,14 @@ if (btnSubmit) {
         else srsQuality = 0;
 
         sessionQualityLog.push({ specPointId: currentQ.spec_point_id, quality: srsQuality });
+        logSessionAttempt({
+          questionId: currentQ.id,
+          questionType: currentQ.question_type,
+          specPointId: currentQ.spec_point_id,
+          specPoint: currentQ.spec_points,
+          scoreTotal: data.score_total,
+          scoreMax: data.score_max
+        });
 
       } catch (err) {
         console.error("AI Marking route failed, applying local self-assessment failover:", err);
@@ -1671,6 +1837,19 @@ if (btnSubmit) {
         feedback.innerHTML = renderAQAExtendedResponseFeedback(studentTextRaw, customPayload, localKeywords, matchedKeywords);
         triggerMathTypeset();
         sessionQualityLog.push({ specPointId: currentQ.spec_point_id, quality: 3 });
+
+        const maxMarks = currentQ.max_marks || 6;
+        const matchedCount = matchedKeywords.length;
+        const totalKeywords = localKeywords.length || 1;
+        const estimatedScore = Math.round((matchedCount / totalKeywords) * maxMarks);
+        logSessionAttempt({
+          questionId: currentQ.id,
+          questionType: currentQ.question_type,
+          specPointId: currentQ.spec_point_id,
+          specPoint: currentQ.spec_points,
+          scoreTotal: estimatedScore,
+          scoreMax: maxMarks
+        });
       }
 
     } else {
@@ -1679,7 +1858,7 @@ if (btnSubmit) {
         feedback.innerHTML = renderFeedback(marking, currentQ, currentKey, currentMarkPoints);
         triggerMathTypeset();
       }
-      if (btnNext) btnNext.classList.remove("hidden");
+      if (btnNext) showAdvanceButton();
 
       try {
         const result = await supabaseClient.from("attempts").insert({
@@ -1696,6 +1875,14 @@ if (btnSubmit) {
 
         if (result.error) throw result.error;
         sessionQualityLog.push({ specPointId: currentQ.spec_point_id, quality: marking.quality });
+        logSessionAttempt({
+          questionId: currentQ.id,
+          questionType: currentQ.question_type,
+          specPointId: currentQ.spec_point_id,
+          specPoint: currentQ.spec_points,
+          scoreTotal: marking.total,
+          scoreMax: marking.max
+        });
       } catch(err) {
         console.error("Sync backup failure logged:", err);
         showToastBanner("Warning: Failed to log performance metric: " + err.message, true);
@@ -1709,18 +1896,7 @@ if (btnNext) {
   btnNext.onclick = async () => {
     idx++;
     if (idx >= sessionQuestions.length) {
-      if (sessionSection) sessionSection.classList.add("hidden");
-      if (dashSection) dashSection.classList.remove("hidden");
-
-      await finalizeSessionSRS();
-      await loadDashboard();
-      await loadWeeklyForecast();
-      
-      try {
-        await loadTopics();
-      } catch (topicErr) {
-        console.warn("Background syllabus metric reload bypassed during session reset:", topicErr);
-      }
+      await showSessionSummary();
     } else {
       await loadQuestion();
     }
