@@ -21,9 +21,12 @@ export function todayISO() {
   return local.toISOString().split('T')[0];
 }
 
-// Adds or subtracts days from an ISO date string
+// Adds or subtracts days from an ISO date string (local calendar, not UTC)
 export function addDaysISO(isoStr, days) {
   const d = new Date(isoStr + 'T00:00:00');
   d.setDate(d.getDate() + days);
-  return d.toISOString().split('T')[0];
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }

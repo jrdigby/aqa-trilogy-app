@@ -67,7 +67,7 @@ export async function fetchAttemptActivity(userId, sinceISO) {
 export async function fetchWeeklyForecastSchedules(userId) {
   const query = supabaseClient
     .from("srs_state")
-    .select("due_date")
+    .select("due_date, spec_points(spec_ref, topic_name)")
     .eq("user_id", userId);
 
   const result = await Promise.race([query, timeoutPromise(4000, "Forecast query timed out")]);
