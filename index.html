@@ -354,6 +354,7 @@
               <option value="FT">Foundation</option>
               <option value="HT">Higher</option>
             </select>
+            <span id="tierBoundaryBadge" class="tier-boundary-badge hidden" role="status"></span>
           </div>
 
           <span id="userChip" class="chip">...</span>
@@ -415,13 +416,20 @@
           <div class="practice-context-block">
             <div id="topicCountSummary">Calculating baseline questions footprint...</div>
             <div class="exam-prep-controls">
-              <select id="examPrepCount" class="custom-select exam-prep-count-select" aria-label="Number of questions">
-                <option value="10" selected>10 questions</option>
-                <option value="20">20 questions</option>
-                <option value="30">30 questions</option>
+              <select id="examPrepCount" class="custom-select exam-prep-count-select" aria-label="Exam preparation mode">
+                <optgroup label="Quick practice">
+                  <option value="10" selected>Quick — 10 questions</option>
+                  <option value="20">Quick — 20 questions</option>
+                </optgroup>
+                <optgroup id="examPrepPaperGroup" label="AQA paper simulation">
+                  <option value="35">Half paper — 35 marks</option>
+                  <option value="70">Full paper — 70 marks</option>
+                </optgroup>
               </select>
               <button id="btnExamPrep" class="btn-secondary practice-action-btn">Exam preparation</button>
             </div>
+            <pre id="examPaperPreview" class="exam-paper-preview hidden" aria-live="polite"></pre>
+            <p class="exam-prep-adaptive-hint muted">The difficulty of quick questions change depending on your progress.</p>
           </div>
         </div>
 

@@ -1,5 +1,17 @@
-import { startAnyPractice, startSessionForSpecPoint, upsertSRS as importUpsertSRS } from './sessionEngine.js';
-import { showToastBanner, renderQuestionLayout, renderFeedback, renderLiveAIFeedback, renderAQAExtendedResponseFeedback, renderMasteryHeatmap, renderSessionContext, renderSessionCompleteSummary } from './uiComponents.js';
+import { startAnyPractice, startExamPrep, startSessionForSpecPoint, previewExamPaper, upsertSRS as importUpsertSRS } from './sessionEngine.js';
+import { formatPaperPreviewSummary } from './paperBuilder.js';
+import { showToastBanner, renderQuestionLayout, renderFeedback, renderLiveAIFeedback, renderAQAExtendedResponseFeedback, renderMasteryHeatmap, renderSessionContext, renderSessionCompleteSummary, renderSelfRatingPrompt, renderAdaptiveFeedback } from './uiComponents.js';
+import {
+  DEFAULT_ADAPTIVE_STATE,
+  loadAdaptivePracticeState,
+  persistAdaptivePracticeState,
+  persistSpecPointDifficultyOffset,
+  computeGlobalOffsetUpdate,
+  computeSpecPointOffsetUpdate,
+  computeSessionScorePct,
+  fetchSpecPointDifficultyOffset,
+  normalizeAdaptiveState
+} from './adaptiveSelector.js';
 import { triggerMathTypeset } from './mathEngine.js';
 import { checkKeywordOrSynonymsMatch, updateSRS, computeSessionQuality, getAQACommandWordHelper, isFuzzyMatch } from './evalEngine.js';
 import { escapeHtml, shuffleArray, todayISO, addDaysISO } from './utils.js';
@@ -157,7 +169,9 @@ let currentKey = null;
 let currentMarkPoints = [];
 let isInitializingPipeline = false; 
 let hasImprovedCurrentQ = false;
-let cachedDueItems = []; 
+let cachedDueItems = [];
+let adaptivePracticeState = { ...DEFAULT_ADAPTIVE_STATE };
+let pendingAdaptiveSession = null;
 
 function getSelectedFilters() {
   const subject = subjectFilter?.value || "biology";
@@ -673,11 +687,95 @@ if (btnStartPractice) {
   };
 }
 
+function getExamPrepSelection() {
+  return parseInt(el("examPrepCount")?.value || "10", 10);
+}
+
+function isPaperExamMode(value) {
+  return value === 35 || value === 70;
+}
+
+function isPaperModeAllowed() {
+  const { topic, qType } = getSelectedFilters();
+  return !topic && !qType;
+}
+
+let examPrepPaperGroupTemplate = null;
+
+function syncExamPrepModeOptions() {
+  const select = el("examPrepCount");
+  if (!select) return;
+
+  const allowed = isPaperModeAllowed();
+  let paperGroup = el("examPrepPaperGroup");
+
+  if (!examPrepPaperGroupTemplate && paperGroup) {
+    examPrepPaperGroupTemplate = paperGroup.cloneNode(true);
+  }
+
+  if (!allowed) {
+    if (isPaperExamMode(getExamPrepSelection())) {
+      select.value = "10";
+    }
+    if (paperGroup) paperGroup.remove();
+  } else if (!paperGroup && examPrepPaperGroupTemplate) {
+    select.appendChild(examPrepPaperGroupTemplate.cloneNode(true));
+  }
+
+  refreshExamPaperPreview();
+}
+
+async function refreshExamPaperPreview() {
+  const previewEl = el("examPaperPreview");
+  if (!previewEl) return;
+
+  const selection = getExamPrepSelection();
+  if (!isPaperExamMode(selection) || !isPaperModeAllowed()) {
+    previewEl.classList.add("hidden");
+    previewEl.textContent = "";
+    return;
+  }
+
+  if (!currentUser) {
+    previewEl.classList.remove("hidden");
+    previewEl.textContent = "Sign in to preview paper balance.";
+    return;
+  }
+
+  previewEl.classList.remove("hidden");
+  previewEl.textContent = "Calculating AQA paper balance…";
+
+  const paper = await previewExamPaper(engineContext, selection);
+  if (!paper) {
+    previewEl.textContent = "Could not preview paper for current filters.";
+    return;
+  }
+
+  previewEl.textContent = formatPaperPreviewSummary(paper);
+}
+
 if (btnExamPrep) {
   btnExamPrep.onclick = async () => {
-    const count = parseInt(el("examPrepCount")?.value || "10", 10);
-    await startAnyPractice(engineContext, count);
+    const selection = getExamPrepSelection();
+    if (isPaperExamMode(selection)) {
+      if (!isPaperModeAllowed()) {
+        showToastBanner("Half and full paper modes need All topics and All question types selected.", true);
+        syncExamPrepModeOptions();
+        return;
+      }
+      await startExamPrep(engineContext, { targetMarks: selection });
+    } else {
+      await startAnyPractice(engineContext, selection);
+    }
   };
+}
+
+const examPrepCountEl = el("examPrepCount");
+if (examPrepCountEl) {
+  examPrepCountEl.addEventListener("change", () => refreshExamPaperPreview());
+  if (el("examPrepPaperGroup")) {
+    examPrepPaperGroupTemplate = el("examPrepPaperGroup").cloneNode(true);
+  }
 }
 // Add this small adapter wrapper context bundle inside app.js:
 const engineContext = {
@@ -702,7 +800,8 @@ const engineContext = {
   getDomSections: () => ({
     dashSection: document.getElementById('dashboard'), // replace with actual selector logic if different
     sessionSection: document.getElementById('session')
-  })
+  }),
+  getAdaptivePracticeState: () => adaptivePracticeState
 };
 
 // Reroute old global hooks smoothly to your isolated module execution patterns:
@@ -861,6 +960,7 @@ async function exitSessionToDashboard() {
   if (questionView) questionView.classList.remove("hidden");
   if (dashSection) dashSection.classList.remove("hidden");
 
+  pendingAdaptiveSession = null;
   sessionMode = null;
   sessionSpecPointId = null;
   sessionQuestions = [];
@@ -889,19 +989,132 @@ function getSessionSummaryMeta() {
   };
 }
 
+function captureSessionQualitiesBySpec() {
+  const bySpec = new Map();
+  for (const { specPointId, quality } of sessionQualityLog) {
+    if (!bySpec.has(specPointId)) bySpec.set(specPointId, []);
+    bySpec.get(specPointId).push(quality);
+  }
+  const result = new Map();
+  for (const [specPointId, qualities] of bySpec) {
+    result.set(specPointId, computeSessionQuality(qualities));
+  }
+  return result;
+}
+
+function buildPendingAdaptiveSession(qualitiesBySpec) {
+  const { tier } = getSelectedFilters();
+  const scorePct = computeSessionScorePct(sessionAttemptLog);
+  return {
+    mode: sessionMode,
+    tier,
+    scorePct,
+    specPointId: sessionSpecPointId,
+    srsQuality: sessionSpecPointId ? qualitiesBySpec.get(sessionSpecPointId) ?? 0 : null,
+    specOffsetPromise:
+      sessionMode === "spec_point" && sessionSpecPointId && currentUser
+        ? fetchSpecPointDifficultyOffset(supabaseClient, currentUser.id, sessionSpecPointId)
+        : Promise.resolve(0)
+  };
+}
+
+async function applyAdaptiveSessionUpdate(selfRating) {
+  if (!pendingAdaptiveSession || !currentUser) return null;
+
+  const pending = pendingAdaptiveSession;
+  pendingAdaptiveSession = null;
+
+  const { tier, scorePct, mode, specPointId, srsQuality } = pending;
+  let feedback = { offsetChanged: false, offsetDirection: null, tierNudge: null, mode };
+
+  if (mode === "any_practice") {
+    const result = computeGlobalOffsetUpdate(adaptivePracticeState, { scorePct, selfRating, tier });
+    adaptivePracticeState = result.nextState;
+    feedback = { ...feedback, ...result };
+    const saved = await persistAdaptivePracticeState(supabaseClient, currentUser.id, adaptivePracticeState);
+    if (saved) adaptivePracticeState = saved;
+    try {
+      localStorage.setItem("adaptive_practice_state", JSON.stringify(adaptivePracticeState));
+    } catch (_) { /* ignore */ }
+    updateTierBoundaryBadge();
+  } else if (mode === "spec_point" && specPointId) {
+    const currentOffset = await pending.specOffsetPromise;
+    const result = computeSpecPointOffsetUpdate(currentOffset, {
+      srsQuality: srsQuality ?? 0,
+      scorePct,
+      selfRating
+    });
+    feedback = { ...feedback, offsetChanged: result.offsetChanged, offsetDirection: result.offsetDirection };
+    await persistSpecPointDifficultyOffset(supabaseClient, currentUser.id, specPointId, result.nextOffset);
+  }
+
+  return feedback;
+}
+
+function wireSelfRatingHandlers(onComplete) {
+  const ratingRoot = document.getElementById("sessionAdaptiveRating");
+  if (!ratingRoot) {
+    onComplete(null);
+    return;
+  }
+
+  let completed = false;
+  const finish = async (rating) => {
+    if (completed) return;
+    completed = true;
+    ratingRoot.querySelectorAll(".session-rating-btn").forEach((btn) => {
+      btn.disabled = true;
+      const selected = btn.dataset.rating === rating;
+      btn.classList.toggle("session-rating-btn--selected", selected);
+      btn.setAttribute("aria-pressed", selected ? "true" : "false");
+    });
+    const feedback = await applyAdaptiveSessionUpdate(rating);
+    const feedbackEl = document.getElementById("sessionAdaptiveFeedback");
+    if (feedbackEl && feedback) {
+      feedbackEl.innerHTML = renderAdaptiveFeedback(feedback);
+    }
+    onComplete(rating);
+  };
+
+  ratingRoot.querySelectorAll(".session-rating-btn").forEach((btn) => {
+    btn.onclick = () => finish(btn.dataset.rating);
+  });
+}
+
+function wrapSummaryExit(handler) {
+  return async () => {
+    if (pendingAdaptiveSession) {
+      const feedback = await applyAdaptiveSessionUpdate(null);
+      const feedbackEl = document.getElementById("sessionAdaptiveFeedback");
+      if (feedbackEl && feedback) {
+        feedbackEl.innerHTML = renderAdaptiveFeedback(feedback);
+      }
+    }
+    await handler();
+  };
+}
+
 async function showSessionSummary() {
+  const qualitiesBySpec = captureSessionQualitiesBySpec();
   await finalizeSessionSRS();
+
+  pendingAdaptiveSession = buildPendingAdaptiveSession(qualitiesBySpec);
 
   if (questionView) questionView.classList.add("hidden");
   if (sessionContext) sessionContext.classList.add("hidden");
   if (sessionSummary) sessionSummary.classList.remove("hidden");
   if (progress) progress.textContent = "Session complete";
 
+  const isPracticeMode = sessionMode === "any_practice" || sessionMode === "spec_point";
+
   if (summaryContent) {
-    summaryContent.innerHTML = renderSessionCompleteSummary(
-      getSessionSummaryMeta(),
-      sessionAttemptLog
-    );
+    summaryContent.innerHTML =
+      renderSessionCompleteSummary(getSessionSummaryMeta(), sessionAttemptLog) +
+      (isPracticeMode ? `<div id="sessionAdaptiveFeedback"></div>${renderSelfRatingPrompt()}` : "");
+  }
+
+  if (isPracticeMode) {
+    wireSelfRatingHandlers(() => {});
   }
 
   if (summaryActions) {
@@ -911,14 +1124,14 @@ async function showSessionSummary() {
       const btnMore = document.createElement("button");
       btnMore.className = "btn-primary";
       btnMore.textContent = "More questions for this spec point";
-      btnMore.onclick = async () => {
+      btnMore.onclick = wrapSummaryExit(async () => {
         await startSessionForSpecPoint(sessionSpecPointId, "", engineContext);
-      };
+      });
 
       const btnNextDue = document.createElement("button");
       btnNextDue.className = "btn-secondary practice-action-btn";
       btnNextDue.textContent = "Next due spec point";
-      btnNextDue.onclick = async () => {
+      btnNextDue.onclick = wrapSummaryExit(async () => {
         let next = null;
         try {
           next = await pickNextScheduledSpecPoint({ excludeSpecPointId: sessionSpecPointId });
@@ -938,12 +1151,12 @@ async function showSessionSummary() {
           showToastBanner("No other due spec points in your schedule.", false);
           await exitSessionToDashboard();
         }
-      };
+      });
 
       const btnReturn = document.createElement("button");
       btnReturn.className = "btn-secondary";
       btnReturn.textContent = "Return to dashboard";
-      btnReturn.onclick = () => exitSessionToDashboard();
+      btnReturn.onclick = wrapSummaryExit(() => exitSessionToDashboard());
 
       summaryActions.appendChild(btnMore);
       summaryActions.appendChild(btnNextDue);
@@ -952,7 +1165,7 @@ async function showSessionSummary() {
       const btnReturn = document.createElement("button");
       btnReturn.className = "btn-primary";
       btnReturn.textContent = "Return to dashboard";
-      btnReturn.onclick = () => exitSessionToDashboard();
+      btnReturn.onclick = wrapSummaryExit(() => exitSessionToDashboard());
       summaryActions.appendChild(btnReturn);
     }
   }
@@ -1353,9 +1566,39 @@ function setSignedOutUI() {
   }
 }
 
+function updateTierBoundaryBadge() {
+  const badge = el("tierBoundaryBadge");
+  if (!badge) return;
+  const { tier } = getSelectedFilters();
+  const streak = adaptivePracticeState.boundary_streak || {};
+  let text = "";
+  if (tier === "FT" && streak.at_ft_ceiling >= 2) {
+    text = "Scoring highly on Foundation — Higher Tier may suit you";
+  } else if (tier === "HT" && streak.at_ht_floor >= 2) {
+    text = "Finding Higher Tier tough — Foundation Tier may help";
+  }
+  if (text) {
+    badge.textContent = text;
+    badge.classList.remove("hidden");
+  } else {
+    badge.textContent = "";
+    badge.classList.add("hidden");
+  }
+}
+
 async function syncUserTierAndLoadTopics(user) {
   console.log("DEBUG: Launching background syllabus loading thread...");
   await loadTopics();
+
+  try {
+    adaptivePracticeState = await loadAdaptivePracticeState(supabaseClient, user.id);
+    try {
+      localStorage.setItem("adaptive_practice_state", JSON.stringify(adaptivePracticeState));
+    } catch (_) { /* ignore */ }
+    updateTierBoundaryBadge();
+  } catch (err) {
+    console.warn("Adaptive practice state load skipped:", err);
+  }
 
   try {
     const dbQuery = supabaseClient
@@ -1400,6 +1643,14 @@ function showSignedInLayout() {
     runtimeTierSelect.value = cachedTier;
     console.log("DEBUG: Rendered tier dropdown instantly via cache:", cachedTier);
   }
+
+  try {
+    const cachedAdaptive = localStorage.getItem("adaptive_practice_state");
+    if (cachedAdaptive) {
+      adaptivePracticeState = normalizeAdaptiveState(JSON.parse(cachedAdaptive));
+    }
+  } catch (_) { /* ignore */ }
+  updateTierBoundaryBadge();
 
   const savedTab = localStorage.getItem(DASHBOARD_TAB_KEY);
   switchDashboardTab(DASHBOARD_TABS.includes(savedTab) ? savedTab : "practice");
@@ -1685,6 +1936,8 @@ async function loadTopics() {
       aoMasteryWrapper.innerHTML = `<div class="muted" style="text-align: center; padding: 10px;">AO mastery tracker offline (waiting for database interactions).</div>`;
     }
   }
+
+  syncExamPrepModeOptions();
 }
 
 console.log("DEBUG: Initializing top-level event listeners...");
@@ -1694,6 +1947,7 @@ if (subjectFilter) {
     console.log("DEBUG EVENT: Subject changed ->", subjectFilter.value);
     if (!currentUser) return;
     if (topicFilter) topicFilter.value = "";
+    syncExamPrepModeOptions();
     loadTopics();
     loadRevisionCards();
   });
@@ -1704,6 +1958,7 @@ if (paperFilter) {
     console.log("DEBUG EVENT: Paper changed ->", paperFilter.value);
     if (!currentUser) return;
     if (topicFilter) topicFilter.value = "";
+    syncExamPrepModeOptions();
     loadTopics();
     loadRevisionCards();
   });
@@ -1712,6 +1967,7 @@ if (paperFilter) {
 if (topicFilter) {
   topicFilter.addEventListener("change", () => {
     console.log("DEBUG EVENT: Topic changed ->", topicFilter.value);
+    syncExamPrepModeOptions();
     if (!currentUser) return;
     loadTopics();
     loadRevisionCards();
@@ -1733,6 +1989,7 @@ if (liveTypeFilter) {
 
   liveTypeFilter.addEventListener("change", () => {
     console.log("DEBUG EVENT: Type Filter changed ->", liveTypeFilter.value);
+    syncExamPrepModeOptions();
     if (!currentUser) return;
     loadTopics();
   });
@@ -1785,6 +2042,8 @@ supabaseClient.auth.onAuthStateChange(async (event, session) => {
           console.error("DEBUG DB ERROR: Could not commit preferred_tier:", saveErr);
         }
 
+        updateTierBoundaryBadge();
+        syncExamPrepModeOptions();
         await loadTopics();
       };
     }
