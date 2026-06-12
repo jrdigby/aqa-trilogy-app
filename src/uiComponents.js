@@ -806,3 +806,64 @@ export function renderSpecPointSessionSummary(meta, attemptLog) {
 export function renderAnyPracticeSessionSummary(meta, attemptLog) {
   return renderSessionCompleteSummary(meta, attemptLog);
 }
+
+export function renderSelfRatingPrompt() {
+  return `
+    <div class="session-adaptive-rating" id="sessionAdaptiveRating">
+      <p class="session-adaptive-rating-title">How did you find those questions?</p>
+      <p class="session-adaptive-rating-sub muted">Optional — helps us pick better questions next time</p>
+      <div class="session-adaptive-rating-buttons" role="group" aria-label="Difficulty self-rating">
+        <button type="button" class="session-rating-btn session-rating-btn--easy" data-rating="easy">
+          <span class="session-rating-emoji" aria-hidden="true">😊</span>
+          <span class="session-rating-label">Too easy</span>
+        </button>
+        <button type="button" class="session-rating-btn session-rating-btn--right" data-rating="right">
+          <span class="session-rating-emoji" aria-hidden="true">😐</span>
+          <span class="session-rating-label">About right</span>
+        </button>
+        <button type="button" class="session-rating-btn session-rating-btn--hard" data-rating="hard">
+          <span class="session-rating-emoji" aria-hidden="true">☹️</span>
+          <span class="session-rating-label">Too hard</span>
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+export function renderAdaptiveFeedback({ offsetChanged, offsetDirection, tierNudge, mode }) {
+  const parts = [];
+
+  if (offsetChanged && offsetDirection) {
+    const easier = offsetDirection === "easier";
+    const msg =
+      mode === "spec_point"
+        ? easier
+          ? "Next time this topic is due, questions may be a bit easier."
+          : "Next time this topic is due, questions may be a bit harder."
+        : easier
+          ? "Next time we'll try slightly easier questions."
+          : "Next time we'll try slightly harder questions.";
+    parts.push(`<p class="session-adaptive-hint">${escapeHtml(msg)}</p>`);
+  }
+
+  if (tierNudge === "consider_ht") {
+    parts.push(`
+      <div class="session-adaptive-nudge session-adaptive-nudge--tier">
+        <strong>Ready for a bigger challenge?</strong>
+        You're consistently scoring highly on the hardest Foundation-level questions.
+        Consider trying <strong>Higher Tier</strong> in the tier filter.
+      </div>
+    `);
+  } else if (tierNudge === "consider_ft") {
+    parts.push(`
+      <div class="session-adaptive-nudge session-adaptive-nudge--tier">
+        <strong>Finding it tough?</strong>
+        You're finding Higher Tier questions difficult.
+        Consider switching to <strong>Foundation Tier</strong>, or review the topics above before trying again.
+      </div>
+    `);
+  }
+
+  if (!parts.length) return "";
+  return `<div class="session-adaptive-feedback">${parts.join("")}</div>`;
+}

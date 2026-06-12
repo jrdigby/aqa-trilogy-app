@@ -1,0 +1,1 @@
+Whenever you generate a plan, roadmap, documentation, or task list, always save the markdown (.md) file directly in the current project root directory. Do not save plans inside the hidden .cursor/plans folder.

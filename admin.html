@@ -61,6 +61,186 @@
       font-weight: 700;
     }
 
+    .difficulty-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 2rem;
+      padding: 6px 12px;
+      font-weight: 700;
+      font-size: 1rem;
+      background: #ecfdf5;
+      border: 1px solid #a7f3d0;
+      border-radius: 8px;
+      color: #047857;
+    }
+
+    /* Must beat .row (defined later) so compact rows don't stretch with 1fr columns */
+    .row.row-compact {
+      grid-template-columns: repeat(auto-fit, minmax(min-content, max-content));
+      justify-content: start;
+      gap: 12px 20px;
+      align-items: end;
+    }
+
+    .row.row-filters {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      gap: 6px 12px;
+      margin-top: 16px;
+      margin-bottom: 8px;
+    }
+
+    .row.row-filters .field-fit label {
+      margin-bottom: 2px;
+    }
+
+    .field-fit {
+      width: fit-content;
+      max-width: 100%;
+    }
+
+    select.select-fit {
+      width: auto;
+      max-width: 100%;
+      min-width: 5rem;
+    }
+
+    .input-compact {
+      width: 3.5rem !important;
+      padding: 6px 8px;
+      text-align: center;
+    }
+
+    .admin-select-measurer {
+      position: absolute;
+      visibility: hidden;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+
+    .inline-field {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-compact {
+      padding: 6px 12px;
+      font-size: 0.8rem;
+    }
+
+    .metadata-panel {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px dashed var(--border);
+    }
+
+    .metadata-panel h4 {
+      margin: 0 0 12px;
+      font-size: 0.95rem;
+      color: var(--primary-dark);
+    }
+
+    .ao-inputs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+
+    .ao-mini {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      margin: 0;
+    }
+
+    .ao-validation {
+      display: block;
+      font-size: 0.78rem;
+      font-weight: 600;
+      margin: 4px 0 8px;
+    }
+
+    .ao-validation--ok { color: #047857; }
+    .ao-validation--warn { color: #b45309; }
+
+    .flag-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-top: 8px;
+    }
+
+    .flag-row label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin: 0;
+      font-weight: 500;
+      cursor: pointer;
+    }
+
+    .metadata-warnings {
+      margin-top: 10px;
+      padding: 10px 12px;
+      background: #fffbeb;
+      border: 1px solid #fde68a;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      color: #92400e;
+    }
+
+    .guidelines-panel {
+      margin-top: 16px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0 12px 12px;
+      background: #fafbfc;
+    }
+
+    .guidelines-panel summary {
+      cursor: pointer;
+      font-weight: 700;
+      padding: 12px 0;
+      color: #334155;
+    }
+
+    .guidelines-body {
+      font-size: 0.82rem;
+      line-height: 1.5;
+      color: #475569;
+    }
+
+    .guidelines-body table.guidelines-table {
+      width: 100%;
+      font-size: 0.76rem;
+      margin: 8px 0;
+    }
+
+    .meta-badge {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      background: #fef3c7;
+      color: #92400e;
+      border: 1px solid #fcd34d;
+    }
+
+    .meta-badge--ok {
+      background: #d1fae5;
+      color: #065f46;
+      border-color: #a7f3d0;
+    }
+
     .container {
       max-width: 1200px;
       margin: 32px auto;
@@ -289,25 +469,25 @@
         <div class="card">
           <h3 style="margin-top:0; color:var(--primary-dark); font-size:1.1rem; border-bottom:1px solid var(--border); padding-bottom:8px;">Section 1: Question Core &amp; Curriculum Mapping</h3>
           
-          <div class="row" style="margin-top: 16px;">
-            <div>
+          <div class="row row-filters">
+            <div class="field-fit">
               <label>Syllabus Subject Area:</label>
-              <select id="subjectSelect">
+              <select id="subjectSelect" class="select-fit">
                 <option value="physics">Physics</option>
                 <option value="chemistry">Chemistry</option>
                 <option value="biology">Biology</option>
               </select>
             </div>
-            <div>
+            <div class="field-fit">
               <label>Paper Allocation:</label>
-              <select id="paperSelect">
+              <select id="paperSelect" class="select-fit">
                 <option value="paper1">Paper 1</option>
                 <option value="paper2">Paper 2</option>
               </select>
             </div>
-            <div>
+            <div class="field-fit">
               <label>Cognitive Tier Target:</label>
-              <select id="tierSelect">
+              <select id="tierSelect" class="select-fit">
                 <option value="both">Both (Standard Common Core)</option>
                 <option value="higher">Higher (Trilogy Level 5-9)</option>
                 <option value="foundation">Foundation (Trilogy Level 1-5)</option>
@@ -315,16 +495,16 @@
             </div>
           </div>
 
-          <div class="row">
-            <div style="grid-column: span 2;">
+          <div class="row row-compact">
+            <div class="field-fit" style="min-width: min(100%, 420px); flex: 1 1 320px;">
               <label>Target Specification Reference Point (Syllabus Link):</label>
-              <select id="specPointSelect">
+              <select id="specPointSelect" style="width: 100%; max-width: 100%;">
                 <option>Select subject and paper targets to sync points...</option>
               </select>
             </div>
-            <div>
+            <div class="field-fit">
               <label>AQA Question Type:</label>
-              <select id="qType">
+              <select id="qType" class="select-fit">
                 <option value="short_text">Short Answer (Written)</option>
                 <option value="numeric">Numeric (Calculation)</option>
                 <option value="mcq">Multiple Choice Question (MCQ)</option>
@@ -333,10 +513,10 @@
             </div>
           </div>
 
-          <div id="maxMarksRow" class="row">
-            <div>
+          <div id="maxMarksRow" class="row row-compact">
+            <div class="field-fit">
               <label>Awardable Assessment Weight (Max Marks):</label>
-              <select id="maxMarks">
+              <select id="maxMarks" class="select-fit">
                 <option value="1">1 mark</option>
                 <option value="2" selected>2 marks</option>
                 <option value="3">3 marks</option>
@@ -344,6 +524,10 @@
                 <option value="5">5 marks</option>
                 <option value="6">6 marks</option>
               </select>
+            </div>
+            <div class="field-fit">
+              <label>Computed difficulty (1–5):</label>
+              <div id="difficultyBadge" class="difficulty-badge" aria-live="polite">—</div>
             </div>
           </div>
 
@@ -362,6 +546,45 @@
               <input type="text" id="qVideo" placeholder="https://www.youtube.com/embed/WalkthroughID" />
             </div>
           </div>
+
+          <div class="metadata-panel">
+            <h4>Exam metadata (AO, demand &amp; paper assembly)</h4>
+            <div class="row row-compact">
+              <div class="field-fit">
+                <label for="commandWordSelect">Command word</label>
+                <div class="inline-field">
+                  <select id="commandWordSelect" class="select-fit"></select>
+                  <button type="button" class="btn btn-secondary btn-compact" id="btnDetectCommandWord">Detect from prompt</button>
+                </div>
+              </div>
+              <div class="field-fit">
+                <label for="demandLevelSelect">Demand level</label>
+                <select id="demandLevelSelect" class="select-fit"></select>
+              </div>
+            </div>
+            <div class="row row-compact">
+              <div class="field-fit">
+                <label>AO mark allocation</label>
+                <div class="ao-inputs">
+                  <span class="ao-mini">AO1 <input type="number" id="ao1Marks" class="input-compact" min="0" max="20" /></span>
+                  <span class="ao-mini">AO2 <input type="number" id="ao2Marks" class="input-compact" min="0" max="20" /></span>
+                  <span class="ao-mini">AO3 <input type="number" id="ao3Marks" class="input-compact" min="0" max="20" /></span>
+                </div>
+                <span id="aoMarksValidation" class="ao-validation ao-validation--warn">Set AO marks to match max marks</span>
+                <button type="button" class="btn btn-secondary btn-compact" id="btnAutoAoFromMarkPoints">Auto from mark points</button>
+              </div>
+            </div>
+            <div class="flag-row">
+              <label><input type="checkbox" id="chkMathsSkill" /> Maths skill question</label>
+              <label><input type="checkbox" id="chkRequiredPractical" /> Required practical</label>
+            </div>
+            <div id="metadataWarnings" class="metadata-warnings hidden"></div>
+          </div>
+
+          <details class="guidelines-panel">
+            <summary>AQA Authoring Guidelines</summary>
+            <div id="authoringGuidelinesBody" class="guidelines-body"></div>
+          </details>
         </div>
 
         <!-- SECTION 2: EXPECTED ANSWER CONFIG -->
@@ -392,7 +615,7 @@
             </div>
             <div style="margin-top: 12px; max-width: 400px;">
               <label>Mark Correct Target Selection Option:</label>
-              <select id="mcqCorrect">
+              <select id="mcqCorrect" class="select-fit">
                 <option value="">-- Choose Correct Option --</option>
               </select>
             </div>
@@ -531,25 +754,25 @@
             Upload mass question lists from spreadsheet exports. If the CSV row elements do not specify subject, paper, or tier references, they will inherit the fallback options configured below.
           </p>
 
-          <div class="row" style="margin-top: 16px;">
-            <div>
+          <div class="row row-compact" style="margin-top: 16px;">
+            <div class="field-fit">
               <label>CSV Inherited Subject:</label>
-              <select id="csvSubject">
+              <select id="csvSubject" class="select-fit">
                 <option value="physics">Physics Trilogy</option>
                 <option value="chemistry">Chemistry Trilogy</option>
                 <option value="biology">Biology Trilogy</option>
               </select>
             </div>
-            <div>
+            <div class="field-fit">
               <label>CSV Inherited Paper:</label>
-              <select id="csvPaper">
+              <select id="csvPaper" class="select-fit">
                 <option value="paper1">Trilogy Paper 1</option>
                 <option value="paper2">Trilogy Paper 2</option>
               </select>
             </div>
-            <div>
+            <div class="field-fit">
               <label>CSV Inherited Tier:</label>
-              <select id="csvTier">
+              <select id="csvTier" class="select-fit">
                 <option value="both">Both (Common Core)</option>
                 <option value="higher">Higher (Tier 5-9)</option>
                 <option value="foundation">Foundation (Tier 1-5)</option>
@@ -609,25 +832,38 @@
               <label>Search Text Stems:</label>
               <input type="text" id="auditSearchQuery" placeholder="Search prompt terms..." />
             </div>
+            <div>
+              <label>Metadata filter:</label>
+              <select id="auditMetadataFilter" class="select-fit">
+                <option value="">All</option>
+                <option value="incomplete">Incomplete metadata only</option>
+                <option value="complete">Complete metadata only</option>
+              </select>
+            </div>
           </div>
 
           <button class="btn btn-primary" id="btnQueryQuestions" style="margin-top: 10px;">Query Active Database</button>
         </div>
 
         <div class="card" style="padding:0; overflow-x:auto;">
-          <table style="margin: 0; min-width: 800px;">
+          <table style="margin: 0; min-width: 1100px;">
             <thead>
               <tr>
-                <th style="width: 100px;">Syllabus Ref</th>
-                <th style="width: 120px;">Type</th>
-                <th>Prompt Text Stem</th>
-                <th style="width: 100px;">Max Marks</th>
-                <th style="width: 220px; text-align:right;">Operations</th>
+                <th style="width: 90px;">Ref</th>
+                <th style="width: 90px;">Type</th>
+                <th>Prompt</th>
+                <th style="width: 56px;">Marks</th>
+                <th style="width: 72px;">Cmd</th>
+                <th style="width: 80px;">Demand</th>
+                <th style="width: 64px;">AO</th>
+                <th style="width: 56px;">M/RP</th>
+                <th style="width: 72px;">Meta</th>
+                <th style="width: 200px; text-align:right;">Operations</th>
               </tr>
             </thead>
             <tbody id="questionsAuditList">
               <tr>
-                <td colspan="5" style="padding:24px; text-align:center; color:var(--text-muted);">Set filters and query active tables.</td>
+                <td colspan="10" style="padding:24px; text-align:center; color:var(--text-muted);">Set filters and query active tables.</td>
               </tr>
             </tbody>
           </table>
@@ -683,22 +919,46 @@
           <textarea id="editPrompt" rows="3" style="font-family:inherit;"></textarea>
         </div>
 
-        <div class="row">
-          <div>
+        <div class="row row-compact">
+          <div class="field-fit">
             <label>Syllabus Cognitive Tier:</label>
-            <select id="editTier">
+            <select id="editTier" class="select-fit">
               <option value="both">Both (Common)</option>
               <option value="higher">Higher Tier</option>
               <option value="foundation">Foundation Tier</option>
             </select>
           </div>
-          <div>
+          <div class="field-fit">
             <label>Awardable Max Marks:</label>
-            <select id="editMaxMarks"></select>
+            <select id="editMaxMarks" class="select-fit"></select>
           </div>
-          <div>
+          <div class="field-fit" style="min-width: 200px;">
             <label>Revision Walkthrough Video:</label>
             <input type="text" id="editResource" />
+          </div>
+        </div>
+
+        <div class="metadata-panel" style="margin-bottom: 16px;">
+          <h4 style="margin: 0 0 10px; font-size: 0.9rem;">Exam metadata</h4>
+          <div class="row row-compact">
+            <div class="field-fit">
+              <label for="editCommandWordSelect">Command word</label>
+              <select id="editCommandWordSelect" class="select-fit"></select>
+            </div>
+            <div class="field-fit">
+              <label for="editDemandLevelSelect">Demand level</label>
+              <select id="editDemandLevelSelect" class="select-fit"></select>
+            </div>
+          </div>
+          <div class="ao-inputs">
+            <span class="ao-mini">AO1 <input type="number" id="editAo1Marks" class="input-compact" min="0" /></span>
+            <span class="ao-mini">AO2 <input type="number" id="editAo2Marks" class="input-compact" min="0" /></span>
+            <span class="ao-mini">AO3 <input type="number" id="editAo3Marks" class="input-compact" min="0" /></span>
+          </div>
+          <span id="editAoMarksValidation" class="ao-validation"></span>
+          <div class="flag-row">
+            <label><input type="checkbox" id="editChkMathsSkill" /> Maths skill</label>
+            <label><input type="checkbox" id="editChkRequiredPractical" /> Required practical</label>
           </div>
         </div>
 
@@ -1083,6 +1343,11 @@
       maxMarks.value = "6";
       maxMarksRow.classList.remove("hidden");
     }
+
+    if (window.AdminMetadata) {
+      setTimeout(() => window.AdminMetadata.syncCreatorMetadataFromForm(), 0);
+      window.AdminMetadata.autoSizeAdminSelects(document.getElementById("panelCreator"));
+    }
   };
 
   // Numerical progressive scaffolding helpers
@@ -1128,7 +1393,7 @@
     row.style = "grid-template-columns: 100px 1fr 1fr 40px; align-items: flex-start; gap:10px; margin-bottom: 8px;";
     
     row.innerHTML = `
-      <select class="mp-ao" style="height: 38px;">
+      <select class="mp-ao select-fit" style="height: 38px;">
         <option value="AO1" ${selectedAo === "AO1" ? "selected" : ""}>AO1</option>
         <option value="AO2" ${selectedAo === "AO2" ? "selected" : ""}>AO2</option>
         <option value="AO3" ${selectedAo === "AO3" ? "selected" : ""}>AO3</option>
@@ -1138,6 +1403,7 @@
       <button onclick="removeMarkPointRow(${markPointsCounter})" style="background:var(--error); color:white; border:none; border-radius:6px; cursor:pointer; height:38px; font-weight:bold; width: 100%;">&times;</button>
     `;
     wrap.appendChild(row);
+    if (window.AdminMetadata) window.AdminMetadata.autoSizeAdminSelects(wrap);
   };
   
   document.getElementById("btnAddMarkPoint").onclick = () => window.addMarkPointRow();
@@ -1201,6 +1467,21 @@
       showAdminToast("Validation Alert: Please set prompt details and select specification target point.", true);
       return;
     }
+
+    if (window.AdminMetadata) {
+      const metaCheck = window.AdminMetadata.validateCreatorMetadata({ block: true });
+      if (!metaCheck.ok) {
+        showAdminToast(metaCheck.error, true);
+        return;
+      }
+      if (metaCheck.warnings?.length) {
+        const warnEl = document.getElementById("metadataWarnings");
+        if (warnEl) {
+          warnEl.classList.remove("hidden");
+          warnEl.innerHTML = metaCheck.warnings.map((w) => `⚠ ${w}`).join("<br/>");
+        }
+      }
+    }
     
     try {
       showAdminToast("Uploading attachments and parsing payloads...");
@@ -1237,6 +1518,13 @@
         calculatedMarkingMethod = "ai_rubric";
       }
 
+      const questionDraft = {
+        question_type: questionType,
+        prompt,
+        tier,
+        max_marks: calculatedMaxMarks
+      };
+
       // Create Parent Question Record
       const insertPayload = {
         spec_point_id: specPointId,
@@ -1254,6 +1542,13 @@
         resource_links: youtubeUrl,
         image_url: finalImageUrl
       };
+
+      if (window.AdminMetadata) {
+        const meta = window.AdminMetadata.validateCreatorMetadata().meta;
+        window.AdminMetadata.applyMetadataToInsertPayload(insertPayload, meta, questionDraft);
+      } else {
+        insertPayload.difficulty = 2;
+      }
       
       // Inject Mathematical scaffold subconfigurations
       if (questionType === "numeric") {
@@ -1386,6 +1681,13 @@
     
     document.getElementById("markPointsWrapper").innerHTML = "";
     markPointsCounter = 0;
+
+    const warnEl = document.getElementById("metadataWarnings");
+    if (warnEl) {
+      warnEl.classList.add("hidden");
+      warnEl.innerHTML = "";
+    }
+    if (window.AdminMetadata) window.AdminMetadata.resetCreatorMetadataFields();
   }
   document.getElementById("btnReset").onclick = clearQuestionCreatorForm;
 
@@ -1481,14 +1783,34 @@
         
         try {
           // Process Question Record
+          const csvMaxMarks = parseInt(parts[11], 10) || 1;
           const insertPayload = {
             spec_point_id: matchedRef.id,
             question_type: csvType,
             prompt: csvPrompt,
             tier: csvTier,
-            max_marks: parseInt(parts[11]) || 1,
+            max_marks: csvMaxMarks,
             marking_method: csvType === "mcq" ? "keyword" : (csvType === "numeric" ? "numeric" : (csvType === "extended_response" ? "ai_rubric" : "keyword"))
           };
+
+          if (parts[12]) insertPayload.command_word = parts[12];
+          if (parts[13]) insertPayload.demand_level = parts[13];
+          if (parts[14]) insertPayload.ao1_marks = parseInt(parts[14], 10) || 0;
+          if (parts[15]) insertPayload.ao2_marks = parseInt(parts[15], 10) || 0;
+          if (parts[16]) insertPayload.ao3_marks = parseInt(parts[16], 10) || 0;
+          if (parts[17]) insertPayload.is_maths_skill = /^true|1|yes$/i.test(parts[17]);
+          if (parts[18]) insertPayload.is_required_practical = /^true|1|yes$/i.test(parts[18]);
+          if (window.AdminMetadata) {
+            window.AdminMetadata.applyMetadataToInsertPayload(insertPayload, {
+              command_word: insertPayload.command_word,
+              demand_level: insertPayload.demand_level,
+              ao1_marks: insertPayload.ao1_marks ?? 0,
+              ao2_marks: insertPayload.ao2_marks ?? 0,
+              ao3_marks: insertPayload.ao3_marks ?? 0,
+              is_maths_skill: insertPayload.is_maths_skill || false,
+              is_required_practical: insertPayload.is_required_practical || false
+            }, insertPayload);
+          }
           
           if (csvType === "mcq") {
             insertPayload.options = [parts[6], parts[7], parts[8], parts[9]];
@@ -1550,13 +1872,16 @@
   const btnQueryQuestions = document.getElementById("btnQueryQuestions");
   const auditList = document.getElementById("questionsAuditList");
   
+  const AUDIT_COLSPAN = 10;
+
   btnQueryQuestions.onclick = async () => {
     const sub = document.getElementById("auditSubject").value;
     const paper = document.getElementById("auditPaper").value;
     const qTypeFilter = document.getElementById("auditType").value;
     const search = document.getElementById("auditSearchQuery").value.trim();
+    const metaFilter = document.getElementById("auditMetadataFilter")?.value || "";
     
-    auditList.innerHTML = `<tr><td colspan="5" style="padding:24px; text-align:center;">Querying database records...</td></tr>`;
+    auditList.innerHTML = `<tr><td colspan="${AUDIT_COLSPAN}" style="padding:24px; text-align:center;">Querying database records...</td></tr>`;
     
     try {
       // Pull specification points to map topics and names
@@ -1583,22 +1908,34 @@
         checkPointsCounterMap[mp.question_id] = (checkPointsCounterMap[mp.question_id] || 0) + 1;
       });
       
-      // Expanded select list to fetch related answer_keys to detect missing answers or missing keywords!
+      const selectWithMeta = "id, spec_point_id, question_type, prompt, options, tier, marking_method, max_marks, resource_links, image_url, scaffold_config, command_word, demand_level, ao1_marks, ao2_marks, ao3_marks, is_maths_skill, is_required_practical, difficulty, answer_keys(key_type, key_payload)";
+      const selectBasic = "id, spec_point_id, question_type, prompt, options, tier, marking_method, max_marks, resource_links, image_url, scaffold_config, difficulty, answer_keys(key_type, key_payload)";
+
       let query = supabaseClient
         .from("questions")
-        .select("id, spec_point_id, question_type, prompt, options, tier, marking_method, max_marks, resource_links, image_url, scaffold_config, answer_keys(key_type, key_payload)")
+        .select(selectWithMeta)
         .in("spec_point_id", specIds);
-        
-      if (qTypeFilter) {
-        query = query.eq("question_type", qTypeFilter);
+      if (qTypeFilter) query = query.eq("question_type", qTypeFilter);
+
+      let { data: questions, error: qErr } = await query;
+      if (qErr && /column/i.test(qErr.message || "")) {
+        query = supabaseClient.from("questions").select(selectBasic).in("spec_point_id", specIds);
+        if (qTypeFilter) query = query.eq("question_type", qTypeFilter);
+        const retry = await query;
+        questions = retry.data;
+        qErr = retry.error;
       }
-      
-      const { data: questions, error: qErr } = await query;
       if (qErr) throw qErr;
       
       let filtered = questions || [];
       if (search) {
         filtered = filtered.filter(q => q.prompt.toLowerCase().includes(search.toLowerCase()));
+      }
+      if (metaFilter && window.AdminMetadata) {
+        filtered = filtered.filter((q) => {
+          const incomplete = window.AdminMetadata.isMetadataIncomplete(q);
+          return metaFilter === "incomplete" ? incomplete : !incomplete;
+        });
       }
       
       // Audit engine mapping to calculate severity & prepare prioritized sorting rules
@@ -1646,6 +1983,9 @@
         if (!q.image_url) {
           warnings.push({ type: 'warning', text: "🖼️ No Diagram" });
         }
+        if (window.AdminMetadata && window.AdminMetadata.isMetadataIncomplete(q)) {
+          warnings.push({ type: 'warning', text: "📊 Incomplete exam metadata" });
+        }
         if (q.prompt && q.prompt.includes("$") && !window.MathJax) {
           warnings.push({ type: 'warning', text: "📐 LaTeX Warning" });
         }
@@ -1675,7 +2015,7 @@
       loadedQuestionsCache = filtered;
       
       if (filtered.length === 0) {
-        auditList.innerHTML = `<tr><td colspan="5" style="padding:24px; text-align:center; color:var(--text-muted);">No records found in active tables matching your search rules.</td></tr>`;
+        auditList.innerHTML = `<tr><td colspan="${AUDIT_COLSPAN}" style="padding:24px; text-align:center; color:var(--text-muted);">No records found in active tables matching your search rules.</td></tr>`;
         return;
       }
       
@@ -1683,6 +2023,14 @@
         const spec = specMap[q.spec_point_id] || {};
         const ref = spec.spec_ref || "Global";
         const hasCheckpoints = (checkPointsCounterMap[q.id] || 0) > 0;
+        const cmd = q.command_word || "—";
+        const demand = window.AdminMetadata ? window.AdminMetadata.formatDemandLabel(q.demand_level) : (q.demand_level || "—");
+        const aoSplit = window.AdminMetadata ? window.AdminMetadata.formatAoSplit(q) : "—";
+        const flags = `${q.is_maths_skill ? "M" : "·"}/${q.is_required_practical ? "RP" : "·"}`;
+        const metaIncomplete = window.AdminMetadata && window.AdminMetadata.isMetadataIncomplete(q);
+        const metaBadge = metaIncomplete
+          ? `<span class="meta-badge">Gap</span>`
+          : `<span class="meta-badge meta-badge--ok">OK</span>`;
         
         // Build text warnings displays to slide directly under each question row
         let warningsHtml = "";
@@ -1712,8 +2060,13 @@
           <tr style="border-top:1px solid var(--border); transition: background 0.15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='none'">
             <td style="padding:12px 16px 4px 16px; font-weight:700; color:#1e293b;">${ref}</td>
             <td style="padding:12px 16px 4px 16px;"><span class="chip" style="background:#e2e8f0; color:#475569; padding:2px 6px; border-radius:4px; font-size:0.76rem; font-weight:700;">${q.question_type.toUpperCase()}</span></td>
-            <td style="padding:12px 16px 4px 16px; max-width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(q.prompt)}">${escapeHtml(q.prompt)}</td>
-            <td style="padding:12px 16px 4px 16px; font-weight:700;">${q.max_marks} marks</td>
+            <td style="padding:12px 16px 4px 16px; max-width:240px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(q.prompt)}">${escapeHtml(q.prompt)}</td>
+            <td style="padding:12px 16px 4px 16px; font-weight:700;">${q.max_marks}</td>
+            <td style="padding:12px 16px 4px 16px; font-size:0.8rem;">${escapeHtml(cmd)}</td>
+            <td style="padding:12px 16px 4px 16px; font-size:0.78rem;">${escapeHtml(demand)}</td>
+            <td style="padding:12px 16px 4px 16px; font-size:0.78rem; font-family:monospace;">${escapeHtml(aoSplit)}</td>
+            <td style="padding:12px 16px 4px 16px; font-size:0.78rem;">${flags}</td>
+            <td style="padding:12px 16px 4px 16px;">${metaBadge}</td>
             <td style="padding:12px 16px 4px 16px; text-align:right; display:flex; gap:6px; justify-content:flex-end;">
               <button onclick="launchSandboxTest('${q.id}')" class="btn btn-secondary" style="padding:6px 10px; font-size:0.75rem; background:#3b82f6; color:white;">Test</button>
               <button onclick="requestInteractiveEdit('${q.id}')" class="btn btn-secondary" style="padding:6px 10px; font-size:0.75rem;">Modify</button>
@@ -1722,7 +2075,7 @@
           </tr>
           <!-- Row B: Spanning warning container rendering cleanly underneath Row A -->
           <tr style="border-bottom:1px solid var(--border); background: none;">
-            <td colspan="5" style="padding: 4px 16px 12px 16px; font-size: 0.8rem; line-height: 1.45;">
+            <td colspan="${AUDIT_COLSPAN}" style="padding: 4px 16px 12px 16px; font-size: 0.8rem; line-height: 1.45;">
               <div style="display:flex; flex-wrap:wrap; gap:6px; align-items:center;">
                 <span style="font-weight:700; color:var(--text-muted); margin-right:6px;">Status / Audit Details:</span>
                 ${warningsHtml}
@@ -1734,7 +2087,7 @@
       
     } catch(err) {
       console.error(err);
-      auditList.innerHTML = `<tr><td colspan="5" style="padding:24px; text-align:center; color:var(--error);">Failed to audit records: ${err.message}</td></tr>`;
+      auditList.innerHTML = `<tr><td colspan="${AUDIT_COLSPAN}" style="padding:24px; text-align:center; color:var(--error);">Failed to audit records: ${err.message}</td></tr>`;
     }
   };
 
@@ -1917,6 +2270,8 @@
       }
     }
 
+    if (window.AdminMetadata) window.AdminMetadata.initEditMetadataUI(q);
+
     document.getElementById("editModalOverlay").classList.remove("hidden");
   };
 
@@ -1957,6 +2312,15 @@
         finalImageUrl = data.publicUrl;
       }
 
+      if (window.AdminMetadata) {
+        const meta = window.AdminMetadata.buildEditMetadataPayload();
+        const { valid, sum } = window.AdminMetadata.validateAoMarksSum(meta.ao1_marks, meta.ao2_marks, meta.ao3_marks, marks);
+        if (!valid) {
+          showAdminToast(`AO marks (${sum}) must equal max marks (${marks}).`, true);
+          return;
+        }
+      }
+
       // Update parent questions values
       const updatePayload = {
         prompt: prompt,
@@ -1965,6 +2329,18 @@
         max_marks: marks,
         image_url: finalImageUrl
       };
+
+      if (window.AdminMetadata) {
+        const meta = window.AdminMetadata.buildEditMetadataPayload();
+        window.AdminMetadata.applyMetadataToInsertPayload(updatePayload, meta, {
+          question_type: q.question_type,
+          prompt,
+          tier,
+          max_marks: marks
+        });
+      } else {
+        updatePayload.difficulty = q.difficulty || 2;
+      }
 
       if (q.question_type === "mcq") {
         updatePayload.options = [
@@ -2591,6 +2967,46 @@
     if (!s) return "";
     return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   }
+</script>
+<script type="module">
+  import * as AdminMetadata from "./src/adminMetadata.js";
+  import { getDemandOptionsForTier } from "./src/examRules.js";
+
+  window.AdminMetadata = AdminMetadata;
+  AdminMetadata.initCreatorMetadataUI();
+
+  const editTier = document.getElementById("editTier");
+  if (editTier) {
+    editTier.addEventListener("change", () => {
+      const sel = document.getElementById("editDemandLevelSelect");
+      if (sel) {
+        const options = getDemandOptionsForTier(editTier.value);
+        const cur = sel.value;
+        sel.innerHTML = options.map((o) => `<option value="${o.value}">${o.label}</option>`).join("");
+        if (options.some((o) => o.value === cur)) sel.value = cur;
+      }
+      AdminMetadata.autoSizeAdminSelects(document.getElementById("editForm"));
+    });
+  }
+
+  ["editAo1Marks", "editAo2Marks", "editAo3Marks"].forEach((id) => {
+    document.getElementById(id)?.addEventListener("input", () => {
+      const max = parseInt(document.getElementById("editMaxMarks")?.value, 10) || 1;
+      AdminMetadata.updateAoValidationLabel("edit", max);
+    });
+  });
+
+  AdminMetadata.autoSizeAdminSelects(document.getElementById("panelCsv"));
+  AdminMetadata.autoSizeAdminSelects(document.getElementById("panelAudit"));
+
+  document.getElementById("editCommandWordSelect")?.addEventListener("change", () => {
+    const word = document.getElementById("editCommandWordSelect")?.value;
+    const tier = document.getElementById("editTier")?.value;
+    const demandSel = document.getElementById("editDemandLevelSelect");
+    if (word && demandSel) {
+      demandSel.value = AdminMetadata.suggestDemandLevel(word, tier);
+    }
+  });
 </script>
 <script type="module" src="src/admin.js"></script>
 </body>
