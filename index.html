@@ -515,6 +515,10 @@
     <section id="auth" class="card hidden">
       <h2>🔑 Student Log In and Sign Up Page</h2>
       <div class="input-group">
+        <label for="displayName">Your name</label>
+        <input id="displayName" type="text" placeholder="e.g. Alex Smith" autocomplete="name" maxlength="80" />
+      </div>
+      <div class="input-group">
         <label for="email">Email Address</label>
         <input id="email" type="email" placeholder="enter your email address" />
       </div>
@@ -708,6 +712,12 @@
           <p class="muted" style="margin-bottom: 20px; font-size: 0.9rem;">Update the same choices you made at sign-up. Changes affect which questions you see and how new topics are scheduled.</p>
 
           <div class="settings-section">
+            <h4 class="settings-heading">Your name</h4>
+            <p class="muted settings-hint">Shown to your teacher on the class roster.</p>
+            <input id="settingsDisplayNameInput" type="text" class="settings-display-name-input" placeholder="e.g. Alex Smith" autocomplete="name" maxlength="80" />
+          </div>
+
+          <div class="settings-section">
             <h4 class="settings-heading">Exam tier</h4>
             <p class="muted settings-hint">Foundation (FT) or Higher (HT) — filters question difficulty.</p>
             <div class="onboarding-tier-options" id="settingsTierOptions">
@@ -730,9 +740,12 @@
 
           <div class="settings-section">
             <h4 class="settings-heading">Teacher class</h4>
-            <p class="muted settings-hint">Enter your teacher&apos;s 6-character join code to link your account to their class.</p>
-            <p id="settingsClassStatus" class="settings-class-status muted hidden"></p>
-            <div class="settings-class-row">
+            <p id="settingsClassJoinHint" class="muted settings-hint">Enter your teacher&apos;s 6-character join code to link your account to their class.</p>
+            <div id="settingsClassDetails" class="settings-class-details hidden">
+              <div id="settingsClassName" class="settings-class-name"></div>
+              <p class="muted settings-class-linked">Linked to your teacher&apos;s class</p>
+            </div>
+            <div id="settingsClassJoinRow" class="settings-class-row">
               <input id="settingsClassCodeInput" type="text" class="settings-class-input" placeholder="e.g. XK7M2P" maxlength="8" autocomplete="off" />
               <button type="button" id="btnSettingsJoinClass" class="btn-secondary">Join class</button>
             </div>

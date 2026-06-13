@@ -616,9 +616,33 @@
   margin-left: auto;
 }
 
-.dashboard-scoped-panel--settings .settings-class-status {
-  margin: 0 0 8px 0;
-  font-size: 0.88rem;
+.dashboard-scoped-panel--settings .settings-display-name-input {
+  display: block;
+  width: 100%;
+  max-width: 320px;
+  padding: 8px 10px;
+  border: 1px solid var(--border, #dde3ea);
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+
+.dashboard-scoped-panel--settings .settings-class-details {
+  margin: 0 0 12px 0;
+  padding: 12px 14px;
+  background: #f8fafc;
+  border: 1px solid var(--border, #dde3ea);
+  border-radius: 8px;
+}
+
+.dashboard-scoped-panel--settings .settings-class-name {
+  font-weight: 600;
+  font-size: 1rem;
+  color: var(--text, #2c3e50);
+}
+
+.dashboard-scoped-panel--settings .settings-class-linked {
+  margin: 4px 0 0;
+  font-size: 0.85rem;
 }
 
 .dashboard-scoped-panel--settings .settings-class-row {
