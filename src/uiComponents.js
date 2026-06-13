@@ -504,23 +504,30 @@ export function renderMasteryHeatmap(allSpecPoints, srsStates, onCellClickCallba
       let tooltipText = `[${point.spec_ref || "Spec"}] ${point.topic_name || "Topic"} - Not Attempted Yet`;
 
       if (srsRecord) {
+        const reps = srsRecord.repetitions ?? 0;
         const days = srsRecord.interval_days || 0;
-        if (days === 0 || (srsRecord.ease_factor && srsRecord.ease_factor < 2.0)) {
+
+        if (reps === 0) {
+          stateClass = "cell-scheduled";
+          baseColor = "#dbeafe";
+          borderStyle = "1px solid #93c5fd";
+          tooltipText = `📅 [${point.spec_ref}] ${point.topic_name} - Scheduled (not practised yet)`;
+        } else if (days === 0 || (srsRecord.ease_factor && srsRecord.ease_factor < 2.0)) {
           stateClass = "cell-gap";
-          baseColor = "#f59e0b"; 
+          baseColor = "#f59e0b";
           borderStyle = "1px solid #d97706";
           tooltipText = `⚠️ [${point.spec_ref}] ${point.topic_name} - Active Concept Gap (Review Needed)`;
         } else {
           borderStyle = "1px solid #166534";
           if (days <= 3) {
             stateClass = "cell-mastery-l1";
-            baseColor = "#bbf7d0"; 
+            baseColor = "#bbf7d0";
           } else if (days <= 10) {
             stateClass = "cell-mastery-l2";
-            baseColor = "#4ade80"; 
+            baseColor = "#4ade80";
           } else {
-            stateClass = "cell-mastery-l3"; 
-            baseColor = "#16a34a"; 
+            stateClass = "cell-mastery-l3";
+            baseColor = "#16a34a";
           }
           tooltipText = `✅ [${point.spec_ref}] ${point.topic_name} - Secure (Interval: ${days} days)`;
         }

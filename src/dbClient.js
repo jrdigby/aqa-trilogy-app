@@ -2,29 +2,247 @@
 import { todayISO } from './utils.js';
 
 const SUPABASE_URL = "https://cbycwfhczyvzzhthpgsw.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_xD75RVd3kyvxs3IK_WsNag_eoCAZF4W";
+// Legacy JWT anon key — more reliable with supabase-js auth + RLS than publishable-only keys.
+const SUPABASE_ANON_KEY =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNieWN3Zmhjenl2enpodGhwZ3N3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1MTM3NzAsImV4cCI6MjA5NTA4OTc3MH0.XLbSXXwJXAbw7-92WD03B2wg2UWRzfDpI76Q650iU5U";
+
+export const SRS_DUE_SELECT =
+  "spec_point_id,due_date,interval_days,ease_factor,repetitions,lapses,last_quality, spec_points(id,subject,topic_name,spec_ref,spec_text)";
+
+export const SRS_STATE_SELECT =
+  "spec_point_id, interval_days, ease_factor, due_date, repetitions";
 
 // Core Supabase client initialization bound locally
 export const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+export const AUTH_GRACE_MS = 15000;
+
+/** Fresh sign-in JWT — used for REST when supabase-js clears session during init. */
+let authGraceSession = null;
+let authGraceUntil = 0;
+
+export function stashAuthSession(session, graceMs = AUTH_GRACE_MS) {
+  if (session?.access_token && session?.user?.id) {
+    authGraceSession = session;
+    authGraceUntil = Date.now() + graceMs;
+  }
+}
+
+/** End the post-sign-in grace window (ignore spurious SIGNED_OUT) but keep JWT for REST. */
+export function endAuthGracePeriod() {
+  authGraceUntil = 0;
+}
+
+export function clearAuthGraceSession() {
+  authGraceSession = null;
+  authGraceUntil = 0;
+}
+
+export function isAuthGraceActive() {
+  return Date.now() < authGraceUntil;
+}
+
+const AUTH_STORAGE_KEY = `sb-cbycwfhczyvzzhthpgsw-auth-token`;
+
+function readStoredAuthSession() {
+  try {
+    const raw = localStorage.getItem(AUTH_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed?.access_token && parsed?.user?.id) return parsed;
+    if (parsed?.currentSession?.access_token && parsed?.currentSession?.user?.id) {
+      return parsed.currentSession;
+    }
+  } catch (_) {
+    /* ignore parse errors */
+  }
+  return null;
+}
+
+/** User JWT for RLS requests — client session, stash, or localStorage (never calls setSession). */
+export async function resolveAuthBearer(userId = null) {
+  const { data: { session }, error } = await supabaseClient.auth.getSession();
+  if (!error && session?.access_token && session?.user?.id) {
+    if (!userId || session.user.id === userId) {
+      return session.access_token;
+    }
+  }
+
+  if (authGraceSession?.access_token && authGraceSession?.user?.id) {
+    if (!userId || authGraceSession.user.id === userId) {
+      return authGraceSession.access_token;
+    }
+  }
+
+  const stored = readStoredAuthSession();
+  if (stored?.access_token && stored?.user?.id) {
+    if (!userId || stored.user.id === userId) {
+      return stored.access_token;
+    }
+  }
+
+  return null;
+}
+
+async function restGet(table, userId, { select, filters = {}, order = null }) {
+  const token = await resolveAuthBearer(userId);
+  if (!token) {
+    throw new Error("Not authenticated");
+  }
+
+  const params = new URLSearchParams();
+  params.set("select", select);
+  for (const [key, value] of Object.entries(filters)) {
+    params.set(key, value);
+  }
+  if (order) {
+    params.set("order", order);
+  }
+
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${params.toString()}`, {
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(body || `REST ${table} failed (${res.status})`);
+  }
+
+  return res.json();
+}
+
+async function restWrite(method, table, userId, { body, filters = {}, prefer = null, query = {} } = {}) {
+  const token = await resolveAuthBearer(userId);
+  if (!token) {
+    throw new Error("Not authenticated");
+  }
+
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    params.set(key, value);
+  }
+  for (const [key, value] of Object.entries(filters)) {
+    params.set(key, value);
+  }
+
+  const headers = {
+    apikey: SUPABASE_ANON_KEY,
+    Authorization: `Bearer ${token}`,
+    "Content-Type": "application/json",
+  };
+  if (prefer) headers.Prefer = prefer;
+
+  const qs = params.toString();
+  const url = `${SUPABASE_URL}/rest/v1/${table}${qs ? `?${qs}` : ""}`;
+
+  const res = await fetch(url, {
+    method,
+    headers,
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || `REST ${method} ${table} failed (${res.status})`);
+  }
+
+  const text = await res.text();
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch (_) {
+    return null;
+  }
+}
+
+async function restPatch(table, userId, body, filters) {
+  return restWrite("PATCH", table, userId, { body, filters, prefer: "return=minimal" });
+}
+
+async function restUpsert(table, userId, body, onConflict = "user_id") {
+  return restWrite("POST", table, userId, {
+    body,
+    query: { on_conflict: onConflict },
+    prefer: "resolution=merge-duplicates,return=minimal",
+  });
+}
+
+async function restRpc(fnName, args = {}, userId = null) {
+  const token = await resolveAuthBearer(userId);
+  if (!token) {
+    throw new Error("Not authenticated");
+  }
+
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fnName}`, {
+    method: "POST",
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(args),
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    let message = body;
+    try {
+      const parsed = JSON.parse(body);
+      message = parsed.message || parsed.error || parsed.hint || body;
+    } catch (_) {
+      /* keep raw body */
+    }
+    throw new Error(message || `RPC ${fnName} failed (${res.status})`);
+  }
+
+  const text = await res.text();
+  if (!text) return null;
+  return JSON.parse(text);
+}
+
+/** Poll until a user JWT is available (client session or grace stash). */
+export async function waitForAuthSession(expectedUserId = null, attempts = 20) {
+  for (let i = 0; i < attempts; i++) {
+    const token = await resolveAuthBearer(expectedUserId);
+    if (token) {
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      if (session?.user?.id) {
+        return session;
+      }
+      if (
+        authGraceSession?.user?.id &&
+        (!expectedUserId || authGraceSession.user.id === expectedUserId)
+      ) {
+        return authGraceSession;
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50 * (i + 1)));
+  }
+  return null;
+}
 
 // Network Timeout Helper
 export const timeoutPromise = (ms, message = "Database connection timed out") => 
   new Promise((_, reject) => setTimeout(() => reject(new Error(message)), ms));
 
 // ====== DASHBOARD DATA AGGREGATOR ======
-export async function fetchDashboardDueItems(userId) {
-  const today = todayISO();
-  const query = supabaseClient
-    .from("srs_state")
-    .select("spec_point_id,due_date,interval_days,ease_factor,repetitions,lapses,last_quality, spec_points(id,subject,topic_name,spec_ref,spec_text)")
-    .eq("user_id", userId)
-    .lte("due_date", today)
-    .order("due_date", { ascending: true })
-    .order("ease_factor", { ascending: true });
+export async function queryDashboardDueItems(userId, today = todayISO()) {
+  const data = await restGet("srs_state", userId, {
+    select: SRS_DUE_SELECT,
+    filters: {
+      user_id: `eq.${userId}`,
+      due_date: `lte.${today}`,
+    },
+    order: "due_date.asc,ease_factor.asc",
+  });
+  return data || [];
+}
 
-  const result = await Promise.race([query, timeoutPromise(4000, "Dashboard srs_state query timed out")]);
-  if (result.error) throw result.error;
-  return result.data || [];
+export async function fetchDashboardDueItems(userId) {
+  return queryDashboardDueItems(userId, todayISO());
 }
 
 // ====== REVISIONDECK FAILED ATTEMPTS FETCH ======
@@ -65,14 +283,11 @@ export async function fetchAttemptActivity(userId, sinceISO) {
 
 // ====== FORECAST SCHEDULES GATHERER ======
 export async function fetchWeeklyForecastSchedules(userId) {
-  const query = supabaseClient
-    .from("srs_state")
-    .select("due_date, spec_points(spec_ref, topic_name)")
-    .eq("user_id", userId);
-
-  const result = await Promise.race([query, timeoutPromise(4000, "Forecast query timed out")]);
-  if (result.error) throw result.error;
-  return result.data || [];
+  const data = await restGet("srs_state", userId, {
+    select: "due_date, spec_points(spec_ref, topic_name)",
+    filters: { user_id: `eq.${userId}` },
+  });
+  return data || [];
 }
 
 // ====== ADDED: FETCH WHOLE CURRICULUM FOR HEATMAP GRID ======
@@ -90,14 +305,11 @@ export async function fetchAllSpecificationPoints() {
 
 // ====== ADDED: FETCH ALL USER RETENTION INTERVALS FOR HEATMAP STATES ======
 export async function fetchUserSRSState(userId) {
-  const query = supabaseClient
-    .from("srs_state")
-    .select("spec_point_id, interval_days, ease_factor, due_date")
-    .eq("user_id", userId);
-
-  const result = await Promise.race([query, timeoutPromise(4000, "User full SRS fetch timed out")]);
-  if (result.error) throw result.error;
-  return result.data || [];
+  const data = await restGet("srs_state", userId, {
+    select: SRS_STATE_SELECT,
+    filters: { user_id: `eq.${userId}` },
+  });
+  return data || [];
 }
 
 // ====== SYLLABUS, QUESTIONS, & MASTERY BATCH ENGINE ======
@@ -120,11 +332,13 @@ export async function fetchSyllabusPipelineData(userId, subject, paper, targetTi
     questionsQuery = questionsQuery.eq("question_type", qType);
   }
 
-  const srsStateQuery = supabaseClient
-    .from("srs_state")
-    .select(`spec_point_id, due_date, spec_points(subject, paper, topic_name)`)
-    .eq("user_id", userId)
-    .lte("due_date", today);
+  const srsStatePromise = restGet("srs_state", userId, {
+    select: "spec_point_id, due_date, spec_points(subject, paper, topic_name)",
+    filters: {
+      user_id: `eq.${userId}`,
+      due_date: `lte.${today}`,
+    },
+  }).catch(() => []);
 
   const attemptsQuery = supabaseClient
     .from("attempts")
@@ -134,10 +348,10 @@ export async function fetchSyllabusPipelineData(userId, subject, paper, targetTi
     .from("mark_points")
     .select("question_id, ao, max_marks, image_url");
 
-  const [specPointsRes, questionsRes, srsStateRes, attemptsRes, markPointsRes] = await Promise.all([
+  const [specPointsRes, questionsRes, srsStateData, attemptsRes, markPointsRes] = await Promise.all([
     Promise.race([specPointsQuery, timeoutPromise(4000, "spec_points lookup timed out")]).catch(() => ({ data: [] })),
     Promise.race([questionsQuery, timeoutPromise(4000, "questions lookup timed out")]).catch(() => ({ data: [] })),
-    Promise.race([srsStateQuery, timeoutPromise(4000, "srs_state lookup timed out")]).catch(() => ({ data: [] })),
+    srsStatePromise,
     Promise.race([attemptsQuery, timeoutPromise(4000, "attempts statistics lookup timed out")]).catch(() => ({ data: [] })),
     Promise.race([markPointsQuery, timeoutPromise(4000, "mark_points list lookup timed out")]).catch(() => ({ data: [] }))
   ]);
@@ -145,10 +359,95 @@ export async function fetchSyllabusPipelineData(userId, subject, paper, targetTi
   return {
     rows: specPointsRes.data || [],
     questions: questionsRes.data || [],
-    rawDue: srsStateRes.data || [],
+    rawDue: srsStateData || [],
     attempts: attemptsRes.data || [],
     markPoints: markPointsRes.data || []
   };
+}
+
+// ====== USER PROFILE (ONBOARDING) ======
+const PROFILE_COLUMNS_FULL =
+  "user_id, role, preferred_tier, subscription_tier, onboarding_completed_at, subject_preference, subject_difficulty, class_id";
+const PROFILE_COLUMNS_BASE = "user_id, preferred_tier";
+
+function isMissingColumnError(error) {
+  const msg = error?.message || "";
+  return error?.code === "42703" || /column/i.test(msg) || /does not exist/i.test(msg);
+}
+
+function normalizeProfileRow(data, userId) {
+  if (!data) return null;
+  return {
+    user_id: data.user_id ?? userId,
+    role: data.role ?? "student",
+    preferred_tier: data.preferred_tier ?? "FT",
+    subscription_tier: data.subscription_tier ?? "free",
+    onboarding_completed_at: data.onboarding_completed_at ?? null,
+    subject_preference: data.subject_preference ?? null,
+    subject_difficulty: data.subject_difficulty ?? null,
+    class_id: data.class_id ?? null
+  };
+}
+
+async function queryProfileRow(userId, columns) {
+  const rows = await restGet("profiles", userId, {
+    select: columns,
+    filters: { user_id: `eq.${userId}` },
+  });
+  return rows?.[0] ?? null;
+}
+
+export async function patchUserProfile(userId, payload) {
+  await restPatch("profiles", userId, payload, { user_id: `eq.${userId}` });
+}
+
+export async function ensureUserProfile(userId) {
+  let data = null;
+
+  try {
+    data = await queryProfileRow(userId, PROFILE_COLUMNS_FULL);
+  } catch (err) {
+    if (!isMissingColumnError(err)) throw err;
+    data = await queryProfileRow(userId, PROFILE_COLUMNS_BASE);
+  }
+
+  if (data) return normalizeProfileRow(data, userId);
+
+  const payloads = [
+    { user_id: userId, preferred_tier: "FT", role: "student", subscription_tier: "free" },
+    { user_id: userId, preferred_tier: "FT" },
+    { user_id: userId }
+  ];
+
+  for (const payload of payloads) {
+    try {
+      await restUpsert("profiles", userId, payload, "user_id");
+      break;
+    } catch (upsertErr) {
+      if (!isMissingColumnError(upsertErr)) throw upsertErr;
+    }
+  }
+
+  try {
+    data = await queryProfileRow(userId, PROFILE_COLUMNS_FULL);
+  } catch (err) {
+    if (!isMissingColumnError(err)) throw err;
+    data = await queryProfileRow(userId, PROFILE_COLUMNS_BASE);
+  }
+
+  return normalizeProfileRow(data, userId);
+}
+
+export async function fetchUserProfile(userId) {
+  return ensureUserProfile(userId);
+}
+
+export async function rpcJoinClass(code, userId = null) {
+  return restRpc("join_class_by_code", { p_code: code }, userId);
+}
+
+export async function rpcSeedInitialSRS(userId = null) {
+  return restRpc("seed_initial_srs", {}, userId);
 }
 
 // ====== EXPORT OBJECT WRAPPER FOR EXTENDED MODULE ARCHITECTURES ======
@@ -160,7 +459,12 @@ const dbClient = {
   fetchAllSpecificationPoints,
   fetchUserSRSState,
   fetchSyllabusPipelineData,
-  fetchAttemptActivity
+  fetchAttemptActivity,
+  fetchUserProfile,
+  patchUserProfile,
+  waitForAuthSession,
+  rpcJoinClass,
+  rpcSeedInitialSRS
 };
 
 export default dbClient;

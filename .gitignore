@@ -1,0 +1,6 @@
+# Local MCP config if you add a PAT (OAuth HTTP config above is safe to commit)
+.cursor/mcp.local.json
+
+# Environment secrets
+.env
+.env.*

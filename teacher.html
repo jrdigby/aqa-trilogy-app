@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AQA Science — Teacher Portal</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="teacher-portal">
+  <div class="container">
+    <header class="teacher-portal-header">
+      <div class="teacher-portal-brand">
+        <p class="teacher-portal-eyebrow">AQA GCSE Combined Science · Trilogy</p>
+        <h1>Teacher Portal</h1>
+        <p class="teacher-portal-tagline">Create class codes, view rosters, and monitor student revision progress.</p>
+      </div>
+      <div class="teacher-portal-header-actions">
+        <a href="index.html" class="teacher-portal-link">← Student app</a>
+        <span id="teacherAuthBadge" class="teacher-badge">Not signed in</span>
+        <button type="button" id="btnTeacherSignOut" class="btn-secondary teacher-btn-compact hidden">Sign out</button>
+      </div>
+    </header>
+
+    <div id="teacherToast" class="teacher-toast hidden" role="status" aria-live="polite"></div>
+
+    <section id="teacherAuthSection" class="card teacher-auth-card">
+      <div class="teacher-auth-tabs" role="tablist" aria-label="Authentication">
+        <button type="button" id="teacherAuthTabSignIn" class="teacher-auth-tab active" role="tab" aria-selected="true">Sign in</button>
+        <button type="button" id="teacherAuthTabSignUp" class="teacher-auth-tab" role="tab" aria-selected="false">Register</button>
+      </div>
+
+      <div id="teacherAuthPanelSignIn" class="teacher-auth-panel" role="tabpanel">
+        <h2>Welcome back</h2>
+        <p class="muted teacher-auth-lead">Sign in to manage your classes and view student summaries.</p>
+      </div>
+
+      <div id="teacherAuthPanelSignUp" class="teacher-auth-panel hidden" role="tabpanel">
+        <h2>Create teacher account</h2>
+        <p class="muted teacher-auth-lead">Register with your school email. You'll use class join codes so students can link to your classes during onboarding.</p>
+      </div>
+
+      <div class="input-group">
+        <label for="teacherEmail">Email address</label>
+        <input id="teacherEmail" type="email" autocomplete="email" placeholder="teacher@school.org" />
+      </div>
+      <div class="input-group">
+        <label for="teacherPassword">Password</label>
+        <input id="teacherPassword" type="password" autocomplete="current-password" placeholder="••••••••" />
+      </div>
+
+      <p id="teacherAuthMsg" class="teacher-auth-msg hidden" role="alert"></p>
+
+      <div class="teacher-auth-actions">
+        <button type="button" id="btnTeacherSignIn" class="btn-teacher-primary">Sign in</button>
+        <button type="button" id="btnTeacherSignUp" class="btn-teacher-secondary hidden">Create account</button>
+      </div>
+
+      <p class="muted teacher-auth-footnote">
+        Students sign up on the <a href="index.html">student app</a> and enter your class code during onboarding.
+      </p>
+    </section>
+
+    <div id="teacherWorkspace" class="hidden">
+      <section class="card teacher-workspace-intro">
+        <h2>My classes</h2>
+        <p class="muted">Create a class and share the six-character join code with students. They enter it during sign-up onboarding on the student app.</p>
+      </section>
+
+      <section class="card teacher-create-card">
+        <h3 class="teacher-section-heading">Create a new class</h3>
+        <div class="teacher-create-row">
+          <div class="input-group teacher-create-input">
+            <label for="newClassName">Class name</label>
+            <input id="newClassName" type="text" placeholder="e.g. Year 11 Triple Science — Set 1" />
+          </div>
+          <button type="button" id="btnCreateClass" class="btn-teacher-primary teacher-create-btn">Create class</button>
+        </div>
+      </section>
+
+      <section class="card teacher-classes-card">
+        <h3 class="teacher-section-heading">Your classes</h3>
+        <div id="classesList" class="teacher-classes-list">
+          <p class="muted">Loading classes…</p>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script type="module" src="src/teacherPortal.js"></script>
+</body>
+</html>
