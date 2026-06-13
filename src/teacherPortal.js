@@ -111,10 +111,19 @@ async function fetchTeacherClasses() {
 async function fetchClassStudents(classId) {
   const { data, error } = await supabaseClient
     .from("profiles")
-    .select("user_id, preferred_tier, subscription_tier, onboarding_completed_at")
+    .select("user_id, display_name, preferred_tier, subscription_tier, onboarding_completed_at")
     .eq("class_id", classId);
   if (error) throw error;
-  return data || [];
+  const students = data || [];
+  students.sort((a, b) => {
+    const nameA = (a.display_name || "").trim().toLowerCase();
+    const nameB = (b.display_name || "").trim().toLowerCase();
+    if (nameA && nameB) return nameA.localeCompare(nameB);
+    if (nameA) return -1;
+    if (nameB) return 1;
+    return 0;
+  });
+  return students;
 }
 
 async function fetchClassSummary(classId, studentIds) {
@@ -242,7 +251,7 @@ async function loadClassDetails(classId) {
               .map(
                 (s) => `
               <tr>
-                <td>${escapeHtml(s.user_id.slice(0, 8))}…</td>
+                <td>${escapeHtml(s.display_name?.trim() || "Unnamed student")}</td>
                 <td>${escapeHtml(s.preferred_tier || "—")}</td>
                 <td>${escapeHtml(s.subscription_tier || "free")}</td>
                 <td>${s.onboarding_completed_at ? "Yes" : "No"}</td>

@@ -89,12 +89,16 @@ export async function saveOnboardingProfile(userId, payload) {
 }
 
 export async function saveUserProfileSettings(userId, payload) {
-  const { preferred_tier, subject_preference, subject_difficulty } = payload;
-  await patchUserProfile(userId, {
+  const { preferred_tier, subject_preference, subject_difficulty, display_name } = payload;
+  const patch = {
     preferred_tier: normalizeTier(preferred_tier),
     subject_preference,
     subject_difficulty
-  });
+  };
+  if (display_name !== undefined) {
+    patch.display_name = display_name?.trim() || null;
+  }
+  await patchUserProfile(userId, patch);
 }
 
 export async function joinClassByCode(code, userId = null) {

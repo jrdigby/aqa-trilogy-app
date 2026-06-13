@@ -367,7 +367,7 @@ export async function fetchSyllabusPipelineData(userId, subject, paper, targetTi
 
 // ====== USER PROFILE (ONBOARDING) ======
 const PROFILE_COLUMNS_FULL =
-  "user_id, role, preferred_tier, subscription_tier, onboarding_completed_at, subject_preference, subject_difficulty, class_id";
+  "user_id, role, preferred_tier, subscription_tier, onboarding_completed_at, subject_preference, subject_difficulty, class_id, display_name";
 const PROFILE_COLUMNS_BASE = "user_id, preferred_tier";
 
 function isMissingColumnError(error) {
@@ -385,7 +385,8 @@ function normalizeProfileRow(data, userId) {
     onboarding_completed_at: data.onboarding_completed_at ?? null,
     subject_preference: data.subject_preference ?? null,
     subject_difficulty: data.subject_difficulty ?? null,
-    class_id: data.class_id ?? null
+    class_id: data.class_id ?? null,
+    display_name: data.display_name ?? null
   };
 }
 

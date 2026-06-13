@@ -324,9 +324,20 @@ if (btnSignUp) {
   btnSignUp.onclick = async () => {
     authMsg.classList.remove("hidden");
     authMsg.textContent = "Creating account…";
+    const displayName = (el("displayName")?.value || "").trim();
     const email = el("email").value.trim();
     const password = el("password").value;
-    const { data, error } = await supabaseClient.auth.signUp({ email, password });
+
+    if (!displayName) {
+      authMsg.textContent = "Enter your name before registering.";
+      return;
+    }
+
+    const { data, error } = await supabaseClient.auth.signUp({
+      email,
+      password,
+      options: { data: { display_name: displayName } }
+    });
     if (error) {
       authMsg.textContent = "Sign up failed: " + error.message;
     } else if (data?.user && !data?.session) {
@@ -1791,6 +1802,32 @@ function renderRankList(listEl, subjects, type) {
   wireRankListDrag(listEl, type);
 }
 
+function showSettingsClassDetails(className) {
+  const details = el("settingsClassDetails");
+  const nameEl = el("settingsClassName");
+  const joinRow = el("settingsClassJoinRow");
+  const joinHint = el("settingsClassJoinHint");
+
+  if (nameEl && className) {
+    nameEl.textContent = className;
+  }
+  if (details) details.classList.remove("hidden");
+  if (joinRow) joinRow.classList.add("hidden");
+  if (joinHint) joinHint.classList.add("hidden");
+}
+
+function hideSettingsClassDetails() {
+  const details = el("settingsClassDetails");
+  const nameEl = el("settingsClassName");
+  const joinRow = el("settingsClassJoinRow");
+  const joinHint = el("settingsClassJoinHint");
+
+  if (details) details.classList.add("hidden");
+  if (nameEl) nameEl.textContent = "";
+  if (joinRow) joinRow.classList.remove("hidden");
+  if (joinHint) joinHint.classList.remove("hidden");
+}
+
 function loadSettingsPanel() {
   if (!currentUserProfile) return;
 
@@ -1799,26 +1836,25 @@ function loadSettingsPanel() {
     btn.classList.toggle("selected", btn.dataset.tier === settingsTier);
   });
 
+  const displayNameInput = el("settingsDisplayNameInput");
+  if (displayNameInput) {
+    displayNameInput.value = currentUserProfile.display_name || "";
+  }
+
   const prefOrder = sortSubjectsByPreference(currentUserProfile.subject_preference || {});
   const diffOrder = sortSubjectsByDifficulty(currentUserProfile.subject_difficulty || {});
   renderRankList(el("settingsPreferenceRankList"), prefOrder, "preference");
   renderRankList(el("settingsDifficultyRankList"), diffOrder, "difficulty");
 
   const classInput = el("settingsClassCodeInput");
-  const classStatus = el("settingsClassStatus");
   const classMsg = el("settingsClassMsg");
   if (classInput) classInput.value = "";
   if (classMsg) classMsg.classList.add("hidden");
 
-  if (classStatus) {
-    if (currentUserProfile.class_id) {
-      classStatus.textContent = "You are linked to a teacher class.";
-      classStatus.classList.remove("hidden");
-      void refreshSettingsClassName(currentUserProfile.class_id);
-    } else {
-      classStatus.classList.add("hidden");
-      classStatus.textContent = "";
-    }
+  if (currentUserProfile.class_id) {
+    void refreshSettingsClassName(currentUserProfile.class_id);
+  } else {
+    hideSettingsClassDetails();
   }
 
   const msgEl = el("settingsSaveMsg");
@@ -1826,8 +1862,7 @@ function loadSettingsPanel() {
 }
 
 async function refreshSettingsClassName(classId) {
-  const classStatus = el("settingsClassStatus");
-  if (!classStatus || !classId) return;
+  if (!classId) return;
 
   try {
     const { data, error } = await supabaseClient
@@ -1836,10 +1871,10 @@ async function refreshSettingsClassName(classId) {
       .eq("id", classId)
       .maybeSingle();
     if (!error && data?.name) {
-      classStatus.textContent = `Joined class: ${data.name}`;
+      showSettingsClassDetails(data.name);
     }
   } catch (_) {
-    /* RLS may block — generic message already shown */
+    /* RLS may block before migration — join row stays visible */
   }
 }
 
@@ -1884,11 +1919,7 @@ function wireSettingsControls() {
           currentUserProfile = await fetchUserProfile(currentUser.id);
         }
         const className = result?.class_name || "your class";
-        const classStatus = el("settingsClassStatus");
-        if (classStatus) {
-          classStatus.textContent = `Joined class: ${className}`;
-          classStatus.classList.remove("hidden");
-        }
+        showSettingsClassDetails(className);
         if (msgEl) {
           msgEl.textContent = `Joined ${className} ✓`;
           msgEl.style.color = "var(--success, #27ae60)";
@@ -1923,6 +1954,7 @@ function wireSettingsControls() {
     const subject_difficulty = diffList
       ? buildRankMapsFromList(diffList, "difficulty")
       : currentUserProfile?.subject_difficulty;
+    const display_name = (el("settingsDisplayNameInput")?.value || "").trim();
 
     const msgEl = el("settingsSaveMsg");
     btnSave.disabled = true;
@@ -1933,7 +1965,8 @@ function wireSettingsControls() {
       await saveUserProfileSettings(currentUser.id, {
         preferred_tier: settingsTier,
         subject_preference,
-        subject_difficulty
+        subject_difficulty,
+        display_name
       });
 
       const tier = normalizeTier(settingsTier);
