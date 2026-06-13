@@ -421,14 +421,18 @@
       transition: all 0.3s ease;
       opacity: 0;
       transform: translateY(-20px);
+      pointer-events: none;
     }
   </style>
 </head>
 <body>
 
   <header>
-    <h1>AQA Trilogy Core Curriculum Platform (Curator Engine)</h1>
-    <span id="authStatusBadge" style="font-size: 0.8rem; font-weight: bold; background: rgba(255,255,255,0.1); padding: 4px 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.2);">🔒 Access Restricted</span>
+    <h1>AQA Trilogy Question Bank (Developer)</h1>
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <span id="authStatusBadge" style="font-size: 0.8rem; font-weight: bold; background: rgba(255,255,255,0.1); padding: 4px 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.2);">🔒 Access Restricted</span>
+      <button type="button" id="btnAdminSignOut" class="btn btn-secondary hidden" style="padding: 6px 12px; font-size: 0.8rem; color: #fff; border-color: rgba(255,255,255,0.35); background: rgba(255,255,255,0.1); cursor: pointer; position: relative; z-index: 10;">Sign out</button>
+    </div>
   </header>
 
   <div id="toastBanner">Operation Complete!</div>
@@ -437,13 +441,13 @@
 
     <!-- Authenticator Block -->
     <div id="adminAuthSection" class="card">
-      <h2 style="margin-top: 0; margin-bottom: 16px;">🔑 Teacher / Administrator Portal Sign In</h2>
-      <p style="color: var(--text-muted); font-size: 0.88rem; margin-bottom: 24px;">This database editor manages tables inside Supabase. Authenticate with your designated teacher keys to unlock full operations.</p>
+      <h2 style="margin-top: 0; margin-bottom: 16px;">🔑 Developer Sign In</h2>
+      <p style="color: var(--text-muted); font-size: 0.88rem; margin-bottom: 24px;">Question bank curator for adding and reviewing database content. Requires a developer account — class teachers should use the teacher portal instead.</p>
       
       <div class="row">
         <div>
-          <label>Administrator Email Address:</label>
-          <input type="email" id="adminEmail" placeholder="e.g. teacher@school.org" />
+          <label>Developer Email Address:</label>
+          <input type="email" id="adminEmail" placeholder="e.g. dev@example.com" />
         </div>
         <div>
           <label>Secure Key Access Token:</label>
@@ -1136,11 +1140,8 @@
   </div>
 
 <!-- Supabase Script Integrations & Business Logic -->
-<script>
-  // ====== SUPABASE CONFIG ======
-  const SUPABASE_URL = "https://cbycwfhczyvzzhthpgsw.supabase.co";
-  const SUPABASE_ANON_KEY = "sb_publishable_xD75RVd3kyvxs3IK_WsNag_eoCAZF4W";
-  const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+<script type="module">
+  import { supabaseClient } from "./src/dbClient.js";
 
   let currentAuthSessionUser = null;
   let loadedQuestionsCache = [];
@@ -1164,11 +1165,47 @@
   window.onload = async function() {
     const { data: { session } } = await supabaseClient.auth.getSession();
     if (session) {
-      handleAuthSuccess(session.user);
+      const { data: profile } = await supabaseClient
+        .from("profiles")
+        .select("role")
+        .eq("user_id", session.user.id)
+        .maybeSingle();
+
+      if (profile?.role === "teacher") {
+        window.location.href = "teacher.html";
+        return;
+      }
+      if (profile?.role === "student") {
+        window.location.href = "index.html";
+        return;
+      }
+      await handleAuthSuccess(session.user);
     } else {
-      console.log("No active administrator session detected. Standard login screen visible.");
+      console.log("No active developer session detected. Standard login screen visible.");
     }
   };
+
+  function showSignedOutAdminUI() {
+    currentAuthSessionUser = null;
+    document.getElementById("adminAuthSection").classList.remove("hidden");
+    document.getElementById("creatorContainer").classList.add("hidden");
+    const badge = document.getElementById("authStatusBadge");
+    badge.textContent = "🔒 Access Restricted";
+    badge.style.background = "rgba(255,255,255,0.1)";
+    badge.style.color = "#fff";
+    badge.style.borderColor = "rgba(255,255,255,0.2)";
+    const signOutBtn = document.getElementById("btnAdminSignOut");
+    if (signOutBtn) signOutBtn.classList.add("hidden");
+  }
+
+  const btnAdminSignOut = document.getElementById("btnAdminSignOut");
+  if (btnAdminSignOut) {
+    btnAdminSignOut.addEventListener("click", async () => {
+      await supabaseClient.auth.signOut();
+      showSignedOutAdminUI();
+      showAdminToast("Signed out.");
+    });
+  }
 
   // Auth Button Listener
   document.getElementById("btnAdminAuthenticate").onclick = async () => {
@@ -1176,7 +1213,7 @@
     const password = document.getElementById("adminPassword").value;
     
     if (!email || !password) {
-      showAdminToast("Please enter teacher credentials to proceed.", true);
+      showAdminToast("Please enter developer credentials to proceed.", true);
       return;
     }
 
@@ -1184,23 +1221,45 @@
     if (error) {
       showAdminToast("Authentication rejected: " + error.message, true);
     } else {
-      showAdminToast("Teacher session validated cleanly.");
-      handleAuthSuccess(data.user);
+      await handleAuthSuccess(data.user);
     }
   };
 
-  function handleAuthSuccess(user) {
+  async function requireDeveloperRole(userId) {
+    const { data, error } = await supabaseClient
+      .from("profiles")
+      .select("role")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (error) throw error;
+    if (data?.role !== "developer") {
+      throw new Error("Access denied — developer role required. Class teachers should use teacher.html.");
+    }
+  }
+
+  async function handleAuthSuccess(user) {
+    try {
+      await requireDeveloperRole(user.id);
+    } catch (err) {
+      showAdminToast(err.message, true);
+      await supabaseClient.auth.signOut();
+      return;
+    }
+
     currentAuthSessionUser = user;
     document.getElementById("adminAuthSection").classList.add("hidden");
     document.getElementById("creatorContainer").classList.remove("hidden");
-    
+
     const badge = document.getElementById("authStatusBadge");
-    badge.textContent = `🟢 Authenticated: ${user.email}`;
+    badge.textContent = `🟢 Developer: ${user.email}`;
     badge.style.background = "#d1fae5";
     badge.style.color = "var(--primary-dark)";
     badge.style.borderColor = "#a7f3d0";
-    
-    // Auto load topics
+
+    const signOutBtn = document.getElementById("btnAdminSignOut");
+    if (signOutBtn) signOutBtn.classList.remove("hidden");
+
+    showAdminToast("Developer session validated.");
     loadSyllabusReferenceSelects();
   }
 
@@ -3008,6 +3067,5 @@
     }
   });
 </script>
-<script type="module" src="src/admin.js"></script>
 </body>
 </html>

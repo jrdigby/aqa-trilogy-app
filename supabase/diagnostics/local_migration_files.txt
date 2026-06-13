@@ -1,0 +1,16 @@
+# Local migration files (apply manually in Supabase SQL Editor if not tracked by CLI)
+# Compare with: select version, name from supabase_migrations.schema_migrations;
+
+20250612_onboarding.sql
+20250612_onboarding_signup_fix.sql
+20250612_onboarding_profile_rls_fix.sql
+20250612_seed_initial_srs_fix.sql
+20250612_srs_state_student_rls.sql
+20250612_srs_state_rls_and_seed_rpc.sql          # insert_srs_seed_rows — confirmed missing remotely
+20250612_profile_role_immutable_fix.sql
+20250612_teacher_signup.sql
+20250612_question_metadata.sql
+20250612_adaptive_practice.sql
+
+# Quick apply for confirmed gaps:
+#   supabase/apply_in_sql_editor.sql

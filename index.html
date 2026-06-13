@@ -183,6 +183,8 @@
       padding: 0;
       background: transparent;
       border-bottom: 1px solid var(--border);
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
     }
 
     .dashboard-tab {
@@ -312,6 +314,136 @@
       border-radius: 2px;
       flex-shrink: 0;
     }
+
+    .onboarding-steps {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+
+    .onboarding-step-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--border);
+    }
+
+    .onboarding-step-dot.active {
+      background: var(--primary);
+    }
+
+    .onboarding-step-dot.done {
+      background: var(--success);
+    }
+
+    .onboarding-panel.hidden {
+      display: none;
+    }
+
+    .onboarding-tier-options {
+      display: flex;
+      gap: 12px;
+      margin: 16px 0;
+    }
+
+    .onboarding-tier-btn {
+      flex: 1;
+      padding: 16px;
+      border: 2px solid var(--border);
+      border-radius: 10px;
+      background: #fff;
+      color: var(--text);
+      cursor: pointer;
+      font-weight: 600;
+      text-align: center;
+    }
+
+    .onboarding-tier-btn.selected {
+      border-color: var(--primary);
+      background: #eef5fc;
+      color: var(--primary);
+    }
+
+    .onboarding-rank-list {
+      list-style: none;
+      margin: 16px 0;
+      padding: 0;
+    }
+
+    .onboarding-rank-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px;
+      margin-bottom: 8px;
+      background: #fafbfc;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      cursor: grab;
+      user-select: none;
+    }
+
+    .onboarding-rank-item.dragging {
+      opacity: 0.5;
+    }
+
+    .onboarding-rank-handle {
+      color: var(--text-muted);
+      font-size: 1.1rem;
+    }
+
+    .onboarding-rank-label {
+      flex: 1;
+      font-weight: 600;
+      text-transform: capitalize;
+    }
+
+    .onboarding-rank-num {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--primary);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.85rem;
+      font-weight: 700;
+    }
+
+    .onboarding-nav {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      margin-top: 24px;
+    }
+
+    .onboarding-summary {
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      margin: 16px 0;
+      font-size: 0.95rem;
+      line-height: 1.6;
+    }
+
+    .subscription-badge {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: #eef2f7;
+      color: var(--text-muted);
+      margin-left: 6px;
+    }
+
+    .subscription-badge.paid {
+      background: #ecfdf5;
+      color: #047857;
+    }
   </style>
   <link rel="stylesheet" href="styles.css">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -323,6 +455,62 @@
       <h1>AQA Science Spaced Repetition</h1>
       <div id="authMsg" class="muted">Checking session status...</div>
     </header>
+
+    <section id="onboarding" class="card hidden">
+      <h2>Welcome — set up your practice</h2>
+      <p class="muted" style="margin-bottom: 16px;">A few quick steps so we can personalise your revision schedule.</p>
+
+      <div class="onboarding-steps" id="onboardingStepDots" aria-hidden="true">
+        <span class="onboarding-step-dot active"></span>
+        <span class="onboarding-step-dot"></span>
+        <span class="onboarding-step-dot"></span>
+        <span class="onboarding-step-dot"></span>
+        <span class="onboarding-step-dot"></span>
+      </div>
+
+      <div id="onboardingStep1" class="onboarding-panel">
+        <h3 style="margin-bottom: 8px;">Which exam tier are you studying?</h3>
+        <div class="onboarding-tier-options">
+          <button type="button" class="onboarding-tier-btn selected" data-tier="FT">Foundation Tier (FT)</button>
+          <button type="button" class="onboarding-tier-btn" data-tier="HT">Higher Tier (HT)</button>
+        </div>
+      </div>
+
+      <div id="onboardingStep2" class="onboarding-panel hidden">
+        <h3 style="margin-bottom: 8px;">Rank subjects by preference</h3>
+        <p class="muted" style="font-size: 0.9rem; margin-bottom: 8px;">Drag to reorder — 1 = study first.</p>
+        <ul id="preferenceRankList" class="onboarding-rank-list" data-rank-type="preference"></ul>
+      </div>
+
+      <div id="onboardingStep3" class="onboarding-panel hidden">
+        <h3 style="margin-bottom: 8px;">Rank subjects by difficulty</h3>
+        <p class="muted" style="font-size: 0.9rem; margin-bottom: 8px;">Drag easiest to hardest — we'll allocate more topics where you need them.</p>
+        <ul id="difficultyRankList" class="onboarding-rank-list" data-rank-type="difficulty"></ul>
+      </div>
+
+      <div id="onboardingStep4" class="onboarding-panel hidden">
+        <h3 style="margin-bottom: 8px;">Join your class (optional)</h3>
+        <p class="muted" style="font-size: 0.9rem; margin-bottom: 12px;">Enter the 6-character code from your teacher, or skip to continue solo.</p>
+        <div class="input-group">
+          <label for="classCodeInput">Class code</label>
+          <input id="classCodeInput" type="text" placeholder="e.g. XK7M2P" maxlength="8" style="text-transform: uppercase;" />
+        </div>
+        <p id="classCodeMsg" class="muted hidden" style="margin-top: 8px; font-size: 0.9rem;"></p>
+      </div>
+
+      <div id="onboardingStep5" class="onboarding-panel hidden">
+        <h3 style="margin-bottom: 8px;">Ready to go</h3>
+        <div id="onboardingSummary" class="onboarding-summary"></div>
+      </div>
+
+      <div class="onboarding-nav">
+        <button type="button" id="btnOnboardingBack" class="btn-secondary hidden">Back</button>
+        <div style="flex: 1;"></div>
+        <button type="button" id="btnOnboardingSkip" class="btn-secondary hidden">Skip</button>
+        <button type="button" id="btnOnboardingNext" class="btn-primary">Next</button>
+        <button type="button" id="btnOnboardingFinish" class="btn-primary hidden">Finish setup</button>
+      </div>
+    </section>
 
     <section id="auth" class="card hidden">
       <h2>🔑 Student Log In and Sign Up Page</h2>
@@ -358,6 +546,7 @@
           </div>
 
           <span id="userChip" class="chip">...</span>
+          <button type="button" id="btnOpenSettings" class="btn-secondary" style="padding: 5px 12px; font-size: 0.8rem; flex: none;">⚙️ Settings</button>
           <button id="btnSignOut" class="btn-secondary" style="padding: 5px 10px; font-size: 0.8rem; flex: none;">Sign Out</button>
         </div>
       </div>
@@ -509,6 +698,50 @@
           <p class="muted flashcards-intro">This revision deck aggregates key concepts you missed in recent practice, filtered by the Subject, Paper, and Topic selectors above. Flip cards to self-test.</p>
           <div id="revisionCardsWrapper" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;">
             <div class="muted" style="grid-column: 1/-1; text-align: center; padding: 24px;">Loading revision flashcards…</div>
+          </div>
+        </div>
+      </div>
+
+      <div id="dashboardTabSettings" class="dashboard-settings-panel hidden">
+        <div class="dashboard-scoped-panel dashboard-scoped-panel--settings">
+          <h3 class="scoped-panel-heading">⚙️ Study preferences</h3>
+          <p class="muted" style="margin-bottom: 20px; font-size: 0.9rem;">Update the same choices you made at sign-up. Changes affect which questions you see and how new topics are scheduled.</p>
+
+          <div class="settings-section">
+            <h4 class="settings-heading">Exam tier</h4>
+            <p class="muted settings-hint">Foundation (FT) or Higher (HT) — filters question difficulty.</p>
+            <div class="onboarding-tier-options" id="settingsTierOptions">
+              <button type="button" class="onboarding-tier-btn settings-tier-btn" data-tier="FT">Foundation Tier (FT)</button>
+              <button type="button" class="onboarding-tier-btn settings-tier-btn" data-tier="HT">Higher Tier (HT)</button>
+            </div>
+          </div>
+
+          <div class="settings-section">
+            <h4 class="settings-heading">Subject study order</h4>
+            <p class="muted settings-hint">Drag to rank — top subject gets scheduled first.</p>
+            <ul id="settingsPreferenceRankList" class="onboarding-rank-list onboarding-rank-list--compact" data-rank-type="preference"></ul>
+          </div>
+
+          <div class="settings-section">
+            <h4 class="settings-heading">Subject difficulty</h4>
+            <p class="muted settings-hint">Drag — top = easiest for you; hardest subject gets more starter topics.</p>
+            <ul id="settingsDifficultyRankList" class="onboarding-rank-list onboarding-rank-list--compact" data-rank-type="difficulty"></ul>
+          </div>
+
+          <div class="settings-section">
+            <h4 class="settings-heading">Teacher class</h4>
+            <p class="muted settings-hint">Enter your teacher&apos;s 6-character join code to link your account to their class.</p>
+            <p id="settingsClassStatus" class="settings-class-status muted hidden"></p>
+            <div class="settings-class-row">
+              <input id="settingsClassCodeInput" type="text" class="settings-class-input" placeholder="e.g. XK7M2P" maxlength="8" autocomplete="off" />
+              <button type="button" id="btnSettingsJoinClass" class="btn-secondary">Join class</button>
+            </div>
+            <p id="settingsClassMsg" class="muted settings-class-msg hidden"></p>
+          </div>
+
+          <div class="settings-actions">
+            <button type="button" id="btnSaveSettings" class="btn-primary">Save preferences</button>
+            <span id="settingsSaveMsg" class="muted hidden"></span>
           </div>
         </div>
       </div>

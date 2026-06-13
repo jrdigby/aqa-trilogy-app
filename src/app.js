@@ -15,8 +15,20 @@ import {
 import { triggerMathTypeset } from './mathEngine.js';
 import { checkKeywordOrSynonymsMatch, updateSRS, computeSessionQuality, getAQACommandWordHelper, isFuzzyMatch } from './evalEngine.js';
 import { escapeHtml, shuffleArray, todayISO, addDaysISO } from './utils.js';
-import { supabaseClient, timeoutPromise, fetchDashboardDueItems, fetchConceptGapAttempts, fetchWeeklyForecastSchedules, fetchSyllabusPipelineData, fetchAttemptActivity } from './dbClient.js';
+import { supabaseClient, timeoutPromise, fetchDashboardDueItems, fetchConceptGapAttempts, fetchWeeklyForecastSchedules, fetchSyllabusPipelineData, fetchAttemptActivity, fetchUserProfile, stashAuthSession, clearAuthGraceSession, endAuthGracePeriod, isAuthGraceActive } from './dbClient.js';
 import dbClient from "./dbClient.js";
+import {
+  saveOnboardingProfile,
+  saveUserProfileSettings,
+  joinClassByCode,
+  seedInitialSRS,
+  ensureScheduleReady,
+  allocateUpcomingTopics,
+  normalizeTier,
+  targetTiersForTier,
+  sortSubjectsByPreference,
+  sortSubjectsByDifficulty
+} from './onboardingEngine.js';
 import { markResponse } from './evalEngine.js';
 
 console.log("APP VERSION", "v-" + Date.now());
@@ -36,6 +48,7 @@ window.addEventListener("unhandledrejection", (e) => {
 const el = (id) => document.getElementById(id);
 
 const authSection = el("auth");
+const onboardingSection = el("onboarding");
 const dashSection = el("dashboard");
 const sessionSection = el("session");
 
@@ -55,7 +68,8 @@ const summaryActions = el("summaryActions");
 
 const btnSignUp = el("btnSignUp");
 const btnSignIn = el("btnSignIn");
-const btnSignOut = el("btnSignOut");    
+const btnSignOut = el("btnSignOut");
+const btnOpenSettings = el("btnOpenSettings");    
 
 const btnStartPractice = el("btnStartPractice");
 const btnExamPrep = el("btnExamPrep");
@@ -84,8 +98,13 @@ const tabFlashcards = el("tabFlashcards");
 const panelPractice = el("dashboardTabPractice");
 const panelAnalytics = el("dashboardTabAnalytics");
 const panelFlashcards = el("dashboardTabFlashcards");
+const panelSettings = el("dashboardTabSettings");
+const dashboardTabs = document.querySelector(".dashboard-tabs");
 const DASHBOARD_TAB_KEY = "dashboard_active_tab";
 const DASHBOARD_TABS = ["practice", "analytics", "flashcards"];
+let activeDashboardTab = "practice";
+let settingsOpen = false;
+let tabBeforeSettings = "practice";
 
 const FILTER_MOUNTS = {
   practice: () => el("filterMountPractice"),
@@ -102,6 +121,7 @@ function mountFiltersForTab(tab) {
 
 function switchDashboardTab(tab) {
   const active = DASHBOARD_TABS.includes(tab) ? tab : "practice";
+  activeDashboardTab = active;
   if (panelPractice) panelPractice.classList.toggle("hidden", active !== "practice");
   if (panelAnalytics) panelAnalytics.classList.toggle("hidden", active !== "analytics");
   if (panelFlashcards) panelFlashcards.classList.toggle("hidden", active !== "flashcards");
@@ -135,9 +155,45 @@ function switchDashboardTab(tab) {
   requestAnimationFrame(() => autoSizeFilterSelects());
 }
 
+function openSettings() {
+  if (!currentUserProfile) return;
+  tabBeforeSettings = activeDashboardTab;
+  settingsOpen = true;
+
+  if (panelPractice) panelPractice.classList.add("hidden");
+  if (panelAnalytics) panelAnalytics.classList.add("hidden");
+  if (panelFlashcards) panelFlashcards.classList.add("hidden");
+  if (panelSettings) panelSettings.classList.remove("hidden");
+
+  const schedulePracticeBlock = document.querySelector(".schedule-practice-block");
+  if (schedulePracticeBlock) schedulePracticeBlock.classList.add("hidden");
+  if (dashboardTabs) dashboardTabs.classList.add("hidden");
+  if (btnOpenSettings) btnOpenSettings.textContent = "← Back";
+
+  loadSettingsPanel();
+}
+
+function closeSettings(returnTab = tabBeforeSettings) {
+  if (!settingsOpen) return;
+  settingsOpen = false;
+
+  if (panelSettings) panelSettings.classList.add("hidden");
+  if (dashboardTabs) dashboardTabs.classList.remove("hidden");
+  if (btnOpenSettings) btnOpenSettings.textContent = "⚙️ Settings";
+
+  const target = DASHBOARD_TABS.includes(returnTab) ? returnTab : "practice";
+  switchDashboardTab(target);
+}
+
 if (tabPractice) tabPractice.onclick = () => switchDashboardTab("practice");
 if (tabAnalytics) tabAnalytics.onclick = () => switchDashboardTab("analytics");
 if (tabFlashcards) tabFlashcards.onclick = () => switchDashboardTab("flashcards");
+if (btnOpenSettings) {
+  btnOpenSettings.onclick = () => {
+    if (settingsOpen) closeSettings(tabBeforeSettings);
+    else openSettings();
+  };
+}
 
 if (activityRangePicker) {
   activityRangePicker.querySelectorAll(".activity-range-btn").forEach(btn => {
@@ -167,11 +223,47 @@ let idx = 0;
 let currentQ = null;
 let currentKey = null;
 let currentMarkPoints = [];
-let isInitializingPipeline = false; 
+let isInitializingPipeline = false;
+let authHandledByButton = false;
 let hasImprovedCurrentQ = false;
 let cachedDueItems = [];
+let cachedActiveSRS = [];
+
+function hasStudentStartedPractice(srsRows = []) {
+  return srsRows.some((row) => (row.repetitions ?? 0) > 0);
+}
+
+const CAUGHT_UP_SCHEDULE_HTML = `<div class="item caught-up-message">
+  <strong>You're up to date.</strong>
+  <p class="muted caught-up-hint">You can practice questions in the Exam preparation section, or by clicking on topics in the Mastery matrix below.</p>
+</div>`;
+
+const CAUGHT_UP_PREVIEW_HTML = `<strong>You're up to date.</strong> You can practice questions in the Exam preparation section, or by clicking on topics in the Mastery matrix below.`;
+
+function setPracticePreviewCaughtUp() {
+  if (!startPracticePreview) return;
+  startPracticePreview.innerHTML = CAUGHT_UP_PREVIEW_HTML;
+}
+
+function setPracticePreviewText(text) {
+  if (!startPracticePreview) return;
+  startPracticePreview.textContent = text;
+}
 let adaptivePracticeState = { ...DEFAULT_ADAPTIVE_STATE };
 let pendingAdaptiveSession = null;
+let currentUserProfile = null;
+let settingsTier = "FT";
+
+const ONBOARDING_SUBJECTS = ["biology", "chemistry", "physics"];
+const ONBOARDING_STEP_COUNT = 5;
+let onboardingStep = 1;
+const onboardingState = {
+  preferred_tier: "FT",
+  subject_preference: { biology: 1, chemistry: 2, physics: 3 },
+  subject_difficulty: { biology: "easiest", chemistry: "medium", physics: "hardest" },
+  class_code: "",
+  joined_class_name: null
+};
 
 function getSelectedFilters() {
   const subject = subjectFilter?.value || "biology";
@@ -234,63 +326,130 @@ if (btnSignUp) {
     authMsg.textContent = "Creating account…";
     const email = el("email").value.trim();
     const password = el("password").value;
-    const { error } = await supabaseClient.auth.signUp({ email, password });
-    authMsg.textContent = error ? "Sign up failed: " + error.message : "Sign up successful ✅ Now click Sign in.";
+    const { data, error } = await supabaseClient.auth.signUp({ email, password });
+    if (error) {
+      authMsg.textContent = "Sign up failed: " + error.message;
+    } else if (data?.user && !data?.session) {
+      authMsg.textContent =
+        "Account created ✅ Please check your email and verify your address before signing in.";
+    } else {
+      authMsg.textContent = "Sign up successful ✅ You can sign in now.";
+    }
   };
+}
+
+function formatAuthError(error) {
+  if (!error) return "Sign in failed. Please try again.";
+  const msg = String(error.message || "");
+  const code = String(error.code || "");
+
+  if (
+    code === "invalid_credentials" ||
+    msg.toLowerCase().includes("invalid login credentials")
+  ) {
+    return "Incorrect email or password.";
+  }
+  if (
+    code === "email_not_confirmed" ||
+    msg.toLowerCase().includes("email not confirmed")
+  ) {
+    return "Please verify your email before signing in. Check your inbox for the confirmation link.";
+  }
+  if (msg.toLowerCase().includes("user banned")) {
+    return "This account has been disabled. Contact support.";
+  }
+  return msg || "Sign in failed. Please try again.";
 }
 
 if (btnSignIn) {
   btnSignIn.onclick = async () => {
+    if (btnSignIn.disabled) return;
+
     authMsg.classList.remove("hidden");
     authMsg.textContent = "Signing in…";
+    btnSignIn.disabled = true;
+
     const email = el("email").value.trim();
     const password = el("password").value;
-    const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
 
-    if (error) {
-      authMsg.textContent = "Sign in failed: " + error.message;
+    if (!email || !password) {
+      authMsg.textContent = "Enter your email and password.";
+      btnSignIn.disabled = false;
       return;
     }
-    currentUser = data.user;
-    await setSignedInUI(currentUser);
-    await loadDashboard();       
+
+    try {
+      const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+
+      if (error) {
+        console.warn("Sign in error:", error.status, error.code, error.message);
+        authMsg.textContent = "Sign in failed: " + formatAuthError(error);
+        return;
+      }
+      if (!data?.session?.user) {
+        authMsg.textContent =
+          "Please verify your email address before signing in.";
+        return;
+      }
+
+      authMsg.textContent = "Signed in ✅";
+      stashAuthSession(data.session);
+      authHandledByButton = true;
+      await applyAuthSession(data.session, "SIGNED_IN");
+    } catch (err) {
+      console.error("Sign in exception:", err);
+      authMsg.textContent = "Sign in failed: " + (err.message || err);
+    } finally {
+      btnSignIn.disabled = false;
+    }
   };
 }
 
 if (btnSignOut) {
   btnSignOut.onclick = async () => {
+    authHandledByButton = false;
+    clearAuthGraceSession();
     await supabaseClient.auth.signOut();
     setSignedOutUI();
   };
 }
 
 // ====== DASHBOARD ======
-async function loadDashboard() {
-  if (!currentUser) return;
-  console.log("DEBUG loadDashboard: Starting dashboard items load...");
-  
-  let due = [];
+async function loadDashboard(user = currentUser) {
+  const userId = user?.id;
+  if (!userId) return;
+
+  currentUser = user;
+
+  let scheduleResult = null;
+  try {
+    if (!currentUserProfile || currentUserProfile.user_id !== userId) {
+      currentUserProfile = await fetchUserProfile(userId);
+    }
+    scheduleResult = await ensureScheduleReady(userId, currentUserProfile);
+  } catch (seedErr) {
+    const seedMsg =
+      seedErr?.message ||
+      seedErr?.details ||
+      seedErr?.hint ||
+      (typeof seedErr === "object" ? JSON.stringify(seedErr) : String(seedErr));
+    console.warn("DEBUG loadDashboard: SRS schedule setup failed:", seedMsg, seedErr);
+    if (!seedMsg.includes("Not authenticated")) {
+      showToastBanner("Could not build practice schedule: " + seedMsg, true);
+    }
+  }
+
+  const due = Array.isArray(scheduleResult?.dueRows) ? scheduleResult.dueRows : [];
+  let activeSRS = Array.isArray(scheduleResult?.srsRows) ? scheduleResult.srsRows : [];
   let allSpecs = [];
-  let activeSRS = [];
 
   try {
-    // 1. Fetch upcoming due items, whole curriculum map, and user metrics in parallel
-    const [dueResult, specsResult, srsResult] = await Promise.all([
-      fetchDashboardDueItems(currentUser.id),
-      dbClient.fetchAllSpecificationPoints(), // Fetches entire AQA static spec framework
-      dbClient.fetchUserSRSState(currentUser.id) // Fetches all tracked schedules for this student
-    ]);
-
-    due = dueResult;
+    allSpecs = await dbClient.fetchAllSpecificationPoints();
     cachedDueItems = due;
-    allSpecs = specsResult;
-    activeSRS = srsResult;
-
-    console.log("DIAGNOSTIC - Total Spec Points from DB:", allSpecs ? allSpecs.length : "undefined");
-    console.log("DIAGNOSTIC - Raw Data Sample:", allSpecs && allSpecs[0] ? allSpecs[0] : "no data");
-    console.log("DEBUG loadDashboard: Dashboard data pipeline complete.", due.length, "items due.");
+    cachedActiveSRS = activeSRS;
+    console.log("DEBUG loadDashboard:", due.length, "due,", activeSRS.length, "SRS rows");
   } catch (err) {
-    console.error("DEBUG loadDashboard: Dashboard failed to load, applying empty state fallback:", err);
+    console.error("DEBUG loadDashboard: Dashboard failed to load:", err);
     cachedDueItems = [];
     if (dueCount) dueCount.textContent = "0";
     if (dueList) dueList.innerHTML = `<div class="item text-orange"><span class="bad">Warning:</span> Connection slow or RLS blocked table. ${err.message || err}</div>`;
@@ -331,12 +490,13 @@ async function loadDashboard() {
         </div>
       `;
         }).join("")
-      : `<div class="item">Nothing due today. Start practice to create your first schedule.</div>`;
+      : hasStudentStartedPractice(activeSRS)
+        ? CAUGHT_UP_SCHEDULE_HTML
+        : `<div class="item muted">Nothing due today yet. Your first scheduled topics will appear here once your practice deck is ready.</div>`;
   }
 
-  await updateStartPracticePreview(due);
-  
-  // 4. Call the interactive Flashcard Generator
+  await updateStartPracticePreview(due, activeSRS);
+
   await loadRevisionCards();
 }
 
@@ -580,7 +740,7 @@ async function downloadStudyGuideText(attempts) {
 // ====== PRACTICE SESSION ENGINE ======
 async function resolveScheduledSpecPoint(dueItems, { excludeSpecPointId } = {}) {
   const { tier } = getSelectedFilters();
-  const targetTiers = tier === "HT" ? ["HT", "both"] : ["FT", "both"];
+  const targetTiers = targetTiersForTier(tier);
 
   const candidates = (dueItems || []).filter(d =>
     !excludeSpecPointId || d.spec_point_id !== excludeSpecPointId
@@ -628,11 +788,15 @@ async function pickNextScheduledSpecPoint({ excludeSpecPointId } = {}) {
   }
 }
 
-async function updateStartPracticePreview(dueItems) {
+async function updateStartPracticePreview(dueItems, srsRows = cachedActiveSRS) {
   if (!startPracticePreview || !btnStartPractice) return;
 
   if (!dueItems?.length) {
-    startPracticePreview.textContent = "Nothing due in your schedule.";
+    if (hasStudentStartedPractice(srsRows)) {
+      setPracticePreviewCaughtUp();
+    } else {
+      setPracticePreviewText("Nothing due in your schedule yet.");
+    }
     btnStartPractice.disabled = true;
     return;
   }
@@ -642,20 +806,23 @@ async function updateStartPracticePreview(dueItems) {
     if (result.specPointId) {
       const topic = result.specMeta?.topic_name ?? "your next due topic";
       const ref = result.specMeta?.spec_ref ?? "";
-      startPracticePreview.textContent = ref
-        ? `10 questions on ${topic} (${ref})`
-        : `10 questions on ${topic}`;
+      setPracticePreviewText(
+        ref ? `10 questions on ${topic} (${ref})` : `10 questions on ${topic}`
+      );
       btnStartPractice.disabled = false;
     } else if (result.noQuestions) {
-      startPracticePreview.textContent = "Due items found but no questions match your tier.";
+      setPracticePreviewText("Due items found but no questions match your tier.");
+      btnStartPractice.disabled = true;
+    } else if (hasStudentStartedPractice(srsRows)) {
+      setPracticePreviewCaughtUp();
       btnStartPractice.disabled = true;
     } else {
-      startPracticePreview.textContent = "Nothing due in your schedule.";
+      setPracticePreviewText("Nothing due in your schedule yet.");
       btnStartPractice.disabled = true;
     }
   } catch (err) {
     console.warn("DEBUG updateStartPracticePreview:", err);
-    startPracticePreview.textContent = "Could not load schedule preview.";
+    setPracticePreviewText("Could not load schedule preview.");
     btnStartPractice.disabled = true;
   }
 }
@@ -674,7 +841,12 @@ if (btnStartPractice) {
     }
 
     if (targeted.noDue) {
-      showToastBanner("Nothing due in your schedule.", false);
+      showToastBanner(
+        hasStudentStartedPractice(cachedActiveSRS)
+          ? "You're up to date — try Exam preparation or a topic in the Mastery matrix."
+          : "Nothing due in your schedule yet.",
+        false
+      );
       return;
     }
 
@@ -1328,8 +1500,9 @@ async function loadActivityChart(validQuestionIds, filterContext) {
   }).join("");
 }
 
-async function loadWeeklyForecast() {
-  if (!currentUser || !forecastWrapper) return;
+async function loadWeeklyForecast(user = currentUser) {
+  const userId = user?.id;
+  if (!userId || !forecastWrapper) return;
 
   const weekdayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const today = todayISO();
@@ -1351,7 +1524,7 @@ async function loadWeeklyForecast() {
   console.log("DEBUG loadWeeklyForecast: Loading schedules forecast...");
   let schedules = [];
   try {
-    schedules = await fetchWeeklyForecastSchedules(currentUser.id);
+    schedules = await fetchWeeklyForecastSchedules(userId);
   } catch (err) {
     console.error("DEBUG loadWeeklyForecast: Failed to gather due dates array:", err);
     forecastWrapper.innerHTML = `<div class="muted" style="margin: auto; font-size: 0.8rem;">Forecast inactive (connection slow).</div>`;
@@ -1396,8 +1569,9 @@ async function loadWeeklyForecast() {
 
 // ====== FIXED RANDOMIZATION ENGINE ======
 
-async function checkAndUpdateStreak() {
-  if (!currentUser) return;
+async function checkAndUpdateStreak(user = currentUser) {
+  const userId = user?.id;
+  if (!userId) return;
 
   const todayStr = todayISO(); 
   console.log("DEBUG checkAndUpdateStreak: Processing calendar activity check...");
@@ -1406,11 +1580,11 @@ async function checkAndUpdateStreak() {
     const query = supabaseClient
       .from("profiles")
       .select("current_streak, last_login_date")
-      .eq("user_id", currentUser.id)
-      .single();
+      .eq("user_id", userId)
+      .maybeSingle();
 
     const result = await Promise.race([query, timeoutPromise(4000, "Streak check timed out")]);
-    if (result.error && result.error.code !== "PGRST116") throw result.error;
+    if (result.error) throw result.error;
     
     let profile = result.data;
     let currentStreak = profile?.current_streak || 0;
@@ -1421,7 +1595,7 @@ async function checkAndUpdateStreak() {
       await supabaseClient
         .from("profiles")
         .update({ current_streak: currentStreak, last_login_date: todayStr })
-        .eq("user_id", currentUser.id);
+        .eq("user_id", userId);
         
     } else if (lastLoginStr === todayStr) {
       // Already logged
@@ -1440,7 +1614,7 @@ async function checkAndUpdateStreak() {
       await supabaseClient
         .from("profiles")
         .update({ current_streak: currentStreak, last_login_date: todayStr })
-        .eq("user_id", currentUser.id);
+        .eq("user_id", userId);
     }
 
     const counterEl = el("streakCount");
@@ -1524,6 +1698,14 @@ async function finalizeSessionSRS() {
     await upsertSRS(specPointId, sessionQuality);
   }
   sessionQualityLog = [];
+
+  if (currentUser && currentUserProfile?.role === "student") {
+    try {
+      await allocateUpcomingTopics(currentUser.id, currentUserProfile);
+    } catch (allocErr) {
+      console.warn("Ongoing topic allocation skipped:", allocErr);
+    }
+  }
 }
 
 function getResponsePayload(q) {
@@ -1556,14 +1738,574 @@ function getResponsePayload(q) {
 function setSignedOutUI() {
   if (btnSignOut) btnSignOut.classList.add("hidden");      
   if (authSection) authSection.classList.remove("hidden");  
+  if (onboardingSection) onboardingSection.classList.add("hidden");
 
   if (dashSection) dashSection.classList.add("hidden");
   if (sessionSection) sessionSection.classList.add("hidden");
+
+  currentUserProfile = null;
 
   if (authMsg) {
     authMsg.textContent = "Not signed in.";
     authMsg.classList.remove("hidden");
   }
+}
+
+function updateUserChipDisplay() {
+  if (!userChip || !currentUser) return;
+  const email = currentUser.email || currentUser.id;
+  const tier = currentUserProfile?.subscription_tier || "free";
+  const badgeClass = tier === "paid" ? "subscription-badge paid" : "subscription-badge";
+  userChip.innerHTML = `${escapeHtml(email)}<span class="${badgeClass}">${escapeHtml(tier)}</span>`;
+}
+
+function buildRankMapsFromList(listEl, type) {
+  const items = [...listEl.querySelectorAll(".onboarding-rank-item")];
+  const result = {};
+  items.forEach((item, index) => {
+    const subject = item.dataset.subject;
+    if (type === "preference") {
+      result[subject] = index + 1;
+    } else {
+      const labels = ["easiest", "medium", "hardest"];
+      result[subject] = labels[Math.min(index, labels.length - 1)];
+    }
+  });
+  return result;
+}
+
+function renderRankList(listEl, subjects, type) {
+  if (!listEl) return;
+  listEl.innerHTML = subjects
+    .map((subject, i) => {
+      const label = subject.charAt(0).toUpperCase() + subject.slice(1);
+      const num = type === "preference" ? `<span class="onboarding-rank-num">${i + 1}</span>` : "";
+      return `<li class="onboarding-rank-item" draggable="true" data-subject="${subject}">
+        <span class="onboarding-rank-handle">☰</span>
+        <span class="onboarding-rank-label">${label}</span>
+        ${num}
+      </li>`;
+    })
+    .join("");
+
+  wireRankListDrag(listEl, type);
+}
+
+function loadSettingsPanel() {
+  if (!currentUserProfile) return;
+
+  settingsTier = normalizeTier(currentUserProfile.preferred_tier || "FT");
+  document.querySelectorAll(".settings-tier-btn").forEach((btn) => {
+    btn.classList.toggle("selected", btn.dataset.tier === settingsTier);
+  });
+
+  const prefOrder = sortSubjectsByPreference(currentUserProfile.subject_preference || {});
+  const diffOrder = sortSubjectsByDifficulty(currentUserProfile.subject_difficulty || {});
+  renderRankList(el("settingsPreferenceRankList"), prefOrder, "preference");
+  renderRankList(el("settingsDifficultyRankList"), diffOrder, "difficulty");
+
+  const classInput = el("settingsClassCodeInput");
+  const classStatus = el("settingsClassStatus");
+  const classMsg = el("settingsClassMsg");
+  if (classInput) classInput.value = "";
+  if (classMsg) classMsg.classList.add("hidden");
+
+  if (classStatus) {
+    if (currentUserProfile.class_id) {
+      classStatus.textContent = "You are linked to a teacher class.";
+      classStatus.classList.remove("hidden");
+      void refreshSettingsClassName(currentUserProfile.class_id);
+    } else {
+      classStatus.classList.add("hidden");
+      classStatus.textContent = "";
+    }
+  }
+
+  const msgEl = el("settingsSaveMsg");
+  if (msgEl) msgEl.classList.add("hidden");
+}
+
+async function refreshSettingsClassName(classId) {
+  const classStatus = el("settingsClassStatus");
+  if (!classStatus || !classId) return;
+
+  try {
+    const { data, error } = await supabaseClient
+      .from("classes")
+      .select("name")
+      .eq("id", classId)
+      .maybeSingle();
+    if (!error && data?.name) {
+      classStatus.textContent = `Joined class: ${data.name}`;
+    }
+  } catch (_) {
+    /* RLS may block — generic message already shown */
+  }
+}
+
+function wireSettingsControls() {
+  document.querySelectorAll(".settings-tier-btn").forEach((btn) => {
+    btn.onclick = () => {
+      settingsTier = btn.dataset.tier;
+      document.querySelectorAll(".settings-tier-btn").forEach((b) => {
+        b.classList.toggle("selected", b.dataset.tier === settingsTier);
+      });
+    };
+  });
+
+  const btnJoinClass = el("btnSettingsJoinClass");
+  if (btnJoinClass) {
+    btnJoinClass.onclick = async () => {
+      if (!currentUser) return;
+
+      const code = (el("settingsClassCodeInput")?.value || "").trim();
+      const msgEl = el("settingsClassMsg");
+      if (!code) {
+        if (msgEl) {
+          msgEl.textContent = "Enter a class code.";
+          msgEl.style.color = "var(--error, #c0392b)";
+          msgEl.classList.remove("hidden");
+        }
+        return;
+      }
+
+      btnJoinClass.disabled = true;
+      btnJoinClass.textContent = "Joining…";
+      if (msgEl) msgEl.classList.add("hidden");
+
+      try {
+        const result = await joinClassByCode(code, currentUser.id);
+        if (currentUserProfile) {
+          currentUserProfile = {
+            ...currentUserProfile,
+            class_id: result?.class_id ?? currentUserProfile.class_id
+          };
+        } else {
+          currentUserProfile = await fetchUserProfile(currentUser.id);
+        }
+        const className = result?.class_name || "your class";
+        const classStatus = el("settingsClassStatus");
+        if (classStatus) {
+          classStatus.textContent = `Joined class: ${className}`;
+          classStatus.classList.remove("hidden");
+        }
+        if (msgEl) {
+          msgEl.textContent = `Joined ${className} ✓`;
+          msgEl.style.color = "var(--success, #27ae60)";
+          msgEl.classList.remove("hidden");
+        }
+        const classInput = el("settingsClassCodeInput");
+        if (classInput) classInput.value = "";
+      } catch (err) {
+        if (msgEl) {
+          msgEl.textContent = err.message || "Invalid class code";
+          msgEl.style.color = "var(--error, #c0392b)";
+          msgEl.classList.remove("hidden");
+        }
+      } finally {
+        btnJoinClass.disabled = false;
+        btnJoinClass.textContent = "Join class";
+      }
+    };
+  }
+
+  const btnSave = el("btnSaveSettings");
+  if (!btnSave) return;
+
+  btnSave.onclick = async () => {
+    if (!currentUser) return;
+
+    const prefList = el("settingsPreferenceRankList");
+    const diffList = el("settingsDifficultyRankList");
+    const subject_preference = prefList
+      ? buildRankMapsFromList(prefList, "preference")
+      : currentUserProfile?.subject_preference;
+    const subject_difficulty = diffList
+      ? buildRankMapsFromList(diffList, "difficulty")
+      : currentUserProfile?.subject_difficulty;
+
+    const msgEl = el("settingsSaveMsg");
+    btnSave.disabled = true;
+    btnSave.textContent = "Saving…";
+    if (msgEl) msgEl.classList.add("hidden");
+
+    try {
+      await saveUserProfileSettings(currentUser.id, {
+        preferred_tier: settingsTier,
+        subject_preference,
+        subject_difficulty
+      });
+
+      const tier = normalizeTier(settingsTier);
+      localStorage.setItem("preferred_tier", tier);
+      const tierSelect = el("tierFilter");
+      if (tierSelect) tierSelect.value = tier;
+
+      currentUserProfile = await fetchUserProfile(currentUser.id);
+      await loadDashboard();
+      closeSettings(tabBeforeSettings);
+
+      showToastBanner("Study preferences updated.");
+    } catch (err) {
+      showToastBanner("Could not save preferences: " + err.message, true);
+    } finally {
+      btnSave.disabled = false;
+      btnSave.textContent = "Save preferences";
+    }
+  };
+}
+
+function wireRankListDrag(listEl, type) {
+  let dragged = null;
+
+  listEl.querySelectorAll(".onboarding-rank-item").forEach((item) => {
+    item.addEventListener("dragstart", () => {
+      dragged = item;
+      item.classList.add("dragging");
+    });
+    item.addEventListener("dragend", () => {
+      item.classList.remove("dragging");
+      dragged = null;
+      if (type === "preference") {
+        listEl.querySelectorAll(".onboarding-rank-num").forEach((numEl, idx) => {
+          numEl.textContent = String(idx + 1);
+        });
+      }
+    });
+    item.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      if (!dragged || dragged === item) return;
+      const rect = item.getBoundingClientRect();
+      const after = e.clientY > rect.top + rect.height / 2;
+      listEl.insertBefore(dragged, after ? item.nextSibling : item);
+    });
+  });
+}
+
+function updateOnboardingStepUI() {
+  for (let i = 1; i <= ONBOARDING_STEP_COUNT; i++) {
+    const panel = el(`onboardingStep${i}`);
+    if (panel) panel.classList.toggle("hidden", i !== onboardingStep);
+  }
+
+  const dots = document.querySelectorAll("#onboardingStepDots .onboarding-step-dot");
+  dots.forEach((dot, idx) => {
+    dot.classList.toggle("active", idx + 1 === onboardingStep);
+    dot.classList.toggle("done", idx + 1 < onboardingStep);
+  });
+
+  const btnBack = el("btnOnboardingBack");
+  const btnNext = el("btnOnboardingNext");
+  const btnSkip = el("btnOnboardingSkip");
+  const btnFinish = el("btnOnboardingFinish");
+
+  if (btnBack) btnBack.classList.toggle("hidden", onboardingStep <= 1);
+  if (btnNext) btnNext.classList.toggle("hidden", onboardingStep >= ONBOARDING_STEP_COUNT);
+  if (btnFinish) btnFinish.classList.toggle("hidden", onboardingStep !== ONBOARDING_STEP_COUNT);
+  if (btnSkip) btnSkip.classList.toggle("hidden", onboardingStep !== 4);
+
+  if (onboardingStep === 5) {
+    const prefList = el("preferenceRankList");
+    const diffList = el("difficultyRankList");
+    if (prefList) onboardingState.subject_preference = buildRankMapsFromList(prefList, "preference");
+    if (diffList) onboardingState.subject_difficulty = buildRankMapsFromList(diffList, "difficulty");
+
+    const summary = el("onboardingSummary");
+    if (summary) {
+      const tierLabel = onboardingState.preferred_tier === "HT" ? "Higher Tier" : "Foundation Tier";
+      const prefOrder = [...ONBOARDING_SUBJECTS]
+        .sort((a, b) => onboardingState.subject_preference[a] - onboardingState.subject_preference[b])
+        .map((s) => s.charAt(0).toUpperCase() + s.slice(1))
+        .join(" → ");
+      const diffOrder = [...ONBOARDING_SUBJECTS]
+        .sort((a, b) => {
+          const order = { easiest: 0, medium: 1, hardest: 2 };
+          return (order[onboardingState.subject_difficulty[a]] ?? 1) -
+            (order[onboardingState.subject_difficulty[b]] ?? 1);
+        })
+        .map((s) => {
+          const label = s.charAt(0).toUpperCase() + s.slice(1);
+          const diff = onboardingState.subject_difficulty[s] || "medium";
+          return `${label} (${diff})`;
+        })
+        .join(" → ");
+      const classLine = onboardingState.joined_class_name
+        ? `Class: ${onboardingState.joined_class_name}`
+        : "Class: none (individual)";
+      summary.innerHTML = `
+        <div><strong>Tier:</strong> ${tierLabel}</div>
+        <div><strong>Study order (step 2 — preference):</strong> ${prefOrder}</div>
+        <div><strong>Difficulty ranking (step 3):</strong> ${diffOrder}</div>
+        <p class="muted" style="margin-top: 10px; font-size: 0.85rem;">Starter topics use <em>both</em>: subjects earlier in study order are scheduled first; your hardest subject gets more initial topics.</p>
+        <div><strong>${classLine}</strong></div>
+      `;
+    }
+  }
+}
+
+function showOnboardingUI() {
+  if (authSection) authSection.classList.add("hidden");
+  if (onboardingSection) onboardingSection.classList.remove("hidden");
+  if (dashSection) dashSection.classList.add("hidden");
+  if (sessionSection) sessionSection.classList.add("hidden");
+  if (authMsg) authMsg.classList.add("hidden");
+  if (btnSignOut) btnSignOut.classList.remove("hidden");
+
+  onboardingStep = 1;
+  renderRankList(el("preferenceRankList"), [...ONBOARDING_SUBJECTS], "preference");
+  renderRankList(el("difficultyRankList"), [...ONBOARDING_SUBJECTS], "difficulty");
+
+  document.querySelectorAll(".onboarding-tier-btn").forEach((btn) => {
+    btn.classList.toggle("selected", btn.dataset.tier === onboardingState.preferred_tier);
+    btn.onclick = () => {
+      onboardingState.preferred_tier = btn.dataset.tier;
+      document.querySelectorAll(".onboarding-tier-btn").forEach((b) => {
+        b.classList.toggle("selected", b.dataset.tier === onboardingState.preferred_tier);
+      });
+    };
+  });
+
+  updateOnboardingStepUI();
+}
+
+async function finishOnboarding() {
+  const prefList = el("preferenceRankList");
+  const diffList = el("difficultyRankList");
+  if (prefList) onboardingState.subject_preference = buildRankMapsFromList(prefList, "preference");
+  if (diffList) onboardingState.subject_difficulty = buildRankMapsFromList(diffList, "difficulty");
+
+  const btnFinish = el("btnOnboardingFinish");
+  if (btnFinish) {
+    btnFinish.disabled = true;
+    btnFinish.textContent = "Setting up…";
+  }
+
+  try {
+    const code = (el("classCodeInput")?.value || "").trim();
+    if (code && !onboardingState.joined_class_name) {
+      const joinResult = await joinClassByCode(code, currentUser.id);
+      onboardingState.joined_class_name = joinResult?.class_name || null;
+    }
+
+    await saveOnboardingProfile(currentUser.id, {
+      preferred_tier: onboardingState.preferred_tier,
+      subject_preference: onboardingState.subject_preference,
+      subject_difficulty: onboardingState.subject_difficulty
+    });
+
+    const tier = normalizeTier(onboardingState.preferred_tier);
+    localStorage.setItem("preferred_tier", tier);
+    const tierSelect = el("tierFilter");
+    if (tierSelect) tierSelect.value = tier;
+
+    const profileForSeed = {
+      preferred_tier: normalizeTier(onboardingState.preferred_tier),
+      subject_preference: onboardingState.subject_preference,
+      subject_difficulty: onboardingState.subject_difficulty
+    };
+    await seedInitialSRS(currentUser.id, profileForSeed);
+
+    currentUserProfile = await fetchUserProfile(currentUser.id);
+    if (onboardingSection) onboardingSection.classList.add("hidden");
+    await setSignedInUI(currentUser);
+  } catch (err) {
+    showToastBanner("Onboarding failed: " + err.message, true);
+    if (btnFinish) {
+      btnFinish.disabled = false;
+      btnFinish.textContent = "Finish setup";
+    }
+  }
+}
+
+function wireOnboardingControls() {
+  const btnNext = el("btnOnboardingNext");
+  const btnBack = el("btnOnboardingBack");
+  const btnSkip = el("btnOnboardingSkip");
+  const btnFinish = el("btnOnboardingFinish");
+
+  if (btnNext) {
+    btnNext.onclick = async () => {
+      if (onboardingStep === 4) {
+        const code = (el("classCodeInput")?.value || "").trim();
+        const msgEl = el("classCodeMsg");
+        if (code) {
+          try {
+            const result = await joinClassByCode(code, currentUser.id);
+            onboardingState.joined_class_name = result?.class_name || "your class";
+            if (msgEl) {
+              msgEl.textContent = `Joined ${onboardingState.joined_class_name} ✓`;
+              msgEl.classList.remove("hidden");
+              msgEl.style.color = "var(--success)";
+            }
+          } catch (err) {
+            if (msgEl) {
+              msgEl.textContent = err.message || "Invalid class code";
+              msgEl.classList.remove("hidden");
+              msgEl.style.color = "var(--error)";
+            }
+            return;
+          }
+        } else if (msgEl) {
+          msgEl.classList.add("hidden");
+        }
+      }
+
+      if (onboardingStep < ONBOARDING_STEP_COUNT) {
+        onboardingStep += 1;
+        updateOnboardingStepUI();
+      }
+    };
+  }
+
+  if (btnBack) {
+    btnBack.onclick = () => {
+      if (onboardingStep > 1) {
+        onboardingStep -= 1;
+        updateOnboardingStepUI();
+      }
+    };
+  }
+
+  if (btnSkip) {
+    btnSkip.onclick = () => {
+      onboardingStep = 5;
+      updateOnboardingStepUI();
+    };
+  }
+
+  if (btnFinish) {
+    btnFinish.onclick = () => finishOnboarding();
+  }
+}
+
+wireOnboardingControls();
+wireSettingsControls();
+
+async function handleSignedInUser(user) {
+  if (!user?.id) {
+    setSignedOutUI();
+    return;
+  }
+
+  currentUser = user;
+
+  try {
+    currentUserProfile = await fetchUserProfile(user.id);
+  } catch (err) {
+    console.warn("Profile fetch failed:", err);
+    currentUserProfile = {
+      user_id: user.id,
+      role: "student",
+      subscription_tier: "free",
+      onboarding_completed_at: null
+    };
+  }
+
+  if (currentUserProfile?.role === "teacher") {
+    window.location.href = "teacher.html";
+    return;
+  }
+
+  if (currentUserProfile?.role === "developer") {
+    window.location.href = "admin.html";
+    return;
+  }
+
+  if (!currentUserProfile?.onboarding_completed_at) {
+    showOnboardingUI();
+    return;
+  }
+
+  await setSignedInUI(user);
+}
+
+function wireTierFilterHandler() {
+  const runtimeTierSelect = el("tierFilter");
+  if (!runtimeTierSelect || runtimeTierSelect.dataset.wired === "1") return;
+  runtimeTierSelect.dataset.wired = "1";
+  runtimeTierSelect.onchange = async () => {
+    const newSelectedTier = runtimeTierSelect.value;
+    localStorage.setItem("preferred_tier", newSelectedTier);
+
+    if (!currentUser) return;
+
+    try {
+      const { error: updateError } = await supabaseClient
+        .from("profiles")
+        .update({ preferred_tier: newSelectedTier })
+        .eq("user_id", currentUser.id);
+
+      if (updateError) throw updateError;
+    } catch (saveErr) {
+      console.error("DEBUG DB ERROR: Could not commit preferred_tier:", saveErr);
+    }
+
+    updateTierBoundaryBadge();
+    syncExamPrepModeOptions();
+    await loadTopics();
+  };
+}
+
+async function applyAuthSession(session, event = "") {
+  if (session?.user) {
+    stashAuthSession(session);
+
+    if (
+      event === "SIGNED_IN" &&
+      authHandledByButton &&
+      currentUser?.id === session.user.id &&
+      dashSection &&
+      !dashSection.classList.contains("hidden")
+    ) {
+      authHandledByButton = false;
+      return;
+    }
+
+    const dashVisible = dashSection && !dashSection.classList.contains("hidden");
+    const onboardingVisible = onboardingSection && !onboardingSection.classList.contains("hidden");
+    if (
+      currentUser?.id === session.user.id &&
+      (isInitializingPipeline || dashVisible || onboardingVisible)
+    ) {
+      currentUser = session.user;
+      return;
+    }
+
+    isInitializingPipeline = true;
+    currentUser = session.user;
+    try {
+      await handleSignedInUser(session.user);
+      wireTierFilterHandler();
+    } catch (pipelineError) {
+      console.error("DEBUG CRITICAL: Initialization pipeline failed:", pipelineError);
+      showToastBanner("Pipeline Error: " + pipelineError.message, true);
+      if (authSection) authSection.classList.remove("hidden");
+      if (authMsg) {
+        authMsg.textContent = "Sign-in setup failed. Please refresh and try again.";
+        authMsg.classList.remove("hidden");
+      }
+    } finally {
+      isInitializingPipeline = false;
+      authHandledByButton = false;
+    }
+  } else if (event === "SIGNED_OUT") {
+    if (isInitializingPipeline || isAuthGraceActive()) {
+      return;
+    }
+
+    const { data: { session: liveSession } } = await supabaseClient.auth.getSession();
+    if (liveSession?.user) {
+      console.warn("DEBUG: Ignoring SIGNED_OUT — session still active");
+      currentUser = liveSession.user;
+      return;
+    }
+
+    currentUser = null;
+    currentUserProfile = null;
+    clearAuthGraceSession();
+    setSignedOutUI();
+  }
+  // Ignore null INITIAL_SESSION — bootstrapAuth handles the first session read.
 }
 
 function updateTierBoundaryBadge() {
@@ -1633,7 +2375,7 @@ function showSignedInLayout() {
   if (dashSection) dashSection.classList.remove("hidden");
 
   if (currentUser) {
-    if (userChip) userChip.textContent = `${currentUser.email || currentUser.id}`;
+    updateUserChipDisplay();
     if (authMsg) authMsg.classList.add("hidden");
   }
 
@@ -1654,6 +2396,9 @@ function showSignedInLayout() {
 
   const savedTab = localStorage.getItem(DASHBOARD_TAB_KEY);
   switchDashboardTab(DASHBOARD_TABS.includes(savedTab) ? savedTab : "practice");
+  settingsOpen = false;
+  if (panelSettings) panelSettings.classList.add("hidden");
+  if (btnOpenSettings) btnOpenSettings.textContent = "⚙️ Settings";
 
   if (dueCount) dueCount.textContent = "…";
   if (dueList) dueList.innerHTML = `<div class="item muted">Refreshing scheduled deck…</div>`;
@@ -1674,13 +2419,23 @@ function showSignedInLayout() {
 }
 
 async function setSignedInUI(user) {
+  currentUser = user;
+
+  if (!currentUserProfile) {
+    try {
+      currentUserProfile = await fetchUserProfile(user.id);
+    } catch (err) {
+      console.warn("Profile refresh skipped:", err);
+    }
+  }
   showSignedInLayout();
-  Promise.all([
+  await loadDashboard(user);
+  await Promise.all([
     syncUserTierAndLoadTopics(user),
-    loadDashboard(),
-    loadWeeklyForecast(),
-    checkAndUpdateStreak()
+    loadWeeklyForecast(user),
+    checkAndUpdateStreak(user)
   ]);
+  endAuthGracePeriod();
 }
 
 async function loadTopics() {
@@ -2003,56 +2758,46 @@ window.addEventListener("resize", () => {
 
 console.log("DEBUG: Hooking up supabaseClient.auth.onAuthStateChange...");
 
-supabaseClient.auth.onAuthStateChange(async (event, session) => {
-  console.log(`DEBUG AUTH CHG: Event fired! [Event: ${event}]`, session ? `User ID: ${session.user.id}` : "No active session");
-  
-  if (session?.user) {
-    if (currentUser && currentUser.id === session.user.id && isInitializingPipeline) {
-      return;
-    }
-
-    currentUser = session.user;
-    isInitializingPipeline = true;
-    
-    try {
-      await setSignedInUI(currentUser);
-    } catch (pipelineError) {
-      console.error("DEBUG CRITICAL: Initialization pipeline shattered:", pipelineError);
-      showToastBanner("Pipeline Error: " + pipelineError.message, true);
-    } finally {
-      isInitializingPipeline = false;
-    }
-    
-    const runtimeTierSelect = el("tierFilter");
-    if (runtimeTierSelect) {
-      runtimeTierSelect.onchange = async () => {
-        const newSelectedTier = runtimeTierSelect.value;
-        localStorage.setItem("preferred_tier", newSelectedTier);
-
-        if (!currentUser) return;
-        
-        try {
-          const { error: updateError } = await supabaseClient
-            .from("profiles")
-            .update({ preferred_tier: newSelectedTier })
-            .eq("user_id", currentUser.id);
-          
-          if (updateError) throw updateError;
-        } catch (saveErr) {
-          console.error("DEBUG DB ERROR: Could not commit preferred_tier:", saveErr);
-        }
-
-        updateTierBoundaryBadge();
-        syncExamPrepModeOptions();
-        await loadTopics();
-      };
-    }
-    
-  } else {
-    currentUser = null;
-    setSignedOutUI();
+// Never await getSession() inside this callback — it deadlocks with supabase-js.
+supabaseClient.auth.onAuthStateChange((event, session) => {
+  console.log(`DEBUG AUTH CHG: [Event: ${event}]`, session ? `User: ${session.user.id}` : "No session");
+  if (event === "INITIAL_SESSION") {
+    return;
   }
+  if (event === "SIGNED_IN" && authHandledByButton) {
+    return;
+  }
+  if (event === "SIGNED_OUT" && isAuthGraceActive()) {
+    return;
+  }
+  setTimeout(() => {
+    applyAuthSession(session, event);
+  }, 0);
 });
+
+async function bootstrapAuth() {
+  try {
+    const { data: { session }, error } = await supabaseClient.auth.getSession();
+    if (error) throw error;
+    if (session?.user) {
+      stashAuthSession(session);
+      await applyAuthSession(session, "INITIAL_SESSION");
+    } else {
+      currentUser = null;
+      currentUserProfile = null;
+      setSignedOutUI();
+    }
+  } catch (err) {
+    console.error("Auth bootstrap failed:", err);
+    if (authMsg) {
+      authMsg.textContent = "Could not connect to server. Check your connection and refresh.";
+      authMsg.classList.remove("hidden");
+    }
+    if (authSection) authSection.classList.remove("hidden");
+  }
+}
+
+bootstrapAuth();
 
 // ====== ANSWER SUBMISSION ORCHESTRATOR ======
 if (btnSubmit) {
