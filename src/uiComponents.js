@@ -431,7 +431,8 @@ export function renderAQAExtendedResponseFeedback(studentText, rubric, localKeyw
  * @param {Array} srsStates - Active records tracking progress
  * @param {Function} onCellClickCallback - Handler redirecting view to selected item
  */
-export function renderMasteryHeatmap(allSpecPoints, srsStates, onCellClickCallback) {
+export function renderMasteryHeatmap(allSpecPoints, srsStates, onCellClickCallback, options = {}) {
+  const readOnly = options.readOnly === true || onCellClickCallback == null;
   // 1. Pivot user tracking array into a quick hashmap keyed by spec_point_id
   const trackingMap = new Map();
   if (Array.isArray(srsStates)) {
@@ -538,11 +539,15 @@ export function renderMasteryHeatmap(allSpecPoints, srsStates, onCellClickCallba
       cell.style.border = borderStyle;
       cell.setAttribute("data-tooltip", tooltipText);
 
-      cell.onclick = () => {
-        if (typeof onCellClickCallback === "function") {
-          onCellClickCallback(point);
-        }
-      };
+      if (!readOnly) {
+        cell.onclick = () => {
+          if (typeof onCellClickCallback === "function") {
+            onCellClickCallback(point);
+          }
+        };
+      } else {
+        cell.classList.add("heatmap-cell-readonly");
+      }
 
       rowEl.appendChild(cell);
     });
