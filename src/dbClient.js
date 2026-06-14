@@ -457,10 +457,11 @@ export const TEACHER_SRS_STATE_SELECT =
   "spec_point_id, interval_days, ease_factor, due_date, repetitions, lapses, last_quality";
 
 export async function fetchStudentSRSStateDetailed(userId) {
-  const data = await restGet("srs_state", userId, {
-    select: TEACHER_SRS_STATE_SELECT,
-    filters: { user_id: `eq.${userId}` },
-  });
+  const { data, error } = await supabaseClient
+    .from("srs_state")
+    .select(TEACHER_SRS_STATE_SELECT)
+    .eq("user_id", userId);
+  if (error) throw error;
   return data || [];
 }
 

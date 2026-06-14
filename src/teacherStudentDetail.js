@@ -536,7 +536,7 @@ export async function openStudentDetail(studentId, displayName) {
     bindTabHandlers(ctx);
     await loadTabContent("overview", ctx);
   } catch (err) {
-    console.warn(err);
+    console.warn("Student detail load failed:", err?.message || err, err);
     if (metaEl) metaEl.textContent = "Could not load student data.";
     renderTabLoading("Unable to load progress. Please try again.");
   }
