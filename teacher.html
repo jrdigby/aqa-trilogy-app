@@ -96,15 +96,19 @@
         </div>
         <button type="button" id="btnCloseStudentDetail" class="teacher-detail-close" aria-label="Close student detail">×</button>
       </div>
-      <div id="studentDetailSummary" class="teacher-detail-summary"></div>
-      <div id="studentDetailStrengthsWeaknesses"></div>
-      <div class="teacher-detail-tabs" role="tablist" aria-label="Student progress views">
-        <button type="button" class="teacher-detail-tab active" data-tab="overview" role="tab" aria-selected="true">Topics</button>
-        <button type="button" class="teacher-detail-tab" data-tab="mastery" role="tab" aria-selected="false">Mastery map</button>
-        <button type="button" class="teacher-detail-tab" data-tab="activity" role="tab" aria-selected="false">Activity</button>
-        <button type="button" class="teacher-detail-tab" data-tab="ao" role="tab" aria-selected="false">AO breakdown</button>
+      <div class="teacher-detail-above-tabs">
+        <div id="studentDetailSummary" class="teacher-detail-summary"></div>
+        <div id="studentDetailStrengthsWeaknesses"></div>
       </div>
-      <div id="studentDetailTabContent" class="teacher-detail-tab-content"></div>
+      <div class="teacher-detail-main">
+        <div class="teacher-detail-tabs" role="tablist" aria-label="Student progress views">
+          <button type="button" class="teacher-detail-tab active" data-tab="overview" role="tab" aria-selected="true">Topics</button>
+          <button type="button" class="teacher-detail-tab" data-tab="mastery" role="tab" aria-selected="false">Mastery map</button>
+          <button type="button" class="teacher-detail-tab" data-tab="activity" role="tab" aria-selected="false">Activity</button>
+          <button type="button" class="teacher-detail-tab" data-tab="ao" role="tab" aria-selected="false">AO breakdown</button>
+        </div>
+        <div id="studentDetailTabContent" class="teacher-detail-tab-content"></div>
+      </div>
     </aside>
   </div>
 
