@@ -540,6 +540,9 @@
           <span id="streakChip" class="chip" style="background: #fff5f5; color: #ff4d4d; border: 1px solid #ffe3e3; display: flex; align-items: center; gap: 4px; font-size: 0.85rem; padding: 4px 10px; border-radius: 20px;">
             🔥 <span id="streakCount">0</span> Day Streak
           </span>
+          <span id="xpChip" class="chip" style="background: #fffbeb; color: #b45309; border: 1px solid #fde68a; display: flex; align-items: center; gap: 4px; font-size: 0.85rem; padding: 4px 10px; border-radius: 20px;">
+            ⭐ <span id="xpTotal">0</span> XP
+          </span>
           <div style="display: flex; align-items: center; gap: 6px;">
             <label for="tierFilter" style="font-size: 0.8rem; font-weight: 600; text-transform: uppercase; color: var(--text-muted);">Tier:</label>
             <select id="tierFilter" class="custom-select" style="padding: 4px 30px 4px 10px; font-size: 0.85rem; font-weight: 600; border-radius: 6px; width: auto; height: auto; background-position: right 6px center; background-size: 12px;">
@@ -769,6 +772,7 @@
       <div id="sessionContext" class="session-context hidden"></div>
 
       <div id="questionView">
+        <div id="hintsPanelMount" class="hints-panel-mount hidden"></div>
         <div id="qBox"></div>
 
         <div id="feedback" style="margin: 15px 0;"></div>

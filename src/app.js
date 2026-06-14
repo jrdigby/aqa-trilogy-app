@@ -1,6 +1,6 @@
 import { startAnyPractice, startExamPrep, startSessionForSpecPoint, previewExamPaper, upsertSRS as importUpsertSRS } from './sessionEngine.js';
 import { formatPaperPreviewSummary } from './paperBuilder.js';
-import { showToastBanner, renderQuestionLayout, renderFeedback, renderLiveAIFeedback, renderAQAExtendedResponseFeedback, renderMasteryHeatmap, renderSessionContext, renderSessionCompleteSummary, renderSelfRatingPrompt, renderAdaptiveFeedback } from './uiComponents.js';
+import { showToastBanner, renderQuestionLayout, renderFeedback, renderLiveAIFeedback, renderAQAExtendedResponseFeedback, renderMasteryHeatmap, renderSessionContext, renderSessionCompleteSummary, renderSelfRatingPrompt, renderAdaptiveFeedback, renderHintsPanel, normalizeQuestionHints } from './uiComponents.js';
 import {
   DEFAULT_ADAPTIVE_STATE,
   loadAdaptivePracticeState,
@@ -15,7 +15,7 @@ import {
 import { triggerMathTypeset } from './mathEngine.js';
 import { checkKeywordOrSynonymsMatch, updateSRS, computeSessionQuality, getAQACommandWordHelper, isFuzzyMatch } from './evalEngine.js';
 import { escapeHtml, shuffleArray, todayISO, addDaysISO } from './utils.js';
-import { supabaseClient, timeoutPromise, fetchDashboardDueItems, fetchConceptGapAttempts, fetchWeeklyForecastSchedules, fetchSyllabusPipelineData, fetchAttemptActivity, fetchUserProfile, stashAuthSession, clearAuthGraceSession, endAuthGracePeriod, isAuthGraceActive } from './dbClient.js';
+import { supabaseClient, timeoutPromise, fetchDashboardDueItems, fetchConceptGapAttempts, fetchWeeklyForecastSchedules, fetchSyllabusPipelineData, fetchAttemptActivity, fetchUserProfile, stashAuthSession, clearAuthGraceSession, endAuthGracePeriod, isAuthGraceActive, incrementUserXp } from './dbClient.js';
 import dbClient from "./dbClient.js";
 import {
   saveOnboardingProfile,
@@ -30,6 +30,7 @@ import {
   sortSubjectsByDifficulty
 } from './onboardingEngine.js';
 import { markResponse } from './evalEngine.js';
+import { computeAttemptXp, formatXpToastMessage } from './xpEngine.js';
 
 console.log("APP VERSION", "v-" + Date.now());
 
@@ -61,6 +62,7 @@ const qBox = el("qBox");
 const feedback = el("feedback");
 const progress = el("progress");
 const sessionContext = el("sessionContext");
+const hintsPanelMount = el("hintsPanelMount");
 const questionView = el("questionView");
 const sessionSummary = el("sessionSummary");
 const summaryContent = el("summaryContent");
@@ -223,6 +225,8 @@ let idx = 0;
 let currentQ = null;
 let currentKey = null;
 let currentMarkPoints = [];
+let currentHintState = { revealedCount: 0, panelOpen: false };
+let currentQuestionHints = [];
 let isInitializingPipeline = false;
 let authHandledByButton = false;
 let hasImprovedCurrentQ = false;
@@ -251,6 +255,7 @@ function setPracticePreviewText(text) {
 }
 let adaptivePracticeState = { ...DEFAULT_ADAPTIVE_STATE };
 let pendingAdaptiveSession = null;
+let lastSessionSelfRating = null;
 let currentUserProfile = null;
 let settingsTier = "FT";
 
@@ -437,6 +442,7 @@ async function loadDashboard(user = currentUser) {
     if (!currentUserProfile || currentUserProfile.user_id !== userId) {
       currentUserProfile = await fetchUserProfile(userId);
     }
+    updateXpDisplay(currentUserProfile?.total_xp ?? 0);
     scheduleResult = await ensureScheduleReady(userId, currentUserProfile);
   } catch (seedErr) {
     const seedMsg =
@@ -1120,7 +1126,7 @@ function classifyAttemptOutcome(att) {
   return "fail";
 }
 
-function logSessionAttempt({ questionId, questionType, specPointId, specPoint, scoreTotal, scoreMax }) {
+function logSessionAttempt({ questionId, questionType, specPointId, specPoint, scoreTotal, scoreMax, xpEarned = 0 }) {
   sessionAttemptLog.push({
     questionId,
     questionType,
@@ -1128,8 +1134,90 @@ function logSessionAttempt({ questionId, questionType, specPointId, specPoint, s
     specPoint,
     scoreTotal,
     scoreMax,
+    xpEarned,
     outcome: classifyAttemptOutcome({ score_total: scoreTotal, score_max: scoreMax })
   });
+}
+
+function updateXpDisplay(totalXp) {
+  const xpEl = el("xpTotal");
+  if (xpEl) xpEl.textContent = String(totalXp ?? 0);
+}
+
+async function awardAttemptXp(xpEarned, hintsRevealed) {
+  if (!currentUser || !xpEarned) return;
+
+  try {
+    const newTotal = await incrementUserXp(xpEarned);
+    if (currentUserProfile) {
+      currentUserProfile.total_xp = newTotal;
+    }
+    updateXpDisplay(newTotal);
+    const msg = formatXpToastMessage(xpEarned, hintsRevealed);
+    if (msg) showToastBanner(msg, false);
+  } catch (xpErr) {
+    console.warn("XP award failed (run migration if columns/RPC missing):", xpErr);
+  }
+}
+
+async function insertAttemptRow(payload) {
+  let result = await supabaseClient.from("attempts").insert(payload);
+  if (result.error && /column/i.test(result.error.message || "")) {
+    const { xp_earned, hints_revealed, ...legacyPayload } = payload;
+    result = await supabaseClient.from("attempts").insert(legacyPayload);
+  }
+  return result;
+}
+
+function wireHintsPanel() {
+  if (!hintsPanelMount) return;
+
+  const openBtn = el("btnOpenHints");
+  if (openBtn) {
+    openBtn.onclick = () => {
+      currentHintState.panelOpen = true;
+      if (currentHintState.revealedCount < 1) {
+        currentHintState.revealedCount = 1;
+      }
+      refreshHintsPanel();
+    };
+  }
+
+  const nextBtn = el("btnRevealNextHint");
+  if (nextBtn) {
+    nextBtn.onclick = () => {
+      if (currentHintState.revealedCount < currentQuestionHints.length) {
+        currentHintState.revealedCount += 1;
+        refreshHintsPanel();
+      }
+    };
+  }
+}
+
+function refreshHintsPanel() {
+  if (!hintsPanelMount || !currentQuestionHints.length) return;
+  hintsPanelMount.innerHTML = renderHintsPanel(
+    currentQuestionHints,
+    currentHintState.revealedCount,
+    currentHintState.panelOpen
+  );
+  wireHintsPanel();
+}
+
+function renderQuestionHintsPanel() {
+  if (!hintsPanelMount) return;
+
+  currentQuestionHints = normalizeQuestionHints(currentQ?.hints);
+  currentHintState = { revealedCount: 0, panelOpen: false };
+
+  if (!currentQuestionHints.length) {
+    hintsPanelMount.classList.add("hidden");
+    hintsPanelMount.innerHTML = "";
+    return;
+  }
+
+  hintsPanelMount.classList.remove("hidden");
+  refreshHintsPanel();
 }
 
 function getSessionSpecPointMeta() {
@@ -1144,6 +1232,7 @@ async function exitSessionToDashboard() {
   if (dashSection) dashSection.classList.remove("hidden");
 
   pendingAdaptiveSession = null;
+  lastSessionSelfRating = null;
   sessionMode = null;
   sessionSpecPointId = null;
   sessionQuestions = [];
@@ -1205,13 +1294,12 @@ async function applyAdaptiveSessionUpdate(selfRating) {
   if (!pendingAdaptiveSession || !currentUser) return null;
 
   const pending = pendingAdaptiveSession;
-  pendingAdaptiveSession = null;
-
   const { tier, scorePct, mode, specPointId, srsQuality } = pending;
   let feedback = { offsetChanged: false, offsetDirection: null, tierNudge: null, mode };
 
   if (mode === "any_practice") {
-    const result = computeGlobalOffsetUpdate(adaptivePracticeState, { scorePct, selfRating, tier });
+    const baseline = pending.baselineAdaptiveState ?? normalizeAdaptiveState(adaptivePracticeState);
+    const result = computeGlobalOffsetUpdate(baseline, { scorePct, selfRating, tier });
     adaptivePracticeState = result.nextState;
     feedback = { ...feedback, ...result };
     const saved = await persistAdaptivePracticeState(supabaseClient, currentUser.id, adaptivePracticeState);
@@ -1221,8 +1309,10 @@ async function applyAdaptiveSessionUpdate(selfRating) {
     } catch (_) { /* ignore */ }
     updateTierBoundaryBadge();
   } else if (mode === "spec_point" && specPointId) {
-    const currentOffset = await pending.specOffsetPromise;
-    const result = computeSpecPointOffsetUpdate(currentOffset, {
+    const baselineOffset =
+      pending.baselineSpecOffset ??
+      (await pending.specOffsetPromise);
+    const result = computeSpecPointOffsetUpdate(baselineOffset, {
       srsQuality: srsQuality ?? 0,
       scorePct,
       selfRating
@@ -1241,12 +1331,9 @@ function wireSelfRatingHandlers(onComplete) {
     return;
   }
 
-  let completed = false;
-  const finish = async (rating) => {
-    if (completed) return;
-    completed = true;
+  const selectRating = async (rating) => {
+    lastSessionSelfRating = rating;
     ratingRoot.querySelectorAll(".session-rating-btn").forEach((btn) => {
-      btn.disabled = true;
       const selected = btn.dataset.rating === rating;
       btn.classList.toggle("session-rating-btn--selected", selected);
       btn.setAttribute("aria-pressed", selected ? "true" : "false");
@@ -1260,19 +1347,22 @@ function wireSelfRatingHandlers(onComplete) {
   };
 
   ratingRoot.querySelectorAll(".session-rating-btn").forEach((btn) => {
-    btn.onclick = () => finish(btn.dataset.rating);
+    btn.disabled = false;
+    btn.onclick = () => selectRating(btn.dataset.rating);
   });
 }
 
 function wrapSummaryExit(handler) {
   return async () => {
-    if (pendingAdaptiveSession) {
+    if (pendingAdaptiveSession && lastSessionSelfRating === null) {
       const feedback = await applyAdaptiveSessionUpdate(null);
       const feedbackEl = document.getElementById("sessionAdaptiveFeedback");
       if (feedbackEl && feedback) {
         feedbackEl.innerHTML = renderAdaptiveFeedback(feedback);
       }
     }
+    pendingAdaptiveSession = null;
+    lastSessionSelfRating = null;
     await handler();
   };
 }
@@ -1282,6 +1372,15 @@ async function showSessionSummary() {
   await finalizeSessionSRS();
 
   pendingAdaptiveSession = buildPendingAdaptiveSession(qualitiesBySpec);
+  pendingAdaptiveSession.baselineAdaptiveState = normalizeAdaptiveState(adaptivePracticeState);
+  lastSessionSelfRating = null;
+  if (sessionMode === "spec_point" && sessionSpecPointId && currentUser) {
+    pendingAdaptiveSession.baselineSpecOffset = await fetchSpecPointDifficultyOffset(
+      supabaseClient,
+      currentUser.id,
+      sessionSpecPointId
+    );
+  }
 
   if (questionView) questionView.classList.add("hidden");
   if (sessionContext) sessionContext.classList.add("hidden");
@@ -1686,6 +1785,8 @@ async function loadQuestion() {
     qBox.innerHTML = renderQuestionLayout(currentQ, commandWordBanner, currentKey);
     triggerMathTypeset();
   }
+
+  renderQuestionHintsPanel();
 }
 
 function mixWordTokens(studentText) {
@@ -2848,6 +2949,9 @@ if (btnSubmit) {
 
     btnSubmit.disabled = true;
 
+    const hintsRevealed = currentHintState.revealedCount;
+    const xpEarned = computeAttemptXp(currentQ, hintsRevealed);
+
     const existingBanner = el("improveBanner");
     if (existingBanner) existingBanner.remove();
 
@@ -2931,7 +3035,7 @@ if (btnSubmit) {
           };
         }
 
-        const result = await supabaseClient.from("attempts").insert({
+        const result = await insertAttemptRow({
           user_id: currentUser.id,
           question_id: currentQ.id,
           response_payload: response,
@@ -2940,7 +3044,9 @@ if (btnSubmit) {
           ao1_score: data.ao_breakdown?.AO1 || 0,
           ao2_score: data.ao_breakdown?.AO2 || 0,
           ao3_score: data.ao_breakdown?.AO3 || 0,
-          feedback_payload: data
+          feedback_payload: data,
+          xp_earned: xpEarned,
+          hints_revealed: hintsRevealed
         });
 
         if (result.error) throw result.error;
@@ -2958,8 +3064,10 @@ if (btnSubmit) {
           specPointId: currentQ.spec_point_id,
           specPoint: currentQ.spec_points,
           scoreTotal: data.score_total,
-          scoreMax: data.score_max
+          scoreMax: data.score_max,
+          xpEarned
         });
+        await awardAttemptXp(xpEarned, hintsRevealed);
 
       } catch (err) {
         console.error("AI Marking route failed, applying local self-assessment failover:", err);
@@ -3013,7 +3121,7 @@ if (btnSubmit) {
       if (btnNext) showAdvanceButton();
 
       try {
-        const result = await supabaseClient.from("attempts").insert({
+        const result = await insertAttemptRow({
           user_id: currentUser.id,
           question_id: currentQ.id,
           response_payload: response,
@@ -3022,7 +3130,9 @@ if (btnSubmit) {
           ao1_score: marking.ao.AO1,
           ao2_score: marking.ao.AO2,
           ao3_score: marking.ao.AO3,
-          feedback_payload: marking.feedbackPayload
+          feedback_payload: marking.feedbackPayload,
+          xp_earned: xpEarned,
+          hints_revealed: hintsRevealed
         });
 
         if (result.error) throw result.error;
@@ -3033,8 +3143,10 @@ if (btnSubmit) {
           specPointId: currentQ.spec_point_id,
           specPoint: currentQ.spec_points,
           scoreTotal: marking.total,
-          scoreMax: marking.max
+          scoreMax: marking.max,
+          xpEarned
         });
+        await awardAttemptXp(xpEarned, hintsRevealed);
       } catch(err) {
         console.error("Sync backup failure logged:", err);
         showToastBanner("Warning: Failed to log performance metric: " + err.message, true);

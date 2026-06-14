@@ -367,7 +367,7 @@ export async function fetchSyllabusPipelineData(userId, subject, paper, targetTi
 
 // ====== USER PROFILE (ONBOARDING) ======
 const PROFILE_COLUMNS_FULL =
-  "user_id, role, preferred_tier, subscription_tier, onboarding_completed_at, subject_preference, subject_difficulty, class_id, display_name";
+  "user_id, role, preferred_tier, subscription_tier, onboarding_completed_at, subject_preference, subject_difficulty, class_id, display_name, total_xp";
 const PROFILE_COLUMNS_BASE = "user_id, preferred_tier";
 
 function isMissingColumnError(error) {
@@ -386,7 +386,8 @@ function normalizeProfileRow(data, userId) {
     subject_preference: data.subject_preference ?? null,
     subject_difficulty: data.subject_difficulty ?? null,
     class_id: data.class_id ?? null,
-    display_name: data.display_name ?? null
+    display_name: data.display_name ?? null,
+    total_xp: Number(data.total_xp) || 0
   };
 }
 
@@ -451,6 +452,12 @@ export async function rpcSeedInitialSRS(userId = null) {
   return restRpc("seed_initial_srs", {}, userId);
 }
 
+export async function incrementUserXp(amount, userId = null) {
+  const { data, error } = await supabaseClient.rpc("increment_user_xp", { p_amount: amount });
+  if (error) throw error;
+  return data ?? 0;
+}
+
 // ====== TEACHER PORTAL DATA ======
 
 export const TEACHER_SRS_STATE_SELECT =
@@ -469,7 +476,7 @@ export async function fetchTeacherStudentProfile(userId) {
   const { data, error } = await supabaseClient
     .from("profiles")
     .select(
-      "user_id, display_name, preferred_tier, subscription_tier, onboarding_completed_at, current_streak, last_login_date, class_id"
+      "user_id, display_name, preferred_tier, subscription_tier, onboarding_completed_at, current_streak, last_login_date, class_id, total_xp"
     )
     .eq("user_id", userId)
     .maybeSingle();
@@ -565,7 +572,8 @@ const dbClient = {
   patchUserProfile,
   waitForAuthSession,
   rpcJoinClass,
-  rpcSeedInitialSRS
+  rpcSeedInitialSRS,
+  incrementUserXp
 };
 
 export default dbClient;
