@@ -1,5 +1,5 @@
 // src/dbClient.js
-import { todayISO } from './utils.js';
+import { todayISO, addDaysISO } from './utils.js';
 
 const SUPABASE_URL = "https://cbycwfhczyvzzhthpgsw.supabase.co";
 // Legacy JWT anon key — more reliable with supabase-js auth + RLS than publishable-only keys.
@@ -449,6 +449,105 @@ export async function rpcJoinClass(code, userId = null) {
 
 export async function rpcSeedInitialSRS(userId = null) {
   return restRpc("seed_initial_srs", {}, userId);
+}
+
+// ====== TEACHER PORTAL DATA ======
+
+export const TEACHER_SRS_STATE_SELECT =
+  "spec_point_id, interval_days, ease_factor, due_date, repetitions, lapses, last_quality";
+
+export async function fetchStudentSRSStateDetailed(userId) {
+  const data = await restGet("srs_state", userId, {
+    select: TEACHER_SRS_STATE_SELECT,
+    filters: { user_id: `eq.${userId}` },
+  });
+  return data || [];
+}
+
+export async function fetchTeacherStudentProfile(userId) {
+  const { data, error } = await supabaseClient
+    .from("profiles")
+    .select(
+      "user_id, display_name, preferred_tier, subscription_tier, onboarding_completed_at, current_streak, last_login_date, class_id"
+    )
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+export async function fetchClassRosterStats(studentIds) {
+  if (!studentIds?.length) return {};
+
+  const today = todayISO();
+  const sinceISO = addDaysISO(today, -29);
+
+  const [attemptsRes, srsRes] = await Promise.all([
+    supabaseClient
+      .from("attempts")
+      .select("user_id, score_total, score_max, submitted_at")
+      .in("user_id", studentIds)
+      .gte("submitted_at", `${sinceISO}T00:00:00`),
+    supabaseClient
+      .from("srs_state")
+      .select("user_id, due_date")
+      .in("user_id", studentIds),
+  ]);
+
+  const stats = {};
+  for (const id of studentIds) {
+    stats[id] = { avgScorePct: null, dueToday: 0, overdue: 0, scoreSum: 0, scoreCount: 0 };
+  }
+
+  for (const attempt of attemptsRes.data || []) {
+    const row = stats[attempt.user_id];
+    if (!row || attempt.score_max <= 0) continue;
+    row.scoreSum += (attempt.score_total / attempt.score_max) * 100;
+    row.scoreCount += 1;
+  }
+
+  for (const id of studentIds) {
+    const row = stats[id];
+    row.avgScorePct = row.scoreCount ? Math.round(row.scoreSum / row.scoreCount) : null;
+  }
+
+  for (const srsRow of srsRes.data || []) {
+    const row = stats[srsRow.user_id];
+    if (!row) continue;
+    if (srsRow.due_date === today) row.dueToday += 1;
+    else if (srsRow.due_date < today) row.overdue += 1;
+  }
+
+  return stats;
+}
+
+export async function fetchStudentAttemptsWithAO(userId) {
+  const { data, error } = await supabaseClient
+    .from("attempts")
+    .select("question_id, ao1_score, ao2_score, ao3_score, score_total, score_max")
+    .eq("user_id", userId);
+  if (error) throw error;
+  return data || [];
+}
+
+export async function fetchMarkPointsForQuestions(questionIds) {
+  if (!questionIds?.length) return [];
+  const { data, error } = await supabaseClient
+    .from("mark_points")
+    .select("question_id, ao, max_marks")
+    .in("question_id", questionIds);
+  if (error) throw error;
+  return data || [];
+}
+
+export async function fetchQuestionsMeta(questionIds) {
+  if (!questionIds?.length) return [];
+  const { data, error } = await supabaseClient
+    .from("questions")
+    .select("id, spec_point_id, question_type")
+    .in("id", questionIds);
+  if (error) throw error;
+  return data || [];
 }
 
 // ====== EXPORT OBJECT WRAPPER FOR EXTENDED MODULE ARCHITECTURES ======
