@@ -386,6 +386,125 @@
   color: var(--text, #1e293b);
 }
 
+.session-summary-scores {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.session-summary-xp {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #b45309;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  padding: 6px 12px;
+  border-radius: 8px;
+}
+
+.session-summary-xp-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.session-summary-xp-footnote {
+  font-size: 0.78rem;
+  margin: 0 0 12px;
+  line-height: 1.4;
+}
+
+.hints-panel-mount.hidden {
+  display: none;
+}
+
+.hints-panel {
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.hints-panel--collapsed {
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
+.hints-panel-toggle {
+  font-size: 0.85rem;
+  padding: 8px 14px;
+}
+
+.hints-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.hints-panel-title {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: #1e293b;
+}
+
+.hints-panel-count {
+  font-size: 0.78rem;
+}
+
+.hints-panel-list {
+  margin: 0 0 12px 0;
+  padding-left: 1.25rem;
+}
+
+.hints-panel-item {
+  margin-bottom: 8px;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: #334155;
+}
+
+.hints-panel-next {
+  font-size: 0.82rem;
+  margin-bottom: 8px;
+}
+
+.hints-panel-done,
+.hints-panel-xp-note {
+  font-size: 0.78rem;
+  margin: 6px 0 0;
+}
+
+.hints-author-panel .hint-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin-bottom: 8px;
+}
+
+.hints-author-panel .hint-row-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  min-width: 52px;
+  padding-top: 8px;
+}
+
+.hints-author-panel .hint-input {
+  flex: 1;
+  width: 100%;
+  font-family: inherit;
+  padding: 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  resize: vertical;
+}
+
 .session-adaptive-rating {
   margin-top: 20px;
   padding: 16px;

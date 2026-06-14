@@ -634,6 +634,7 @@ export function buildSessionSummaryData(attemptLog) {
   const marksSummary = computeSessionMarksSummary(attemptLog);
   const outcomeTotals = computeOutcomeTotals(attemptLog);
   const bySpecPoint = aggregateMarksBySpecPoint(attemptLog);
+  const xpTotal = (attemptLog || []).reduce((sum, entry) => sum + (entry.xpEarned || 0), 0);
 
   const tableTotals = bySpecPoint.reduce(
     (acc, row) => {
@@ -644,7 +645,7 @@ export function buildSessionSummaryData(attemptLog) {
     { marksAchieved: 0, marksAvailable: 0 }
   );
 
-  return { marksSummary, outcomeTotals, bySpecPoint, tableTotals };
+  return { marksSummary, outcomeTotals, bySpecPoint, tableTotals, xpTotal };
 }
 
 function renderSpecPointRowCell(specPoint) {
@@ -658,21 +659,28 @@ function renderSpecPointRowCell(specPoint) {
   `;
 }
 
-export function renderSessionSummaryHeader(meta, marksSummary) {
+export function renderSessionSummaryHeader(meta, marksSummary, xpTotal = 0) {
   const subject = formatSubjectLabel(meta?.subject);
   const paper = formatPaperLabel(meta?.paper);
   const topic = meta?.topic_name || "All topics";
   const { scoreTotal, scoreMax } = marksSummary;
   const marksLabel = scoreMax > 0 ? `${scoreTotal}/${scoreMax}` : "0/0";
   const colorClass = getMarksColorClass(scoreTotal, scoreMax);
+  const xpChip =
+    xpTotal > 0
+      ? `<div class="session-summary-xp">+${xpTotal} <span class="session-summary-xp-label">XP</span></div>`
+      : "";
 
   return `
     <div class="session-summary-header">
       <h3 class="session-summary-title">Session complete</h3>
       <div class="session-summary-meta-row">
         <div class="session-summary-breadcrumb">${escapeHtml(subject)} · ${escapeHtml(paper)} · ${escapeHtml(topic)}</div>
-        <div class="session-summary-marks ${colorClass}">
-          ${escapeHtml(marksLabel)} <span class="session-summary-marks-label">marks</span>
+        <div class="session-summary-scores">
+          <div class="session-summary-marks ${colorClass}">
+            ${escapeHtml(marksLabel)} <span class="session-summary-marks-label">marks</span>
+          </div>
+          ${xpChip}
         </div>
       </div>
     </div>
@@ -800,11 +808,16 @@ function buildSpecPointSummaryRows(bySpecPoint) {
 }
 
 export function renderSessionCompleteSummary(meta, attemptLog) {
-  const { marksSummary, bySpecPoint, tableTotals } = buildSessionSummaryData(attemptLog);
+  const { marksSummary, bySpecPoint, tableTotals, xpTotal } = buildSessionSummaryData(attemptLog);
   const rows = buildSpecPointSummaryRows(bySpecPoint);
+  const xpNote =
+    xpTotal > 0
+      ? `<p class="session-summary-xp-footnote muted">XP is earned for each submitted attempt (based on question difficulty). Marks scored do not change XP. Hints reduce XP.</p>`
+      : "";
 
   return `
-    ${renderSessionSummaryHeader(meta, marksSummary)}
+    ${renderSessionSummaryHeader(meta, marksSummary, xpTotal)}
+    ${xpNote}
     <div class="session-summary-results">
       ${renderMarksBreakdownTable(rows, tableTotals)}
     </div>
@@ -878,4 +891,51 @@ export function renderAdaptiveFeedback({ offsetChanged, offsetDirection, tierNud
 
   if (!parts.length) return "";
   return `<div class="session-adaptive-feedback">${parts.join("")}</div>`;
+}
+
+// ====== PRACTICE HINTS PANEL ======
+
+export function normalizeQuestionHints(hints) {
+  if (!Array.isArray(hints)) return [];
+  return hints.map((h) => String(h || "").trim()).filter(Boolean);
+}
+
+export function renderHintsPanel(hints, revealedCount, panelOpen) {
+  const normalized = normalizeQuestionHints(hints);
+  if (!normalized.length) return "";
+
+  const revealed = normalized.slice(0, revealedCount);
+  const hasMore = revealedCount < normalized.length;
+
+  const revealedHtml = revealed.length
+    ? `<ol class="hints-panel-list" start="1">${revealed
+        .map((hint) => `<li class="hints-panel-item">${escapeHtml(hint)}</li>`)
+        .join("")}</ol>`
+    : "";
+
+  if (!panelOpen) {
+    return `
+      <div class="hints-panel hints-panel--collapsed">
+        <button type="button" class="hints-panel-toggle btn-secondary" id="btnOpenHints">
+          💡 Need a hint?
+        </button>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="hints-panel hints-panel--open">
+      <div class="hints-panel-header">
+        <span class="hints-panel-title">Hints</span>
+        <span class="hints-panel-count muted">${revealedCount} of ${normalized.length} revealed</span>
+      </div>
+      ${revealedHtml}
+      ${
+        hasMore
+          ? `<button type="button" class="hints-panel-next btn-secondary" id="btnRevealNextHint">Show next hint</button>`
+          : `<p class="hints-panel-done muted">No more hints for this question.</p>`
+      }
+      <p class="hints-panel-xp-note muted">Each hint revealed reduces XP earned for this question.</p>
+    </div>
+  `;
 }

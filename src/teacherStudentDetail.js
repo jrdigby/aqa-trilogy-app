@@ -167,7 +167,7 @@ function computeSubjectMastery(srsStates, specPointMap) {
   }));
 }
 
-function renderSummaryCards({ masteryPct, avgScorePct, dueToday, overdue, streak }) {
+function renderSummaryCards({ masteryPct, avgScorePct, dueToday, overdue, streak, totalXp }) {
   return `
     <div class="teacher-detail-stat-card">
       <span class="teacher-detail-stat-label">Overall mastery</span>
@@ -183,6 +183,11 @@ function renderSummaryCards({ masteryPct, avgScorePct, dueToday, overdue, streak
       <span class="teacher-detail-stat-label">Revision health</span>
       <strong class="teacher-detail-stat-value">${dueToday} / ${overdue}</strong>
       <span class="teacher-detail-stat-hint">Due today · overdue items</span>
+    </div>
+    <div class="teacher-detail-stat-card">
+      <span class="teacher-detail-stat-label">Total XP</span>
+      <strong class="teacher-detail-stat-value">${totalXp ?? 0}</strong>
+      <span class="teacher-detail-stat-hint">Practice experience points</span>
     </div>
     <div class="teacher-detail-stat-card">
       <span class="teacher-detail-stat-label">Login streak</span>
@@ -520,6 +525,7 @@ export async function openStudentDetail(studentId, displayName) {
         dueToday: rosterStats.dueToday || 0,
         overdue: rosterStats.overdue || 0,
         streak: profile?.current_streak || 0,
+        totalXp: profile?.total_xp ?? 0,
       });
     }
 
