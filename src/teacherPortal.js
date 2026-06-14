@@ -1,5 +1,6 @@
-import { supabaseClient } from "./dbClient.js";
-import { escapeHtml, todayISO } from "./utils.js";
+import { fetchClassRosterStats, supabaseClient } from "./dbClient.js";
+import { initStudentDetailPanel, openStudentDetail } from "./teacherStudentDetail.js";
+import { escapeHtml, todayISO, addDaysISO } from "./utils.js";
 
 const el = (id) => document.getElementById(id);
 
@@ -111,7 +112,9 @@ async function fetchTeacherClasses() {
 async function fetchClassStudents(classId) {
   const { data, error } = await supabaseClient
     .from("profiles")
-    .select("user_id, display_name, preferred_tier, subscription_tier, onboarding_completed_at")
+    .select(
+      "user_id, display_name, preferred_tier, subscription_tier, onboarding_completed_at, current_streak, last_login_date"
+    )
     .eq("class_id", classId);
   if (error) throw error;
   const students = data || [];
@@ -126,51 +129,50 @@ async function fetchClassStudents(classId) {
   return students;
 }
 
-async function fetchClassSummary(classId, studentIds) {
-  if (!studentIds.length) {
-    return { studentCount: 0, avgScorePct: null, dueToday: 0, overdue: 0 };
-  }
-
+function formatLastActive(isoDate) {
+  if (!isoDate) return "—";
+  const dateOnly = String(isoDate).slice(0, 10);
   const today = todayISO();
+  if (dateOnly === today) return "Today";
+  if (dateOnly === addDaysISO(today, -1)) return "Yesterday";
+  const parsed = new Date(`${dateOnly}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return "—";
+  return parsed.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+}
 
-  const [attemptsRes, srsRes] = await Promise.all([
-    supabaseClient
-      .from("attempts")
-      .select("user_id, score_total, score_max, submitted_at")
-      .in("user_id", studentIds)
-      .order("submitted_at", { ascending: false })
-      .limit(200),
-    supabaseClient
-      .from("srs_state")
-      .select("user_id, due_date")
-      .in("user_id", studentIds)
-  ]);
-
-  const attempts = attemptsRes.data || [];
-  const srs = srsRes.data || [];
-
-  let scoreSum = 0;
-  let scoreCount = 0;
-  for (const a of attempts) {
-    if (a.score_max > 0) {
-      scoreSum += (a.score_total / a.score_max) * 100;
-      scoreCount += 1;
-    }
+function buildClassSummary(studentIds, rosterStats) {
+  if (!studentIds.length) {
+    return { studentCount: 0, avgScorePct: null, dueToday: 0, overdue: 0, studentsOverdue: 0 };
   }
 
+  let classScoreSum = 0;
+  let studentsWithScores = 0;
   let dueToday = 0;
-  let overdue = 0;
-  for (const row of srs) {
-    if (row.due_date === today) dueToday += 1;
-    else if (row.due_date < today) overdue += 1;
+  let overdueItems = 0;
+  let studentsOverdue = 0;
+
+  for (const id of studentIds) {
+    const stats = rosterStats[id] || {};
+    if (stats.avgScorePct != null) {
+      classScoreSum += stats.avgScorePct;
+      studentsWithScores += 1;
+    }
+    dueToday += stats.dueToday || 0;
+    overdueItems += stats.overdue || 0;
+    if ((stats.overdue || 0) > 0) studentsOverdue += 1;
   }
 
   return {
     studentCount: studentIds.length,
-    avgScorePct: scoreCount ? Math.round(scoreSum / scoreCount) : null,
+    avgScorePct: studentsWithScores ? Math.round(classScoreSum / studentsWithScores) : null,
     dueToday,
-    overdue
+    overdue: overdueItems,
+    studentsOverdue,
   };
+}
+
+async function fetchClassSummary(studentIds, rosterStats) {
+  return buildClassSummary(studentIds, rosterStats);
 }
 
 function renderClassesList() {
@@ -224,15 +226,16 @@ async function loadClassDetails(classId) {
   try {
     const students = await fetchClassStudents(classId);
     const studentIds = students.map((s) => s.user_id);
-    const summary = await fetchClassSummary(classId, studentIds);
+    const rosterStats = await fetchClassRosterStats(studentIds);
+    const summary = await fetchClassSummary(studentIds, rosterStats);
 
     if (summaryEl) {
       const avg = summary.avgScorePct != null ? `${summary.avgScorePct}%` : "—";
       summaryEl.innerHTML = `
         <strong>${summary.studentCount}</strong> students ·
-        Avg recent score: <strong>${avg}</strong> ·
-        Due today: <strong>${summary.dueToday}</strong> ·
-        Overdue: <strong>${summary.overdue}</strong>
+        Avg score (30d): <strong>${avg}</strong> ·
+        <strong>${summary.studentsOverdue}</strong> students overdue ·
+        <strong>${summary.dueToday}</strong> items due today
       `;
     }
 
@@ -244,24 +247,55 @@ async function loadClassDetails(classId) {
       rosterEl.innerHTML = `
         <table class="teacher-roster-table">
           <thead>
-            <tr><th>Student</th><th>Tier</th><th>Plan</th><th>Onboarded</th></tr>
+            <tr>
+              <th>Student</th>
+              <th>Tier</th>
+              <th>Last active</th>
+              <th>Avg (30d)</th>
+              <th>Overdue</th>
+              <th>Streak</th>
+            </tr>
           </thead>
           <tbody>
             ${students
-              .map(
-                (s) => `
-              <tr>
-                <td>${escapeHtml(s.display_name?.trim() || "Unnamed student")}</td>
+              .map((s) => {
+                const stats = rosterStats[s.user_id] || {};
+                const name = s.display_name?.trim() || "Unnamed student";
+                const avg = stats.avgScorePct != null ? `${stats.avgScorePct}%` : "—";
+                const overdue = stats.overdue || 0;
+                const alertClass =
+                  overdue > 5 || (stats.avgScorePct != null && stats.avgScorePct < 50)
+                    ? " teacher-roster-row--alert"
+                    : "";
+                return `
+              <tr class="teacher-roster-row${alertClass}" data-user-id="${escapeHtml(s.user_id)}" tabindex="0" role="button" aria-label="View progress for ${escapeHtml(name)}">
+                <td class="teacher-roster-name">${escapeHtml(name)}</td>
                 <td>${escapeHtml(s.preferred_tier || "—")}</td>
-                <td>${escapeHtml(s.subscription_tier || "free")}</td>
-                <td>${s.onboarding_completed_at ? "Yes" : "No"}</td>
+                <td>${escapeHtml(formatLastActive(s.last_login_date))}</td>
+                <td>${escapeHtml(avg)}</td>
+                <td>${overdue > 0 ? `<strong class="teacher-overdue-count">${overdue}</strong>` : "0"}</td>
+                <td>${s.current_streak || 0}</td>
               </tr>
-            `
-              )
+            `;
+              })
               .join("")}
           </tbody>
         </table>
+        <p class="muted teacher-roster-hint">Click a student to view their progress, strengths, and weaknesses.</p>
       `;
+
+      rosterEl.querySelectorAll(".teacher-roster-row").forEach((row) => {
+        const student = students.find((s) => s.user_id === row.dataset.userId);
+        const displayName = student?.display_name?.trim() || "Unnamed student";
+        const open = () => openStudentDetail(row.dataset.userId, displayName);
+        row.onclick = open;
+        row.onkeydown = (event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            open();
+          }
+        };
+      });
     }
   } catch (err) {
     if (summaryEl) summaryEl.textContent = "Could not load summary.";
@@ -444,6 +478,8 @@ async function init() {
   if (btnCreate) {
     btnCreate.onclick = () => createClass();
   }
+
+  initStudentDetailPanel();
 
   setAuthMode("signin");
 
