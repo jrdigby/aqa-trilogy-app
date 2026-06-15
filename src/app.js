@@ -15,7 +15,7 @@ import {
 import { triggerMathTypeset } from './mathEngine.js';
 import { checkKeywordOrSynonymsMatch, updateSRS, computeSessionQuality, getAQACommandWordHelper, isFuzzyMatch } from './evalEngine.js';
 import { escapeHtml, shuffleArray, todayISO, addDaysISO } from './utils.js';
-import { supabaseClient, timeoutPromise, fetchDashboardDueItems, fetchConceptGapAttempts, fetchWeeklyForecastSchedules, fetchSyllabusPipelineData, fetchAttemptActivity, fetchUserProfile, stashAuthSession, clearAuthGraceSession, endAuthGracePeriod, isAuthGraceActive } from './dbClient.js';
+import { supabaseClient, timeoutPromise, fetchDashboardDueItems, fetchConceptGapAttempts, fetchWeeklyForecastSchedules, fetchSyllabusPipelineData, fetchAttemptActivity, fetchUserProfile, fetchUserClassLicense, fetchPlanQuotas, tryConsumeAiMark, tryConsumeHalfPaper, stashAuthSession, clearAuthGraceSession, endAuthGracePeriod, isAuthGraceActive } from './dbClient.js';
 import dbClient from "./dbClient.js";
 import {
   saveOnboardingProfile,
@@ -30,6 +30,14 @@ import {
   sortSubjectsByDifficulty
 } from './onboardingEngine.js';
 import { markResponse } from './evalEngine.js';
+import {
+  resolveAccess,
+  canStartExamPrepMode,
+  featureLabel,
+  formatProPricing,
+  FREE_AI_MARKS_PER_WEEK,
+  FREE_HALF_PAPERS_PER_MONTH,
+} from './featureAccess.js';
 
 console.log("APP VERSION", "v-" + Date.now());
 
@@ -152,6 +160,9 @@ function switchDashboardTab(tab) {
   if (active === "flashcards" && currentUser) {
     loadRevisionCards();
   }
+  if (active === "analytics") {
+    updateFreeAnalyticsSummary();
+  }
   requestAnimationFrame(() => autoSizeFilterSelects());
 }
 
@@ -252,6 +263,14 @@ function setPracticePreviewText(text) {
 let adaptivePracticeState = { ...DEFAULT_ADAPTIVE_STATE };
 let pendingAdaptiveSession = null;
 let currentUserProfile = null;
+let currentAccess = resolveAccess(null);
+let planQuotas = {
+  is_pro: false,
+  ai_used: 0,
+  ai_limit: FREE_AI_MARKS_PER_WEEK,
+  half_paper_used: 0,
+  half_paper_limit: FREE_HALF_PAPERS_PER_MONTH,
+};
 let settingsTier = "FT";
 
 const ONBOARDING_SUBJECTS = ["biology", "chemistry", "physics"];
@@ -437,6 +456,7 @@ async function loadDashboard(user = currentUser) {
     if (!currentUserProfile || currentUserProfile.user_id !== userId) {
       currentUserProfile = await fetchUserProfile(userId);
     }
+    await refreshPlanState();
     scheduleResult = await ensureScheduleReady(userId, currentUserProfile);
   } catch (seedErr) {
     const seedMsg =
@@ -474,10 +494,17 @@ async function loadDashboard(user = currentUser) {
   if (heatmapContainer) {
     heatmapContainer.innerHTML = "";
     if (allSpecs && allSpecs.length > 0) {
-      const masteryHeatmapNode = renderMasteryHeatmap(allSpecs, activeSRS, async (selectedPoint) => {
-        console.log(`Heatmap target selection registered: [${selectedPoint.spec_ref}]`);
-        await startSessionForSpecPointWrapper(selectedPoint.id);
-      });
+      const masteryHeatmapNode = renderMasteryHeatmap(
+        allSpecs,
+        activeSRS,
+        currentAccess?.canHeatmapPractice
+          ? async (selectedPoint) => {
+              console.log(`Heatmap target selection registered: [${selectedPoint.spec_ref}]`);
+              await startSessionForSpecPointWrapper(selectedPoint.id);
+            }
+          : null,
+        { readOnly: !currentAccess?.canHeatmapPractice }
+      );
       heatmapContainer.appendChild(masteryHeatmapNode);
     }
   }
@@ -508,6 +535,7 @@ async function loadDashboard(user = currentUser) {
 
   await updateStartPracticePreview(due, activeSRS);
 
+  updateFreeAnalyticsSummary();
   await loadRevisionCards();
 }
 
@@ -586,6 +614,10 @@ async function loadRevisionCards() {
     if (btnDl) {
       btnDl.style.display = "block";
       btnDl.onclick = async () => {
+        if (!currentAccess?.canPdfFlashcards) {
+          showUpgradeModal("pdf_flashcards");
+          return;
+        }
         await downloadStudyGuideText(failedAttempts);
       };
     }
@@ -946,7 +978,29 @@ if (btnExamPrep) {
         syncExamPrepModeOptions();
         return;
       }
+      const gate = canStartExamPrepMode(currentAccess, selection, planQuotas);
+      if (!gate.allowed) {
+        showUpgradeModal(gate.feature || "full_paper");
+        showToastBanner(gate.reason, true);
+        return;
+      }
+      if (gate.consumesHalfPaperQuota) {
+        try {
+          const consumed = await tryConsumeHalfPaper();
+          if (!consumed?.allowed) {
+            showUpgradeModal("half_paper");
+            showToastBanner("You've used your free half-paper for this month.", true);
+            await refreshPlanState();
+            return;
+          }
+          planQuotas.half_paper_used = consumed.used ?? planQuotas.half_paper_used + 1;
+          updatePlanQuotaChip();
+        } catch (err) {
+          console.warn("Half-paper quota check failed:", err);
+        }
+      }
       await startExamPrep(engineContext, { targetMarks: selection });
+      await refreshPlanState();
     } else {
       await startAnyPractice(engineContext, selection);
     }
@@ -1755,6 +1809,14 @@ function setSignedOutUI() {
   if (sessionSection) sessionSection.classList.add("hidden");
 
   currentUserProfile = null;
+  currentAccess = resolveAccess(null);
+  planQuotas = {
+    is_pro: false,
+    ai_used: 0,
+    ai_limit: FREE_AI_MARKS_PER_WEEK,
+    half_paper_used: 0,
+    half_paper_limit: FREE_HALF_PAPERS_PER_MONTH,
+  };
 
   if (authMsg) {
     authMsg.textContent = "Not signed in.";
@@ -1765,9 +1827,166 @@ function setSignedOutUI() {
 function updateUserChipDisplay() {
   if (!userChip || !currentUser) return;
   const email = currentUser.email || currentUser.id;
-  const tier = currentUserProfile?.subscription_tier || "free";
-  const badgeClass = tier === "paid" ? "subscription-badge paid" : "subscription-badge";
-  userChip.innerHTML = `${escapeHtml(email)}<span class="${badgeClass}">${escapeHtml(tier)}</span>`;
+  const label = currentAccess?.isPro ? "pro" : "free";
+  const badgeClass = currentAccess?.isPro ? "subscription-badge paid" : "subscription-badge";
+  userChip.innerHTML = `${escapeHtml(email)}<span class="${badgeClass}">${escapeHtml(label)}</span>`;
+}
+
+function updatePlanQuotaChip() {
+  const chip = el("planQuotaChip");
+  if (!chip) return;
+  if (!currentUser || currentAccess?.isPro) {
+    chip.classList.add("hidden");
+    chip.textContent = "";
+    return;
+  }
+  const aiLeft = Math.max(0, (planQuotas.ai_limit ?? FREE_AI_MARKS_PER_WEEK) - (planQuotas.ai_used ?? 0));
+  const halfLeft = Math.max(
+    0,
+    (planQuotas.half_paper_limit ?? FREE_HALF_PAPERS_PER_MONTH) - (planQuotas.half_paper_used ?? 0)
+  );
+  chip.classList.remove("hidden");
+  chip.textContent = `AI: ${aiLeft}/${planQuotas.ai_limit ?? FREE_AI_MARKS_PER_WEEK} · Half-paper: ${halfLeft}/${planQuotas.half_paper_limit ?? FREE_HALF_PAPERS_PER_MONTH}`;
+  chip.title = "Free plan allowances this week / month. Upgrade for unlimited.";
+}
+
+function applyAnalyticsTierUI() {
+  const freePanel = el("analyticsFreeSummary");
+  const proPanel = el("analyticsProContent");
+  const isPro = currentAccess?.canFullAnalytics;
+  if (freePanel) freePanel.classList.toggle("hidden", !!isPro);
+  if (proPanel) proPanel.classList.toggle("hidden", !isPro);
+}
+
+function updateFreeAnalyticsSummary() {
+  const streakEl = el("freeAnalyticsStreak");
+  const dueEl = el("freeAnalyticsDue");
+  if (streakEl) streakEl.textContent = String(el("streakCount")?.textContent || "0");
+  if (dueEl) dueEl.textContent = String(el("dueCount")?.textContent || "0");
+}
+
+function showUpgradeModal(featureKey = "generic") {
+  const modal = el("upgradeModal");
+  const featureEl = el("upgradeModalFeature");
+  const pricingEl = el("upgradeModalPricing");
+  if (featureEl) {
+    featureEl.textContent = featureLabel(featureKey);
+  }
+  if (pricingEl) {
+    pricingEl.textContent = formatProPricing();
+  }
+  if (modal) modal.classList.remove("hidden");
+}
+
+function hideUpgradeModal() {
+  const modal = el("upgradeModal");
+  if (modal) modal.classList.add("hidden");
+}
+
+function wireUpgradeModal() {
+  const backdrop = el("upgradeModalBackdrop");
+  const btnClose = el("btnCloseUpgradeModal");
+  const btnDismiss = el("btnUpgradeModalDismiss");
+  const btnAnalytics = el("btnUpgradeFromAnalytics");
+
+  if (backdrop) backdrop.onclick = hideUpgradeModal;
+  if (btnClose) btnClose.onclick = hideUpgradeModal;
+  if (btnDismiss) btnDismiss.onclick = hideUpgradeModal;
+  if (btnAnalytics) {
+    btnAnalytics.onclick = () => showUpgradeModal("analytics");
+  }
+}
+
+async function refreshPlanState() {
+  if (!currentUser?.id || !currentUserProfile) return;
+
+  let classInfo = null;
+  if (currentUserProfile.class_id) {
+    try {
+      classInfo = await fetchUserClassLicense(currentUserProfile.class_id);
+    } catch (err) {
+      console.warn("Class licence fetch skipped:", err?.message || err);
+    }
+  }
+
+  try {
+    const q = await fetchPlanQuotas();
+    planQuotas = {
+      is_pro: !!q?.is_pro,
+      ai_used: Number(q?.ai_used) || 0,
+      ai_limit: Number(q?.ai_limit) || FREE_AI_MARKS_PER_WEEK,
+      half_paper_used: Number(q?.half_paper_used) || 0,
+      half_paper_limit: Number(q?.half_paper_limit) || FREE_HALF_PAPERS_PER_MONTH,
+    };
+    const profileForAccess = q?.is_pro
+      ? { ...currentUserProfile, subscription_tier: "paid" }
+      : currentUserProfile;
+    currentAccess = resolveAccess(profileForAccess, classInfo);
+  } catch (err) {
+    console.warn("Plan quotas unavailable (run migration?):", err?.message || err);
+    currentAccess = resolveAccess(currentUserProfile, classInfo);
+    planQuotas = {
+      is_pro: currentAccess.isPro,
+      ai_used: 0,
+      ai_limit: FREE_AI_MARKS_PER_WEEK,
+      half_paper_used: 0,
+      half_paper_limit: FREE_HALF_PAPERS_PER_MONTH,
+    };
+  }
+
+  updateUserChipDisplay();
+  updatePlanQuotaChip();
+  applyAnalyticsTierUI();
+  updateFreeAnalyticsSummary();
+}
+
+async function runLocalExtendedMarking(response) {
+  const customPayload = currentKey?.key_payload || {};
+
+  let localKeywords = [];
+  if (customPayload.key_scientific_points) {
+    const stopWords = new Set(["about", "above", "after", "again", "against", "all", "am", "an", "and", "any", "are", "arent", "as", "at", "be", "because", "been", "before", "being", "below", "between", "both", "but", "by", "cant", "cannot", "could", "couldnt", "did", "didnt", "do", "does", "doesnt", "doing", "dont", "down", "during", "each", "few", "for", "from", "further", "had", "hadnt", "has", "hasnt", "have", "havent", "having", "he", "hed", "hell", "hes", "her", "here", "heres", "herself", "him", "himself", "his", "how", "hows", "i", "id", "ill", "im", "ive", "if", "in", "into", "is", "isnt", "it", "its", "itself", "lets", "me", "more", "most", "mustnt", "my", "myself", "no", "nor", "not", "of", "off", "on", "once", "only", "or", "other", "ought", "our", "ours", "ourselves", "out", "over", "own", "same", "shant", "she", "shed", "shell", "shes", "should", "shouldnt", "so", "some", "such", "than", "that", "thats", "the", "their", "theirs", "them", "themselves", "then", "there", "theres", "these", "they", "theyd", "theyll", "theyre", "theyve", "this", "those", "through", "to", "too", "under", "until", "up", "very", "was", "wasnt", "we", "wed", "well", "were", "weve", "werent", "what", "whats", "when", "whens", "where", "wheres", "which", "while", "who", "whos", "whom", "why", "whys", "with", "wont", "would", "wouldnt", "you", "youd", "youll", "youre", "youve", "your", "yours", "yourself", "yourselves", "using", "with", "each", "other", "some", "more", "from", "into", "over"]);
+    const words = customPayload.key_scientific_points.join(" ").toLowerCase()
+      .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, " ")
+      .split(/\s+/)
+      .filter(w => w.length > 3 && !stopWords.has(w));
+    localKeywords = [...new Set(words)];
+  } else {
+    localKeywords = ["describe", "explain", "method", "results"];
+  }
+
+  const studentTextRaw = (response.text || el("txtAns")?.value || "").trim();
+  const cleanStudentText = studentTextRaw.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "");
+  const studentWords = cleanStudentText.split(/\s+/).filter(Boolean);
+  const matchedKeywords = localKeywords.filter(targetKeyword =>
+    studentWords.some(userWord => isFuzzyMatch(userWord, targetKeyword, 0.85))
+  );
+
+  feedback.innerHTML = renderAQAExtendedResponseFeedback(studentTextRaw, customPayload, localKeywords, matchedKeywords);
+  triggerMathTypeset();
+  sessionQualityLog.push({ specPointId: currentQ.spec_point_id, quality: 3 });
+
+  const maxMarks = currentQ.max_marks || 6;
+  const matchedCount = matchedKeywords.length;
+  const totalKeywords = localKeywords.length || 1;
+  const estimatedScore = Math.round((matchedCount / totalKeywords) * maxMarks);
+  logSessionAttempt({
+    questionId: currentQ.id,
+    questionType: currentQ.question_type,
+    specPointId: currentQ.spec_point_id,
+    specPoint: currentQ.spec_points,
+    scoreTotal: estimatedScore,
+    scoreMax: maxMarks,
+  });
+
+  await supabaseClient.from("attempts").insert({
+    user_id: currentUser.id,
+    question_id: currentQ.id,
+    response_payload: response,
+    score_total: estimatedScore,
+    score_max: maxMarks,
+    feedback_payload: { local_rubric: true, matched_keywords: matchedKeywords },
+  });
 }
 
 function buildRankMapsFromList(listEl, type) {
@@ -2234,6 +2453,8 @@ async function handleSignedInUser(user) {
     };
   }
 
+  await refreshPlanState();
+
   if (currentUserProfile?.role === "teacher") {
     window.location.href = "teacher.html";
     return;
@@ -2555,7 +2776,7 @@ async function loadTopics() {
 
   const activityFilterCtx = { subject, paper, topic, qType };
   lastActivityContext = { validQuestionIds, filterContext: activityFilterCtx };
-  if (currentUser) {
+  if (currentUser && currentAccess?.canFullAnalytics) {
     loadActivityChart(validQuestionIds, activityFilterCtx);
   }
 
@@ -2809,6 +3030,7 @@ supabaseClient.auth.onAuthStateChange((event, session) => {
 });
 
 async function bootstrapAuth() {
+  wireUpgradeModal();
   try {
     const { data: { session }, error } = await supabaseClient.auth.getSession();
     if (error) throw error;
@@ -2879,6 +3101,33 @@ if (btnSubmit) {
     }
 
     if (currentQ.question_type === "extended_response" || currentQ.marking_method === "ai_rubric") {
+      let useAiMarking = !!currentAccess?.isPro;
+
+      if (!useAiMarking) {
+        try {
+          const quota = await tryConsumeAiMark();
+          if (quota?.allowed) {
+            useAiMarking = true;
+            planQuotas.ai_used = Number(quota.used) || planQuotas.ai_used + 1;
+            updatePlanQuotaChip();
+          } else {
+            showUpgradeModal("ai_marking");
+            showToastBanner(
+              `You've used your ${quota?.limit ?? FREE_AI_MARKS_PER_WEEK} free AI examiner marks this week. Showing basic feedback instead.`,
+              true
+            );
+          }
+        } catch (quotaErr) {
+          console.warn("AI quota check skipped:", quotaErr?.message || quotaErr);
+          useAiMarking = true;
+        }
+      }
+
+      if (!useAiMarking) {
+        await runLocalExtendedMarking(response);
+        if (btnNext) showAdvanceButton();
+        btnSubmit.disabled = false;
+      } else {
       feedback.innerHTML = `
         <div style="text-align: center; padding: 24px 12px;">
           <div class="loader-spinner" style="margin: 0 auto 12px auto; width: 32px; height: 32px; border: 4px solid #f3f3f3; border-top: 4px solid var(--primary); border-radius: 50%; animation: spin 1s linear infinite;"></div>
@@ -2964,44 +3213,9 @@ if (btnSubmit) {
       } catch (err) {
         console.error("AI Marking route failed, applying local self-assessment failover:", err);
         showToastBanner("AI Grader slow or offline. Displaying local grading rubric schema.", true);
-        
-        const customPayload = currentKey?.key_payload || {};
-        
-        let localKeywords = [];
-        if (customPayload.key_scientific_points) {
-          const stopWords = new Set(["about", "above", "after", "again", "against", "all", "am", "an", "and", "any", "are", "arent", "as", "at", "be", "because", "been", "before", "being", "below", "between", "both", "but", "by", "cant", "cannot", "could", "couldnt", "did", "didnt", "do", "does", "doesnt", "doing", "dont", "down", "during", "each", "few", "for", "from", "further", "had", "hadnt", "has", "hasnt", "have", "havent", "having", "he", "hed", "hell", "hes", "her", "here", "heres", "herself", "him", "himself", "his", "how", "hows", "i", "id", "ill", "im", "ive", "if", "in", "into", "is", "isnt", "it", "its", "itself", "lets", "me", "more", "most", "mustnt", "my", "myself", "no", "nor", "not", "of", "off", "on", "once", "only", "or", "other", "ought", "our", "ours", "ourselves", "out", "over", "own", "same", "shant", "she", "shed", "shell", "shes", "should", "shouldnt", "so", "some", "such", "than", "that", "thats", "the", "their", "theirs", "them", "themselves", "then", "there", "theres", "these", "they", "theyd", "theyll", "theyre", "theyve", "this", "those", "through", "to", "too", "under", "until", "up", "very", "was", "wasnt", "we", "wed", "well", "were", "weve", "werent", "what", "whats", "when", "whens", "where", "wheres", "which", "while", "who", "whos", "whom", "why", "whys", "with", "wont", "would", "wouldnt", "you", "youd", "youll", "youre", "youve", "your", "yours", "yourself", "yourselves", "using", "with", "each", "other", "some", "more", "from", "into", "over"]);
-          const words = customPayload.key_scientific_points.join(" ").toLowerCase()
-            .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, " ")
-            .split(/\s+/)
-            .filter(w => w.length > 3 && !stopWords.has(w));
-          localKeywords = [...new Set(words)];
-        } else {
-          localKeywords = ["describe", "explain", "method", "results"];
-        }
-
-        const studentTextRaw = (el("txtAns")?.value || "").trim();
-        const cleanStudentText = studentTextRaw.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "");
-        const studentWords = cleanStudentText.split(/\s+/).filter(Boolean);
-        const matchedKeywords = localKeywords.filter(targetKeyword => 
-          studentWords.some(userWord => isFuzzyMatch(userWord, targetKeyword, 0.85))
-        );
-
-        feedback.innerHTML = renderAQAExtendedResponseFeedback(studentTextRaw, customPayload, localKeywords, matchedKeywords);
-        triggerMathTypeset();
-        sessionQualityLog.push({ specPointId: currentQ.spec_point_id, quality: 3 });
-
-        const maxMarks = currentQ.max_marks || 6;
-        const matchedCount = matchedKeywords.length;
-        const totalKeywords = localKeywords.length || 1;
-        const estimatedScore = Math.round((matchedCount / totalKeywords) * maxMarks);
-        logSessionAttempt({
-          questionId: currentQ.id,
-          questionType: currentQ.question_type,
-          specPointId: currentQ.spec_point_id,
-          specPoint: currentQ.spec_points,
-          scoreTotal: estimatedScore,
-          scoreMax: maxMarks
-        });
+        await runLocalExtendedMarking(response);
+      }
+      btnSubmit.disabled = false;
       }
 
     } else {

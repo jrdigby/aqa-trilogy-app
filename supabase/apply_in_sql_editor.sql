@@ -180,3 +180,6 @@ grant execute on function public.is_enrolled_in_class(uuid) to authenticated;
 create policy classes_student_select_enrolled on classes
   for select to authenticated
   using (public.is_enrolled_in_class(id));
+
+-- Free vs Pro gates — run full script: supabase/migrations/20250617_free_pro_gates.sql
+-- (weekly_ai_usage, monthly_paper_usage, get_plan_quotas, try_consume_ai_mark, try_consume_half_paper)

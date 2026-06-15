@@ -429,9 +429,11 @@ export function renderAQAExtendedResponseFeedback(studentText, rubric, localKeyw
  * Renders a visual AQA specification mastery grid map
  * @param {Array} allSpecPoints - Complete static target array from DB lookup
  * @param {Array} srsStates - Active records tracking progress
- * @param {Function} onCellClickCallback - Handler redirecting view to selected item
+ * @param {Function|null} onCellClickCallback - Handler redirecting view to selected item
+ * @param {{ readOnly?: boolean }} [options]
  */
-export function renderMasteryHeatmap(allSpecPoints, srsStates, onCellClickCallback) {
+export function renderMasteryHeatmap(allSpecPoints, srsStates, onCellClickCallback, options = {}) {
+  const readOnly = !!options.readOnly || typeof onCellClickCallback !== "function";
   // 1. Pivot user tracking array into a quick hashmap keyed by spec_point_id
   const trackingMap = new Map();
   if (Array.isArray(srsStates)) {
@@ -534,15 +536,19 @@ export function renderMasteryHeatmap(allSpecPoints, srsStates, onCellClickCallba
       }
 
       cell.classList.add(stateClass);
+      if (readOnly) cell.classList.add("heatmap-cell-readonly");
       cell.style.backgroundColor = baseColor;
       cell.style.border = borderStyle;
-      cell.setAttribute("data-tooltip", tooltipText);
+      cell.setAttribute(
+        "data-tooltip",
+        readOnly && typeof onCellClickCallback !== "function"
+          ? `${tooltipText} — Student Pro: click to practise`
+          : tooltipText
+      );
 
-      cell.onclick = () => {
-        if (typeof onCellClickCallback === "function") {
-          onCellClickCallback(point);
-        }
-      };
+      if (!readOnly && typeof onCellClickCallback === "function") {
+        cell.onclick = () => onCellClickCallback(point);
+      }
 
       rowEl.appendChild(cell);
     });
