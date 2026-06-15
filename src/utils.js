@@ -30,3 +30,16 @@ export function addDaysISO(isoStr, days) {
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
 }
+
+/** Directory path for the static app (supports GitHub Pages project sites). */
+export function getAppBasePath() {
+  const path = window.location.pathname;
+  const lastSlash = path.lastIndexOf("/");
+  return lastSlash >= 0 ? path.slice(0, lastSlash + 1) : "/";
+}
+
+/** Absolute URL for an HTML page in this deployment (e.g. reset-password.html). */
+export function resolveAppUrl(page) {
+  const clean = String(page).replace(/^\//, "");
+  return `${window.location.origin}${getAppBasePath()}${clean}`;
+}

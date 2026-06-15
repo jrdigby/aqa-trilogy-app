@@ -14,7 +14,7 @@ import {
 } from './adaptiveSelector.js';
 import { triggerMathTypeset } from './mathEngine.js';
 import { checkKeywordOrSynonymsMatch, updateSRS, computeSessionQuality, getAQACommandWordHelper, isFuzzyMatch } from './evalEngine.js';
-import { escapeHtml, shuffleArray, todayISO, addDaysISO } from './utils.js';
+import { escapeHtml, shuffleArray, todayISO, addDaysISO, resolveAppUrl } from './utils.js';
 import { supabaseClient, timeoutPromise, fetchDashboardDueItems, fetchConceptGapAttempts, fetchWeeklyForecastSchedules, fetchSyllabusPipelineData, fetchAttemptActivity, fetchUserProfile, stashAuthSession, clearAuthGraceSession, endAuthGracePeriod, isAuthGraceActive, incrementUserXp } from './dbClient.js';
 import dbClient from "./dbClient.js";
 import {
@@ -334,16 +334,72 @@ function autoSizeFilterSelects() {
 }
 
 // ====== AUTH ======
+let authPanel = "signin";
+
+function setAuthPanel(mode) {
+  authPanel = mode === "signup" || mode === "forgot" ? mode : "signin";
+  const panelSignin = el("authPanelSignin");
+  const panelSignup = el("authPanelSignup");
+  const panelForgot = el("authPanelForgot");
+  if (panelSignin) panelSignin.classList.toggle("hidden", authPanel !== "signin");
+  if (panelSignup) panelSignup.classList.toggle("hidden", authPanel !== "signup");
+  if (panelForgot) panelForgot.classList.toggle("hidden", authPanel !== "forgot");
+}
+
+const btnShowForgot = el("btnShowForgot");
+const btnShowSignup = el("btnShowSignup");
+const btnShowSigninFromSignup = el("btnShowSigninFromSignup");
+const btnShowSigninFromForgot = el("btnShowSigninFromForgot");
+const btnSendReset = el("btnSendReset");
+
+if (btnShowForgot) btnShowForgot.onclick = () => setAuthPanel("forgot");
+if (btnShowSignup) btnShowSignup.onclick = () => setAuthPanel("signup");
+if (btnShowSigninFromSignup) btnShowSigninFromSignup.onclick = () => setAuthPanel("signin");
+if (btnShowSigninFromForgot) btnShowSigninFromForgot.onclick = () => setAuthPanel("signin");
+
+if (btnSendReset) {
+  btnSendReset.onclick = async () => {
+    authMsg.classList.remove("hidden");
+    authMsg.textContent = "Sending reset link…";
+    const email = el("forgotEmail")?.value.trim() || "";
+    if (!email) {
+      authMsg.textContent = "Enter your email address.";
+      return;
+    }
+    try {
+      sessionStorage.setItem("resetRedirect", "app.html");
+      const redirectTo = resolveAppUrl("reset-password.html");
+      const { error } = await supabaseClient.auth.resetPasswordForEmail(email, { redirectTo });
+      if (error) {
+        authMsg.textContent = "Could not send reset link: " + error.message;
+        return;
+      }
+      authMsg.textContent = "Reset link sent ✅ Check your email.";
+    } catch (err) {
+      authMsg.textContent = "Could not send reset link: " + (err.message || err);
+    }
+  };
+}
+
 if (btnSignUp) {
   btnSignUp.onclick = async () => {
     authMsg.classList.remove("hidden");
     authMsg.textContent = "Creating account…";
-    const displayName = (el("displayName")?.value || "").trim();
-    const email = el("email").value.trim();
-    const password = el("password").value;
+    const displayName = (el("signupName")?.value || "").trim();
+    const email = el("signupEmail")?.value.trim() || "";
+    const password = el("signupPassword")?.value || "";
+    const termsAccepted = el("termsAccepted")?.checked;
 
     if (!displayName) {
       authMsg.textContent = "Enter your name before registering.";
+      return;
+    }
+    if (!email || !password) {
+      authMsg.textContent = "Enter your email and password.";
+      return;
+    }
+    if (!termsAccepted) {
+      authMsg.textContent = "Please accept the Terms of Use and Privacy Policy.";
       return;
     }
 
@@ -357,8 +413,10 @@ if (btnSignUp) {
     } else if (data?.user && !data?.session) {
       authMsg.textContent =
         "Account created ✅ Please check your email and verify your address before signing in.";
+      setAuthPanel("signin");
     } else {
       authMsg.textContent = "Sign up successful ✅ You can sign in now.";
+      setAuthPanel("signin");
     }
   };
 }
@@ -394,8 +452,8 @@ if (btnSignIn) {
     authMsg.textContent = "Signing in…";
     btnSignIn.disabled = true;
 
-    const email = el("email").value.trim();
-    const password = el("password").value;
+    const email = el("signinEmail")?.value.trim() || "";
+    const password = el("signinPassword")?.value || "";
 
     if (!email || !password) {
       authMsg.textContent = "Enter your email and password.";
@@ -2945,6 +3003,27 @@ supabaseClient.auth.onAuthStateChange((event, session) => {
   }, 0);
 });
 
+function applyInitialAuthUIState() {
+  if (currentUser) return;
+
+  const resetSuccess = new URLSearchParams(location.search).get("reset");
+  if (resetSuccess === "success" && authMsg) {
+    authMsg.textContent = "Password updated ✅ You can sign in with your new password.";
+    authMsg.classList.remove("hidden");
+    setAuthPanel("signin");
+    history.replaceState(null, "", location.pathname);
+    return;
+  }
+
+  if (location.hash === "#signup") {
+    setAuthPanel("signup");
+    if (authMsg) {
+      authMsg.textContent = "Create your student account.";
+      authMsg.classList.remove("hidden");
+    }
+  }
+}
+
 async function bootstrapAuth() {
   try {
     const { data: { session }, error } = await supabaseClient.auth.getSession();
@@ -2956,6 +3035,7 @@ async function bootstrapAuth() {
       currentUser = null;
       currentUserProfile = null;
       setSignedOutUI();
+      applyInitialAuthUIState();
     }
   } catch (err) {
     console.error("Auth bootstrap failed:", err);
