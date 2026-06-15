@@ -576,6 +576,7 @@
           <span id="streakChip" class="chip" style="background: #fff5f5; color: #ff4d4d; border: 1px solid #ffe3e3; display: flex; align-items: center; gap: 4px; font-size: 0.85rem; padding: 4px 10px; border-radius: 20px;">
             🔥 <span id="streakCount">0</span> Day Streak
           </span>
+          <span id="planQuotaChip" class="chip plan-quota-chip hidden" role="status"></span>
           <span id="xpChip" class="chip" style="background: #fffbeb; color: #b45309; border: 1px solid #fde68a; display: flex; align-items: center; gap: 4px; font-size: 0.85rem; padding: 4px 10px; border-radius: 20px;">
             ⭐ <span id="xpTotal">0</span> XP
           </span>
@@ -687,6 +688,25 @@
       </div>
 
       <div id="dashboardTabAnalytics" class="dashboard-tab-panel hidden" role="tabpanel">
+        <div id="analyticsFreeSummary" class="analytics-free-summary hidden">
+          <h3 class="scoped-panel-heading">Your progress snapshot</h3>
+          <p class="muted analytics-free-lead">Student Pro unlocks activity charts, AO breakdown, and subject mastery detail.</p>
+          <div class="analytics-free-stats">
+            <div class="analytics-free-stat-card">
+              <strong id="freeAnalyticsStreak">0</strong>
+              <span>Day streak</span>
+            </div>
+            <div class="analytics-free-stat-card">
+              <strong id="freeAnalyticsDue">0</strong>
+              <span>Due today</span>
+            </div>
+          </div>
+          <div class="analytics-locked-preview">
+            <p class="muted">🔒 Detailed analytics are included with Student Pro.</p>
+            <button type="button" id="btnUpgradeFromAnalytics" class="btn-primary upgrade-cta-btn">See Student Pro</button>
+          </div>
+        </div>
+        <div id="analyticsProContent" class="analytics-pro-content">
         <div class="dashboard-scoped-panel dashboard-scoped-panel--analytics">
           <div id="filterMountAnalytics" class="filter-mount"></div>
           <h3 class="scoped-panel-heading">
@@ -726,6 +746,7 @@
           <div id="aoMasteryWrapper" class="ao-mastery-stack">
             <div class="muted" style="text-align: center; padding: 10px;">Syncing performance indicators…</div>
           </div>
+        </div>
         </div>
       </div>
 
@@ -824,6 +845,27 @@
         <div id="summaryActions" class="btn-group" style="margin-top: 20px;"></div>
       </div>
     </section>
+  </div>
+
+  <div id="upgradeModal" class="upgrade-modal hidden" role="dialog" aria-modal="true" aria-labelledby="upgradeModalTitle">
+    <div class="upgrade-modal-backdrop" id="upgradeModalBackdrop"></div>
+    <div class="upgrade-modal-card">
+      <button type="button" id="btnCloseUpgradeModal" class="upgrade-modal-close" aria-label="Close">×</button>
+      <h2 id="upgradeModalTitle">Upgrade to Student Pro</h2>
+      <p id="upgradeModalFeature" class="upgrade-modal-feature muted"></p>
+      <ul class="upgrade-modal-benefits">
+        <li>Unlimited AI examiner on 6-mark questions</li>
+        <li>Unlimited half &amp; full mock papers (35 / 70 marks)</li>
+        <li>PDF flashcard export &amp; full analytics dashboard</li>
+        <li>Click any cell on the mastery matrix to practise</li>
+      </ul>
+      <p id="upgradeModalPricing" class="upgrade-modal-pricing"></p>
+      <p class="muted upgrade-modal-note">Online checkout coming soon. Early adopters: <strong>£15/year</strong> (then £20/year).</p>
+      <div class="upgrade-modal-actions">
+        <button type="button" id="btnUpgradeModalPrimary" class="btn-primary" disabled title="Stripe checkout coming soon">Upgrade — coming soon</button>
+        <button type="button" id="btnUpgradeModalDismiss" class="btn-secondary">Continue with Free</button>
+      </div>
+    </div>
   </div>
 
   <script type="module" src="src/app.js"></script>

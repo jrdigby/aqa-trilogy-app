@@ -452,6 +452,37 @@ export async function rpcSeedInitialSRS(userId = null) {
   return restRpc("seed_initial_srs", {}, userId);
 }
 
+export async function fetchUserClassLicense(classId) {
+  if (!classId) return null;
+  try {
+    const { data, error } = await supabaseClient
+      .from("classes")
+      .select("id, is_paid, paid_until")
+      .eq("id", classId)
+      .maybeSingle();
+    if (error) {
+      if (isMissingColumnError(error)) return null;
+      throw error;
+    }
+    return data;
+  } catch (err) {
+    if (isMissingColumnError(err)) return null;
+    throw err;
+  }
+}
+
+export async function fetchPlanQuotas(userId = null) {
+  return restRpc("get_plan_quotas", {}, userId);
+}
+
+export async function tryConsumeAiMark(userId = null) {
+  return restRpc("try_consume_ai_mark", {}, userId);
+}
+
+export async function tryConsumeHalfPaper(userId = null) {
+  return restRpc("try_consume_half_paper", {}, userId);
+}
+
 export async function incrementUserXp(amount, userId = null) {
   const { data, error } = await supabaseClient.rpc("increment_user_xp", { p_amount: amount });
   if (error) throw error;
@@ -573,6 +604,10 @@ const dbClient = {
   waitForAuthSession,
   rpcJoinClass,
   rpcSeedInitialSRS,
+  fetchUserClassLicense,
+  fetchPlanQuotas,
+  tryConsumeAiMark,
+  tryConsumeHalfPaper,
   incrementUserXp
 };
 
