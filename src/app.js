@@ -1,6 +1,6 @@
 import { startAnyPractice, startExamPrep, startSessionForSpecPoint, previewExamPaper, upsertSRS as importUpsertSRS } from './sessionEngine.js';
 import { formatPaperPreviewSummary } from './paperBuilder.js';
-import { showToastBanner, renderQuestionLayout, renderFeedback, renderLiveAIFeedback, renderAQAExtendedResponseFeedback, renderMasteryHeatmap, renderSessionContext, renderSessionCompleteSummary, renderSelfRatingPrompt, renderAdaptiveFeedback, renderHintsPanel, normalizeQuestionHints } from './uiComponents.js';
+import { showToastBanner, renderQuestionLayout, renderFeedback, renderLiveAIFeedback, renderAQAExtendedResponseFeedback, renderMasteryHeatmap, renderSessionContext, renderSessionCompleteSummary, renderExamPaperFeedbackSummary, renderSelfRatingPrompt, renderAdaptiveFeedback, renderHintsPanel, normalizeQuestionHints } from './uiComponents.js';
 import {
   DEFAULT_ADAPTIVE_STATE,
   loadAdaptivePracticeState,
@@ -30,6 +30,13 @@ import {
   sortSubjectsByDifficulty
 } from './onboardingEngine.js';
 import { markResponse } from './evalEngine.js';
+import {
+  getPresentationMode,
+  getCalculationConfig,
+  collectCalculationResponse,
+  validateCalculationResponse,
+  applyCalculationStepHighlighting
+} from './calculationWorkflow.js';
 import { computeAttemptXp, formatXpToastMessage, XP_RULES_FOOTNOTE, XP_RULES_TOAST_KEY } from './xpEngine.js';
 
 console.log("APP VERSION", "v-" + Date.now());
@@ -223,6 +230,7 @@ let sessionMode = null;
 let sessionSpecPointId = null;
 let idx = 0;
 let currentQ = null;
+let currentEquationSheet = null;
 let currentKey = null;
 let currentMarkPoints = [];
 let currentHintState = { revealedCount: 0, panelOpen: false };
@@ -1126,7 +1134,7 @@ function classifyAttemptOutcome(att) {
   return "fail";
 }
 
-function logSessionAttempt({ questionId, questionType, specPointId, specPoint, scoreTotal, scoreMax, xpEarned = 0 }) {
+function logSessionAttempt({ questionId, questionType, specPointId, specPoint, scoreTotal, scoreMax, xpEarned = 0, marking = null, promptPreview = "" }) {
   sessionAttemptLog.push({
     questionId,
     questionType,
@@ -1135,6 +1143,8 @@ function logSessionAttempt({ questionId, questionType, specPointId, specPoint, s
     scoreTotal,
     scoreMax,
     xpEarned,
+    marking,
+    promptPreview,
     outcome: classifyAttemptOutcome({ score_total: scoreTotal, score_max: scoreMax })
   });
 }
@@ -1210,6 +1220,13 @@ function refreshHintsPanel() {
 
 function renderQuestionHintsPanel() {
   if (!hintsPanelMount) return;
+
+  if (sessionMode === "paper_practice") {
+    hintsPanelMount.classList.add("hidden");
+    hintsPanelMount.innerHTML = "";
+    currentQuestionHints = [];
+    return;
+  }
 
   currentQuestionHints = normalizeQuestionHints(currentQ?.hints);
   currentHintState = { revealedCount: 0, panelOpen: false };
@@ -1392,10 +1409,14 @@ async function showSessionSummary() {
   if (progress) progress.textContent = "Session complete";
 
   const isPracticeMode = sessionMode === "any_practice" || sessionMode === "spec_point";
+  const examFeedback = sessionMode === "paper_practice"
+    ? renderExamPaperFeedbackSummary(sessionAttemptLog)
+    : "";
 
   if (summaryContent) {
     summaryContent.innerHTML =
       renderSessionCompleteSummary(getSessionSummaryMeta(), sessionAttemptLog) +
+      examFeedback +
       (isPracticeMode ? `<div id="sessionAdaptiveFeedback"></div>${renderSelfRatingPrompt()}` : "");
   }
 
@@ -1783,10 +1804,28 @@ async function loadQuestion() {
   currentKey = keyRes.data;
   currentMarkPoints = markRes.data || [];
 
+  currentEquationSheet = null;
+  const calcCfg = getCalculationConfig(currentQ);
+  if (calcCfg.equation_sheet_id && calcCfg.equation_given === false) {
+    const sheetRes = await supabaseClient
+      .from("equation_sheets")
+      .select("id, title, equations")
+      .eq("id", calcCfg.equation_sheet_id)
+      .maybeSingle();
+    if (!sheetRes.error) {
+      currentEquationSheet = sheetRes.data;
+    }
+  }
+  currentQ._equationSheet = currentEquationSheet;
+
   const commandWordBanner = getAQACommandWordHelper(currentQ.prompt);
+  const presentation = getPresentationMode(sessionMode);
 
   if (qBox) {
-    qBox.innerHTML = renderQuestionLayout(currentQ, commandWordBanner, currentKey);
+    qBox.innerHTML = renderQuestionLayout(currentQ, commandWordBanner, currentKey, {
+      presentation,
+      equationSheet: currentEquationSheet
+    });
     triggerMathTypeset();
   }
 
@@ -1831,21 +1870,11 @@ function getResponsePayload(q) {
     return { type: "mcq", answer: picked };
   }
   if (q.question_type === "numeric") {
-    const val = parseFloat(el("numAns")?.value);
-    const convVal = el("numAnsConv") ? parseFloat(el("numAnsConv").value) : null;
-    const formulaChoice = el("rearrangeFormula") ? el("rearrangeFormula").value : "";
-    
-    const unit = (currentKey && currentKey.key_payload && currentKey.key_payload.unit) 
-      ? currentKey.key_payload.unit 
+    const resp = collectCalculationResponse(q, sessionMode);
+    const unit = (currentKey && currentKey.key_payload && currentKey.key_payload.unit)
+      ? currentKey.key_payload.unit
       : "";
-    
-    return { 
-      type: "numeric", 
-      value: isNaN(val) ? null : val, 
-      conversionValue: isNaN(convVal) ? null : convVal,
-      rearrangedChoice: formulaChoice,
-      unit 
-    };
+    return { ...resp, unit };
   }
   const text = (el("txtAns")?.value || "").trim();
   return { type: "short_text", text };
@@ -2948,7 +2977,20 @@ if (btnSubmit) {
     if (currentQ.question_type === "extended_response" || currentQ.marking_method === "ai_rubric") {
       if (!response.text || response.text.trim().length === 0) {
         showToastBanner("Please write a detailed response before clicking Submit!", true);
+        btnSubmit.disabled = false;
         return;
+      }
+    }
+
+    if (currentQ.question_type === "numeric") {
+      const calcValidation = validateCalculationResponse(currentQ, response, sessionMode);
+      if (!calcValidation.valid) {
+        showToastBanner(calcValidation.message, true);
+        btnSubmit.disabled = false;
+        return;
+      }
+      if (calcValidation.warn) {
+        showToastBanner(calcValidation.warn, false, 3500);
       }
     }
 
@@ -3119,9 +3161,25 @@ if (btnSubmit) {
 
     } else {
       const marking = markResponse(currentQ, response, currentKey, currentMarkPoints);
+      const isExamPaper = sessionMode === "paper_practice";
+
       if (feedback) {
-        feedback.innerHTML = renderFeedback(marking, currentQ, currentKey, currentMarkPoints);
-        triggerMathTypeset();
+        if (isExamPaper) {
+          feedback.innerHTML = `
+            <div class="item" style="border-left:4px solid var(--primary); padding:12px 16px; background:#f0f9ff;">
+              <strong>Answer recorded</strong>
+              <p style="margin:6px 0 0; font-size:0.85rem; color:var(--text-muted);">
+                ${marking.total}/${marking.max} marks — detailed step feedback will appear at the end of the paper.
+              </p>
+            </div>
+          `;
+        } else {
+          feedback.innerHTML = renderFeedback(marking, currentQ, currentKey, currentMarkPoints);
+          triggerMathTypeset();
+          if (currentQ.question_type === "numeric" && marking.stepResults) {
+            applyCalculationStepHighlighting(marking.stepResults);
+          }
+        }
       }
       if (btnNext) showAdvanceButton();
 
@@ -3149,7 +3207,9 @@ if (btnSubmit) {
           specPoint: currentQ.spec_points,
           scoreTotal: marking.total,
           scoreMax: marking.max,
-          xpEarned
+          xpEarned,
+          marking: isExamPaper ? marking : null,
+          promptPreview: (currentQ.prompt || "").slice(0, 120)
         });
         await awardAttemptXp(xpEarned, hintsRevealed);
       } catch(err) {

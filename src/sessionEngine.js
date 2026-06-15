@@ -5,10 +5,10 @@ import {
 import { buildExamPaper } from "./paperBuilder.js";
 
 const QUESTION_SELECT =
-  "id,question_type,prompt,options,spec_point_id,tier,difficulty,demand_level,ao1_marks,ao2_marks,ao3_marks,is_maths_skill,is_required_practical,resource_links,hints,marking_method,max_marks,image_url,scaffold_config,spec_points(subject,paper,topic_name,spec_ref,spec_text)";
+  "id,question_type,prompt,options,spec_point_id,tier,difficulty,demand_level,ao1_marks,ao2_marks,ao3_marks,is_maths_skill,is_required_practical,resource_links,hints,marking_method,max_marks,image_url,calculation_config,spec_points(subject,paper,topic_name,spec_ref,spec_text)";
 
 const QUESTION_SELECT_FALLBACK =
-  "id,question_type,prompt,options,spec_point_id,tier,difficulty,resource_links,marking_method,max_marks,image_url,scaffold_config,spec_points(subject,paper,topic_name,spec_ref,spec_text)";
+  "id,question_type,prompt,options,spec_point_id,tier,difficulty,resource_links,marking_method,max_marks,image_url,spec_points(subject,paper,topic_name,spec_ref,spec_text)";
 
 async function fetchQuestionsWithFallback(supabaseClient, buildQuery) {
   let query = buildQuery(QUESTION_SELECT);

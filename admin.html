@@ -656,44 +656,86 @@
               </div>
             </div>
 
-            <!-- Scaffold toggles to support progressive units and formulas -->
+            <!-- Calculation workflow steps -->
             <div style="border: 1px solid var(--border); background: #f8fafc; padding: 15px; border-radius: 8px; margin-top: 15px;">
-              <h4 style="margin-top: 0; margin-bottom: 12px; color: #1e293b; font-size: 0.9rem;">📐 Progressive Scaffold Steps (Formula Rearrangements &amp; Unit Conversions)</h4>
-              
-              <div style="display: flex; gap: 20px; align-items: center; margin-bottom: 12px;">
-                <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 0; cursor: pointer;">
-                  <input type="checkbox" id="chkScaffoldConv" />
-                  <span>Enable Step 1: Unit Conversion</span>
-                </label>
-                <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 0; cursor: pointer;">
-                  <input type="checkbox" id="chkScaffoldRearrange" />
-                  <span>Enable Step 2: Formula Rearrangement</span>
-                </label>
-              </div>
-
-              <div id="subScaffoldConv" class="row hidden" style="border-top: 1px solid var(--border); padding-top: 12px;">
+              <h4 style="margin-top: 0; margin-bottom: 8px; color: #1e293b; font-size: 0.9rem;">Calculation workflow</h4>
+              <p class="muted" style="font-size: 0.78rem; margin: 0 0 12px; line-height: 1.4;">
+                <strong>Marks:</strong> Equation given → 1 substitution + 1 answer (+1 each for conversion, rearrangement, or sig figs if ticked).
+                From equation sheet → 1 substitution + 1 rearrangement + 1 answer (+1 conversion or sig figs if ticked). Equation choice is not marked.
+              </p>
+              <div class="row" style="margin-bottom: 12px;">
                 <div>
-                  <label>Conversion Step Variable Label (e.g. meters, seconds):</label>
-                  <input type="text" id="scaffoldConvLabel" placeholder="e.g. meters" />
+                  <label>Preset</label>
+                  <select id="CalcPreset">
+                    <option value="auto">Auto from demand level</option>
+                    <option value="given_equation">Low demand — equation given</option>
+                    <option value="equation_sheet">High demand — from equation sheet</option>
+                    <option value="custom">Custom</option>
+                  </select>
                 </div>
-                <div>
-                  <label>Expected Converted Magnitude Value:</label>
-                  <input type="number" id="scaffoldConvAnswer" placeholder="e.g. 0.2" step="any" />
-                </div>
-                <div>
-                  <label>Conversion Tolerance:</label>
-                  <input type="number" id="scaffoldConvTol" value="0.001" step="any" />
+                <div style="display:flex;align-items:flex-end;">
+                  <label style="display:flex;align-items:center;gap:8px;margin:0;cursor:pointer;">
+                    <input type="checkbox" id="CalcEquationGiven" checked />
+                    <span>Equation given in prompt</span>
+                  </label>
                 </div>
               </div>
-
-              <div id="subScaffoldRearrange" class="row hidden" style="border-top: 1px solid var(--border); padding-top: 12px;">
+              <div class="row" style="margin-bottom: 12px;">
                 <div>
-                  <label>Correct Target Formula Sequence (e.g. W = F * s):</label>
-                  <input type="text" id="scaffoldRearrangeAnswer" placeholder="e.g. W = F * s" />
+                  <label>Equation sheet (when not given)</label>
+                  <select id="CalcEquationSheet">
+                    <option value="">— None —</option>
+                    <option value="physics_p1_ft">Physics P1 FT</option>
+                    <option value="physics_p2_ft">Physics P2 FT</option>
+                    <option value="physics_p2_ht">Physics P2 HT</option>
+                  </select>
                 </div>
-                <div style="grid-column: span 2;">
-                  <label>Formula Distractor Choices (comma-separated list, including correct answer):</label>
-                  <input type="text" id="scaffoldRearrangeDistractors" placeholder="W = F * s, W = F / s, F = W * s" />
+                <div id="CalcEquationOverrideRow">
+                  <label>Override distractors (optional — comma-separated IDs)</label>
+                  <input type="text" id="CalcEquationOverride" placeholder="kinetic_energy, force, speed" />
+                </div>
+              </div>
+              <div style="display:flex;flex-wrap:wrap;gap:12px 20px;margin-bottom:12px;font-size:0.85rem;">
+                <label><input type="checkbox" id="CalcStepEquation" /> Equation select</label>
+                <label><input type="checkbox" id="CalcStepSubstitution" /> Substitution</label>
+                <label><input type="checkbox" id="CalcStepConversion" /> Unit conversion</label>
+                <label><input type="checkbox" id="CalcStepRearrangement" /> Rearrangement</label>
+                <label><input type="checkbox" id="CalcStepSigFigs" /> Significant figures</label>
+              </div>
+              <div id="CalcPanelEquation" class="hidden" style="border-top:1px solid var(--border);padding-top:10px;margin-bottom:10px;">
+                <div class="row">
+                  <div>
+                    <label>Correct equation</label>
+                    <select id="CalcEquationAnswer" class="select-fit">
+                      <option value="">— Select an equation sheet above —</option>
+                    </select>
+                  </div>
+                  <div id="CalcEquationDistractorsRow">
+                    <label>Fallback distractors (only if no sheet — comma list)</label>
+                    <input type="text" id="CalcEquationDistractors" placeholder="kinetic_energy, force" />
+                  </div>
+                </div>
+              </div>
+              <div id="CalcPanelSubstitution" class="hidden" style="border-top:1px solid var(--border);padding-top:10px;margin-bottom:10px;">
+                <label>Accepted substitution forms (one per line)</label>
+                <textarea id="CalcSubstitutionAccepted" rows="2" placeholder="E_k = 0.5 × 2.0 × 4.0²"></textarea>
+              </div>
+              <div id="CalcPanelConversion" class="hidden" style="border-top:1px solid var(--border);padding-top:10px;margin-bottom:10px;">
+                <div class="row">
+                  <div><label>Label</label><input type="text" id="CalcConversionLabel" placeholder="Convert km to m" /></div>
+                  <div><label>Expected value</label><input type="number" id="CalcConversionAnswer" step="any" /></div>
+                  <div><label>Tolerance</label><input type="number" id="CalcConversionTol" value="0.001" step="any" /></div>
+                </div>
+              </div>
+              <div id="CalcPanelRearrangement" class="hidden" style="border-top:1px solid var(--border);padding-top:10px;margin-bottom:10px;">
+                <div class="row">
+                  <div><label>Correct formula</label><input type="text" id="CalcRearrangeAnswer" placeholder="v = s / t" /></div>
+                  <div><label>Distractors (comma list)</label><input type="text" id="CalcRearrangeDistractors" placeholder="v = s / t, v = s * t" /></div>
+                </div>
+              </div>
+              <div id="CalcPanelSigFigs" class="hidden" style="border-top:1px solid var(--border);padding-top:10px;">
+                <div class="row">
+                  <div><label>Sig figs required</label><input type="number" id="CalcSigFigsCount" value="2" min="1" max="5" /></div>
                 </div>
               </div>
             </div>
@@ -1033,43 +1075,78 @@
             </div>
           </div>
 
-          <!-- Progressive Scaffolding Edits Area -->
+          <!-- Calculation workflow (edit) -->
           <div style="border: 1px solid var(--border); background: #f8fafc; padding: 12px; border-radius: 8px; margin-top: 12px; margin-bottom: 12px;">
-            <h4 style="margin-top: 0; margin-bottom: 10px; font-size: 0.85rem; color:#334155;">📐 Scaffold Steps Configuration</h4>
-            <div style="display: flex; gap: 16px; align-items: center; margin-bottom: 10px;">
-              <label style="display: flex; align-items: center; gap: 6px; margin-bottom: 0; cursor: pointer; font-size:0.8rem;">
-                <input type="checkbox" id="chkEditScaffoldConv" />
-                <span>Conversion Step</span>
-              </label>
-              <label style="display: flex; align-items: center; gap: 6px; margin-bottom: 0; cursor: pointer; font-size:0.8rem;">
-                <input type="checkbox" id="chkEditScaffoldRearrange" />
-                <span>Rearrangement Step</span>
-              </label>
-            </div>
-
-            <div id="subEditScaffoldConv" class="row hidden" style="border-top:1px solid var(--border); padding-top:8px;">
+            <h4 style="margin-top: 0; margin-bottom: 10px; font-size: 0.85rem; color:#334155;">Calculation workflow</h4>
+            <div class="row" style="margin-bottom:8px;">
               <div>
-                <label style="font-size:0.78rem;">Conversion Variable Label:</label>
-                <input type="text" id="editScaffoldConvLabel" placeholder="e.g. meters" style="font-size:0.8rem; padding:6px;"/>
+                <label style="font-size:0.78rem;">Preset</label>
+                <select id="editCalcPreset" style="font-size:0.8rem;">
+                  <option value="custom">Custom</option>
+                  <option value="given_equation">Low demand</option>
+                  <option value="equation_sheet">High demand</option>
+                </select>
               </div>
-              <div>
-                <label style="font-size:0.78rem;">Expected Converted Magnitude:</label>
-                <input type="number" id="editScaffoldConvAnswer" placeholder="e.g. 0.2" step="any" style="font-size:0.8rem; padding:6px;"/>
-              </div>
-              <div>
-                <label style="font-size:0.78rem;">Conversion Tolerance:</label>
-                <input type="number" id="editScaffoldConvTol" step="any" style="font-size:0.8rem; padding:6px;"/>
+              <div style="display:flex;align-items:flex-end;">
+                <label style="font-size:0.78rem;margin:0;cursor:pointer;"><input type="checkbox" id="editCalcEquationGiven" /> Equation in prompt</label>
               </div>
             </div>
-
-            <div id="subEditScaffoldRearrange" class="row hidden" style="border-top:1px solid var(--border); padding-top:8px;">
+            <div class="row" style="margin-bottom:8px;">
               <div>
-                <label style="font-size:0.78rem;">Correct Target Formula:</label>
-                <input type="text" id="editScaffoldRearrangeAnswer" style="font-size:0.8rem; padding:6px;"/>
+                <label style="font-size:0.78rem;">Equation sheet</label>
+                <select id="editCalcEquationSheet" style="font-size:0.8rem;">
+                  <option value="">— None —</option>
+                  <option value="physics_p1_ft">Physics P1 FT</option>
+                  <option value="physics_p2_ft">Physics P2 FT</option>
+                  <option value="physics_p2_ht">Physics P2 HT</option>
+                </select>
               </div>
-              <div style="grid-column: span 2;">
-                <label style="font-size:0.78rem;">Rearrange Choice Distractors (comma list):</label>
-                <input type="text" id="editScaffoldRearrangeDistractors" style="font-size:0.8rem; padding:6px;"/>
+              <div>
+                <label style="font-size:0.78rem;">Override distractors</label>
+                <input type="text" id="editCalcEquationOverride" style="font-size:0.8rem;padding:6px;" />
+              </div>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px 14px;font-size:0.78rem;margin-bottom:8px;">
+              <label><input type="checkbox" id="editCalcStepEquation" /> Equation</label>
+              <label><input type="checkbox" id="editCalcStepSubstitution" /> Substitution</label>
+              <label><input type="checkbox" id="editCalcStepConversion" /> Conversion</label>
+              <label><input type="checkbox" id="editCalcStepRearrangement" /> Rearrange</label>
+              <label><input type="checkbox" id="editCalcStepSigFigs" /> Sig figs</label>
+            </div>
+            <div id="editCalcPanelEquation" class="hidden" style="border-top:1px solid var(--border);padding-top:8px;margin-bottom:8px;">
+              <div class="row">
+                <div>
+                  <label style="font-size:0.78rem;">Correct equation</label>
+                  <select id="editCalcEquationAnswer" class="select-fit" style="font-size:0.8rem;">
+                    <option value="">— Select equation sheet —</option>
+                  </select>
+                </div>
+                <div id="editCalcEquationDistractorsRow">
+                  <label style="font-size:0.78rem;">Fallback distractors</label>
+                  <input type="text" id="editCalcEquationDistractors" style="font-size:0.8rem;padding:6px;"/>
+                </div>
+              </div>
+            </div>
+            <div id="editCalcPanelSubstitution" class="hidden" style="border-top:1px solid var(--border);padding-top:8px;margin-bottom:8px;">
+              <label style="font-size:0.78rem;">Accepted forms (one per line)</label>
+              <textarea id="editCalcSubstitutionAccepted" rows="2" style="font-size:0.8rem;width:100%;"></textarea>
+            </div>
+            <div id="editCalcPanelConversion" class="hidden" style="border-top:1px solid var(--border);padding-top:8px;margin-bottom:8px;">
+              <div class="row">
+                <div><label style="font-size:0.78rem;">Label</label><input type="text" id="editCalcConversionLabel" style="font-size:0.8rem;padding:6px;"/></div>
+                <div><label style="font-size:0.78rem;">Value</label><input type="number" id="editCalcConversionAnswer" step="any" style="font-size:0.8rem;padding:6px;"/></div>
+                <div><label style="font-size:0.78rem;">Tol</label><input type="number" id="editCalcConversionTol" step="any" style="font-size:0.8rem;padding:6px;"/></div>
+              </div>
+            </div>
+            <div id="editCalcPanelRearrangement" class="hidden" style="border-top:1px solid var(--border);padding-top:8px;margin-bottom:8px;">
+              <div class="row">
+                <div><label style="font-size:0.78rem;">Correct</label><input type="text" id="editCalcRearrangeAnswer" style="font-size:0.8rem;padding:6px;"/></div>
+                <div><label style="font-size:0.78rem;">Distractors</label><input type="text" id="editCalcRearrangeDistractors" style="font-size:0.8rem;padding:6px;"/></div>
+              </div>
+            </div>
+            <div id="editCalcPanelSigFigs" class="hidden" style="border-top:1px solid var(--border);padding-top:8px;">
+              <div class="row">
+                <div><label style="font-size:0.78rem;">Sig figs</label><input type="number" id="editCalcSigFigsCount" min="1" style="font-size:0.8rem;padding:6px;"/></div>
               </div>
             </div>
           </div>
@@ -1165,6 +1242,9 @@
 <!-- Supabase Script Integrations & Business Logic -->
 <script type="module">
   import { supabaseClient } from "./src/dbClient.js";
+  import * as CalcWorkflow from "./src/calculationWorkflow.js";
+
+  window.CalcWorkflow = CalcWorkflow;
 
   let currentAuthSessionUser = null;
   let loadedQuestionsCache = [];
@@ -1432,13 +1512,20 @@
     } 
     else if (type === "numeric") {
       document.getElementById("numericPanel").classList.remove("hidden");
-      
-      const opt = document.createElement("option");
-      opt.value = "1";
-      opt.textContent = "Calculated dynamically based on toggled steps";
-      maxMarks.appendChild(opt);
-      maxMarks.value = "1";
-      maxMarksRow.classList.add("hidden");
+
+      maxMarks.innerHTML = "";
+      for (let i = 1; i <= 6; i++) {
+        const opt = document.createElement("option");
+        opt.value = String(i);
+        opt.textContent = i === 1 ? "1 mark" : `${i} marks`;
+        maxMarks.appendChild(opt);
+      }
+      maxMarksRow.classList.remove("hidden");
+      if (window.CalcWorkflow) {
+        window.CalcWorkflow.syncMaxMarksSelect("");
+      } else {
+        maxMarks.value = "1";
+      }
     } 
     else if (type === "short_text") {
       document.getElementById("shortTextKeywordsPanel").classList.remove("hidden");
@@ -1481,37 +1568,39 @@
     }
   };
 
-  // Numerical progressive scaffolding helpers
-  const chkConv = document.getElementById("chkScaffoldConv");
-  const chkRearrange = document.getElementById("chkScaffoldRearrange");
-  
-  chkConv.onchange = function() {
-    const sub = document.getElementById("subScaffoldConv");
-    if (chkConv.checked) sub.classList.remove("hidden");
-    else sub.classList.add("hidden");
-  };
-  
-  chkRearrange.onchange = function() {
-    const sub = document.getElementById("subScaffoldRearrange");
-    if (chkRearrange.checked) sub.classList.remove("hidden");
-    else sub.classList.add("hidden");
-  };
+  function updateEquationAuthoringHints(prefix) {
+    const p = (id) => document.getElementById(prefix + id);
+    const hasSheet = !!(p("CalcEquationSheet")?.value);
+    p("CalcEquationDistractorsRow")?.classList.toggle("hidden", hasSheet);
+    p("CalcEquationOverrideRow")?.classList.toggle("hidden", !hasSheet);
+  }
 
-  // Connect edit modal scaffold toggles as well
-  const chkEditConv = document.getElementById("chkEditScaffoldConv");
-  const chkEditRearrange = document.getElementById("chkEditScaffoldRearrange");
-  
-  chkEditConv.onchange = function() {
-    const sub = document.getElementById("subEditScaffoldConv");
-    if (chkEditConv.checked) sub.classList.remove("hidden");
-    else sub.classList.add("hidden");
-  };
-  
-  chkEditRearrange.onchange = function() {
-    const sub = document.getElementById("subEditScaffoldRearrange");
-    if (chkEditRearrange.checked) sub.classList.remove("hidden");
-    else sub.classList.add("hidden");
-  };
+  async function onCalcWorkflowChange(prefix) {
+    updateEquationAuthoringHints(prefix);
+    const select = document.getElementById(prefix + "CalcEquationAnswer");
+    const pending = select?.dataset?.pendingAnswer || select?.value || "";
+    if (select?.dataset?.pendingAnswer) delete select.dataset.pendingAnswer;
+    await CalcWorkflow.refreshEquationSelect(supabaseClient, prefix, pending);
+  }
+
+  document.getElementById("CalcEquationSheet")?.addEventListener("change", () => onCalcWorkflowChange(""));
+  document.getElementById("editCalcEquationSheet")?.addEventListener("change", () => onCalcWorkflowChange("edit"));
+
+  document.getElementById("CalcPreset")?.addEventListener("change", async (e) => {
+    const demand = document.getElementById("demandLevelSelect")?.value || "standard";
+    if (window.CalcWorkflow) {
+      window.CalcWorkflow.applyCalculationPreset("", e.target.value, demand);
+      await onCalcWorkflowChange("");
+    }
+  });
+
+  if (window.CalcWorkflow) {
+    window.CalcWorkflow.wireCalculationFormToggles("", () => onCalcWorkflowChange(""));
+    window.CalcWorkflow.wireCalculationFormToggles("edit", () => onCalcWorkflowChange("edit"));
+    window.CalcWorkflow.populateCalculationForm("", null);
+    window.CalcWorkflow.syncMaxMarksSelect("");
+    updateEquationAuthoringHints("");
+  }
 
   // ====== SECTION 3: MARK POINTS DYNAMIC LIST (CREATOR) ======
   window.addMarkPointRow = function(ptText = "", selectedAo = "AO1", fbText = "") {
@@ -1640,10 +1729,7 @@
       let calculatedMarkingMethod = "keyword";
       
       if (questionType === "numeric") {
-        let baseScore = 1;
-        if (chkConv.checked) baseScore += 1;
-        if (chkRearrange.checked) baseScore += 1;
-        calculatedMaxMarks = baseScore;
+        calculatedMaxMarks = parseInt(maxMarks.value, 10) || 1;
         calculatedMarkingMethod = "numeric";
       } else if (questionType === "extended_response") {
         calculatedMarkingMethod = "ai_rubric";
@@ -1682,18 +1768,8 @@
         insertPayload.difficulty = 2;
       }
       
-      // Inject Mathematical scaffold subconfigurations
-      if (questionType === "numeric") {
-        const scDistractors = document.getElementById("scaffoldRearrangeDistractors").value;
-        insertPayload.scaffold_config = {
-          has_conversion: chkConv.checked,
-          conversion_label: document.getElementById("scaffoldConvLabel").value.trim(),
-          conversion_answer: parseFloat(document.getElementById("scaffoldConvAnswer").value),
-          conversion_tolerance: parseFloat(document.getElementById("scaffoldConvTol").value) || 0.001,
-          has_rearrangement: chkRearrange.checked,
-          rearrangement_answer: document.getElementById("scaffoldRearrangeAnswer").value.trim(),
-          rearrangement_distractors: scDistractors ? scDistractors.split(",").map(d => d.trim()) : []
-        };
+      if (questionType === "numeric" && window.CalcWorkflow) {
+        insertPayload.calculation_config = window.CalcWorkflow.buildCalculationConfigFromForm("");
       }
 
       const { data: qResult, error: qErr } = await supabaseClient
@@ -1800,11 +1876,12 @@
     document.getElementById("numAnsVal").value = "";
     document.getElementById("numAnsTol").value = "";
     document.getElementById("numAnsUnit").value = "";
-    
-    chkConv.checked = false;
-    chkConv.onchange();
-    chkRearrange.checked = false;
-    chkRearrange.onchange();
+
+    if (window.CalcWorkflow) {
+      const preset = document.getElementById("CalcPreset");
+      if (preset) preset.value = "given_equation";
+      window.CalcWorkflow.applyCalculationPreset("", "given_equation", "standard");
+    }
     
     document.getElementById("guidelines").value = "";
     document.getElementById("lvl3").value = "";
@@ -2040,8 +2117,8 @@
         checkPointsCounterMap[mp.question_id] = (checkPointsCounterMap[mp.question_id] || 0) + 1;
       });
       
-      const selectWithMeta = "id, spec_point_id, question_type, prompt, options, tier, marking_method, max_marks, resource_links, hints, image_url, scaffold_config, command_word, demand_level, ao1_marks, ao2_marks, ao3_marks, is_maths_skill, is_required_practical, difficulty, answer_keys(key_type, key_payload)";
-      const selectBasic = "id, spec_point_id, question_type, prompt, options, tier, marking_method, max_marks, resource_links, hints, image_url, scaffold_config, difficulty, answer_keys(key_type, key_payload)";
+      const selectWithMeta = "id, spec_point_id, question_type, prompt, options, tier, marking_method, max_marks, resource_links, hints, image_url, calculation_config, command_word, demand_level, ao1_marks, ao2_marks, ao3_marks, is_maths_skill, is_required_practical, difficulty, answer_keys(key_type, key_payload)";
+      const selectBasic = "id, spec_point_id, question_type, prompt, options, tier, marking_method, max_marks, resource_links, hints, image_url, calculation_config, difficulty, answer_keys(key_type, key_payload)";
 
       let query = supabaseClient
         .from("questions")
@@ -2310,21 +2387,13 @@
         document.getElementById("editNumTol").value = keyData?.key_payload?.tolerance || 0;
         document.getElementById("editNumUnit").value = keyData?.key_payload?.unit || "";
 
-        // Populate Scaffolding values in edit window
-        const sc = q.scaffold_config || {};
-        const chkEditConvField = document.getElementById("chkEditScaffoldConv");
-        const chkEditRearrangeField = document.getElementById("chkEditScaffoldRearrange");
-
-        chkEditConvField.checked = !!sc.has_conversion;
-        document.getElementById("editScaffoldConvLabel").value = sc.conversion_label || "";
-        document.getElementById("editScaffoldConvAnswer").value = sc.conversion_answer !== undefined ? sc.conversion_answer : "";
-        document.getElementById("editScaffoldConvTol").value = sc.conversion_tolerance !== undefined ? sc.conversion_tolerance : "";
-        chkEditConvField.onchange(); // trigger show/hide
-
-        chkEditRearrangeField.checked = !!sc.has_rearrangement;
-        document.getElementById("editScaffoldRearrangeAnswer").value = sc.rearrangement_answer || "";
-        document.getElementById("editScaffoldRearrangeDistractors").value = Array.isArray(sc.rearrangement_distractors) ? sc.rearrangement_distractors.join(", ") : "";
-        chkEditRearrangeField.onchange(); // trigger show/hide
+        if (window.CalcWorkflow) {
+          window.CalcWorkflow.populateCalculationForm("edit", q.calculation_config || null);
+          window.CalcWorkflow.syncMaxMarksSelect("edit");
+          const eqStep = (q.calculation_config?.steps || []).find((s) => s.type === "equation_select");
+          await CalcWorkflow.refreshEquationSelect(supabaseClient, "edit", eqStep?.answer || "");
+          updateEquationAuthoringHints("edit");
+        }
       } 
       else if (q.question_type === "short_text") {
         document.getElementById("editShortTextPanel").classList.remove("hidden");
@@ -2489,29 +2558,11 @@
         ];
       }
       
-      // Handle Scaffolding config update inside numeric mode
-      if (q.question_type === "numeric") {
-        const chkEditConvChecked = document.getElementById("chkEditScaffoldConv").checked;
-        const chkEditRearrangeChecked = document.getElementById("chkEditScaffoldRearrange").checked;
-        const scDistractors = document.getElementById("editScaffoldRearrangeDistractors").value;
-        
-        updatePayload.scaffold_config = {
-          has_conversion: chkEditConvChecked,
-          conversion_label: document.getElementById("editScaffoldConvLabel").value.trim(),
-          conversion_answer: parseFloat(document.getElementById("editScaffoldConvAnswer").value),
-          conversion_tolerance: parseFloat(document.getElementById("editScaffoldConvTol").value) || 0.001,
-          has_rearrangement: chkEditRearrangeChecked,
-          rearrangement_answer: document.getElementById("editScaffoldRearrangeAnswer").value.trim(),
-          rearrangement_distractors: scDistractors ? scDistractors.split(",").map(d => d.trim()) : []
-        };
-
-        // Recalculate and update the marks based on progressive steps toggled
-        let baseScore = 1;
-        if (chkEditConvChecked) baseScore += 1;
-        if (chkEditRearrangeChecked) baseScore += 1;
-        updatePayload.max_marks = baseScore;
-      } else {
-        updatePayload.scaffold_config = null;
+      if (q.question_type === "numeric" && window.CalcWorkflow) {
+        const calcCfg = window.CalcWorkflow.buildCalculationConfigFromForm("edit");
+        updatePayload.calculation_config = calcCfg;
+        updatePayload.max_marks = parseInt(document.getElementById("editMaxMarks")?.value, 10)
+          || window.CalcWorkflow.computeMaxMarksFromConfig(calcCfg);
       }
 
       const { error: uErr } = await supabaseClient
@@ -2701,57 +2752,7 @@
       `;
     } 
     else if (q.question_type === "numeric") {
-      // Dynamic sandbox renderer matching student app unit layouts
-      const sc = q.scaffold_config || {};
-      
-      // Pull unit symbol directly from supabase answer keys configuration
-      const unit = (currentSandboxedKey && currentSandboxedKey.key_payload && currentSandboxedKey.key_payload.unit) ? currentSandboxedKey.key_payload.unit : "";
-      const unitLabelHtml = unit ? `
-        <span class="unit-badge" style="font-size: 0.9rem; font-weight: 700; color: var(--text-muted); background: #f1f5f9; border: 1px solid var(--border); padding: 6px 12px; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; margin-left: 8px;">
-          ${escapeHtml(unit)}
-        </span>
-      ` : "";
-
-      if (sc.has_conversion || sc.has_rearrangement) {
-        html += `<div style="border:1px solid var(--border); padding:12px; border-radius:8px; background:#fff; margin-bottom:10px;">`;
-        if (sc.has_conversion) {
-          html += `
-            <div style="margin-bottom:10px;">
-              <label style="display:block; font-size:0.8rem; font-weight:700; margin-bottom:4px;">Step 1: Conversion Value (${sc.conversion_label || ''}):</label>
-              <input id="sbNumAnsConv" type="number" step="any" style="width:120px;"/>
-            </div>
-          `;
-        }
-        if (sc.has_rearrangement) {
-          const distractors = sc.rearrangement_distractors || [];
-          html += `
-            <div style="margin-bottom:10px;">
-              <label style="display:block; font-size:0.8rem; font-weight:700; margin-bottom:4px;">Step 2: Correct Equation Form:</label>
-              <select id="sbRearrangeFormula" style="width:100%;">
-                <option value="">-- Choose target equation --</option>
-                ${distractors.map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join("")}
-              </select>
-            </div>
-          `;
-        }
-        html += `
-          <div>
-            <label style="display:block; font-size:0.8rem; font-weight:700; margin-bottom:4px;">Final Step: Calculation Answer:</label>
-            <div style="display:flex; align-items:center;">
-              <input id="sbNumAns" type="number" step="any" style="width:120px;"/>
-              ${unitLabelHtml}
-            </div>
-          </div>
-        `;
-        html += `</div>`;
-      } else {
-        html += `
-          <div style="display:flex; align-items:center; gap:8px;">
-            <label>Answer: <input id="sbNumAns" type="number" step="any" style="width:120px;"/></label>
-            ${unitLabelHtml}
-          </div>
-        `;
-      }
+      html += CalcWorkflow.renderCalculationWorkflow(q, currentSandboxedKey, "practice", null);
     } 
     else if (q.question_type === "extended_response") {
       html += `
@@ -2844,13 +2845,8 @@
       const picked = document.querySelector('input[name="sandbox_mcq"]:checked')?.value || "";
       resp = { type: "mcq", answer: picked };
     } else if (currentSandboxedQ.question_type === "numeric") {
-      resp = { 
-        type: "numeric", 
-        value: parseFloat(document.getElementById("sbNumAns")?.value),
-        conversionValue: document.getElementById("sbNumAnsConv") ? parseFloat(document.getElementById("sbNumAnsConv").value) : null,
-        rearrangedChoice: document.getElementById("sbRearrangeFormula") ? document.getElementById("sbRearrangeFormula").value : "",
-        unit: (currentSandboxedKey && currentSandboxedKey.key_payload) ? (currentSandboxedKey.key_payload.unit || "") : ""
-      };
+      resp = CalcWorkflow.collectCalculationResponse(currentSandboxedQ, "any_practice");
+      resp.unit = (currentSandboxedKey?.key_payload?.unit) || "";
     } else {
       resp = { type: "short_text", text: document.getElementById("sbTextAns")?.value.trim() };
     }
@@ -2935,107 +2931,30 @@
       `;
     } 
     else if (currentSandboxedKey.key_type === "numeric") {
-      const sc = currentSandboxedQ.scaffold_config || {};
-      if (sc.has_conversion || sc.has_rearrangement) {
-        let stepScore = 0;
-        let auditTrail = [];
-        let ecfApplied = false;
-        
-        let isConvCorrect = false;
-        if (sc.has_conversion) {
-          const convTol = parseFloat(sc.conversion_tolerance || 0.001);
-          isConvCorrect = resp.conversionValue !== null && Math.abs(resp.conversionValue - sc.conversion_answer) <= convTol;
-          if (isConvCorrect) {
-            stepScore++;
-            auditTrail.push("🟢 Step 1 (Unit Conversion): Correct!");
-          } else {
-            auditTrail.push(`🔴 Step 1 (Unit Conversion): Incorrect (Expected: ${sc.conversion_answer})`);
-          }
-        }
-        
-        if (sc.has_rearrangement) {
-          if (resp.rearrangedChoice === sc.rearrangement_answer) {
-            stepScore++;
-            auditTrail.push("🟢 Step 2 (Formula Rearrangement): Correct!");
-          } else {
-            auditTrail.push(`🔴 Step 2 (Formula Rearrangement): Incorrect (Expected: ${sc.rearrangement_answer})`);
-          }
-        }
-        
-        const targetAns = currentSandboxedKey.key_payload.answer;
-        const tol = currentSandboxedKey.key_payload.tolerance || 0;
-        
-        let isFinalCorrect = false;
-        if (resp.value !== null) {
-          if (Math.abs(resp.value - targetAns) <= tol) {
-            isFinalCorrect = true;
-          } 
-          // ECF dynamic check inside Sandbox Testing
-          else if (sc.has_conversion && !isConvCorrect && resp.conversionValue !== null && !isNaN(resp.conversionValue) && sc.conversion_answer !== 0) {
-            const ratio = resp.conversionValue / sc.conversion_answer;
-            const ecfTarget = targetAns * ratio;
-            const scaledTol = tol * Math.abs(ratio);
-            
-            if (Math.abs(resp.value - ecfTarget) <= Math.max(tol, scaledTol)) {
-              isFinalCorrect = true;
-              ecfApplied = true;
-            }
-          }
-        }
-        
-        if (isFinalCorrect) {
-          stepScore++;
-          if (ecfApplied) {
-            auditTrail.push(`🟢 Final Step (Calculation): Correct via Error Carried Forward! (Using converted value ${resp.conversionValue})`);
-          } else {
-            auditTrail.push("🟢 Final Step (Calculation): Correct!");
-          }
-        } else {
-          auditTrail.push(`🔴 Final Step (Calculation): Incorrect (Expected: ${targetAns})`);
-        }
-        
-        score = stepScore;
-        detailsHtml = `
-          <div style="font-weight:bold; margin-bottom:8px;">Multi-step Calculation Audit:</div>
-          <ul style="padding-left:18px; font-size:0.85rem; line-height:1.4;">
-            ${auditTrail.map(t => `<li>${t}</li>`).join("")}
-          </ul>
-        `;
-      } else {
-        const targetAns = currentSandboxedKey.key_payload.answer;
-        const tol = currentSandboxedKey.key_payload.tolerance || 0;
-        
-        const valCorrect = resp.value !== null && Math.abs(resp.value - targetAns) <= tol;
-        score = valCorrect ? max : 0;
-        
-        if (valCorrect) {
-          detailsHtml = `
-            <div style="font-weight:bold; margin-bottom:8px;">Numerical Evaluation: <span style="color:var(--success)">PASS</span></div>
-            <div>User Entered: <code>${resp.value} ${escapeHtml(resp.unit)}</code></div>
-            <div>Expected: <code>${targetAns} (±${tol}) ${escapeHtml(resp.unit)}</code></div>
-          `;
-        } else {
-          // Check if a custom remediation checkpoint is configured
-          const fallbackPoint = currentSandboxedMarkPoints?.find(mp => mp.point_text === "[numeric_fallback]");
-          
-          let feedbackText = (fallbackPoint && fallbackPoint.feedback_if_missing)
-            ? fallbackPoint.feedback_if_missing
-            : `Incorrect calculation. The expected value is ${targetAns}${resp.unit ? ' ' + resp.unit : ''}.`;
-          
-          const diagramHtml = (fallbackPoint && fallbackPoint.image_url)
-            ? `<img src="${fallbackPoint.image_url}" style="max-width:100%; border-radius:8px; margin-top:8px; border:1px solid var(--border); display:block;" alt="Remediation Guide"/>`
-            : "";
-
-          detailsHtml = `
-            <div style="font-weight:bold; margin-bottom:8px;">Numerical Evaluation: <span style="color:var(--error)">FAIL</span></div>
-            <div>User Entered: <code>${resp.value} ${escapeHtml(resp.unit)}</code></div>
-            <div style="margin-top:10px; padding:10px; background:#fff5f5; border-left:3px solid var(--error); font-size:0.85rem; color:#991b1b;">
-              <strong>💡 Remedial Checkpoint Step:</strong> ${escapeHtml(feedbackText)}
-              ${diagramHtml}
-            </div>
-          `;
-        }
+      const marking = CalcWorkflow.markCalculationResponse(
+        currentSandboxedQ,
+        resp,
+        currentSandboxedKey,
+        currentSandboxedMarkPoints,
+        null,
+        null
+      );
+      score = marking.total;
+      max = marking.max;
+      const auditTrail = (marking.missing || []).map((m) =>
+        m.isEcf
+          ? `🟡 ${m.text}`
+          : `🔴 ${m.text}`
+      );
+      if (score === max && max > 0) {
+        auditTrail.unshift("🟢 All calculation steps correct!");
       }
+      detailsHtml = `
+        <div style="font-weight:bold; margin-bottom:8px;">Calculation workflow: <span style="color:${score === max ? "var(--success)" : "var(--error)"}">${score}/${max} marks</span></div>
+        <ul style="padding-left:18px; font-size:0.85rem; line-height:1.4;">
+          ${auditTrail.map((t) => `<li>${escapeHtml(t)}</li>`).join("")}
+        </ul>
+      `;
     } 
     else if (currentSandboxedKey.key_type === "keywords" || currentSandboxedMarkPoints.length > 0) {
       const cleanInputText = (resp.text || "").toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "");
