@@ -1,6 +1,6 @@
 import { fetchClassRosterStats, supabaseClient } from "./dbClient.js";
 import { initStudentDetailPanel, openStudentDetail } from "./teacherStudentDetail.js";
-import { escapeHtml, todayISO, addDaysISO } from "./utils.js";
+import { escapeHtml, todayISO, addDaysISO, resolveAppUrl } from "./utils.js";
 
 const el = (id) => document.getElementById(id);
 
@@ -35,15 +35,19 @@ function setAuthMsg(text, isError = false) {
 }
 
 function setAuthMode(mode) {
-  authMode = mode === "signup" ? "signup" : "signin";
+  authMode = mode === "signup" || mode === "forgot" ? mode : "signin";
 
   const tabSignIn = el("teacherAuthTabSignIn");
   const tabSignUp = el("teacherAuthTabSignUp");
   const panelSignIn = el("teacherAuthPanelSignIn");
   const panelSignUp = el("teacherAuthPanelSignUp");
+  const panelForgot = el("teacherAuthPanelForgot");
   const btnSignIn = el("btnTeacherSignIn");
   const btnSignUp = el("btnTeacherSignUp");
+  const btnSendReset = el("btnTeacherSendReset");
+  const passwordGroup = el("teacherPasswordGroup");
   const passwordInput = el("teacherPassword");
+  const authTabs = el("teacherAuthSection")?.querySelector(".teacher-auth-tabs");
 
   if (tabSignIn) {
     tabSignIn.classList.toggle("active", authMode === "signin");
@@ -55,8 +59,12 @@ function setAuthMode(mode) {
   }
   if (panelSignIn) panelSignIn.classList.toggle("hidden", authMode !== "signin");
   if (panelSignUp) panelSignUp.classList.toggle("hidden", authMode !== "signup");
+  if (panelForgot) panelForgot.classList.toggle("hidden", authMode !== "forgot");
   if (btnSignIn) btnSignIn.classList.toggle("hidden", authMode !== "signin");
   if (btnSignUp) btnSignUp.classList.toggle("hidden", authMode !== "signup");
+  if (btnSendReset) btnSendReset.classList.toggle("hidden", authMode !== "forgot");
+  if (passwordGroup) passwordGroup.classList.toggle("hidden", authMode === "forgot");
+  if (authTabs) authTabs.classList.toggle("hidden", authMode === "forgot");
   if (passwordInput) {
     passwordInput.autocomplete = authMode === "signup" ? "new-password" : "current-password";
   }
@@ -403,6 +411,31 @@ async function signInTeacher() {
   }
 }
 
+async function sendTeacherPasswordReset() {
+  const email = el("teacherEmail")?.value.trim() || "";
+  if (!email) {
+    setAuthMsg("Enter your email address.", true);
+    return;
+  }
+
+  setAuthMsg("Sending reset link…");
+  const btn = el("btnTeacherSendReset");
+  if (btn) btn.disabled = true;
+
+  try {
+    sessionStorage.setItem("resetRedirect", "teacher.html");
+    const redirectTo = resolveAppUrl("reset-password.html");
+    const { error } = await supabaseClient.auth.resetPasswordForEmail(email, { redirectTo });
+    if (error) {
+      setAuthMsg(error.message, true);
+      return;
+    }
+    setAuthMsg("Reset link sent ✅ Check your email.");
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
 async function signUpTeacher() {
   const { email, password } = getAuthCredentials();
   if (!email || !password) {
@@ -451,17 +484,41 @@ async function init() {
   const btnSignUp = el("btnTeacherSignUp");
   const btnSignOut = el("btnTeacherSignOut");
   const btnCreate = el("btnCreateClass");
+  const btnShowForgot = el("btnTeacherShowForgot");
+  const btnBackToSignIn = el("btnTeacherBackToSignIn");
+  const btnSendReset = el("btnTeacherSendReset");
   const passwordInput = el("teacherPassword");
 
   if (tabSignIn) tabSignIn.onclick = () => setAuthMode("signin");
   if (tabSignUp) tabSignUp.onclick = () => setAuthMode("signup");
   if (btnSignIn) btnSignIn.onclick = () => signInTeacher();
   if (btnSignUp) btnSignUp.onclick = () => signUpTeacher();
+  if (btnShowForgot) btnShowForgot.onclick = () => setAuthMode("forgot");
+  if (btnBackToSignIn) btnBackToSignIn.onclick = () => setAuthMode("signin");
+  if (btnSendReset) btnSendReset.onclick = () => sendTeacherPasswordReset();
+
+  const resetSuccess = new URLSearchParams(location.search).get("reset");
+  if (resetSuccess === "success") {
+    setAuthMsg("Password updated ✅ You can sign in with your new password.");
+    history.replaceState(null, "", location.pathname);
+  }
+
+  const emailInput = el("teacherEmail");
 
   if (passwordInput) {
     passwordInput.addEventListener("keydown", (e) => {
       if (e.key !== "Enter") return;
       if (authMode === "signup") signUpTeacher();
+      else if (authMode === "forgot") sendTeacherPasswordReset();
+      else signInTeacher();
+    });
+  }
+
+  if (emailInput) {
+    emailInput.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter") return;
+      if (authMode === "signup") signUpTeacher();
+      else if (authMode === "forgot") sendTeacherPasswordReset();
       else signInTeacher();
     });
   }
@@ -492,7 +549,7 @@ async function init() {
       .maybeSingle();
 
     if (profile?.role === "student") {
-      window.location.href = "index.html";
+      window.location.href = "app.html";
       return;
     }
     if (profile?.role === "developer") {
