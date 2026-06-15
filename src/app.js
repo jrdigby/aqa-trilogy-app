@@ -30,7 +30,7 @@ import {
   sortSubjectsByDifficulty
 } from './onboardingEngine.js';
 import { markResponse } from './evalEngine.js';
-import { computeAttemptXp, formatXpToastMessage } from './xpEngine.js';
+import { computeAttemptXp, formatXpToastMessage, XP_RULES_FOOTNOTE, XP_RULES_TOAST_KEY } from './xpEngine.js';
 
 console.log("APP VERSION", "v-" + Date.now());
 
@@ -1153,8 +1153,12 @@ async function awardAttemptXp(xpEarned, hintsRevealed) {
       currentUserProfile.total_xp = newTotal;
     }
     updateXpDisplay(newTotal);
-    const msg = formatXpToastMessage(xpEarned, hintsRevealed);
-    if (msg) showToastBanner(msg, false);
+    const includeRulesNote = !localStorage.getItem(XP_RULES_TOAST_KEY);
+    const msg = formatXpToastMessage(xpEarned, hintsRevealed, { includeRulesNote });
+    if (msg) {
+      showToastBanner(msg, false, includeRulesNote ? 8000 : 5000);
+      if (includeRulesNote) localStorage.setItem(XP_RULES_TOAST_KEY, "1");
+    }
   } catch (xpErr) {
     console.warn("XP award failed (run migration if columns/RPC missing):", xpErr);
   }
@@ -2172,6 +2176,7 @@ function updateOnboardingStepUI() {
         <div><strong>Difficulty ranking (step 3):</strong> ${diffOrder}</div>
         <p class="muted" style="margin-top: 10px; font-size: 0.85rem;">Starter topics use <em>both</em>: subjects earlier in study order are scheduled first; your hardest subject gets more initial topics.</p>
         <div><strong>${classLine}</strong></div>
+        <p class="muted onboarding-xp-note" style="margin-top: 12px; font-size: 0.85rem; line-height: 1.45;">⭐ <strong>XP:</strong> ${XP_RULES_FOOTNOTE}</p>
       `;
     }
   }
@@ -2950,7 +2955,7 @@ if (btnSubmit) {
     btnSubmit.disabled = true;
 
     const hintsRevealed = currentHintState.revealedCount;
-    const xpEarned = computeAttemptXp(currentQ, hintsRevealed);
+    const xpEarned = computeAttemptXp(currentQ, hintsRevealed, response);
 
     const existingBanner = el("improveBanner");
     if (existingBanner) existingBanner.remove();

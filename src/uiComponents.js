@@ -1,17 +1,18 @@
 // src/uiComponents.js
 import { escapeHtml } from './utils.js';
 import { isFuzzyMatch, highlightCommandWordsInPrompt } from './evalEngine.js';
+import { XP_RULES_FOOTNOTE } from './xpEngine.js';
 
 // Dom element selector shortcut helper used internally
 const el = (id) => document.getElementById(id);
 
 // ====== GLOBAL TOAST NOTIFICATION BANNER ======
-export function showToastBanner(msg, isError = true) {
+export function showToastBanner(msg, isError = true, durationMs = 5000) {
   let banner = el("toastBanner");
   if (!banner) {
     banner = document.createElement("div");
     banner.id = "toastBanner";
-    banner.style = "position: fixed; top: 16px; right: 16px; z-index: 9999; padding: 12px 24px; border-radius: 8px; font-weight: 600; font-size: 0.9rem; color: white; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); opacity: 0; transform: translateY(-20px); box-shadow: 0 4px 12px rgba(0,0,0,0.15);";
+    banner.style = "position: fixed; top: 16px; right: 16px; z-index: 9999; max-width: min(420px, calc(100vw - 32px)); padding: 12px 24px; border-radius: 8px; font-weight: 600; font-size: 0.9rem; color: white; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); opacity: 0; transform: translateY(-20px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); line-height: 1.35;";
     document.body.appendChild(banner);
   }
   banner.textContent = msg;
@@ -21,7 +22,7 @@ export function showToastBanner(msg, isError = true) {
   setTimeout(() => {
     banner.style.opacity = "0";
     banner.style.transform = "translateY(-20px)";
-  }, 5000);
+  }, durationMs);
 }
 
 // ====== QUESTION VIEW INJECTION COMPILER ======
@@ -812,7 +813,7 @@ export function renderSessionCompleteSummary(meta, attemptLog) {
   const rows = buildSpecPointSummaryRows(bySpecPoint);
   const xpNote =
     xpTotal > 0
-      ? `<p class="session-summary-xp-footnote muted">XP is earned for each submitted attempt (based on question difficulty). Marks scored do not change XP. Hints reduce XP.</p>`
+      ? `<p class="session-summary-xp-footnote muted">${escapeHtml(XP_RULES_FOOTNOTE)}</p>`
       : "";
 
   return `
