@@ -2,6 +2,7 @@
 import { escapeHtml } from './utils.js';
 import { isFuzzyMatch, highlightCommandWordsInPrompt } from './evalEngine.js';
 import { XP_RULES_FOOTNOTE } from './xpEngine.js';
+import { renderCalculationWorkflow, renderCalculationStepSummary } from './calculationWorkflow.js';
 
 // Dom element selector shortcut helper used internally
 const el = (id) => document.getElementById(id);
@@ -26,7 +27,8 @@ export function showToastBanner(msg, isError = true, durationMs = 5000) {
 }
 
 // ====== QUESTION VIEW INJECTION COMPILER ======
-export function renderQuestionLayout(q, commandWordBanner, currentKey) {
+export function renderQuestionLayout(q, commandWordBanner, currentKey, layoutOptions = {}) {
+  const { presentation = "practice", equationSheet = null } = layoutOptions;
   const totalMarks = q.max_marks || (q.question_type === "extended_response" ? 6 : 1);
   const marksLabel = totalMarks === 1 ? "1 mark" : `${totalMarks} marks`;
 
@@ -61,59 +63,7 @@ export function renderQuestionLayout(q, commandWordBanner, currentKey) {
     `;
   } 
   else if (q.question_type === "numeric") {
-    const sc = q.scaffold_config || {};
-    const unit = (currentKey && currentKey.key_payload && currentKey.key_payload.unit) ? currentKey.key_payload.unit : "";
-    const unitLabelHtml = unit ? `
-      <span class="unit-badge" style="font-size: 0.85rem; font-weight: 700; color: #475569; background: #f1f5f9; border: 1px solid #cbd5e1; padding: 6px 12px; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; vertical-align: middle; margin-left: 8px; box-sizing: border-box; line-height: 1.2;">
-        ${escapeHtml(unit)}
-      </span>
-    ` : "";
-
-    if (sc.has_conversion || sc.has_rearrangement) {
-      html += `<div class="item" style="border:1px solid #e2e8f0; padding:15px; border-radius:8px; background:#f8fafc; margin-top:12px;">`;
-      html += `<h4 style="margin-top:0; margin-bottom:12px; color:var(--primary); font-size:0.9rem;">📝 Scaffolded Multi-Mark Guided Steps:</h4>`;
-      
-      if (sc.has_conversion) {
-        html += `
-          <div style="margin-bottom: 12px;">
-            <label style="display:block; font-size:0.82rem; font-weight:700; margin-bottom:4px;">Step 1: Perform Unit Conversion (${sc.conversion_label || 'Standard Units'}):</label>
-            <input id="numAnsConv" type="number" step="any" style="padding:6px; font-size:0.85rem; width:120px; border-radius:4px; border:1px solid #cbd5e1"/>
-          </div>
-        `;
-      }
-      if (sc.has_rearrangement) {
-        const distractors = sc.rearrangement_distractors || [];
-        html += `
-          <div style="margin-bottom: 12px;">
-            <label style="display:block; font-size:0.82rem; font-weight:700; margin-bottom:4px;">Step 2: Choose the Correct Rearranged Formula:</label>
-            <select id="rearrangeFormula" style="padding:6px; font-size:0.85rem; border-radius:4px; border:1px solid #cbd5e1; width:100%;">
-              <option value="">-- Choose target subject equation --</option>
-              ${distractors.map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join("")}
-            </select>
-          </div>
-        `;
-      }
-      
-      html += `
-        <div>
-          <label style="display:block; font-size:0.82rem; font-weight:700; margin-bottom:4px;">Final Step: Solve and Compute Calculation:</label>
-          <div style="display: inline-flex; align-items: center; vertical-align: middle;">
-            <input id="numAns" type="number" step="any" style="padding:6px; font-size:0.85rem; width:120px; border-radius:4px; border:1px solid #cbd5e1; box-sizing: border-box;"/>
-            ${unitLabelHtml}
-          </div>
-        </div>
-      `;
-      html += `</div>`;
-    } else {
-      html += `
-        <div class="item" style="display: flex; align-items: center; margin-top: 12px;">
-          <label style="font-size: 0.9rem; font-weight: 600;">Answer: 
-            <input id="numAns" type="number" step="any" style="padding:6px; font-size:0.85rem; width:120px; border-radius:4px; border:1px solid #cbd5e1; margin-left: 4px; box-sizing: border-box;"/>
-          </label>
-          ${unitLabelHtml}
-        </div>
-      `;
-    }
+    html += renderCalculationWorkflow(q, currentKey, presentation, equationSheet);
   } 
   else if (q.question_type === "extended_response") {
     html += `
@@ -168,6 +118,10 @@ export function renderFeedback(marking, currentQ, currentKey, currentMarkPoints)
   });
 
   html += `</div>`;
+
+  if (currentQ.question_type === "numeric" && marking.stepResults) {
+    html += renderCalculationStepSummary(marking.stepResults);
+  }
 
   if (currentQ.question_type === "short_text" && currentKey && currentKey.key_type === "keywords") {
     let allTargetKeywords = [];
@@ -806,6 +760,44 @@ function buildSpecPointSummaryRows(bySpecPoint) {
     marksAchieved: row.marksAchieved,
     marksAvailable: row.marksAvailable
   }));
+}
+
+export function renderExamPaperFeedbackSummary(attemptLog) {
+  const withMarking = (attemptLog || []).filter((a) => a.marking);
+  if (!withMarking.length) return "";
+
+  const blocks = withMarking.map((att, i) => {
+    const m = att.marking;
+    const scoreLine = `${m.total}/${m.max} marks`;
+    const stepSummary = m.stepResults ? renderCalculationStepSummary(m.stepResults) : "";
+    const gaps = (m.missing || [])
+      .filter((g) => !g.isEcf)
+      .map((g) => `<li style="margin-bottom:6px;">${escapeHtml(g.text)}</li>`)
+      .join("");
+    const ecf = (m.missing || [])
+      .filter((g) => g.isEcf)
+      .map((g) => `<li style="margin-bottom:6px;color:#0369a1;">${escapeHtml(g.text)}</li>`)
+      .join("");
+
+    return `
+      <div class="exam-q-feedback" style="border:1px solid #e2e8f0;border-radius:8px;padding:12px 14px;margin-bottom:10px;background:#fff;">
+        <div style="display:flex;justify-content:space-between;gap:10px;margin-bottom:8px;">
+          <strong style="font-size:0.85rem;">Q${i + 1}</strong>
+          <span class="chip" style="font-size:0.76rem;">${escapeHtml(scoreLine)}</span>
+        </div>
+        ${att.promptPreview ? `<p style="font-size:0.78rem;color:#64748b;margin:0 0 8px;line-height:1.4;">${escapeHtml(att.promptPreview)}…</p>` : ""}
+        ${stepSummary}
+        ${gaps || ecf ? `<ul style="margin:0;padding-left:18px;font-size:0.82rem;line-height:1.4;">${gaps}${ecf}</ul>` : `<p style="margin:0;font-size:0.82rem;color:#059669;">Fully correct.</p>`}
+      </div>
+    `;
+  }).join("");
+
+  return `
+    <div class="exam-paper-feedback" style="margin-top:20px;">
+      <h3 style="font-size:1rem;margin-bottom:12px;">Paper review — step-by-step feedback</h3>
+      ${blocks}
+    </div>
+  `;
 }
 
 export function renderSessionCompleteSummary(meta, attemptLog) {

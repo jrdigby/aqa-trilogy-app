@@ -1,5 +1,6 @@
 // src/evalEngine.js
 import { escapeHtml } from './utils.js';
+import { markCalculationResponse, getCalculationConfig, getActiveSteps } from './calculationWorkflow.js';
 
 // ====== 🧠 FUZZY STRING MATCHING ENGINE (LEVENSHTEIN DISTANCE) ======
 export function getLevenshteinDistance(s1, s2) {
@@ -308,6 +309,7 @@ export function markResponse(q, resp, key, markPoints) {
   let ao = { AO1: 0, AO2: 0, AO3: 0 };
   let maxAo = { AO1: 0, AO2: 0, AO3: 0 };
   let missing = [], quality = 0;
+  let stepResults = null;
 
   if (!key) return { total: 0, max, ao, maxAo, missing, quality: 0, feedbackPayload: {} };
 
@@ -355,109 +357,27 @@ export function markResponse(q, resp, key, markPoints) {
     }
   }
   else if (key.key_type === "numeric") {
-    const sc = q.scaffold_config || {};
-    
-    if (sc.has_conversion || sc.has_rearrangement) {
-      let conversionEarned = 0;
-      let rearrangementEarned = 0;
-      let finalCalculationEarned = 0;
-      let ecfApplied = false;
-      
-      const convTol = parseFloat(sc.conversion_tolerance || 0.0001);
-      const convTarget = parseFloat(sc.conversion_answer);
-      const formulaTarget = sc.rearrangement_answer;
-      
-      const ansTarget = parseFloat(key.key_payload.answer);
-      const ansTol = parseFloat(key.key_payload.tolerance ?? 0);
-      
-      if (sc.has_conversion) {
-        if (resp.conversionValue !== null && Math.abs(resp.conversionValue - convTarget) <= convTol) {
-          conversionEarned = 1;
-        } else {
-          missing.push({
-            ao: "AO2",
-            text: `Step 1 (Conversion) incorrect: Converting ${sc.conversion_label || ''} should equal ${convTarget}.`,
-            url: cleanUrl
-          });
-        }
-      }
-      
-      if (sc.has_rearrangement) {
-        if (resp.rearrangedChoice === formulaTarget && formulaTarget) {
-          rearrangementEarned = 1;
-        } else {
-          missing.push({
-            ao: "AO1",
-            text: `Step 2 (Rearrangement) incorrect: The correct rearranged formula target is "${formulaTarget}".`,
-            url: cleanUrl
-          });
-        }
-      }
-      
-      let isFinalCorrect = false;
-      if (resp.value !== null) {
-        if (Math.abs(resp.value - ansTarget) <= ansTol) {
-          isFinalCorrect = true;
-        } 
-        else if (sc.has_conversion && conversionEarned === 0 && resp.conversionValue !== null && !isNaN(resp.conversionValue) && convTarget !== 0) {
-          const ratio = resp.conversionValue / convTarget;
-          const ecfTarget = ansTarget * ratio;
-          const scaledTol = ansTol * Math.abs(ratio);
-          
-          if (Math.abs(resp.value - ecfTarget) <= Math.max(ansTol, scaledTol)) {
-            isFinalCorrect = true;
-            ecfApplied = true;
-          }
-        }
-      }
+    const calcConfig = getCalculationConfig(q);
+    const calcSteps = getActiveSteps(calcConfig);
+    const equationSheet = q._equationSheet || null;
 
-      if (isFinalCorrect) {
-        finalCalculationEarned = 1;
-        if (ecfApplied) {
-          missing.push({
-            ao: "AO2",
-            text: `Error Carried Forward (ECF) applied: Final calculation graded correct based on your converted value of ${resp.conversionValue}.`,
-            isEcf: true
-          });
-        }
-      } else {
-        missing.push({
-          ao: "AO2",
-          text: `Final Step calculation incorrect: Expected magnitude ${ansTarget} ${key.key_payload.unit || ''}.`,
-          url: cleanUrl
-        });
-      }
-      
-      total = conversionEarned + rearrangementEarned + finalCalculationEarned;
-      ao.AO1 = rearrangementEarned;
-      ao.AO2 = conversionEarned + finalCalculationEarned;
-      
-      quality = (total === max) ? 5 : (total > 0 ? 3 : 0);
-    } 
-    else {
-      const ans = key.key_payload.answer;
-      const tol = key.key_payload.tolerance ?? 0;
-      total = (resp.value !== null && Math.abs(resp.value - ans) <= tol) ? max : 0;
-      quality = total ? 5 : 1;
-      
-      if (total > 0) {
-        ao.AO2 = max;
-      } else {
-        const fallbackPoint = markPoints?.find(mp => mp.point_text === "[numeric_fallback]");
-        
-        let feedbackText = (fallbackPoint && fallbackPoint.feedback_if_missing)
-          ? fallbackPoint.feedback_if_missing
-          : `The correct answer is "${ans}${key.key_payload?.unit ? ' ' + key.key_payload.unit : ''}". Review calculations or units.`;
-        
-        missing.push({ 
-          ao: "AO2", 
-          text: feedbackText, 
-          url: cleanUrl,
-          image_url: fallbackPoint?.image_url || "" 
-        });
-      }
+    if (calcSteps.length > 1 || calcSteps[0]?.type !== "calculate") {
+      max = calcSteps.reduce((sum, s) => sum + (Number(s.marks) || 0), 0);
     }
-  } 
+
+    const calcResult = markCalculationResponse(q, resp, key, markPoints, cleanUrl, equationSheet);
+    total = calcResult.total;
+    if (calcResult.max > 0) max = calcResult.max;
+    ao.AO1 = calcResult.ao.AO1;
+    ao.AO2 = calcResult.ao.AO2;
+    ao.AO3 = calcResult.ao.AO3;
+    maxAo.AO1 = calcResult.maxAo.AO1;
+    maxAo.AO2 = calcResult.maxAo.AO2;
+    maxAo.AO3 = calcResult.maxAo.AO3;
+    missing.push(...calcResult.missing);
+    quality = calcResult.quality;
+    stepResults = calcResult.stepResults;
+  }
   else if (key.key_type === "keywords") {
     const required = key.key_payload.required || [];
     const optional = key.key_payload.optional || [];
@@ -522,5 +442,5 @@ export function markResponse(q, resp, key, markPoints) {
     else quality = 5;
   }
 
-  return { total, max, ao, maxAo, missing, quality, feedbackPayload: { missing } };
+  return { total, max, ao, maxAo, missing, quality, feedbackPayload: { missing }, stepResults };
 }
