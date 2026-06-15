@@ -109,15 +109,97 @@ export async function loadEquationSheetOptions(supabaseClient, sheetId) {
   return Array.isArray(data.equations) ? data.equations : [];
 }
 
+/** Plain-text equation for &lt;option&gt; labels (MathJax cannot run inside options). */
+export function latexToPlainOptionText(latex) {
+  if (!latex) return "";
+  let s = String(latex).trim();
+  s = s.replace(/\\text\{([^}]*)\}/g, "$1");
+  s = s.replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, "$1/$2");
+  s = s.replace(/\\Delta/g, "Δ");
+  s = s.replace(/\\theta/g, "θ");
+  s = s.replace(/\\rho/g, "ρ");
+  s = s.replace(/\\lambda/g, "λ");
+  s = s.replace(/\^\{?2\}?/g, "²");
+  s = s.replace(/\\times/g, "×");
+  s = s.replace(/\\cdot/g, "·");
+  s = s.replace(/[{}\\]/g, "");
+  s = s.replace(/_/g, "");
+  s = s.replace(/\s+/g, " ");
+  return s.trim();
+}
+
+export function formatEquationOptionText(eq) {
+  const label = eq.label || eq.id || "";
+  const plain = latexToPlainOptionText(eq.latex || "");
+  if (!plain || plain === label) return label;
+  return `${label} — ${plain}`;
+}
+
+function equationPreviewMarkup(latex) {
+  if (!latex) return "";
+  return `<span class="calc-eq-latex">$${latex}$</span>`;
+}
+
+export function updateEquationSelectPreview(selectEl, previewEl, equations) {
+  if (!previewEl) return;
+  if (!selectEl?.value) {
+    previewEl.innerHTML = "";
+    previewEl.style.display = "none";
+    return;
+  }
+  const eq = (equations || []).find((e) => (e.id || e.label) === selectEl.value);
+  const latex = eq?.latex || selectEl.selectedOptions?.[0]?.dataset?.latex || "";
+  if (!latex) {
+    previewEl.innerHTML = "";
+    previewEl.style.display = "none";
+    return;
+  }
+  previewEl.innerHTML = equationPreviewMarkup(latex);
+  previewEl.style.display = "inline-flex";
+}
+
+export function wireEquationSelectPreview(selectEl, previewEl, equations, onTypeset) {
+  if (!selectEl || !previewEl) return;
+  if (selectEl._eqPreviewHandler) {
+    selectEl.removeEventListener("change", selectEl._eqPreviewHandler);
+  }
+  const handler = () => {
+    updateEquationSelectPreview(selectEl, previewEl, equations);
+    onTypeset?.();
+  };
+  selectEl._eqPreviewHandler = handler;
+  selectEl.addEventListener("change", handler);
+  handler();
+}
+
+/** Wire student sandbox / practice equation dropdown preview after DOM render. */
+export function wireStudentEquationSelectPreview(onTypeset) {
+  const select = document.getElementById("calc_equation_select");
+  const preview = document.getElementById("calc_equation_select_preview");
+  if (!select || !preview) return;
+
+  const equations = Array.from(select.options)
+    .filter((opt) => opt.value)
+    .map((opt) => ({
+      id: opt.value,
+      label: opt.textContent.split(" — ")[0] || opt.value,
+      latex: opt.dataset.latex || ""
+    }));
+
+  wireEquationSelectPreview(select, preview, equations, onTypeset);
+}
+
 export function fillEquationSelectElement(selectEl, equations, selectedId = "") {
   if (!selectEl) return;
   const opts = ['<option value="">— Select correct equation —</option>'];
   for (const eq of equations) {
     const id = eq.id || eq.label || "";
-    const label = eq.label || id;
     if (!id) continue;
     const sel = id === selectedId ? " selected" : "";
-    opts.push(`<option value="${escapeHtml(id)}"${sel}>${escapeHtml(label)}</option>`);
+    const latexAttr = eq.latex ? ` data-latex="${escapeHtml(eq.latex)}"` : "";
+    opts.push(
+      `<option value="${escapeHtml(id)}"${latexAttr}${sel}>${escapeHtml(formatEquationOptionText(eq))}</option>`
+    );
   }
   selectEl.innerHTML = opts.join("");
 }
@@ -136,6 +218,12 @@ export async function refreshEquationSelect(supabaseClient, prefix = "", selecte
 
   const equations = await loadEquationSheetOptions(supabaseClient, sheetId);
   fillEquationSelectElement(select, equations, selectedId || select.value);
+  const preview = p("CalcEquationAnswerPreview");
+  wireEquationSelectPreview(select, preview, equations, () => {
+    if (typeof window !== "undefined" && window.MathJax?.typesetPromise) {
+      window.MathJax.typesetPromise().catch(() => {});
+    }
+  });
   return equations;
 }
 
@@ -397,14 +485,17 @@ export function renderCalculationWorkflow(q, currentKey, presentation = "practic
       html += `
         <div class="calc-step" data-step="equation_select" style="margin-bottom:12px;">
           <label style="display:block;font-size:0.82rem;font-weight:700;margin-bottom:4px;">${renderStepLabel(numberedLabel, step)}:</label>
-          <select id="calc_equation_select" style="${selectStyle()}">
-            <option value="">— Select equation —</option>
-            ${options.map((eq) => {
-              const val = eq.id || eq.label;
-              const display = eq.label || eq.id;
-              return `<option value="${escapeHtml(val)}">${escapeHtml(display)}</option>`;
-            }).join("")}
-          </select>
+          <div class="calc-eq-select-row" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+            <select id="calc_equation_select" style="${selectStyle()}">
+              <option value="">— Select equation —</option>
+              ${options.map((eq) => {
+                const val = eq.id || eq.label;
+                const latexAttr = eq.latex ? ` data-latex="${escapeHtml(eq.latex)}"` : "";
+                return `<option value="${escapeHtml(val)}"${latexAttr}>${escapeHtml(formatEquationOptionText(eq))}</option>`;
+              }).join("")}
+            </select>
+            <span id="calc_equation_select_preview" class="calc-eq-select-preview" style="display:none;align-items:center;padding:6px 12px;background:#fff;border:1px solid #e2e8f0;border-radius:6px;font-size:0.9rem;min-height:38px;"></span>
+          </div>
         </div>
       `;
     } else if (step.type === "substitution") {

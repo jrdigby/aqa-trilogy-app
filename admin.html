@@ -703,9 +703,12 @@
                 <div class="row">
                   <div>
                     <label>Correct equation</label>
-                    <select id="CalcEquationAnswer" class="select-fit">
-                      <option value="">— Select an equation sheet above —</option>
-                    </select>
+                    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                      <select id="CalcEquationAnswer" class="select-fit">
+                        <option value="">— Select an equation sheet above —</option>
+                      </select>
+                      <span id="CalcEquationAnswerPreview" class="calc-eq-select-preview" style="display:none;align-items:center;padding:6px 12px;background:#f8fafc;border:1px solid var(--border);border-radius:8px;font-size:0.9rem;min-height:38px;"></span>
+                    </div>
                   </div>
                   <div id="CalcEquationDistractorsRow">
                     <label>Fallback distractors (only if no sheet — comma list)</label>
@@ -1113,9 +1116,12 @@
               <div class="row">
                 <div>
                   <label style="font-size:0.78rem;">Correct equation</label>
-                  <select id="editCalcEquationAnswer" class="select-fit" style="font-size:0.8rem;">
-                    <option value="">— Select equation sheet —</option>
-                  </select>
+                  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                    <select id="editCalcEquationAnswer" class="select-fit" style="font-size:0.8rem;">
+                      <option value="">— Select equation sheet —</option>
+                    </select>
+                    <span id="editCalcEquationAnswerPreview" class="calc-eq-select-preview" style="display:none;align-items:center;padding:5px 10px;background:#f8fafc;border:1px solid var(--border);border-radius:6px;font-size:0.85rem;min-height:34px;"></span>
+                  </div>
                 </div>
                 <div id="editCalcEquationDistractorsRow">
                   <label style="font-size:0.78rem;">Fallback distractors</label>
@@ -2832,6 +2838,11 @@
     }
     
     stage.innerHTML = html;
+    if (q.question_type === "numeric" && window.CalcWorkflow) {
+      CalcWorkflow.wireStudentEquationSelectPreview(() => {
+        if (window.MathJax?.typesetPromise) window.MathJax.typesetPromise();
+      });
+    }
     // Trigger Math typesetting
     if (window.MathJax && typeof window.MathJax.typesetPromise === "function") {
       window.MathJax.typesetPromise();

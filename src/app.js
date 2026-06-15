@@ -35,7 +35,8 @@ import {
   getCalculationConfig,
   collectCalculationResponse,
   validateCalculationResponse,
-  applyCalculationStepHighlighting
+  applyCalculationStepHighlighting,
+  wireStudentEquationSelectPreview
 } from './calculationWorkflow.js';
 import { computeAttemptXp, formatXpToastMessage, XP_RULES_FOOTNOTE, XP_RULES_TOAST_KEY } from './xpEngine.js';
 
@@ -1827,6 +1828,7 @@ async function loadQuestion() {
       equationSheet: currentEquationSheet
     });
     triggerMathTypeset();
+    wireStudentEquationSelectPreview(triggerMathTypeset);
   }
 
   renderQuestionHintsPanel();
