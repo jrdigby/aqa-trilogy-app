@@ -16,7 +16,7 @@
         <p class="teacher-portal-tagline">Create class codes, view rosters, and monitor student revision progress.</p>
       </div>
       <div class="teacher-portal-header-actions">
-        <a href="index.html" class="teacher-portal-link">← Student app</a>
+        <a href="app.html" class="teacher-portal-link">← Student app</a>
         <span id="teacherAuthBadge" class="teacher-badge">Not signed in</span>
         <button type="button" id="btnTeacherSignOut" class="btn-secondary teacher-btn-compact hidden">Sign out</button>
       </div>
@@ -33,6 +33,17 @@
       <div id="teacherAuthPanelSignIn" class="teacher-auth-panel" role="tabpanel">
         <h2>Welcome back</h2>
         <p class="muted teacher-auth-lead">Sign in to manage your classes and view student summaries.</p>
+        <p class="muted teacher-auth-lead">
+          <button type="button" id="btnTeacherShowForgot" class="auth-link-btn">Forgot password?</button>
+        </p>
+      </div>
+
+      <div id="teacherAuthPanelForgot" class="teacher-auth-panel hidden" role="tabpanel">
+        <h2>Reset password</h2>
+        <p class="muted teacher-auth-lead">Enter your email and we&rsquo;ll send a reset link.</p>
+        <p class="muted teacher-auth-lead">
+          <button type="button" id="btnTeacherBackToSignIn" class="auth-link-btn">Back to sign in</button>
+        </p>
       </div>
 
       <div id="teacherAuthPanelSignUp" class="teacher-auth-panel hidden" role="tabpanel">
@@ -40,13 +51,15 @@
         <p class="muted teacher-auth-lead">Register with your school email. You'll use class join codes so students can link to your classes during onboarding.</p>
       </div>
 
-      <div class="input-group">
-        <label for="teacherEmail">Email address</label>
-        <input id="teacherEmail" type="email" autocomplete="email" placeholder="teacher@school.org" />
-      </div>
-      <div class="input-group">
-        <label for="teacherPassword">Password</label>
-        <input id="teacherPassword" type="password" autocomplete="current-password" placeholder="••••••••" />
+      <div id="teacherAuthFields" class="teacher-auth-fields">
+        <div class="input-group">
+          <label for="teacherEmail">Email address</label>
+          <input id="teacherEmail" type="email" autocomplete="email" placeholder="teacher@school.org" />
+        </div>
+        <div class="input-group" id="teacherPasswordGroup">
+          <label for="teacherPassword">Password</label>
+          <input id="teacherPassword" type="password" autocomplete="current-password" placeholder="••••••••" />
+        </div>
       </div>
 
       <p id="teacherAuthMsg" class="teacher-auth-msg hidden" role="alert"></p>
@@ -54,10 +67,11 @@
       <div class="teacher-auth-actions">
         <button type="button" id="btnTeacherSignIn" class="btn-teacher-primary">Sign in</button>
         <button type="button" id="btnTeacherSignUp" class="btn-teacher-secondary hidden">Create account</button>
+        <button type="button" id="btnTeacherSendReset" class="btn-teacher-primary hidden">Send reset link</button>
       </div>
 
       <p class="muted teacher-auth-footnote">
-        Students sign up on the <a href="index.html">student app</a> and enter your class code during onboarding.
+        Students sign up on the <a href="app.html">student app</a> and enter your class code during onboarding.
       </p>
     </section>
 
@@ -85,6 +99,31 @@
         </div>
       </section>
     </div>
+  </div>
+
+  <div id="studentDetailOverlay" class="teacher-detail-overlay hidden" aria-hidden="true">
+    <aside class="teacher-detail-panel" role="dialog" aria-modal="true" aria-labelledby="studentDetailName">
+      <div class="teacher-detail-header">
+        <div>
+          <h2 id="studentDetailName">Student</h2>
+          <p id="studentDetailMeta" class="muted"></p>
+        </div>
+        <button type="button" id="btnCloseStudentDetail" class="teacher-detail-close" aria-label="Close student detail">×</button>
+      </div>
+      <div class="teacher-detail-above-tabs">
+        <div id="studentDetailSummary" class="teacher-detail-summary"></div>
+        <div id="studentDetailStrengthsWeaknesses"></div>
+      </div>
+      <div class="teacher-detail-main">
+        <div class="teacher-detail-tabs" role="tablist" aria-label="Student progress views">
+          <button type="button" class="teacher-detail-tab active" data-tab="overview" role="tab" aria-selected="true">Topics</button>
+          <button type="button" class="teacher-detail-tab" data-tab="mastery" role="tab" aria-selected="false">Mastery map</button>
+          <button type="button" class="teacher-detail-tab" data-tab="activity" role="tab" aria-selected="false">Activity</button>
+          <button type="button" class="teacher-detail-tab" data-tab="ao" role="tab" aria-selected="false">AO breakdown</button>
+        </div>
+        <div id="studentDetailTabContent" class="teacher-detail-tab-content"></div>
+      </div>
+    </aside>
   </div>
 
   <script type="module" src="src/teacherPortal.js"></script>

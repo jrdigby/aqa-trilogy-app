@@ -1,6 +1,6 @@
 import { startAnyPractice, startExamPrep, startSessionForSpecPoint, previewExamPaper, upsertSRS as importUpsertSRS } from './sessionEngine.js';
 import { formatPaperPreviewSummary } from './paperBuilder.js';
-import { showToastBanner, renderQuestionLayout, renderFeedback, renderLiveAIFeedback, renderAQAExtendedResponseFeedback, renderMasteryHeatmap, renderSessionContext, renderSessionCompleteSummary, renderSelfRatingPrompt, renderAdaptiveFeedback } from './uiComponents.js';
+import { showToastBanner, renderQuestionLayout, renderFeedback, renderLiveAIFeedback, renderAQAExtendedResponseFeedback, renderMasteryHeatmap, renderSessionContext, renderSessionCompleteSummary, renderExamPaperFeedbackSummary, renderSelfRatingPrompt, renderAdaptiveFeedback, renderHintsPanel, normalizeQuestionHints } from './uiComponents.js';
 import {
   DEFAULT_ADAPTIVE_STATE,
   loadAdaptivePracticeState,
@@ -14,8 +14,8 @@ import {
 } from './adaptiveSelector.js';
 import { triggerMathTypeset } from './mathEngine.js';
 import { checkKeywordOrSynonymsMatch, updateSRS, computeSessionQuality, getAQACommandWordHelper, isFuzzyMatch } from './evalEngine.js';
-import { escapeHtml, shuffleArray, todayISO, addDaysISO } from './utils.js';
-import { supabaseClient, timeoutPromise, fetchDashboardDueItems, fetchConceptGapAttempts, fetchWeeklyForecastSchedules, fetchSyllabusPipelineData, fetchAttemptActivity, fetchUserProfile, fetchUserClassLicense, fetchPlanQuotas, tryConsumeAiMark, tryConsumeHalfPaper, stashAuthSession, clearAuthGraceSession, endAuthGracePeriod, isAuthGraceActive } from './dbClient.js';
+import { escapeHtml, shuffleArray, todayISO, addDaysISO, resolveAppUrl } from './utils.js';
+import { supabaseClient, timeoutPromise, fetchDashboardDueItems, fetchConceptGapAttempts, fetchWeeklyForecastSchedules, fetchSyllabusPipelineData, fetchAttemptActivity, fetchUserProfile, fetchUserClassLicense, fetchPlanQuotas, tryConsumeAiMark, tryConsumeHalfPaper, stashAuthSession, clearAuthGraceSession, endAuthGracePeriod, isAuthGraceActive, incrementUserXp } from './dbClient.js';
 import dbClient from "./dbClient.js";
 import {
   saveOnboardingProfile,
@@ -38,6 +38,15 @@ import {
   FREE_AI_MARKS_PER_WEEK,
   FREE_HALF_PAPERS_PER_MONTH,
 } from './featureAccess.js';
+import {
+  getPresentationMode,
+  getCalculationConfig,
+  collectCalculationResponse,
+  validateCalculationResponse,
+  applyCalculationStepHighlighting,
+  wireStudentEquationSelectPreview
+} from './calculationWorkflow.js';
+import { computeAttemptXp, formatXpToastMessage, XP_RULES_FOOTNOTE, XP_RULES_TOAST_KEY } from './xpEngine.js';
 
 console.log("APP VERSION", "v-" + Date.now());
 
@@ -69,6 +78,7 @@ const qBox = el("qBox");
 const feedback = el("feedback");
 const progress = el("progress");
 const sessionContext = el("sessionContext");
+const hintsPanelMount = el("hintsPanelMount");
 const questionView = el("questionView");
 const sessionSummary = el("sessionSummary");
 const summaryContent = el("summaryContent");
@@ -232,8 +242,11 @@ let sessionMode = null;
 let sessionSpecPointId = null;
 let idx = 0;
 let currentQ = null;
+let currentEquationSheet = null;
 let currentKey = null;
 let currentMarkPoints = [];
+let currentHintState = { revealedCount: 0, panelOpen: false };
+let currentQuestionHints = [];
 let isInitializingPipeline = false;
 let authHandledByButton = false;
 let hasImprovedCurrentQ = false;
@@ -262,6 +275,7 @@ function setPracticePreviewText(text) {
 }
 let adaptivePracticeState = { ...DEFAULT_ADAPTIVE_STATE };
 let pendingAdaptiveSession = null;
+let lastSessionSelfRating = null;
 let currentUserProfile = null;
 let currentAccess = resolveAccess(null);
 let planQuotas = {
@@ -339,16 +353,72 @@ function autoSizeFilterSelects() {
 }
 
 // ====== AUTH ======
+let authPanel = "signin";
+
+function setAuthPanel(mode) {
+  authPanel = mode === "signup" || mode === "forgot" ? mode : "signin";
+  const panelSignin = el("authPanelSignin");
+  const panelSignup = el("authPanelSignup");
+  const panelForgot = el("authPanelForgot");
+  if (panelSignin) panelSignin.classList.toggle("hidden", authPanel !== "signin");
+  if (panelSignup) panelSignup.classList.toggle("hidden", authPanel !== "signup");
+  if (panelForgot) panelForgot.classList.toggle("hidden", authPanel !== "forgot");
+}
+
+const btnShowForgot = el("btnShowForgot");
+const btnShowSignup = el("btnShowSignup");
+const btnShowSigninFromSignup = el("btnShowSigninFromSignup");
+const btnShowSigninFromForgot = el("btnShowSigninFromForgot");
+const btnSendReset = el("btnSendReset");
+
+if (btnShowForgot) btnShowForgot.onclick = () => setAuthPanel("forgot");
+if (btnShowSignup) btnShowSignup.onclick = () => setAuthPanel("signup");
+if (btnShowSigninFromSignup) btnShowSigninFromSignup.onclick = () => setAuthPanel("signin");
+if (btnShowSigninFromForgot) btnShowSigninFromForgot.onclick = () => setAuthPanel("signin");
+
+if (btnSendReset) {
+  btnSendReset.onclick = async () => {
+    authMsg.classList.remove("hidden");
+    authMsg.textContent = "Sending reset link…";
+    const email = el("forgotEmail")?.value.trim() || "";
+    if (!email) {
+      authMsg.textContent = "Enter your email address.";
+      return;
+    }
+    try {
+      sessionStorage.setItem("resetRedirect", "app.html");
+      const redirectTo = resolveAppUrl("reset-password.html");
+      const { error } = await supabaseClient.auth.resetPasswordForEmail(email, { redirectTo });
+      if (error) {
+        authMsg.textContent = "Could not send reset link: " + error.message;
+        return;
+      }
+      authMsg.textContent = "Reset link sent ✅ Check your email.";
+    } catch (err) {
+      authMsg.textContent = "Could not send reset link: " + (err.message || err);
+    }
+  };
+}
+
 if (btnSignUp) {
   btnSignUp.onclick = async () => {
     authMsg.classList.remove("hidden");
     authMsg.textContent = "Creating account…";
-    const displayName = (el("displayName")?.value || "").trim();
-    const email = el("email").value.trim();
-    const password = el("password").value;
+    const displayName = (el("signupName")?.value || "").trim();
+    const email = el("signupEmail")?.value.trim() || "";
+    const password = el("signupPassword")?.value || "";
+    const termsAccepted = el("termsAccepted")?.checked;
 
     if (!displayName) {
       authMsg.textContent = "Enter your name before registering.";
+      return;
+    }
+    if (!email || !password) {
+      authMsg.textContent = "Enter your email and password.";
+      return;
+    }
+    if (!termsAccepted) {
+      authMsg.textContent = "Please accept the Terms of Use and Privacy Policy.";
       return;
     }
 
@@ -362,8 +432,10 @@ if (btnSignUp) {
     } else if (data?.user && !data?.session) {
       authMsg.textContent =
         "Account created ✅ Please check your email and verify your address before signing in.";
+      setAuthPanel("signin");
     } else {
       authMsg.textContent = "Sign up successful ✅ You can sign in now.";
+      setAuthPanel("signin");
     }
   };
 }
@@ -399,8 +471,8 @@ if (btnSignIn) {
     authMsg.textContent = "Signing in…";
     btnSignIn.disabled = true;
 
-    const email = el("email").value.trim();
-    const password = el("password").value;
+    const email = el("signinEmail")?.value.trim() || "";
+    const password = el("signinPassword")?.value || "";
 
     if (!email || !password) {
       authMsg.textContent = "Enter your email and password.";
@@ -457,6 +529,7 @@ async function loadDashboard(user = currentUser) {
       currentUserProfile = await fetchUserProfile(userId);
     }
     await refreshPlanState();
+    updateXpDisplay(currentUserProfile?.total_xp ?? 0);
     scheduleResult = await ensureScheduleReady(userId, currentUserProfile);
   } catch (seedErr) {
     const seedMsg =
@@ -1174,7 +1247,7 @@ function classifyAttemptOutcome(att) {
   return "fail";
 }
 
-function logSessionAttempt({ questionId, questionType, specPointId, specPoint, scoreTotal, scoreMax }) {
+function logSessionAttempt({ questionId, questionType, specPointId, specPoint, scoreTotal, scoreMax, xpEarned = 0, marking = null, promptPreview = "" }) {
   sessionAttemptLog.push({
     questionId,
     questionType,
@@ -1182,8 +1255,103 @@ function logSessionAttempt({ questionId, questionType, specPointId, specPoint, s
     specPoint,
     scoreTotal,
     scoreMax,
+    xpEarned,
+    marking,
+    promptPreview,
     outcome: classifyAttemptOutcome({ score_total: scoreTotal, score_max: scoreMax })
   });
+}
+
+function updateXpDisplay(totalXp) {
+  const xpEl = el("xpTotal");
+  if (xpEl) xpEl.textContent = String(totalXp ?? 0);
+}
+
+async function awardAttemptXp(xpEarned, hintsRevealed) {
+  if (!currentUser || !xpEarned) return;
+
+  try {
+    const newTotal = await incrementUserXp(xpEarned);
+    if (currentUserProfile) {
+      currentUserProfile.total_xp = newTotal;
+    }
+    updateXpDisplay(newTotal);
+    const includeRulesNote = !localStorage.getItem(XP_RULES_TOAST_KEY);
+    const msg = formatXpToastMessage(xpEarned, hintsRevealed, { includeRulesNote });
+    if (msg) {
+      showToastBanner(msg, false, includeRulesNote ? 8000 : 5000);
+      if (includeRulesNote) localStorage.setItem(XP_RULES_TOAST_KEY, "1");
+    }
+  } catch (xpErr) {
+    console.warn("XP award failed (run migration if columns/RPC missing):", xpErr);
+  }
+}
+
+async function insertAttemptRow(payload) {
+  let result = await supabaseClient.from("attempts").insert(payload);
+  if (result.error && /column/i.test(result.error.message || "")) {
+    const { xp_earned, hints_revealed, ...legacyPayload } = payload;
+    result = await supabaseClient.from("attempts").insert(legacyPayload);
+  }
+  return result;
+}
+
+function wireHintsPanel() {
+  if (!hintsPanelMount) return;
+
+  const openBtn = el("btnOpenHints");
+  if (openBtn) {
+    openBtn.onclick = () => {
+      currentHintState.panelOpen = true;
+      if (currentHintState.revealedCount < 1) {
+        currentHintState.revealedCount = 1;
+      }
+      refreshHintsPanel();
+    };
+  }
+
+  const nextBtn = el("btnRevealNextHint");
+  if (nextBtn) {
+    nextBtn.onclick = () => {
+      if (currentHintState.revealedCount < currentQuestionHints.length) {
+        currentHintState.revealedCount += 1;
+        refreshHintsPanel();
+      }
+    };
+  }
+}
+
+function refreshHintsPanel() {
+  if (!hintsPanelMount || !currentQuestionHints.length) return;
+  hintsPanelMount.innerHTML = renderHintsPanel(
+    currentQuestionHints,
+    currentHintState.revealedCount,
+    currentHintState.panelOpen
+  );
+  wireHintsPanel();
+}
+
+function renderQuestionHintsPanel() {
+  if (!hintsPanelMount) return;
+
+  if (sessionMode === "paper_practice") {
+    hintsPanelMount.classList.add("hidden");
+    hintsPanelMount.innerHTML = "";
+    currentQuestionHints = [];
+    return;
+  }
+
+  currentQuestionHints = normalizeQuestionHints(currentQ?.hints);
+  currentHintState = { revealedCount: 0, panelOpen: false };
+
+  if (!currentQuestionHints.length) {
+    hintsPanelMount.classList.add("hidden");
+    hintsPanelMount.innerHTML = "";
+    return;
+  }
+
+  hintsPanelMount.classList.remove("hidden");
+  refreshHintsPanel();
 }
 
 function getSessionSpecPointMeta() {
@@ -1198,6 +1366,7 @@ async function exitSessionToDashboard() {
   if (dashSection) dashSection.classList.remove("hidden");
 
   pendingAdaptiveSession = null;
+  lastSessionSelfRating = null;
   sessionMode = null;
   sessionSpecPointId = null;
   sessionQuestions = [];
@@ -1259,13 +1428,12 @@ async function applyAdaptiveSessionUpdate(selfRating) {
   if (!pendingAdaptiveSession || !currentUser) return null;
 
   const pending = pendingAdaptiveSession;
-  pendingAdaptiveSession = null;
-
   const { tier, scorePct, mode, specPointId, srsQuality } = pending;
   let feedback = { offsetChanged: false, offsetDirection: null, tierNudge: null, mode };
 
   if (mode === "any_practice") {
-    const result = computeGlobalOffsetUpdate(adaptivePracticeState, { scorePct, selfRating, tier });
+    const baseline = pending.baselineAdaptiveState ?? normalizeAdaptiveState(adaptivePracticeState);
+    const result = computeGlobalOffsetUpdate(baseline, { scorePct, selfRating, tier });
     adaptivePracticeState = result.nextState;
     feedback = { ...feedback, ...result };
     const saved = await persistAdaptivePracticeState(supabaseClient, currentUser.id, adaptivePracticeState);
@@ -1275,8 +1443,10 @@ async function applyAdaptiveSessionUpdate(selfRating) {
     } catch (_) { /* ignore */ }
     updateTierBoundaryBadge();
   } else if (mode === "spec_point" && specPointId) {
-    const currentOffset = await pending.specOffsetPromise;
-    const result = computeSpecPointOffsetUpdate(currentOffset, {
+    const baselineOffset =
+      pending.baselineSpecOffset ??
+      (await pending.specOffsetPromise);
+    const result = computeSpecPointOffsetUpdate(baselineOffset, {
       srsQuality: srsQuality ?? 0,
       scorePct,
       selfRating
@@ -1295,12 +1465,9 @@ function wireSelfRatingHandlers(onComplete) {
     return;
   }
 
-  let completed = false;
-  const finish = async (rating) => {
-    if (completed) return;
-    completed = true;
+  const selectRating = async (rating) => {
+    lastSessionSelfRating = rating;
     ratingRoot.querySelectorAll(".session-rating-btn").forEach((btn) => {
-      btn.disabled = true;
       const selected = btn.dataset.rating === rating;
       btn.classList.toggle("session-rating-btn--selected", selected);
       btn.setAttribute("aria-pressed", selected ? "true" : "false");
@@ -1314,19 +1481,22 @@ function wireSelfRatingHandlers(onComplete) {
   };
 
   ratingRoot.querySelectorAll(".session-rating-btn").forEach((btn) => {
-    btn.onclick = () => finish(btn.dataset.rating);
+    btn.disabled = false;
+    btn.onclick = () => selectRating(btn.dataset.rating);
   });
 }
 
 function wrapSummaryExit(handler) {
   return async () => {
-    if (pendingAdaptiveSession) {
+    if (pendingAdaptiveSession && lastSessionSelfRating === null) {
       const feedback = await applyAdaptiveSessionUpdate(null);
       const feedbackEl = document.getElementById("sessionAdaptiveFeedback");
       if (feedbackEl && feedback) {
         feedbackEl.innerHTML = renderAdaptiveFeedback(feedback);
       }
     }
+    pendingAdaptiveSession = null;
+    lastSessionSelfRating = null;
     await handler();
   };
 }
@@ -1336,6 +1506,15 @@ async function showSessionSummary() {
   await finalizeSessionSRS();
 
   pendingAdaptiveSession = buildPendingAdaptiveSession(qualitiesBySpec);
+  pendingAdaptiveSession.baselineAdaptiveState = normalizeAdaptiveState(adaptivePracticeState);
+  lastSessionSelfRating = null;
+  if (sessionMode === "spec_point" && sessionSpecPointId && currentUser) {
+    pendingAdaptiveSession.baselineSpecOffset = await fetchSpecPointDifficultyOffset(
+      supabaseClient,
+      currentUser.id,
+      sessionSpecPointId
+    );
+  }
 
   if (questionView) questionView.classList.add("hidden");
   if (sessionContext) sessionContext.classList.add("hidden");
@@ -1343,10 +1522,14 @@ async function showSessionSummary() {
   if (progress) progress.textContent = "Session complete";
 
   const isPracticeMode = sessionMode === "any_practice" || sessionMode === "spec_point";
+  const examFeedback = sessionMode === "paper_practice"
+    ? renderExamPaperFeedbackSummary(sessionAttemptLog)
+    : "";
 
   if (summaryContent) {
     summaryContent.innerHTML =
       renderSessionCompleteSummary(getSessionSummaryMeta(), sessionAttemptLog) +
+      examFeedback +
       (isPracticeMode ? `<div id="sessionAdaptiveFeedback"></div>${renderSelfRatingPrompt()}` : "");
   }
 
@@ -1734,12 +1917,33 @@ async function loadQuestion() {
   currentKey = keyRes.data;
   currentMarkPoints = markRes.data || [];
 
+  currentEquationSheet = null;
+  const calcCfg = getCalculationConfig(currentQ);
+  if (calcCfg.equation_sheet_id && calcCfg.equation_given === false) {
+    const sheetRes = await supabaseClient
+      .from("equation_sheets")
+      .select("id, title, equations")
+      .eq("id", calcCfg.equation_sheet_id)
+      .maybeSingle();
+    if (!sheetRes.error) {
+      currentEquationSheet = sheetRes.data;
+    }
+  }
+  currentQ._equationSheet = currentEquationSheet;
+
   const commandWordBanner = getAQACommandWordHelper(currentQ.prompt);
+  const presentation = getPresentationMode(sessionMode);
 
   if (qBox) {
-    qBox.innerHTML = renderQuestionLayout(currentQ, commandWordBanner, currentKey);
+    qBox.innerHTML = renderQuestionLayout(currentQ, commandWordBanner, currentKey, {
+      presentation,
+      equationSheet: currentEquationSheet
+    });
     triggerMathTypeset();
+    wireStudentEquationSelectPreview(triggerMathTypeset);
   }
+
+  renderQuestionHintsPanel();
 }
 
 function mixWordTokens(studentText) {
@@ -1780,21 +1984,11 @@ function getResponsePayload(q) {
     return { type: "mcq", answer: picked };
   }
   if (q.question_type === "numeric") {
-    const val = parseFloat(el("numAns")?.value);
-    const convVal = el("numAnsConv") ? parseFloat(el("numAnsConv").value) : null;
-    const formulaChoice = el("rearrangeFormula") ? el("rearrangeFormula").value : "";
-    
-    const unit = (currentKey && currentKey.key_payload && currentKey.key_payload.unit) 
-      ? currentKey.key_payload.unit 
+    const resp = collectCalculationResponse(q, sessionMode);
+    const unit = (currentKey && currentKey.key_payload && currentKey.key_payload.unit)
+      ? currentKey.key_payload.unit
       : "";
-    
-    return { 
-      type: "numeric", 
-      value: isNaN(val) ? null : val, 
-      conversionValue: isNaN(convVal) ? null : convVal,
-      rearrangedChoice: formulaChoice,
-      unit 
-    };
+    return { ...resp, unit };
   }
   const text = (el("txtAns")?.value || "").trim();
   return { type: "short_text", text };
@@ -2290,6 +2484,7 @@ function updateOnboardingStepUI() {
         <div><strong>Difficulty ranking (step 3):</strong> ${diffOrder}</div>
         <p class="muted" style="margin-top: 10px; font-size: 0.85rem;">Starter topics use <em>both</em>: subjects earlier in study order are scheduled first; your hardest subject gets more initial topics.</p>
         <div><strong>${classLine}</strong></div>
+        <p class="muted onboarding-xp-note" style="margin-top: 12px; font-size: 0.85rem; line-height: 1.45;">⭐ <strong>XP:</strong> ${XP_RULES_FOOTNOTE}</p>
       `;
     }
   }
@@ -3029,6 +3224,27 @@ supabaseClient.auth.onAuthStateChange((event, session) => {
   }, 0);
 });
 
+function applyInitialAuthUIState() {
+  if (currentUser) return;
+
+  const resetSuccess = new URLSearchParams(location.search).get("reset");
+  if (resetSuccess === "success" && authMsg) {
+    authMsg.textContent = "Password updated ✅ You can sign in with your new password.";
+    authMsg.classList.remove("hidden");
+    setAuthPanel("signin");
+    history.replaceState(null, "", location.pathname);
+    return;
+  }
+
+  if (location.hash === "#signup") {
+    setAuthPanel("signup");
+    if (authMsg) {
+      authMsg.textContent = "Create your student account.";
+      authMsg.classList.remove("hidden");
+    }
+  }
+}
+
 async function bootstrapAuth() {
   wireUpgradeModal();
   try {
@@ -3041,6 +3257,7 @@ async function bootstrapAuth() {
       currentUser = null;
       currentUserProfile = null;
       setSignedOutUI();
+      applyInitialAuthUIState();
     }
   } catch (err) {
     console.error("Auth bootstrap failed:", err);
@@ -3064,11 +3281,27 @@ if (btnSubmit) {
     if (currentQ.question_type === "extended_response" || currentQ.marking_method === "ai_rubric") {
       if (!response.text || response.text.trim().length === 0) {
         showToastBanner("Please write a detailed response before clicking Submit!", true);
+        btnSubmit.disabled = false;
         return;
       }
     }
 
+    if (currentQ.question_type === "numeric") {
+      const calcValidation = validateCalculationResponse(currentQ, response, sessionMode);
+      if (!calcValidation.valid) {
+        showToastBanner(calcValidation.message, true);
+        btnSubmit.disabled = false;
+        return;
+      }
+      if (calcValidation.warn) {
+        showToastBanner(calcValidation.warn, false, 3500);
+      }
+    }
+
     btnSubmit.disabled = true;
+
+    const hintsRevealed = currentHintState.revealedCount;
+    const xpEarned = computeAttemptXp(currentQ, hintsRevealed, response);
 
     const existingBanner = el("improveBanner");
     if (existingBanner) existingBanner.remove();
@@ -3180,7 +3413,7 @@ if (btnSubmit) {
           };
         }
 
-        const result = await supabaseClient.from("attempts").insert({
+        const result = await insertAttemptRow({
           user_id: currentUser.id,
           question_id: currentQ.id,
           response_payload: response,
@@ -3189,7 +3422,9 @@ if (btnSubmit) {
           ao1_score: data.ao_breakdown?.AO1 || 0,
           ao2_score: data.ao_breakdown?.AO2 || 0,
           ao3_score: data.ao_breakdown?.AO3 || 0,
-          feedback_payload: data
+          feedback_payload: data,
+          xp_earned: xpEarned,
+          hints_revealed: hintsRevealed
         });
 
         if (result.error) throw result.error;
@@ -3207,8 +3442,10 @@ if (btnSubmit) {
           specPointId: currentQ.spec_point_id,
           specPoint: currentQ.spec_points,
           scoreTotal: data.score_total,
-          scoreMax: data.score_max
+          scoreMax: data.score_max,
+          xpEarned
         });
+        await awardAttemptXp(xpEarned, hintsRevealed);
 
       } catch (err) {
         console.error("AI Marking route failed, applying local self-assessment failover:", err);
@@ -3220,14 +3457,30 @@ if (btnSubmit) {
 
     } else {
       const marking = markResponse(currentQ, response, currentKey, currentMarkPoints);
+      const isExamPaper = sessionMode === "paper_practice";
+
       if (feedback) {
-        feedback.innerHTML = renderFeedback(marking, currentQ, currentKey, currentMarkPoints);
-        triggerMathTypeset();
+        if (isExamPaper) {
+          feedback.innerHTML = `
+            <div class="item" style="border-left:4px solid var(--primary); padding:12px 16px; background:#f0f9ff;">
+              <strong>Answer recorded</strong>
+              <p style="margin:6px 0 0; font-size:0.85rem; color:var(--text-muted);">
+                ${marking.total}/${marking.max} marks — detailed step feedback will appear at the end of the paper.
+              </p>
+            </div>
+          `;
+        } else {
+          feedback.innerHTML = renderFeedback(marking, currentQ, currentKey, currentMarkPoints);
+          triggerMathTypeset();
+          if (currentQ.question_type === "numeric" && marking.stepResults) {
+            applyCalculationStepHighlighting(marking.stepResults);
+          }
+        }
       }
       if (btnNext) showAdvanceButton();
 
       try {
-        const result = await supabaseClient.from("attempts").insert({
+        const result = await insertAttemptRow({
           user_id: currentUser.id,
           question_id: currentQ.id,
           response_payload: response,
@@ -3236,7 +3489,9 @@ if (btnSubmit) {
           ao1_score: marking.ao.AO1,
           ao2_score: marking.ao.AO2,
           ao3_score: marking.ao.AO3,
-          feedback_payload: marking.feedbackPayload
+          feedback_payload: marking.feedbackPayload,
+          xp_earned: xpEarned,
+          hints_revealed: hintsRevealed
         });
 
         if (result.error) throw result.error;
@@ -3247,8 +3502,12 @@ if (btnSubmit) {
           specPointId: currentQ.spec_point_id,
           specPoint: currentQ.spec_points,
           scoreTotal: marking.total,
-          scoreMax: marking.max
+          scoreMax: marking.max,
+          xpEarned,
+          marking: isExamPaper ? marking : null,
+          promptPreview: (currentQ.prompt || "").slice(0, 120)
         });
+        await awardAttemptXp(xpEarned, hintsRevealed);
       } catch(err) {
         console.error("Sync backup failure logged:", err);
         showToastBanner("Warning: Failed to log performance metric: " + err.message, true);
