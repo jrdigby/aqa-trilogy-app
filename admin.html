@@ -684,10 +684,7 @@
                 <div>
                   <label>Equation sheet (when not given)</label>
                   <select id="CalcEquationSheet">
-                    <option value="">— None —</option>
-                    <option value="physics_p1_ft">Physics P1 FT</option>
-                    <option value="physics_p2_ft">Physics P2 FT</option>
-                    <option value="physics_p2_ht">Physics P2 HT</option>
+                    <option value="">— Loading sheets… —</option>
                   </select>
                 </div>
                 <div id="CalcEquationOverrideRow">
@@ -973,6 +970,8 @@
 
       <form id="editForm" onsubmit="return false;">
         <input type="hidden" id="editQuestionId"/>
+        <input type="hidden" id="editEqSheetSubject" value="physics"/>
+        <input type="hidden" id="editEqSheetPaper" value="paper1"/>
         
         <div style="margin-bottom:12px;">
           <label>Question Prompt Stem:</label>
@@ -1095,10 +1094,7 @@
               <div>
                 <label style="font-size:0.78rem;">Equation sheet</label>
                 <select id="editCalcEquationSheet" style="font-size:0.8rem;">
-                  <option value="">— None —</option>
-                  <option value="physics_p1_ft">Physics P1 FT</option>
-                  <option value="physics_p2_ft">Physics P2 FT</option>
-                  <option value="physics_p2_ht">Physics P2 HT</option>
+                  <option value="">— Loading sheets… —</option>
                 </select>
               </div>
               <div>
@@ -1457,9 +1453,33 @@
     }
   }
 
-  // Trigger loading syllabus upon form changes
-  document.getElementById("subjectSelect").onchange = loadSyllabusReferenceSelects;
-  document.getElementById("paperSelect").onchange = loadSyllabusReferenceSelects;
+  async function refreshCreatorEquationSheetDropdown({ autoLink = true } = {}) {
+    const subject = document.getElementById("subjectSelect")?.value || "physics";
+    const current = document.getElementById("CalcEquationSheet")?.value || "";
+    const sheets = await CalcWorkflow.loadEquationSheetCatalog(supabaseClient, subject);
+    CalcWorkflow.fillEquationSheetSelect(document.getElementById("CalcEquationSheet"), sheets, current);
+    if (autoLink) CalcWorkflow.applyAutoEquationSheet("");
+    await onCalcWorkflowChange("");
+  }
+
+  async function refreshEditEquationSheetDropdown({ autoLink = false, selectedId = "" } = {}) {
+    const subject = document.getElementById("editEqSheetSubject")?.value || "physics";
+    const current = selectedId || document.getElementById("editCalcEquationSheet")?.value || "";
+    const sheets = await CalcWorkflow.loadEquationSheetCatalog(supabaseClient, subject);
+    CalcWorkflow.fillEquationSheetSelect(document.getElementById("editCalcEquationSheet"), sheets, current);
+    if (autoLink) CalcWorkflow.applyAutoEquationSheet("edit");
+    await onCalcWorkflowChange("edit");
+  }
+
+  async function onAuthoringMetadataChange() {
+    await loadSyllabusReferenceSelects();
+    await refreshCreatorEquationSheetDropdown({ autoLink: true });
+  }
+
+  // Trigger loading syllabus and equation sheets upon form changes
+  document.getElementById("subjectSelect").onchange = onAuthoringMetadataChange;
+  document.getElementById("paperSelect").onchange = onAuthoringMetadataChange;
+  document.getElementById("tierSelect").onchange = onAuthoringMetadataChange;
 
   // ====== MCQ CHOOSE DROPDOWN LOADER ======
   const mcqCorrectSelect = document.getElementById("mcqCorrect");
@@ -1590,7 +1610,30 @@
     const demand = document.getElementById("demandLevelSelect")?.value || "standard";
     if (window.CalcWorkflow) {
       window.CalcWorkflow.applyCalculationPreset("", e.target.value, demand);
+      await refreshCreatorEquationSheetDropdown({ autoLink: true });
+    }
+  });
+
+  document.getElementById("demandLevelSelect")?.addEventListener("change", async () => {
+    const preset = document.getElementById("CalcPreset")?.value || "auto";
+    if (preset === "auto" && window.CalcWorkflow) {
+      window.CalcWorkflow.applyAutoEquationSheet("");
       await onCalcWorkflowChange("");
+    }
+  });
+
+  document.getElementById("editCalcPreset")?.addEventListener("change", async () => {
+    const demand = document.getElementById("demandLevelSelect")?.value || "standard";
+    if (window.CalcWorkflow) {
+      window.CalcWorkflow.applyCalculationPreset("edit", document.getElementById("editCalcPreset").value, demand);
+      await refreshEditEquationSheetDropdown({ autoLink: true });
+    }
+  });
+
+  document.getElementById("editTier")?.addEventListener("change", async () => {
+    if (window.CalcWorkflow) {
+      CalcWorkflow.applyAutoEquationSheet("edit");
+      await onCalcWorkflowChange("edit");
     }
   });
 
@@ -1600,6 +1643,8 @@
     window.CalcWorkflow.populateCalculationForm("", null);
     window.CalcWorkflow.syncMaxMarksSelect("");
     updateEquationAuthoringHints("");
+    loadSyllabusReferenceSelects();
+    refreshCreatorEquationSheetDropdown({ autoLink: true });
   }
 
   // ====== SECTION 3: MARK POINTS DYNAMIC LIST (CREATOR) ======
@@ -2315,6 +2360,19 @@
     document.getElementById("editResource").value = q.resource_links || "";
     populateHintsEditor("editHintsList", Array.isArray(q.hints) ? q.hints : []);
     document.getElementById("editTier").value = q.tier || "both";
+
+    try {
+      const { data: sp } = await supabaseClient
+        .from("spec_points")
+        .select("subject, paper")
+        .eq("id", q.spec_point_id)
+        .maybeSingle();
+      document.getElementById("editEqSheetSubject").value = sp?.subject || "physics";
+      document.getElementById("editEqSheetPaper").value = sp?.paper || "paper1";
+    } catch (_) {
+      document.getElementById("editEqSheetSubject").value = "physics";
+      document.getElementById("editEqSheetPaper").value = "paper1";
+    }
     
     // Populate image properties in edit modal
     const editImgUrl = document.getElementById("editImageUrl");
@@ -2391,6 +2449,10 @@
           window.CalcWorkflow.populateCalculationForm("edit", q.calculation_config || null);
           window.CalcWorkflow.syncMaxMarksSelect("edit");
           const eqStep = (q.calculation_config?.steps || []).find((s) => s.type === "equation_select");
+          await refreshEditEquationSheetDropdown({
+            autoLink: false,
+            selectedId: q.calculation_config?.equation_sheet_id || ""
+          });
           await CalcWorkflow.refreshEquationSelect(supabaseClient, "edit", eqStep?.answer || "");
           updateEquationAuthoringHints("edit");
         }

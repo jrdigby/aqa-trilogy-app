@@ -183,6 +183,95 @@ export function inferCalculationPreset(demandLevel) {
   return ["low", "standard"].includes(demandLevel) ? "given_equation" : "equation_sheet";
 }
 
+/** Map admin subject / paper / tier to a shared equation_sheets row id. */
+export function resolveEquationSheetId({ subject, paper, tier }) {
+  if (subject !== "physics") return null;
+  const paperKey = paper === "paper1" ? "p1" : paper === "paper2" ? "p2" : null;
+  if (!paperKey) return null;
+  const t = String(tier || "").toLowerCase();
+  const tierKey = t === "higher" || t === "ht" ? "ht" : "ft";
+  return `physics_${paperKey}_${tierKey}`;
+}
+
+/** Read subject, paper, and tier from the creator or edit admin form. */
+export function readAuthoringContext(prefix = "") {
+  if (prefix === "edit") {
+    return {
+      subject: document.getElementById("editEqSheetSubject")?.value || "physics",
+      paper: document.getElementById("editEqSheetPaper")?.value || "paper1",
+      tier: document.getElementById("editTier")?.value || "both"
+    };
+  }
+  return {
+    subject: document.getElementById("subjectSelect")?.value || "physics",
+    paper: document.getElementById("paperSelect")?.value || "paper1",
+    tier: document.getElementById("tierSelect")?.value || "both"
+  };
+}
+
+function usesEquationSheetAuthoring(prefix = "") {
+  const p = (id) => document.getElementById(prefix + id);
+  if (p("CalcEquationGiven")?.checked) return false;
+
+  const presetEl = document.getElementById(prefix === "edit" ? "editCalcPreset" : "CalcPreset");
+  const preset = presetEl?.value || "";
+  if (preset === "equation_sheet") return true;
+  if (preset === "auto") {
+    const demandEl = document.getElementById("demandLevelSelect");
+    if (demandEl) {
+      return inferCalculationPreset(demandEl.value) === "equation_sheet";
+    }
+  }
+  return !!p("CalcStepEquation")?.checked;
+}
+
+/** Fetch equation sheet rows for admin dropdowns (optional subject filter). */
+export async function loadEquationSheetCatalog(supabaseClient, subject = null) {
+  if (!supabaseClient) return [];
+  let query = supabaseClient
+    .from("equation_sheets")
+    .select("id, subject, title, tier, paper, exam_series")
+    .order("id");
+  if (subject) query = query.eq("subject", subject);
+  const { data, error } = await query;
+  if (error) {
+    console.warn("loadEquationSheetCatalog:", error);
+    return [];
+  }
+  return data || [];
+}
+
+export function fillEquationSheetSelect(selectEl, sheets, selectedId = "") {
+  if (!selectEl) return;
+  const opts = ['<option value="">— None —</option>'];
+  for (const row of sheets) {
+    const id = row.id || "";
+    const label = row.title || id;
+    if (!id) continue;
+    const sel = id === selectedId ? " selected" : "";
+    opts.push(`<option value="${escapeHtml(id)}"${sel}>${escapeHtml(label)}</option>`);
+  }
+  selectEl.innerHTML = opts.join("");
+}
+
+/** Set equation sheet dropdown from subject / paper / tier when sheet mode is active. */
+export function applyAutoEquationSheet(prefix, context = null) {
+  if (!usesEquationSheetAuthoring(prefix)) return null;
+  const ctx = context || readAuthoringContext(prefix);
+  const sheetId = resolveEquationSheetId(ctx);
+  const select = document.getElementById(prefix + "CalcEquationSheet");
+  if (!select) return null;
+
+  if (!sheetId) {
+    select.value = "";
+    return null;
+  }
+
+  const hasOption = Array.from(select.options).some((o) => o.value === sheetId);
+  if (hasOption) select.value = sheetId;
+  return hasOption ? sheetId : null;
+}
+
 function getStepLabel(type, presentation, step) {
   const base = STEP_LABELS[presentation]?.[type] || STEP_LABELS.practice[type] || type;
   if (type === "conversion" && step?.label) {
@@ -1061,9 +1150,7 @@ export function applyCalculationPreset(prefix, preset, demandLevel) {
     setChk("CalcStepRearrangement", true);
     setChk("CalcStepConversion", false);
     setChk("CalcStepSigFigs", false);
-    if (p("CalcEquationSheet") && !p("CalcEquationSheet").value) {
-      p("CalcEquationSheet").value = "physics_p2_ft";
-    }
+    applyAutoEquationSheet(prefix);
   }
 
   populateCalculationForm(prefix, buildCalculationConfigFromForm(prefix));
