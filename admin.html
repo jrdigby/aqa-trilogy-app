@@ -1031,6 +1031,24 @@
           </div>
         </div>
 
+        <div class="row row-compact">
+          <div class="field-fit">
+            <label>Question audience:</label>
+            <select id="editAudienceSelect" class="select-fit">
+              <option value="both">Both combined &amp; triple</option>
+              <option value="triple_only">Triple only</option>
+            </select>
+          </div>
+        </div>
+        <div class="row row-compact hidden" id="editTripleSpecLinkRow">
+          <div class="field-fit" style="min-width: min(100%, 420px); flex: 1 1 320px;">
+            <label>Linked triple spec point (for &quot;Both&quot; audience):</label>
+            <select id="editTripleSpecPointSelect" style="width: 100%; max-width: 100%;">
+              <option value="">— Select triple equivalent —</option>
+            </select>
+          </div>
+        </div>
+
         <div class="hints-author-panel" style="margin-bottom: 16px;">
           <label>Practice hints</label>
           <p class="muted" style="font-size: 0.78rem; margin: 4px 0 8px;">
@@ -1526,6 +1544,53 @@
     if (row) row.classList.toggle("hidden", audience !== "both" || track !== "combined");
   }
 
+  function syncEditAudienceUi() {
+    const audience = document.getElementById("editAudienceSelect")?.value || "both";
+    const row = document.getElementById("editTripleSpecLinkRow");
+    if (row) row.classList.toggle("hidden", audience !== "both");
+  }
+
+  async function autoFillTripleSpecFromEquivalence(combinedSpecPointId, selectorId = "tripleSpecPointSelect") {
+    const audience = document.getElementById("audienceSelect")?.value || "both";
+    const track = getAuthoringCourseTrack();
+    const selector = document.getElementById(selectorId);
+    if (!selector || audience !== "both" || track !== "combined" || !combinedSpecPointId) return;
+
+    try {
+      const { data, error } = await supabaseClient
+        .from("spec_point_equivalences")
+        .select("triple_spec_point_id")
+        .eq("combined_spec_point_id", combinedSpecPointId)
+        .maybeSingle();
+      if (error) throw error;
+      if (data?.triple_spec_point_id) {
+        selector.value = data.triple_spec_point_id;
+      }
+    } catch (err) {
+      console.warn("Equivalence auto-fill failed:", err);
+    }
+  }
+
+  async function autoFillEditTripleSpecFromEquivalence(combinedSpecPointId) {
+    const audience = document.getElementById("editAudienceSelect")?.value || "both";
+    const selector = document.getElementById("editTripleSpecPointSelect");
+    if (!selector || audience !== "both" || !combinedSpecPointId) return;
+
+    try {
+      const { data, error } = await supabaseClient
+        .from("spec_point_equivalences")
+        .select("triple_spec_point_id")
+        .eq("combined_spec_point_id", combinedSpecPointId)
+        .maybeSingle();
+      if (error) throw error;
+      if (data?.triple_spec_point_id) {
+        selector.value = data.triple_spec_point_id;
+      }
+    } catch (err) {
+      console.warn("Edit equivalence auto-fill failed:", err);
+    }
+  }
+
   async function loadTripleSpecPointSelect() {
     const subject = document.getElementById("subjectSelect")?.value;
     const paper = document.getElementById("paperSelect")?.value;
@@ -1545,6 +1610,29 @@
         `<option value="">— Optional: select triple equivalent —</option>` +
         (data || []).map((row) =>
           `<option value="${row.id}">${row.spec_ref} - [${row.topic_name}] ${row.spec_text.slice(0, 75)}...</option>`
+        ).join("");
+    } catch (err) {
+      selector.innerHTML = "<option>Error loading triple spec points</option>";
+    }
+  }
+
+  async function loadEditTripleSpecPointSelect(subject, paper, selectedId = "") {
+    const selector = document.getElementById("editTripleSpecPointSelect");
+    if (!selector) return;
+    selector.innerHTML = "<option value=\"\">Loading triple references…</option>";
+    try {
+      const { data, error } = await supabaseClient
+        .from("spec_points")
+        .select("id, spec_ref, topic_name, spec_text")
+        .eq("subject", subject)
+        .eq("paper", paper)
+        .eq("course_track", "triple")
+        .order("spec_ref", { ascending: true });
+      if (error) throw error;
+      selector.innerHTML =
+        `<option value="">— Select triple equivalent —</option>` +
+        (data || []).map((row) =>
+          `<option value="${row.id}"${row.id === selectedId ? " selected" : ""}>${row.spec_ref} - [${row.topic_name}] ${row.spec_text.slice(0, 75)}...</option>`
         ).join("");
     } catch (err) {
       selector.innerHTML = "<option>Error loading triple spec points</option>";
@@ -1581,6 +1669,10 @@
 
     syncAudienceUi();
     await loadTripleSpecPointSelect();
+    const combinedSpecId = document.getElementById("specPointSelect")?.value;
+    if (combinedSpecId && courseTrack === "combined") {
+      await autoFillTripleSpecFromEquivalence(combinedSpecId);
+    }
     fillRequiredPracticalSelect(
       document.getElementById("requiredPracticalSelect"),
       subject,
@@ -1618,6 +1710,18 @@
   document.getElementById("tierSelect").onchange = onAuthoringMetadataChange;
   document.getElementById("courseTrackSelect")?.addEventListener("change", onAuthoringMetadataChange);
   document.getElementById("audienceSelect")?.addEventListener("change", syncAudienceUi);
+  document.getElementById("editAudienceSelect")?.addEventListener("change", () => {
+    syncEditAudienceUi();
+    const qId = document.getElementById("editQuestionId")?.value;
+    const q = loadedQuestionsCache.find((x) => x.id === qId);
+    if (q && document.getElementById("editAudienceSelect")?.value === "both") {
+      void autoFillEditTripleSpecFromEquivalence(q.spec_point_id);
+    }
+  });
+  document.getElementById("specPointSelect")?.addEventListener("change", async () => {
+    const specId = document.getElementById("specPointSelect")?.value;
+    if (specId) await autoFillTripleSpecFromEquivalence(specId);
+  });
   document.getElementById("chkRequiredPractical")?.addEventListener("change", () => syncRequiredPracticalRow("creator"));
   document.getElementById("editChkRequiredPractical")?.addEventListener("change", () => syncRequiredPracticalRow("edit"));
 
@@ -1962,7 +2066,11 @@
       insertPayload.audience = audience;
       const tripleSpecId = document.getElementById("tripleSpecPointSelect")?.value || null;
       if (audience === "both" && getAuthoringCourseTrack() === "combined") {
-        insertPayload.triple_spec_point_id = tripleSpecId || null;
+        if (!tripleSpecId) {
+          alert("Select a linked triple spec point for shared (Both) questions, or choose Triple only audience.");
+          return;
+        }
+        insertPayload.triple_spec_point_id = tripleSpecId;
       } else if (audience === "triple_only") {
         insertPayload.triple_spec_point_id = null;
       }
@@ -2174,19 +2282,52 @@
         
         // Let's resolve the UUID for the target spec reference dynamically
         logArea.textContent += `\nResolving syllabus ID for Reference: ${csvRef}...`;
-        
+
+        const csvAudience = (parts[19] || "both").trim().toLowerCase();
+        const audience = csvAudience === "triple_only" ? "triple_only" : "both";
+        const specTrack = audience === "triple_only" ? "triple" : "combined";
+
         const { data: matchedRef, error: refErr } = await supabaseClient
           .from("spec_points")
           .select("id")
           .eq("subject", csvSub)
           .eq("paper", csvPaper)
+          .eq("course_track", specTrack)
           .eq("spec_ref", csvRef)
           .maybeSingle();
           
         if (refErr || !matchedRef) {
           failed++;
-          logArea.textContent += `\n🔴 Error: Reference "${csvRef}" does not exist in your spec_points database. Skip row.`;
+          logArea.textContent += `\n🔴 Error: Reference "${csvRef}" (${specTrack}) does not exist in spec_points. Skip row.`;
           continue;
+        }
+
+        let tripleSpecPointId = null;
+        const csvTripleRef = (parts[20] || "").trim();
+        if (audience === "both") {
+          if (csvTripleRef) {
+            const { data: tripleRef, error: tripleErr } = await supabaseClient
+              .from("spec_points")
+              .select("id")
+              .eq("subject", csvSub)
+              .eq("paper", csvPaper)
+              .eq("course_track", "triple")
+              .eq("spec_ref", csvTripleRef)
+              .maybeSingle();
+            if (tripleErr || !tripleRef) {
+              failed++;
+              logArea.textContent += `\n🔴 Error: triple_spec_ref "${csvTripleRef}" not found. Skip row.`;
+              continue;
+            }
+            tripleSpecPointId = tripleRef.id;
+          } else {
+            const { data: equiv } = await supabaseClient
+              .from("spec_point_equivalences")
+              .select("triple_spec_point_id")
+              .eq("combined_spec_point_id", matchedRef.id)
+              .maybeSingle();
+            tripleSpecPointId = equiv?.triple_spec_point_id || null;
+          }
         }
         
         try {
@@ -2198,6 +2339,8 @@
             prompt: csvPrompt,
             tier: csvTier,
             max_marks: csvMaxMarks,
+            audience,
+            triple_spec_point_id: tripleSpecPointId,
             marking_method: csvType === "mcq" ? "keyword" : (csvType === "numeric" ? "numeric" : (csvType === "extended_response" ? "ai_rubric" : "keyword"))
           };
 
@@ -2208,6 +2351,20 @@
           if (parts[16]) insertPayload.ao3_marks = parseInt(parts[16], 10) || 0;
           if (parts[17]) insertPayload.is_maths_skill = /^true|1|yes$/i.test(parts[17]);
           if (parts[18]) insertPayload.is_required_practical = /^true|1|yes$/i.test(parts[18]);
+
+          const csvRpCode = (parts[21] || "").trim();
+          if (csvRpCode) {
+            const rpTracks = specTrack === "triple" ? ["triple", "both"] : ["combined", "both"];
+            const rpRow = cachedRequiredPracticals.find(
+              (r) => r.subject === csvSub && r.code === csvRpCode && rpTracks.includes(r.course_track)
+            );
+            if (rpRow) {
+              insertPayload.is_required_practical = true;
+              insertPayload.required_practical_id = rpRow.id;
+            } else {
+              logArea.textContent += `\n⚠️ required_practical_code "${csvRpCode}" not found — RP link skipped.`;
+            }
+          }
           if (window.AdminMetadata) {
             window.AdminMetadata.applyMetadataToInsertPayload(insertPayload, {
               command_word: insertPayload.command_word,
@@ -2398,6 +2555,9 @@
         if (window.AdminMetadata && window.AdminMetadata.isMetadataIncomplete(q)) {
           warnings.push({ type: 'warning', text: "📊 Incomplete exam metadata" });
         }
+        if (window.AdminMetadata && window.AdminMetadata.isDualLinkIncomplete(q)) {
+          warnings.push({ type: 'warning', text: "🔗 Missing triple spec link (audience Both)" });
+        }
         if (q.prompt && q.prompt.includes("$") && !window.MathJax) {
           warnings.push({ type: 'warning', text: "📐 LaTeX Warning" });
         }
@@ -2442,7 +2602,8 @@
         const aud = q.audience === "triple_only" ? "T" : "B";
         const flags = `${q.is_maths_skill ? "M" : "·"}/${rpCode}/${aud}`;
         const metaIncomplete = window.AdminMetadata && window.AdminMetadata.isMetadataIncomplete(q);
-        const metaBadge = metaIncomplete
+        const dualLinkGap = window.AdminMetadata && window.AdminMetadata.isDualLinkIncomplete(q);
+        const metaBadge = metaIncomplete || dualLinkGap
           ? `<span class="meta-badge">Gap</span>`
           : `<span class="meta-badge meta-badge--ok">OK</span>`;
         
@@ -2517,6 +2678,9 @@
     populateHintsEditor("editHintsList", Array.isArray(q.hints) ? q.hints : []);
     document.getElementById("editTier").value = q.tier || "both";
 
+    const editAudience = document.getElementById("editAudienceSelect");
+    if (editAudience) editAudience.value = q.audience === "triple_only" ? "triple_only" : "both";
+
     try {
       const { data: sp } = await supabaseClient
         .from("spec_points")
@@ -2525,10 +2689,15 @@
         .maybeSingle();
       document.getElementById("editEqSheetSubject").value = sp?.subject || "physics";
       document.getElementById("editEqSheetPaper").value = sp?.paper || "paper1";
+      await loadEditTripleSpecPointSelect(sp?.subject, sp?.paper, q.triple_spec_point_id || "");
+      if (!q.triple_spec_point_id && (q.audience || "both") === "both") {
+        await autoFillEditTripleSpecFromEquivalence(q.spec_point_id);
+      }
     } catch (_) {
       document.getElementById("editEqSheetSubject").value = "physics";
       document.getElementById("editEqSheetPaper").value = "paper1";
     }
+    syncEditAudienceUi();
     
     // Populate image properties in edit modal
     const editImgUrl = document.getElementById("editImageUrl");
@@ -2746,13 +2915,22 @@
       }
 
       // Update parent questions values
+      const editAudience = document.getElementById("editAudienceSelect")?.value || "both";
+      const editTripleSpecId = document.getElementById("editTripleSpecPointSelect")?.value || null;
+      if (editAudience === "both" && !editTripleSpecId) {
+        showAdminToast("Select a linked triple spec point for Both audience, or set Triple only.", true);
+        return;
+      }
+
       const updatePayload = {
         prompt: prompt,
         resource_links: resource,
         hints: hintsPayloadFromList("editHintsList"),
         tier: tier,
         max_marks: marks,
-        image_url: finalImageUrl
+        image_url: finalImageUrl,
+        audience: editAudience,
+        triple_spec_point_id: editAudience === "both" ? editTripleSpecId : null
       };
 
       if (window.AdminMetadata) {

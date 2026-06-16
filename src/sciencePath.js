@@ -69,6 +69,46 @@ export function formatSciencePathShort(profile) {
   return getSciencePath(profile) === "triple" ? "Triple Science" : "Combined Science";
 }
 
+const SUBJECT_DISPLAY_NAMES = {
+  biology: "Biology",
+  chemistry: "Chemistry",
+  physics: "Physics"
+};
+
+/** Topic line with subject prefix on triple science. */
+export function formatSpecTopicForProfile(spec, profile) {
+  if (!spec) return "Topic";
+  const topic = spec.topic_name || "Topic";
+  if (getSciencePath(profile) === "triple" && spec.subject) {
+    const sub = SUBJECT_DISPLAY_NAMES[spec.subject] || spec.subject;
+    return `${sub} · ${topic}`;
+  }
+  return topic;
+}
+
+/** Human-readable spec line; prefixes subject on triple science for cross-subject lists. */
+export function formatSpecLabelForProfile(spec, profile) {
+  if (!spec) return "Topic";
+  const ref = spec.spec_ref ? `[${spec.spec_ref}] ` : "";
+  const topic = spec.topic_name || "Topic";
+  if (getSciencePath(profile) === "triple" && spec.subject) {
+    const sub = SUBJECT_DISPLAY_NAMES[spec.subject] || spec.subject;
+    return `${sub} · ${ref}${topic}`.trim();
+  }
+  return `${ref}${topic}`.trim();
+}
+
+/** Compact ref chip; includes subject shorthand on triple science. */
+export function formatSpecRefChipForProfile(spec, profile) {
+  if (!spec?.spec_ref) return "";
+  if (getSciencePath(profile) === "triple" && spec.subject) {
+    const short = spec.subject.slice(0, 3);
+    const cap = short.charAt(0).toUpperCase() + short.slice(1);
+    return `${cap} · ${spec.spec_ref}`;
+  }
+  return spec.spec_ref;
+}
+
 /** Whether a question is visible to this student (audience + track). */
 export function questionMatchesStudent(q, profile, specPoint) {
   if (!q || !specPoint) return false;

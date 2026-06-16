@@ -42,6 +42,12 @@ export function isMetadataIncomplete(q) {
   return !q.command_word || !q.demand_level || !hasAo;
 }
 
+/** Shared combined/triple questions need triple_spec_point_id for triple students. */
+export function isDualLinkIncomplete(q) {
+  if (!q) return false;
+  return (q.audience || "both") === "both" && !q.triple_spec_point_id;
+}
+
 export function formatAoSplit(q) {
   if (q?.ao1_marks == null) return "—";
   return `${q.ao1_marks}/${q.ao2_marks}/${q.ao3_marks}`;

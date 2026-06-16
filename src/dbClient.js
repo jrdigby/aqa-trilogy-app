@@ -285,7 +285,7 @@ export async function fetchAttemptActivity(userId, sinceISO) {
 // ====== FORECAST SCHEDULES GATHERER ======
 export async function fetchWeeklyForecastSchedules(userId) {
   const data = await restGet("srs_state", userId, {
-    select: "due_date, spec_points(spec_ref, topic_name)",
+    select: "due_date, spec_points(subject, spec_ref, topic_name)",
     filters: { user_id: `eq.${userId}` },
   });
   return data || [];

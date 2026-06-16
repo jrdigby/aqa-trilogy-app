@@ -380,6 +380,72 @@ export function renderAQAExtendedResponseFeedback(studentText, rubric, localKeyw
   `;
   return html;
 }
+
+let heatmapFloatingTooltipEl = null;
+
+function getHeatmapFloatingTooltip() {
+  if (!heatmapFloatingTooltipEl) {
+    heatmapFloatingTooltipEl = document.createElement("div");
+    heatmapFloatingTooltipEl.id = "heatmapFloatingTooltip";
+    heatmapFloatingTooltipEl.className = "heatmap-floating-tooltip";
+    heatmapFloatingTooltipEl.setAttribute("role", "tooltip");
+    document.body.appendChild(heatmapFloatingTooltipEl);
+  }
+  return heatmapFloatingTooltipEl;
+}
+
+function positionHeatmapFloatingTooltip(tip, cell) {
+  const cellRect = cell.getBoundingClientRect();
+  const gap = 8;
+  const margin = 8;
+
+  // Size the tooltip off-screen so getBoundingClientRect is accurate before placement.
+  tip.style.left = "-9999px";
+  tip.style.top = "0";
+  const tipRect = tip.getBoundingClientRect();
+
+  let left = cellRect.left + cellRect.width / 2 - tipRect.width / 2;
+  let top = cellRect.top - tipRect.height - gap;
+
+  left = Math.max(margin, Math.min(left, window.innerWidth - tipRect.width - margin));
+  if (top < margin) {
+    top = cellRect.bottom + gap;
+  }
+
+  tip.style.left = `${Math.round(left)}px`;
+  tip.style.top = `${Math.round(top)}px`;
+}
+
+function showHeatmapFloatingTooltip(tip, cell, text) {
+  tip.textContent = text;
+  tip.classList.add("is-visible");
+  positionHeatmapFloatingTooltip(tip, cell);
+}
+
+function hideHeatmapFloatingTooltip() {
+  if (heatmapFloatingTooltipEl) {
+    heatmapFloatingTooltipEl.classList.remove("is-visible");
+  }
+}
+
+function attachHeatmapFloatingTooltips(container) {
+  const tip = getHeatmapFloatingTooltip();
+
+  container.querySelectorAll(".heatmap-cell[data-tooltip]").forEach((cell) => {
+    cell.addEventListener("mouseenter", () => {
+      const text = cell.getAttribute("data-tooltip");
+      if (!text) return;
+      showHeatmapFloatingTooltip(tip, cell, text);
+    });
+    cell.addEventListener("mousemove", () => {
+      if (tip.classList.contains("is-visible")) {
+        positionHeatmapFloatingTooltip(tip, cell);
+      }
+    });
+    cell.addEventListener("mouseleave", hideHeatmapFloatingTooltip);
+  });
+}
+
 /**
  * Renders a visual AQA specification mastery grid map
  * @param {Array} allSpecPoints - Complete static target array from DB lookup
@@ -521,6 +587,7 @@ export function renderMasteryHeatmap(allSpecPoints, srsStates, onCellClickCallba
     }
   });
 
+  attachHeatmapFloatingTooltips(wrapper);
   return wrapper;
 }
 

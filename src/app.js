@@ -39,7 +39,10 @@ import {
   getSubjectTiers,
   resolveQuestionSpecMeta,
   questionLinksToSpecPoint,
-  buildSpecPointQuestionsOrFilter
+  buildSpecPointQuestionsOrFilter,
+  formatSpecLabelForProfile,
+  formatSpecRefChipForProfile,
+  formatSpecTopicForProfile
 } from './sciencePath.js';
 import { markResponse } from './evalEngine.js';
 import {
@@ -761,10 +764,18 @@ async function loadDashboard(user = currentUser) {
           const dueDateDisplay = isOverdue
             ? `<span class="bad" style="font-weight: 700;">${escapeHtml(dueDate)}</span>`
             : escapeHtml(dueDate);
+          const sp = d.spec_points || {};
+          const isTriplePath = getSciencePath(currentUserProfile) === "triple";
+          const titleLine = isTriplePath
+            ? formatSpecTopicForProfile(sp, currentUserProfile)
+            : (sp.topic_name ?? "Spec point");
+          const chipHtml = sp.spec_ref
+            ? ` <span class="chip">${escapeHtml(isTriplePath ? formatSpecRefChipForProfile(sp, currentUserProfile) : sp.spec_ref)}</span>`
+            : "";
           return `
         <div class="item">
-          <div><strong>${d.spec_points?.topic_name ?? "Spec point"}</strong> <span class="chip">${d.spec_points?.spec_ref ?? ""}</span></div>
-          <div class="muted">${d.spec_points?.spec_text ?? ""}</div>
+          <div><strong>${escapeHtml(titleLine)}</strong>${chipHtml}</div>
+          <div class="muted">${escapeHtml(sp.spec_text ?? "")}</div>
           <div class="muted">Due: ${dueDateDisplay} • EF: ${d.ease_factor.toFixed(2)} • Interval: ${d.interval_days}d</div>
         </div>
       `;
@@ -867,8 +878,8 @@ async function loadRevisionCards() {
     container.innerHTML = failedAttempts.map((att, idx) => {
       const q = att.questions || {};
       const spec = resolveQuestionSpecMeta(q, currentUserProfile) || {};
-      const topicName = spec.topic_name || "Science Topic";
-      const ref = spec.spec_ref || "AQA Ref";
+      const topicLabel = formatSpecTopicForProfile(spec, currentUserProfile);
+      const refChip = formatSpecRefChipForProfile(spec, currentUserProfile) || spec.spec_ref || "AQA Ref";
       
       // Extract missed keywords from payload
       let missedBulletPoints = [];
@@ -888,8 +899,8 @@ async function loadRevisionCards() {
             <div class="card-front" style="position: absolute; width: 100%; height: 100%; backface-visibility: hidden; background: #ffffff; padding: 16px; border-radius: 10px; display: flex; flex-direction: column; justify-content: space-between; box-sizing: border-box;">
               <div>
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                  <span style="font-size:0.7rem; font-weight:700; color:#4f46e5; text-transform:uppercase; letter-spacing:0.05em;">${topicName}</span>
-                  <span style="font-size:0.7rem; background:#f1f5f9; color:#475569; padding:2px 6px; border-radius:4px; font-weight:600;">${ref}</span>
+                  <span style="font-size:0.7rem; font-weight:700; color:#4f46e5; text-transform:uppercase; letter-spacing:0.05em;">${escapeHtml(topicLabel)}</span>
+                  <span style="font-size:0.7rem; background:#f1f5f9; color:#475569; padding:2px 6px; border-radius:4px; font-weight:600;">${escapeHtml(refChip)}</span>
                 </div>
                 <p style="font-size:0.82rem; font-weight:600; line-height:1.4; color:#1e293b; margin:0; display:-webkit-box; -webkit-line-clamp:4; -webkit-box-orient:vertical; overflow:hidden;">
                   ${escapeHtml(q.prompt)}
@@ -968,8 +979,7 @@ async function downloadStudyGuideText(attempts) {
   attempts.forEach((att, i) => {
     const q = att.questions || {};
     const spec = resolveQuestionSpecMeta(q, currentUserProfile) || {};
-    const topicName = spec.topic_name || 'Science Topic';
-    const ref = spec.spec_ref || 'AQA Ref';
+    const heading = formatSpecLabelForProfile(spec, currentUserProfile);
 
     let bullets = [];
     if (Array.isArray(att.feedback_payload?.missing)) {
@@ -985,7 +995,7 @@ async function downloadStudyGuideText(attempts) {
     itemBlock.style.marginBottom = "24px";
     itemBlock.style.pageBreakInside = "avoid"; 
     itemBlock.innerHTML = `
-      <h3 style="color: #1e293b; margin: 0 0 6px 0; font-size: 1.1rem; font-weight: 700;">${i + 1}. [${ref}] ${topicName}</h3>
+      <h3 style="color: #1e293b; margin: 0 0 6px 0; font-size: 1.1rem; font-weight: 700;">${i + 1}. ${escapeHtml(heading)}</h3>
       <p style="margin: 0 0 4px 0; font-size: 0.8rem; font-weight: 700; color: #64748b; text-transform: uppercase;">Question Context:</p>
       <p style="margin: 0 0 12px 0; font-size: 0.92rem; color: #475569; font-style: italic; line-height: 1.4;">"${q.prompt}"</p>
       <p style="margin: 0 0 4px 0; font-size: 0.8rem; font-weight: 700; color: #991b1b; text-transform: uppercase;">Target Examiner Criteria Missed:</p>
@@ -1305,16 +1315,15 @@ async function startSessionForSpecPointWrapper(specPointId, qType = "") {
 // btnStart.onclick = startAnyPracticeWrapper;
 
 // ====== 7-DAY WORKLOAD REVISION FORECAST ======
-function formatForecastSpecLine(schedule) {
-  const sp = schedule?.spec_points || {};
-  const ref = sp.spec_ref ? `[${sp.spec_ref}] ` : "";
-  return `${ref}${sp.topic_name || "Topic"}`;
+function formatForecastSpecLine(schedule, profile = null) {
+  return formatSpecLabelForProfile(schedule?.spec_points, profile || currentUserProfile);
 }
 
-function buildForecastTooltip(label, items) {
+function buildForecastTooltip(label, items, profile = null) {
   if (!items?.length) return label || "None due";
   const header = label ? `${label} — ${items.length} due` : `${items.length} due`;
-  return [header, ...items.map(formatForecastSpecLine)].join("\n");
+  const prof = profile || currentUserProfile;
+  return [header, ...items.map((s) => formatForecastSpecLine(s, prof))].join("\n");
 }
 
 function buildActivityBreakdownTooltip(dateTooltip, full, partial, fail) {
