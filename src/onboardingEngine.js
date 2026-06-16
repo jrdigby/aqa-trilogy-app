@@ -5,13 +5,27 @@ import {
   queryDashboardDueItems,
   fetchUserSRSState,
   rpcJoinClass,
-  patchUserProfile
+  patchUserProfile,
+  rpcMigrateSrsForTrackChange
 } from "./dbClient.js";
 import { todayISO, addDaysISO } from "./utils.js";
+import {
+  SUBJECTS,
+  normalizeTier,
+  targetTiersForTier,
+  normalizeSeedProfile,
+  courseTrackForProfile,
+  getTierForSubject,
+  targetTiersForProfile,
+  questionMatchesStudent
+} from "./sciencePath.js";
 
 export { fetchUserProfile };
-
-const SUBJECTS = ["biology", "chemistry", "physics"];
+export {
+  normalizeTier,
+  targetTiersForTier,
+  normalizeSeedProfile
+};
 const WEEKLY_FORECAST_TARGET = 12;
 const TODAY_DUE_TARGET = 3;
 const POST_PRACTICE_DUE_TODAY_TARGET = 3;
@@ -35,35 +49,6 @@ export function topicCountForDifficulty(difficultyRank) {
   return 1;
 }
 
-export function normalizeTier(tier) {
-  if (tier === "foundation") return "FT";
-  if (tier === "higher") return "HT";
-  return tier === "HT" ? "HT" : "FT";
-}
-
-export function targetTiersForTier(tier) {
-  const t = normalizeTier(tier);
-  return t === "HT"
-    ? ["HT", "ht", "both", "Both"]
-    : ["FT", "ft", "both", "Both"];
-}
-
-export function normalizeSeedProfile(profile) {
-  return {
-    preferred_tier: normalizeTier(profile?.preferred_tier || "FT"),
-    subject_preference: profile?.subject_preference || {
-      biology: 1,
-      chemistry: 2,
-      physics: 3
-    },
-    subject_difficulty: profile?.subject_difficulty || {
-      biology: "easiest",
-      chemistry: "medium",
-      physics: "hardest"
-    }
-  };
-}
-
 function paperSortKey(paper) {
   if (paper === "paper1") return 0;
   if (paper === "paper2") return 1;
@@ -79,26 +64,52 @@ export async function fetchOnboardingStatus(userId) {
 }
 
 export async function saveOnboardingProfile(userId, payload) {
-  const { preferred_tier, subject_preference, subject_difficulty } = payload;
-  await patchUserProfile(userId, {
+  const {
+    preferred_tier,
+    science_path,
+    subject_tiers,
+    subject_preference,
+    subject_difficulty
+  } = payload;
+  const patch = {
     preferred_tier: normalizeTier(preferred_tier),
+    science_path: science_path === "triple" ? "triple" : "combined",
     subject_preference,
     subject_difficulty,
     onboarding_completed_at: new Date().toISOString()
-  });
+  };
+  if (science_path === "triple" && subject_tiers) {
+    patch.subject_tiers = subject_tiers;
+  }
+  await patchUserProfile(userId, patch);
 }
 
 export async function saveUserProfileSettings(userId, payload) {
-  const { preferred_tier, subject_preference, subject_difficulty, display_name } = payload;
+  const {
+    preferred_tier,
+    science_path,
+    subject_tiers,
+    subject_preference,
+    subject_difficulty,
+    display_name
+  } = payload;
   const patch = {
     preferred_tier: normalizeTier(preferred_tier),
+    science_path: science_path === "triple" ? "triple" : "combined",
     subject_preference,
     subject_difficulty
   };
+  if (science_path === "triple" && subject_tiers) {
+    patch.subject_tiers = subject_tiers;
+  }
   if (display_name !== undefined) {
     patch.display_name = display_name?.trim() || null;
   }
   await patchUserProfile(userId, patch);
+}
+
+export async function migrateSrsForSciencePathChange(userId, newPath) {
+  return rpcMigrateSrsForTrackChange(newPath, userId);
 }
 
 export async function joinClassByCode(code, userId = null) {
@@ -426,43 +437,66 @@ export async function ensureScheduleReady(userId, profile) {
   };
 }
 
-async function specPointsWithQuestions(specPointIds, targetTiers) {
+async function specPointsWithQuestions(specPointIds, targetTiers, courseTrack = "combined") {
   if (!specPointIds.length) return new Set();
 
-  const { data: tierMatched, error: tierErr } = await supabaseClient
+  let qQuery = supabaseClient
     .from("questions")
-    .select("spec_point_id")
-    .in("spec_point_id", specPointIds)
+    .select("spec_point_id, triple_spec_point_id, audience, tier")
     .in("tier", targetTiers);
+
+  const { data: tierMatched, error: tierErr } = await qQuery;
   if (tierErr) throw tierErr;
 
-  if (tierMatched?.length) {
-    return new Set(tierMatched.map((q) => q.spec_point_id));
+  const matched = new Set();
+  for (const q of tierMatched || []) {
+    if (courseTrack === "triple") {
+      if (q.audience === "triple_only" && specPointIds.includes(q.spec_point_id)) {
+        matched.add(q.spec_point_id);
+      } else if (q.audience === "both" && q.triple_spec_point_id && specPointIds.includes(q.triple_spec_point_id)) {
+        matched.add(q.triple_spec_point_id);
+      } else if (q.audience === "both" && specPointIds.includes(q.spec_point_id)) {
+        matched.add(q.spec_point_id);
+      }
+    } else if (q.audience === "both" && specPointIds.includes(q.spec_point_id)) {
+      matched.add(q.spec_point_id);
+    }
   }
+
+  if (matched.size) return matched;
 
   const { data: anyTier, error: anyErr } = await supabaseClient
     .from("questions")
-    .select("spec_point_id")
+    .select("spec_point_id, triple_spec_point_id, audience")
     .in("spec_point_id", specPointIds);
   if (anyErr) throw anyErr;
 
-  return new Set((anyTier || []).map((q) => q.spec_point_id));
+  for (const q of anyTier || []) {
+    if (courseTrack === "combined" && q.audience === "both") matched.add(q.spec_point_id);
+    if (courseTrack === "triple" && (q.audience === "triple_only" || q.audience === "both")) {
+      matched.add(q.triple_spec_point_id || q.spec_point_id);
+    }
+  }
+
+  return matched;
 }
 
 export async function pickStarterSpecPoints(profile, existingSpecIds = new Set()) {
   const seedProfile = normalizeSeedProfile(profile);
-  const targetTiers = targetTiersForTier(seedProfile.preferred_tier);
+  const courseTrack = courseTrackForProfile(seedProfile);
   const ordered = sortSubjectsByPreference(seedProfile.subject_preference);
   const picks = [];
 
   for (const subject of ordered) {
     const diff = seedProfile.subject_difficulty[subject] || "medium";
     const count = topicCountForDifficulty(diff);
+    const targetTiers = targetTiersForProfile(seedProfile, subject);
 
     const { data: specPoints, error: spErr } = await supabaseClient
       .from("spec_points")
-      .select("id, subject, paper, topic_number, spec_ref")
+      .select("id, subject, paper, topic_number, spec_ref, course_track")
       .eq("subject", subject)
+      .eq("course_track", courseTrack)
       .order("topic_number", { ascending: true });
     if (spErr) throw spErr;
 
@@ -477,7 +511,8 @@ export async function pickStarterSpecPoints(profile, existingSpecIds = new Set()
 
     const withQuestions = await specPointsWithQuestions(
       candidates.map((sp) => sp.id),
-      targetTiers
+      targetTiers,
+      courseTrack
     );
 
     let added = 0;

@@ -466,29 +466,62 @@
         <span class="onboarding-step-dot"></span>
         <span class="onboarding-step-dot"></span>
         <span class="onboarding-step-dot"></span>
+        <span class="onboarding-step-dot"></span>
       </div>
 
       <div id="onboardingStep1" class="onboarding-panel">
-        <h3 style="margin-bottom: 8px;">Which exam tier are you studying?</h3>
-        <div class="onboarding-tier-options">
-          <button type="button" class="onboarding-tier-btn selected" data-tier="FT">Foundation Tier (FT)</button>
-          <button type="button" class="onboarding-tier-btn" data-tier="HT">Higher Tier (HT)</button>
+        <h3 style="margin-bottom: 8px;">Which science course are you studying?</h3>
+        <p class="muted" style="font-size: 0.9rem; margin-bottom: 12px;">Combined Science (Trilogy) or Triple Science (separate Biology, Chemistry and Physics GCSEs).</p>
+        <div class="onboarding-tier-options" id="onboardingPathOptions">
+          <button type="button" class="onboarding-tier-btn onboarding-path-btn selected" data-path="combined">Combined Science (Trilogy)</button>
+          <button type="button" class="onboarding-tier-btn onboarding-path-btn" data-path="triple">Triple Science</button>
         </div>
       </div>
 
       <div id="onboardingStep2" class="onboarding-panel hidden">
+        <h3 id="onboardingTierHeading" style="margin-bottom: 8px;">Which exam tier are you studying?</h3>
+        <div id="onboardingCombinedTier" class="onboarding-tier-options">
+          <button type="button" class="onboarding-tier-btn onboarding-combined-tier-btn selected" data-tier="FT">Foundation Tier (FT)</button>
+          <button type="button" class="onboarding-tier-btn onboarding-combined-tier-btn" data-tier="HT">Higher Tier (HT)</button>
+        </div>
+        <div id="onboardingTripleTiers" class="hidden" style="display: flex; flex-direction: column; gap: 12px;">
+          <div class="onboarding-subject-tier-row">
+            <span style="font-weight: 600; min-width: 90px;">Biology</span>
+            <div class="onboarding-tier-options">
+              <button type="button" class="onboarding-tier-btn onboarding-subject-tier-btn selected" data-subject="biology" data-tier="FT">FT</button>
+              <button type="button" class="onboarding-tier-btn onboarding-subject-tier-btn" data-subject="biology" data-tier="HT">HT</button>
+            </div>
+          </div>
+          <div class="onboarding-subject-tier-row">
+            <span style="font-weight: 600; min-width: 90px;">Chemistry</span>
+            <div class="onboarding-tier-options">
+              <button type="button" class="onboarding-tier-btn onboarding-subject-tier-btn selected" data-subject="chemistry" data-tier="FT">FT</button>
+              <button type="button" class="onboarding-tier-btn onboarding-subject-tier-btn" data-subject="chemistry" data-tier="HT">HT</button>
+            </div>
+          </div>
+          <div class="onboarding-subject-tier-row">
+            <span style="font-weight: 600; min-width: 90px;">Physics</span>
+            <div class="onboarding-tier-options">
+              <button type="button" class="onboarding-tier-btn onboarding-subject-tier-btn selected" data-subject="physics" data-tier="FT">FT</button>
+              <button type="button" class="onboarding-tier-btn onboarding-subject-tier-btn" data-subject="physics" data-tier="HT">HT</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="onboardingStep3" class="onboarding-panel hidden">
         <h3 style="margin-bottom: 8px;">Rank subjects by preference</h3>
         <p class="muted" style="font-size: 0.9rem; margin-bottom: 8px;">Drag to reorder — 1 = study first.</p>
         <ul id="preferenceRankList" class="onboarding-rank-list" data-rank-type="preference"></ul>
       </div>
 
-      <div id="onboardingStep3" class="onboarding-panel hidden">
+      <div id="onboardingStep4" class="onboarding-panel hidden">
         <h3 style="margin-bottom: 8px;">Rank subjects by difficulty</h3>
         <p class="muted" style="font-size: 0.9rem; margin-bottom: 8px;">Drag easiest to hardest — we'll allocate more topics where you need them.</p>
         <ul id="difficultyRankList" class="onboarding-rank-list" data-rank-type="difficulty"></ul>
       </div>
 
-      <div id="onboardingStep4" class="onboarding-panel hidden">
+      <div id="onboardingStep5" class="onboarding-panel hidden">
         <h3 style="margin-bottom: 8px;">Join your class (optional)</h3>
         <p class="muted" style="font-size: 0.9rem; margin-bottom: 12px;">Enter the 6-character code from your teacher, or skip to continue solo.</p>
         <div class="input-group">
@@ -498,7 +531,7 @@
         <p id="classCodeMsg" class="muted hidden" style="margin-top: 8px; font-size: 0.9rem;"></p>
       </div>
 
-      <div id="onboardingStep5" class="onboarding-panel hidden">
+      <div id="onboardingStep6" class="onboarding-panel hidden">
         <h3 style="margin-bottom: 8px;">Ready to go</h3>
         <div id="onboardingSummary" class="onboarding-summary"></div>
       </div>
@@ -573,6 +606,7 @@
         <h2>🎯 Dashboard</h2>
         
         <div style="display: flex; align-items: center; gap: 12px;">
+          <span id="sciencePathChip" class="chip hidden" style="background: #eef2ff; color: #4338ca; border: 1px solid #c7d2fe; font-size: 0.8rem; padding: 4px 10px; border-radius: 20px;"></span>
           <span id="streakChip" class="chip" style="background: #fff5f5; color: #ff4d4d; border: 1px solid #ffe3e3; display: flex; align-items: center; gap: 4px; font-size: 0.85rem; padding: 4px 10px; border-radius: 20px;">
             🔥 <span id="streakCount">0</span> Day Streak
           </span>
@@ -580,14 +614,7 @@
           <span id="xpChip" class="chip" style="background: #fffbeb; color: #b45309; border: 1px solid #fde68a; display: flex; align-items: center; gap: 4px; font-size: 0.85rem; padding: 4px 10px; border-radius: 20px;">
             ⭐ <span id="xpTotal">0</span> XP
           </span>
-          <div style="display: flex; align-items: center; gap: 6px;">
-            <label for="tierFilter" style="font-size: 0.8rem; font-weight: 600; text-transform: uppercase; color: var(--text-muted);">Tier:</label>
-            <select id="tierFilter" class="custom-select" style="padding: 4px 30px 4px 10px; font-size: 0.85rem; font-weight: 600; border-radius: 6px; width: auto; height: auto; background-position: right 6px center; background-size: 12px;">
-              <option value="FT">Foundation</option>
-              <option value="HT">Higher</option>
-            </select>
-            <span id="tierBoundaryBadge" class="tier-boundary-badge hidden" role="status"></span>
-          </div>
+          <span id="tierBoundaryBadge" class="tier-boundary-badge hidden" role="status"></span>
 
           <span id="userChip" class="chip">...</span>
           <button type="button" id="btnOpenSettings" class="btn-secondary" style="padding: 5px 12px; font-size: 0.8rem; flex: none;">⚙️ Settings</button>
@@ -778,11 +805,43 @@
           </div>
 
           <div class="settings-section">
+            <h4 class="settings-heading">Science course</h4>
+            <p class="muted settings-hint">Combined Science (Trilogy) or Triple Science (separate GCSEs).</p>
+            <div class="onboarding-tier-options" id="settingsPathOptions">
+              <button type="button" class="onboarding-tier-btn settings-path-btn" data-path="combined">Combined Science</button>
+              <button type="button" class="onboarding-tier-btn settings-path-btn" data-path="triple">Triple Science</button>
+            </div>
+          </div>
+
+          <div class="settings-section">
             <h4 class="settings-heading">Exam tier</h4>
-            <p class="muted settings-hint">Foundation (FT) or Higher (HT) — filters question difficulty.</p>
-            <div class="onboarding-tier-options" id="settingsTierOptions">
+            <p class="muted settings-hint" id="settingsTierHint">Foundation (FT) or Higher (HT) — filters question difficulty.</p>
+            <div class="onboarding-tier-options" id="settingsCombinedTier">
               <button type="button" class="onboarding-tier-btn settings-tier-btn" data-tier="FT">Foundation Tier (FT)</button>
               <button type="button" class="onboarding-tier-btn settings-tier-btn" data-tier="HT">Higher Tier (HT)</button>
+            </div>
+            <div id="settingsTripleTiers" class="hidden" style="display: flex; flex-direction: column; gap: 10px; margin-top: 8px;">
+              <div class="onboarding-subject-tier-row">
+                <span style="font-weight: 600; min-width: 90px;">Biology</span>
+                <div class="onboarding-tier-options">
+                  <button type="button" class="onboarding-tier-btn settings-subject-tier-btn" data-subject="biology" data-tier="FT">FT</button>
+                  <button type="button" class="onboarding-tier-btn settings-subject-tier-btn" data-subject="biology" data-tier="HT">HT</button>
+                </div>
+              </div>
+              <div class="onboarding-subject-tier-row">
+                <span style="font-weight: 600; min-width: 90px;">Chemistry</span>
+                <div class="onboarding-tier-options">
+                  <button type="button" class="onboarding-tier-btn settings-subject-tier-btn" data-subject="chemistry" data-tier="FT">FT</button>
+                  <button type="button" class="onboarding-tier-btn settings-subject-tier-btn" data-subject="chemistry" data-tier="HT">HT</button>
+                </div>
+              </div>
+              <div class="onboarding-subject-tier-row">
+                <span style="font-weight: 600; min-width: 90px;">Physics</span>
+                <div class="onboarding-tier-options">
+                  <button type="button" class="onboarding-tier-btn settings-subject-tier-btn" data-subject="physics" data-tier="FT">FT</button>
+                  <button type="button" class="onboarding-tier-btn settings-subject-tier-btn" data-subject="physics" data-tier="HT">HT</button>
+                </div>
+              </div>
             </div>
           </div>
 

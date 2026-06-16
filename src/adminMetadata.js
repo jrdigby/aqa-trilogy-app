@@ -56,6 +56,7 @@ const METADATA_FIELD_IDS = {
     ao3: "ao3Marks",
     maths: "chkMathsSkill",
     rp: "chkRequiredPractical",
+    rpSelect: "requiredPracticalSelect",
     aoValidation: "aoMarksValidation"
   },
   edit: {
@@ -66,6 +67,7 @@ const METADATA_FIELD_IDS = {
     ao3: "editAo3Marks",
     maths: "editChkMathsSkill",
     rp: "editChkRequiredPractical",
+    rpSelect: "editRequiredPracticalSelect",
     aoValidation: "editAoMarksValidation"
   }
 };
@@ -83,6 +85,7 @@ export function buildMetadataPayload(mode = "creator") {
   const demandLevel = document.getElementById(ids.demandLevel)?.value || "";
   const isMaths = document.getElementById(ids.maths)?.checked || false;
   const isRp = document.getElementById(ids.rp)?.checked || false;
+  const rpId = document.getElementById(ids.rpSelect)?.value || null;
   return {
     command_word: commandWord || null,
     demand_level: demandLevel || null,
@@ -90,7 +93,8 @@ export function buildMetadataPayload(mode = "creator") {
     ao2_marks: ao2,
     ao3_marks: ao3,
     is_maths_skill: isMaths,
-    is_required_practical: isRp
+    is_required_practical: isRp,
+    required_practical_id: isRp && rpId ? rpId : null
   };
 }
 
@@ -203,6 +207,12 @@ export function validateCreatorMetadata({ block = true } = {}) {
     warnings.push("Numeric questions are usually flagged as maths skill.");
   }
 
+  if (meta.is_required_practical && !meta.required_practical_id) {
+    const msg = "Select which required practical this question assesses.";
+    if (block) return { ok: false, error: msg, warnings };
+    warnings.push(msg);
+  }
+
   return { ok: true, warnings, meta };
 }
 
@@ -215,6 +225,7 @@ export function applyMetadataToInsertPayload(insertPayload, meta, questionDraft)
     ao3_marks: meta.ao3_marks,
     is_maths_skill: meta.is_maths_skill,
     is_required_practical: meta.is_required_practical,
+    required_practical_id: meta.required_practical_id,
     difficulty: computeQuestionDifficulty({ ...questionDraft, ...meta })
   });
 }
@@ -248,8 +259,12 @@ export function initCreatorMetadataUI() {
   document.getElementById("demandLevelSelect")?.addEventListener("change", refreshCreatorDifficultyBadge);
   document.getElementById("btnDetectCommandWord")?.addEventListener("click", detectCreatorCommandWord);
   document.getElementById("btnAutoAoFromMarkPoints")?.addEventListener("click", autoCreatorAoFromMarkPoints);
+  document.getElementById("chkRequiredPractical")?.addEventListener("change", () => {
+    const row = document.getElementById("requiredPracticalRow");
+    if (row) row.classList.toggle("hidden", !document.getElementById("chkRequiredPractical")?.checked);
+  });
 
-  ["subjectSelect", "paperSelect"].forEach((id) => {
+  ["subjectSelect", "paperSelect", "courseTrackSelect"].forEach((id) => {
     document.getElementById(id)?.addEventListener("change", () => {
       autoSizeAdminSelects(document.getElementById("panelCreator"));
     });
@@ -267,6 +282,10 @@ export function resetCreatorMetadataFields() {
   document.getElementById("ao3Marks").value = "";
   document.getElementById("chkMathsSkill").checked = false;
   document.getElementById("chkRequiredPractical").checked = false;
+  const rpSelect = document.getElementById("requiredPracticalSelect");
+  if (rpSelect) rpSelect.value = "";
+  const rpRow = document.getElementById("requiredPracticalRow");
+  if (rpRow) rpRow.classList.add("hidden");
   syncCreatorMetadataFromForm();
 }
 
@@ -278,6 +297,10 @@ export function initEditMetadataUI(q) {
   document.getElementById("editAo3Marks").value = q.ao3_marks ?? "";
   document.getElementById("editChkMathsSkill").checked = q.is_maths_skill === true;
   document.getElementById("editChkRequiredPractical").checked = q.is_required_practical === true;
+  const editRpRow = document.getElementById("editRequiredPracticalRow");
+  const editRpSelect = document.getElementById("editRequiredPracticalSelect");
+  if (editRpRow) editRpRow.classList.toggle("hidden", q.is_required_practical !== true);
+  if (editRpSelect && q.required_practical_id) editRpSelect.value = q.required_practical_id;
   updateAoValidationLabel("edit", q.max_marks);
   autoSizeAdminSelects(document.getElementById("editForm"));
 }

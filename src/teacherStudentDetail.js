@@ -9,6 +9,7 @@ import {
   fetchStudentSRSStateDetailed,
   fetchTeacherStudentProfile,
 } from "./dbClient.js";
+import { formatSciencePathLabel, courseTrackForProfile } from "./sciencePath.js";
 import { renderMasteryHeatmap } from "./uiComponents.js";
 import { addDaysISO, escapeHtml, todayISO } from "./utils.js";
 
@@ -487,11 +488,13 @@ export async function openStudentDetail(studentId, displayName) {
     const today = todayISO();
     const sinceISO = addDaysISO(today, -29);
 
-    const [profile, srsStates, specPoints, gapAttempts, activityAttempts, rosterStatsMap] =
+    const profile = await fetchTeacherStudentProfile(studentId);
+    const courseTrack = courseTrackForProfile(profile || {});
+
+    const [srsStates, specPoints, gapAttempts, activityAttempts, rosterStatsMap] =
       await Promise.all([
-        fetchTeacherStudentProfile(studentId),
         fetchStudentSRSStateDetailed(studentId),
-        fetchAllSpecificationPoints(),
+        fetchAllSpecificationPoints(courseTrack),
         fetchConceptGapAttempts(studentId),
         fetchAttemptActivity(studentId, sinceISO),
         fetchClassRosterStats([studentId]),
@@ -512,7 +515,7 @@ export async function openStudentDetail(studentId, displayName) {
     if (nameEl) nameEl.textContent = resolvedName;
     if (metaEl) {
       metaEl.textContent = [
-        profile?.preferred_tier || "—",
+        formatSciencePathLabel(profile || {}),
         profile?.onboarding_completed_at ? "Onboarded" : "Not onboarded",
         `Last active: ${formatLastActive(profile?.last_login_date)}`,
       ].join(" · ");

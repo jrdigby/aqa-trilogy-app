@@ -252,8 +252,9 @@ export async function fetchConceptGapAttempts(userId) {
     .select(`
       submitted_at, question_id, score_total, score_max, feedback_payload,
       questions(
-        question_type, prompt,
-        spec_points(subject, paper, topic_name, spec_ref)
+        question_type, prompt, audience, triple_spec_point_id,
+        spec_points!spec_point_id(subject, paper, topic_name, spec_ref, course_track),
+        triple_spec_point:spec_points!triple_spec_point_id(subject, paper, topic_name, spec_ref, course_track)
       )
     `)
     .eq("user_id", userId)
@@ -291,12 +292,16 @@ export async function fetchWeeklyForecastSchedules(userId) {
 }
 
 // ====== ADDED: FETCH WHOLE CURRICULUM FOR HEATMAP GRID ======
-export async function fetchAllSpecificationPoints() {
-  const query = supabaseClient
+export async function fetchAllSpecificationPoints(courseTrack = "combined") {
+  let query = supabaseClient
     .from("spec_points")
-    .select("id, subject, topic_name, spec_ref, spec_text")
+    .select("id, subject, topic_name, spec_ref, spec_text, course_track")
     .order("subject", { ascending: true })
     .order("spec_ref", { ascending: true });
+
+  if (courseTrack) {
+    query = query.eq("course_track", courseTrack);
+  }
 
   const result = await Promise.race([query, timeoutPromise(4000, "All spec points lookup timed out")]);
   if (result.error) throw result.error;
@@ -313,19 +318,23 @@ export async function fetchUserSRSState(userId) {
 }
 
 // ====== SYLLABUS, QUESTIONS, & MASTERY BATCH ENGINE ======
-export async function fetchSyllabusPipelineData(userId, subject, paper, targetTiers, qType) {
+export async function fetchSyllabusPipelineData(userId, subject, paper, targetTiers, qType, courseTrack = "combined") {
   const today = todayISO();
 
-  const specPointsQuery = supabaseClient
+  let specPointsQuery = supabaseClient
     .from("spec_points")
-    .select("id, topic_name")
+    .select("id, topic_name, course_track")
     .eq("subject", subject)
     .eq("paper", paper)
     .order("topic_number", { ascending: true });
 
+  if (courseTrack) {
+    specPointsQuery = specPointsQuery.eq("course_track", courseTrack);
+  }
+
   let questionsQuery = supabaseClient
     .from("questions")
-    .select("id, spec_point_id, question_type, tier, image_url")
+    .select("id, spec_point_id, triple_spec_point_id, question_type, tier, image_url, audience")
     .in("tier", targetTiers);
 
   if (qType) {
@@ -367,7 +376,7 @@ export async function fetchSyllabusPipelineData(userId, subject, paper, targetTi
 
 // ====== USER PROFILE (ONBOARDING) ======
 const PROFILE_COLUMNS_FULL =
-  "user_id, role, preferred_tier, subscription_tier, onboarding_completed_at, subject_preference, subject_difficulty, class_id, display_name, total_xp";
+  "user_id, role, preferred_tier, science_path, subject_tiers, subscription_tier, onboarding_completed_at, subject_preference, subject_difficulty, class_id, display_name, total_xp";
 const PROFILE_COLUMNS_BASE = "user_id, preferred_tier";
 
 function isMissingColumnError(error) {
@@ -381,6 +390,8 @@ function normalizeProfileRow(data, userId) {
     user_id: data.user_id ?? userId,
     role: data.role ?? "student",
     preferred_tier: data.preferred_tier ?? "FT",
+    science_path: data.science_path ?? "combined",
+    subject_tiers: data.subject_tiers ?? null,
     subscription_tier: data.subscription_tier ?? "free",
     onboarding_completed_at: data.onboarding_completed_at ?? null,
     subject_preference: data.subject_preference ?? null,
@@ -452,6 +463,26 @@ export async function rpcSeedInitialSRS(userId = null) {
   return restRpc("seed_initial_srs", {}, userId);
 }
 
+export async function rpcMigrateSrsForTrackChange(newPath, userId = null) {
+  return restRpc("migrate_srs_for_track_change", { p_new_path: newPath }, userId);
+}
+
+export async function fetchRequiredPracticals(subject = null, courseTrack = null) {
+  let query = supabaseClient
+    .from("required_practicals")
+    .select("id, subject, course_track, code, title, sort_order")
+    .order("sort_order", { ascending: true });
+
+  if (subject) query = query.eq("subject", subject);
+  if (courseTrack) {
+    query = query.in("course_track", [courseTrack, "both"]);
+  }
+
+  const result = await Promise.race([query, timeoutPromise(4000, "required_practicals lookup timed out")]);
+  if (result.error) throw result.error;
+  return result.data || [];
+}
+
 export async function fetchUserClassLicense(classId) {
   if (!classId) return null;
   try {
@@ -507,7 +538,7 @@ export async function fetchTeacherStudentProfile(userId) {
   const { data, error } = await supabaseClient
     .from("profiles")
     .select(
-      "user_id, display_name, preferred_tier, subscription_tier, onboarding_completed_at, current_streak, last_login_date, class_id, total_xp"
+      "user_id, display_name, preferred_tier, science_path, subject_tiers, subscription_tier, onboarding_completed_at, current_streak, last_login_date, class_id, total_xp"
     )
     .eq("user_id", userId)
     .maybeSingle();
@@ -604,6 +635,8 @@ const dbClient = {
   waitForAuthSession,
   rpcJoinClass,
   rpcSeedInitialSRS,
+  rpcMigrateSrsForTrackChange,
+  fetchRequiredPracticals,
   fetchUserClassLicense,
   fetchPlanQuotas,
   tryConsumeAiMark,
