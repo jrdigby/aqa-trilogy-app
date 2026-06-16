@@ -288,8 +288,9 @@ export function getAuthoringGuidelinesHtml() {
       </tr></tbody>
     </table>
     <p><strong>Maths skills minimum (by subject):</strong> Biology 10% · Chemistry 20% · Physics 30% of paper marks.</p>
-    <p><strong>Required practicals:</strong> at least 15% of paper marks — flag RP questions in authoring.</p>
-    <p><strong>CSV optional columns:</strong> <code>command_word</code>, <code>demand_level</code>, <code>ao1_marks</code>, <code>ao2_marks</code>, <code>ao3_marks</code>, <code>is_maths_skill</code>, <code>is_required_practical</code> (true/false).</p>
+    <p><strong>Required practicals:</strong> at least 15% of paper marks — check <em>Required practical</em> and pick the specific RP from the catalog.</p>
+    <p><strong>Question audience:</strong> <code>both</code> (shared combined/triple) or <code>triple_only</code> for triple-exclusive content.</p>
+    <p><strong>CSV optional columns:</strong> <code>command_word</code>, <code>demand_level</code>, <code>ao1_marks</code>, <code>ao2_marks</code>, <code>ao3_marks</code>, <code>is_maths_skill</code>, <code>is_required_practical</code>, <code>required_practical_code</code>, <code>audience</code>, <code>triple_spec_ref</code>.</p>
   `;
 }
 

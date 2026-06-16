@@ -3,12 +3,20 @@ import {
   fetchSpecPointDifficultyOffset
 } from "./adaptiveSelector.js";
 import { buildExamPaper } from "./paperBuilder.js";
+import {
+  courseTrackForProfile,
+  targetTiersForProfile,
+  filterQuestionsForProfile,
+  questionMatchesStudent,
+  resolveQuestionSpecMeta,
+  questionLinksToSpecPoint
+} from "./sciencePath.js";
 
 const QUESTION_SELECT =
-  "id,question_type,prompt,options,spec_point_id,tier,difficulty,demand_level,ao1_marks,ao2_marks,ao3_marks,is_maths_skill,is_required_practical,resource_links,hints,marking_method,max_marks,image_url,calculation_config,spec_points(subject,paper,topic_name,spec_ref,spec_text)";
+  "id,question_type,prompt,options,spec_point_id,triple_spec_point_id,audience,tier,difficulty,demand_level,ao1_marks,ao2_marks,ao3_marks,is_maths_skill,is_required_practical,required_practical_id,resource_links,hints,marking_method,max_marks,image_url,calculation_config,spec_points!spec_point_id(subject,paper,topic_name,spec_ref,spec_text,course_track),triple_spec_point:spec_points!triple_spec_point_id(subject,paper,topic_name,spec_ref,spec_text,course_track)";
 
 const QUESTION_SELECT_FALLBACK =
-  "id,question_type,prompt,options,spec_point_id,tier,difficulty,resource_links,marking_method,max_marks,image_url,spec_points(subject,paper,topic_name,spec_ref,spec_text)";
+  "id,question_type,prompt,options,spec_point_id,triple_spec_point_id,audience,tier,difficulty,resource_links,marking_method,max_marks,image_url,spec_points!spec_point_id(subject,paper,topic_name,spec_ref,spec_text,course_track),triple_spec_point:spec_points!triple_spec_point_id(subject,paper,topic_name,spec_ref,spec_text,course_track)";
 
 async function fetchQuestionsWithFallback(supabaseClient, buildQuery) {
   let query = buildQuery(QUESTION_SELECT);
@@ -22,15 +30,22 @@ async function fetchQuestionsWithFallback(supabaseClient, buildQuery) {
 }
 
 async function fetchFilteredPracticePool(context) {
-  const { supabaseClient, getSelectedFilters, timeoutPromise, showToastBanner } = context;
+  const { supabaseClient, getSelectedFilters, getUserProfile, timeoutPromise, showToastBanner } = context;
   const { subject, paper, topic, qType, tier } = getSelectedFilters();
-  const targetTiers = tier === "HT" ? ["HT", "both"] : ["FT", "both"];
+  const profile = getUserProfile?.() || null;
+  const courseTrack = courseTrackForProfile(profile);
+  const targetTiers = profile
+    ? targetTiersForProfile(profile, subject)
+    : tier === "HT"
+      ? ["HT", "both"]
+      : ["FT", "both"];
 
   let query = supabaseClient
     .from("spec_points")
-    .select("id, subject, paper, topic_name")
+    .select("id, subject, paper, topic_name, course_track")
     .eq("subject", subject)
-    .eq("paper", paper);
+    .eq("paper", paper)
+    .eq("course_track", courseTrack);
 
   if (topic) query = query.eq("topic_name", topic);
 
@@ -42,19 +57,35 @@ async function fetchFilteredPracticePool(context) {
     return null;
   }
 
+  const specById = Object.fromEntries(sp.map((row) => [row.id, row]));
   const matchingSpecPointIds = sp.map((item) => item.id);
-  const activeQs = await Promise.race([
+
+  const rawQs = await Promise.race([
     fetchQuestionsWithFallback(supabaseClient, (selectCols) => {
       let qQuery = supabaseClient
         .from("questions")
         .select(selectCols)
-        .in("spec_point_id", matchingSpecPointIds)
         .in("tier", targetTiers);
       if (qType) qQuery = qQuery.eq("question_type", qType);
       return qQuery;
     }),
     timeoutPromise(4000, "Practice pool matching timed out")
   ]);
+
+  const activeQs = (rawQs || []).filter((q) => {
+    const linkedIds = [q.spec_point_id, q.triple_spec_point_id].filter(Boolean);
+    if (!linkedIds.some((id) => matchingSpecPointIds.includes(id))) return false;
+    const spMeta =
+      specById[q.spec_point_id] ||
+      specById[q.triple_spec_point_id] ||
+      resolveQuestionSpecMeta(q, profile) ||
+      q.spec_points;
+    if (profile && spMeta) return questionMatchesStudent(q, profile, spMeta);
+    if (courseTrack === "triple") {
+      return q.audience === "both" || q.audience === "triple_only";
+    }
+    return q.audience !== "triple_only";
+  });
 
   if (!activeQs.length) {
     const typeLabel =
@@ -156,6 +187,7 @@ export async function startSessionForSpecPoint(specPointId, qType = "", context)
   const {
     supabaseClient,
     getSelectedFilters,
+    getUserProfile,
     timeoutPromise,
     showToastBanner,
     loadQuestion,
@@ -163,8 +195,27 @@ export async function startSessionForSpecPoint(specPointId, qType = "", context)
     getDomSections,
     currentUser
   } = context;
-  const { tier } = getSelectedFilters();
-  const targetTiers = tier === "HT" ? ["HT", "both"] : ["FT", "both"];
+  const { tier, subject: filterSubject } = getSelectedFilters();
+  const profile = getUserProfile?.() || null;
+  const courseTrack = courseTrackForProfile(profile);
+
+  let specSubject = filterSubject;
+  try {
+    const { data: spRow } = await supabaseClient
+      .from("spec_points")
+      .select("subject, course_track")
+      .eq("id", specPointId)
+      .maybeSingle();
+    if (spRow?.subject) specSubject = spRow.subject;
+  } catch (_) {
+    /* use filter subject */
+  }
+
+  const targetTiers = profile
+    ? targetTiersForProfile(profile, specSubject)
+    : tier === "HT"
+      ? ["HT", "both"]
+      : ["FT", "both"];
 
   console.log("DEBUG startSessionForSpecPoint: Loading question payloads...");
   let qs = [];
@@ -174,10 +225,10 @@ export async function startSessionForSpecPoint(specPointId, qType = "", context)
         let query = supabaseClient
           .from("questions")
           .select(selectCols)
-          .eq("spec_point_id", specPointId)
+          .or(`spec_point_id.eq.${specPointId},triple_spec_point_id.eq.${specPointId}`)
           .in("tier", targetTiers);
         if (qType) query = query.eq("question_type", qType);
-        return query.limit(10);
+        return query.limit(30);
       }),
       timeoutPromise(4000, "Questions loading query timed out")
     ]);
@@ -186,6 +237,8 @@ export async function startSessionForSpecPoint(specPointId, qType = "", context)
     showToastBanner("Database error loading questions list: " + err.message, true);
     return;
   }
+
+  qs = (qs || []).filter((q) => questionLinksToSpecPoint(q, specPointId, courseTrack));
 
   if (!qs || qs.length === 0) {
     showToastBanner(`No structural questions found matching your filter rules for this topic folder.`, true);

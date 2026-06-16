@@ -1,5 +1,6 @@
 import { fetchClassRosterStats, supabaseClient } from "./dbClient.js";
 import { initStudentDetailPanel, openStudentDetail } from "./teacherStudentDetail.js";
+import { formatSciencePathLabel } from "./sciencePath.js";
 import { escapeHtml, todayISO, addDaysISO, resolveAppUrl } from "./utils.js";
 
 const el = (id) => document.getElementById(id);
@@ -121,7 +122,7 @@ async function fetchClassStudents(classId) {
   const { data, error } = await supabaseClient
     .from("profiles")
     .select(
-      "user_id, display_name, preferred_tier, subscription_tier, onboarding_completed_at, current_streak, last_login_date"
+      "user_id, display_name, preferred_tier, science_path, subject_tiers, subscription_tier, onboarding_completed_at, current_streak, last_login_date"
     )
     .eq("class_id", classId);
   if (error) throw error;
@@ -257,7 +258,7 @@ async function loadClassDetails(classId) {
           <thead>
             <tr>
               <th>Student</th>
-              <th>Tier</th>
+              <th>Course</th>
               <th>Last active</th>
               <th>Avg (30d)</th>
               <th>Overdue</th>
@@ -278,7 +279,7 @@ async function loadClassDetails(classId) {
                 return `
               <tr class="teacher-roster-row${alertClass}" data-user-id="${escapeHtml(s.user_id)}" tabindex="0" role="button" aria-label="View progress for ${escapeHtml(name)}">
                 <td class="teacher-roster-name">${escapeHtml(name)}</td>
-                <td>${escapeHtml(s.preferred_tier || "—")}</td>
+                <td>${escapeHtml(formatSciencePathLabel(s))}</td>
                 <td>${escapeHtml(formatLastActive(s.last_login_date))}</td>
                 <td>${escapeHtml(avg)}</td>
                 <td>${overdue > 0 ? `<strong class="teacher-overdue-count">${overdue}</strong>` : "0"}</td>

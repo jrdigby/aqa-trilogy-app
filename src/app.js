@@ -27,8 +27,20 @@ import {
   normalizeTier,
   targetTiersForTier,
   sortSubjectsByPreference,
-  sortSubjectsByDifficulty
+  sortSubjectsByDifficulty,
+  migrateSrsForSciencePathChange
 } from './onboardingEngine.js';
+import {
+  getSciencePath,
+  getTierForSubject,
+  formatSciencePathLabel,
+  courseTrackForProfile,
+  targetTiersForProfile,
+  getSubjectTiers,
+  resolveQuestionSpecMeta,
+  questionLinksToSpecPoint,
+  buildSpecPointQuestionsOrFilter
+} from './sciencePath.js';
 import { markResponse } from './evalEngine.js';
 import {
   resolveAccess,
@@ -286,24 +298,177 @@ let planQuotas = {
   half_paper_limit: FREE_HALF_PAPERS_PER_MONTH,
 };
 let settingsTier = "FT";
+let settingsSciencePath = "combined";
+let settingsSubjectTiers = { biology: "FT", chemistry: "FT", physics: "FT" };
+
+function syncOnboardingTierPanels() {
+  const isTriple = onboardingState.science_path === "triple";
+  const combinedPanel = el("onboardingCombinedTier");
+  const triplePanel = el("onboardingTripleTiers");
+  const heading = el("onboardingTierHeading");
+  if (combinedPanel) combinedPanel.classList.toggle("hidden", isTriple);
+  if (triplePanel) {
+    triplePanel.classList.toggle("hidden", !isTriple);
+    triplePanel.style.display = isTriple ? "flex" : "none";
+  }
+  if (heading) {
+    heading.textContent = isTriple
+      ? "Choose your tier for each science subject"
+      : "Which exam tier are you studying?";
+  }
+}
+
+function syncSettingsTierPanels() {
+  const isTriple = settingsSciencePath === "triple";
+  const combinedPanel = el("settingsCombinedTier");
+  const triplePanel = el("settingsTripleTiers");
+  const hint = el("settingsTierHint");
+  if (combinedPanel) combinedPanel.classList.toggle("hidden", isTriple);
+  if (triplePanel) {
+    triplePanel.classList.toggle("hidden", !isTriple);
+    triplePanel.style.display = isTriple ? "flex" : "none";
+  }
+  if (hint) {
+    hint.textContent = isTriple
+      ? "Choose Foundation (FT) or Higher (HT) for each subject."
+      : "Foundation (FT) or Higher (HT) — filters question difficulty.";
+  }
+}
+
+function wireOnboardingPathButtons() {
+  document.querySelectorAll(".onboarding-path-btn").forEach((btn) => {
+    btn.classList.toggle("selected", btn.dataset.path === onboardingState.science_path);
+    btn.onclick = () => {
+      onboardingState.science_path = btn.dataset.path === "triple" ? "triple" : "combined";
+      document.querySelectorAll(".onboarding-path-btn").forEach((b) => {
+        b.classList.toggle("selected", b.dataset.path === onboardingState.science_path);
+      });
+      syncOnboardingTierPanels();
+    };
+  });
+}
+
+function wireOnboardingCombinedTierButtons() {
+  document.querySelectorAll(".onboarding-combined-tier-btn").forEach((btn) => {
+    btn.classList.toggle("selected", btn.dataset.tier === onboardingState.preferred_tier);
+    btn.onclick = () => {
+      onboardingState.preferred_tier = btn.dataset.tier;
+      document.querySelectorAll(".onboarding-combined-tier-btn").forEach((b) => {
+        b.classList.toggle("selected", b.dataset.tier === onboardingState.preferred_tier);
+      });
+    };
+  });
+}
+
+function wireOnboardingSubjectTierButtons() {
+  document.querySelectorAll(".onboarding-subject-tier-btn").forEach((btn) => {
+    const subject = btn.dataset.subject;
+    btn.classList.toggle("selected", onboardingState.subject_tiers[subject] === btn.dataset.tier);
+    btn.onclick = () => {
+      onboardingState.subject_tiers[subject] = btn.dataset.tier;
+      document.querySelectorAll(`.onboarding-subject-tier-btn[data-subject="${subject}"]`).forEach((b) => {
+        b.classList.toggle("selected", b.dataset.tier === onboardingState.subject_tiers[subject]);
+      });
+    };
+  });
+}
+
+function wireSettingsPathButtons() {
+  document.querySelectorAll(".settings-path-btn").forEach((btn) => {
+    btn.classList.toggle("selected", btn.dataset.path === settingsSciencePath);
+    btn.onclick = () => {
+      settingsSciencePath = btn.dataset.path === "triple" ? "triple" : "combined";
+      document.querySelectorAll(".settings-path-btn").forEach((b) => {
+        b.classList.toggle("selected", b.dataset.path === settingsSciencePath);
+      });
+      syncSettingsTierPanels();
+    };
+  });
+}
+
+function wireSettingsSubjectTierButtons() {
+  document.querySelectorAll(".settings-subject-tier-btn").forEach((btn) => {
+    const subject = btn.dataset.subject;
+    btn.classList.toggle("selected", settingsSubjectTiers[subject] === btn.dataset.tier);
+    btn.onclick = () => {
+      settingsSubjectTiers[subject] = btn.dataset.tier;
+      document.querySelectorAll(`.settings-subject-tier-btn[data-subject="${subject}"]`).forEach((b) => {
+        b.classList.toggle("selected", b.dataset.tier === settingsSubjectTiers[subject]);
+      });
+    };
+  });
+}
+
+function buildOnboardingSummaryHtml() {
+  const pathLabel =
+    onboardingState.science_path === "triple" ? "Triple Science" : "Combined Science (Trilogy)";
+  let tierLine;
+  if (onboardingState.science_path === "triple") {
+    tierLine = ONBOARDING_SUBJECTS.map((s) => {
+      const label = s.charAt(0).toUpperCase() + s.slice(1);
+      return `${label} ${onboardingState.subject_tiers[s] || "FT"}`;
+    }).join(" · ");
+  } else {
+    tierLine = onboardingState.preferred_tier === "HT" ? "Higher Tier" : "Foundation Tier";
+  }
+  const prefOrder = [...ONBOARDING_SUBJECTS]
+    .sort((a, b) => onboardingState.subject_preference[a] - onboardingState.subject_preference[b])
+    .map((s) => s.charAt(0).toUpperCase() + s.slice(1))
+    .join(" → ");
+  const diffOrder = [...ONBOARDING_SUBJECTS]
+    .sort((a, b) => {
+      const order = { easiest: 0, medium: 1, hardest: 2 };
+      return (order[onboardingState.subject_difficulty[a]] ?? 1) -
+        (order[onboardingState.subject_difficulty[b]] ?? 1);
+    })
+    .map((s) => {
+      const label = s.charAt(0).toUpperCase() + s.slice(1);
+      const diff = onboardingState.subject_difficulty[s] || "medium";
+      return `${label} (${diff})`;
+    })
+    .join(" → ");
+  const classLine = onboardingState.joined_class_name
+    ? `Class: ${onboardingState.joined_class_name}`
+    : "Class: none (individual)";
+  return `
+    <div><strong>Course:</strong> ${pathLabel}</div>
+    <div><strong>Tier:</strong> ${tierLine}</div>
+    <div><strong>Study order:</strong> ${prefOrder}</div>
+    <div><strong>Difficulty ranking:</strong> ${diffOrder}</div>
+    <p class="muted" style="margin-top: 10px; font-size: 0.85rem;">Starter topics use <em>both</em>: subjects earlier in study order are scheduled first; your hardest subject gets more initial topics.</p>
+    <div><strong>${classLine}</strong></div>
+    <p class="muted onboarding-xp-note" style="margin-top: 12px; font-size: 0.85rem; line-height: 1.45;">⭐ <strong>XP:</strong> ${XP_RULES_FOOTNOTE}</p>
+  `;
+}
 
 const ONBOARDING_SUBJECTS = ["biology", "chemistry", "physics"];
-const ONBOARDING_STEP_COUNT = 5;
+const ONBOARDING_STEP_COUNT = 6;
 let onboardingStep = 1;
 const onboardingState = {
+  science_path: "combined",
   preferred_tier: "FT",
+  subject_tiers: { biology: "FT", chemistry: "FT", physics: "FT" },
   subject_preference: { biology: 1, chemistry: 2, physics: 3 },
   subject_difficulty: { biology: "easiest", chemistry: "medium", physics: "hardest" },
   class_code: "",
   joined_class_name: null
 };
 
+function updateSciencePathChip() {
+  const chip = el("sciencePathChip");
+  if (!chip || !currentUserProfile) return;
+  chip.textContent = formatSciencePathLabel(currentUserProfile);
+  chip.classList.remove("hidden");
+}
+
 function getSelectedFilters() {
   const subject = subjectFilter?.value || "biology";
   const paper = paperFilter?.value || "paper1";
   const topic = topicFilter?.value || "";
   const qType = el("typeFilter")?.value || "";
-  const tier = el("tierFilter")?.value || "FT";
+  const tier = currentUserProfile
+    ? getTierForSubject(currentUserProfile, subject)
+    : normalizeTier(localStorage.getItem("preferred_tier") || "FT");
   return { subject, paper, topic, qType, tier };
 }
 
@@ -530,6 +695,7 @@ async function loadDashboard(user = currentUser) {
     }
     await refreshPlanState();
     updateXpDisplay(currentUserProfile?.total_xp ?? 0);
+    updateSciencePathChip();
     scheduleResult = await ensureScheduleReady(userId, currentUserProfile);
   } catch (seedErr) {
     const seedMsg =
@@ -548,7 +714,9 @@ async function loadDashboard(user = currentUser) {
   let allSpecs = [];
 
   try {
-    allSpecs = await dbClient.fetchAllSpecificationPoints();
+    allSpecs = await dbClient.fetchAllSpecificationPoints(
+      courseTrackForProfile(currentUserProfile)
+    );
     cachedDueItems = due;
     cachedActiveSRS = activeSRS;
     console.log("DEBUG loadDashboard:", due.length, "due,", activeSRS.length, "SRS rows");
@@ -619,7 +787,7 @@ function flashcardFilterLabel({ subject, paper, topic }) {
   return `${subjectLabel} · ${paperLabel}${topicPart}`;
 }
 
-function compileFlashcardDeck(attempts, { subject, paper, topic }) {
+function compileFlashcardDeck(attempts, { subject, paper, topic }, profile = null) {
   const qualified = [];
   const subjectNorm = subject.toLowerCase().trim();
 
@@ -629,7 +797,7 @@ function compileFlashcardDeck(attempts, { subject, paper, topic }) {
     const q = att.questions;
     if (!q) continue;
     if (q.question_type === "extended_response") continue;
-    const spec = q.spec_points;
+    const spec = resolveQuestionSpecMeta(q, profile);
     if (!spec) continue;
     if (spec.subject?.toString().toLowerCase().trim() !== subjectNorm) continue;
     if (spec.paper !== paper) continue;
@@ -667,7 +835,7 @@ async function loadRevisionCards() {
   try {
     const filters = getSelectedFilters();
     const attempts = await fetchConceptGapAttempts(currentUser.id);
-    const failedAttempts = compileFlashcardDeck(attempts, filters);
+    const failedAttempts = compileFlashcardDeck(attempts, filters, currentUserProfile);
     const filterLabel = flashcardFilterLabel(filters);
 
     if (failedAttempts.length === 0) {
@@ -698,7 +866,7 @@ async function loadRevisionCards() {
     // Map attempts to interactive HTML cards
     container.innerHTML = failedAttempts.map((att, idx) => {
       const q = att.questions || {};
-      const spec = q.spec_points || {};
+      const spec = resolveQuestionSpecMeta(q, currentUserProfile) || {};
       const topicName = spec.topic_name || "Science Topic";
       const ref = spec.spec_ref || "AQA Ref";
       
@@ -799,7 +967,7 @@ async function downloadStudyGuideText(attempts) {
   // ====== STEP 2: COMPILE THE DYNAMIC GAP LOG BLOCKS ======
   attempts.forEach((att, i) => {
     const q = att.questions || {};
-    const spec = q.spec_points || {};
+    const spec = resolveQuestionSpecMeta(q, currentUserProfile) || {};
     const topicName = spec.topic_name || 'Science Topic';
     const ref = spec.spec_ref || 'AQA Ref';
 
@@ -856,7 +1024,8 @@ async function downloadStudyGuideText(attempts) {
 // ====== PRACTICE SESSION ENGINE ======
 async function resolveScheduledSpecPoint(dueItems, { excludeSpecPointId } = {}) {
   const { tier } = getSelectedFilters();
-  const targetTiers = targetTiersForTier(tier);
+  const fallbackTiers = targetTiersForTier(tier);
+  const track = courseTrackForProfile(currentUserProfile);
 
   const candidates = (dueItems || []).filter(d =>
     !excludeSpecPointId || d.spec_point_id !== excludeSpecPointId
@@ -865,13 +1034,13 @@ async function resolveScheduledSpecPoint(dueItems, { excludeSpecPointId } = {}) 
   if (candidates.length === 0) return { noDue: true };
 
   const dueSpecIds = candidates.map(d => d.spec_point_id);
+  const orFilter = buildSpecPointQuestionsOrFilter(dueSpecIds);
   let matchingQs = [];
   try {
-    const qQuery = supabaseClient
+    let qQuery = supabaseClient
       .from("questions")
-      .select("spec_point_id")
-      .in("spec_point_id", dueSpecIds)
-      .in("tier", targetTiers);
+      .select("spec_point_id, triple_spec_point_id, audience, tier");
+    if (orFilter) qQuery = qQuery.or(orFilter);
 
     const result = await Promise.race([qQuery, timeoutPromise(4000, "Questions resolution query timed out")]);
     if (result.error) throw result.error;
@@ -881,9 +1050,17 @@ async function resolveScheduledSpecPoint(dueItems, { excludeSpecPointId } = {}) 
     throw err;
   }
 
-  const idsWithQuestions = new Set(matchingQs.map(q => q.spec_point_id));
   for (const item of candidates) {
-    if (idsWithQuestions.has(item.spec_point_id)) {
+    const subject = item.spec_points?.subject;
+    const targetTiers = currentUserProfile && subject
+      ? targetTiersForProfile(currentUserProfile, subject)
+      : fallbackTiers;
+    const hasQuestion = matchingQs.some(
+      (q) =>
+        questionLinksToSpecPoint(q, item.spec_point_id, track) &&
+        targetTiers.includes(q.tier)
+    );
+    if (hasQuestion) {
       return { specPointId: item.spec_point_id, specMeta: item.spec_points };
     }
   }
@@ -1094,7 +1271,8 @@ const engineContext = {
   updateSRS: (data) => updateSRS(data), // 🌟 Pass down the SRS math algorithm
   addDaysISO: (date, days) => addDaysISO(date, days), // 🌟 Pass down date utility
   todayISO: () => todayISO(), // 🌟 Pass down current date generator
-  getSelectedFilters: () => getSelectedFilters(), // assuming these functions exist in scope
+  getSelectedFilters: () => getSelectedFilters(),
+  getUserProfile: () => currentUserProfile,
   timeoutPromise: (ms, msg) => timeoutPromise(ms, msg),
   showToastBanner: (msg, isErr) => showToastBanner(msg, isErr),
   shuffleArray: (arr) => shuffleArray(arr),
@@ -1891,7 +2069,7 @@ async function loadQuestion() {
   if (btnNext) btnNext.classList.add("hidden");
 
   if (sessionContext) {
-    sessionContext.innerHTML = renderSessionContext(currentQ?.spec_points);
+    sessionContext.innerHTML = renderSessionContext(resolveQuestionSpecMeta(currentQ, currentUserProfile));
     sessionContext.classList.remove("hidden");
   }
   
@@ -2244,9 +2422,25 @@ function hideSettingsClassDetails() {
 function loadSettingsPanel() {
   if (!currentUserProfile) return;
 
+  settingsSciencePath = getSciencePath(currentUserProfile);
   settingsTier = normalizeTier(currentUserProfile.preferred_tier || "FT");
+  settingsSubjectTiers = getSubjectTiers(currentUserProfile);
+
+  wireSettingsPathButtons();
+  syncSettingsTierPanels();
+
   document.querySelectorAll(".settings-tier-btn").forEach((btn) => {
     btn.classList.toggle("selected", btn.dataset.tier === settingsTier);
+  });
+  wireSettingsSubjectTierButtons();
+
+  document.querySelectorAll(".settings-tier-btn").forEach((btn) => {
+    btn.onclick = () => {
+      settingsTier = btn.dataset.tier;
+      document.querySelectorAll(".settings-tier-btn").forEach((b) => {
+        b.classList.toggle("selected", b.dataset.tier === settingsTier);
+      });
+    };
   });
 
   const displayNameInput = el("settingsDisplayNameInput");
@@ -2292,6 +2486,9 @@ async function refreshSettingsClassName(classId) {
 }
 
 function wireSettingsControls() {
+  wireSettingsPathButtons();
+  wireSettingsSubjectTierButtons();
+
   document.querySelectorAll(".settings-tier-btn").forEach((btn) => {
     btn.onclick = () => {
       settingsTier = btn.dataset.tier;
@@ -2369,26 +2566,53 @@ function wireSettingsControls() {
       : currentUserProfile?.subject_difficulty;
     const display_name = (el("settingsDisplayNameInput")?.value || "").trim();
 
+    const previousPath = getSciencePath(currentUserProfile);
     const msgEl = el("settingsSaveMsg");
     btnSave.disabled = true;
     btnSave.textContent = "Saving…";
     if (msgEl) msgEl.classList.add("hidden");
 
     try {
+      if (
+        settingsSciencePath !== previousPath &&
+        !window.confirm(
+          "Your practice schedule will be adjusted to match your new science course. Continue?"
+        )
+      ) {
+        return;
+      }
+
       await saveUserProfileSettings(currentUser.id, {
         preferred_tier: settingsTier,
+        science_path: settingsSciencePath,
+        subject_tiers: settingsSubjectTiers,
         subject_preference,
         subject_difficulty,
         display_name
       });
 
-      const tier = normalizeTier(settingsTier);
+      if (settingsSciencePath !== previousPath) {
+        try {
+          await migrateSrsForSciencePathChange(currentUser.id, settingsSciencePath);
+        } catch (migrateErr) {
+          console.warn("SRS migration skipped:", migrateErr);
+        }
+      }
+
+      const tier = normalizeTier(
+        settingsSciencePath === "triple"
+          ? settingsSubjectTiers.physics || settingsTier
+          : settingsTier
+      );
       localStorage.setItem("preferred_tier", tier);
-      const tierSelect = el("tierFilter");
-      if (tierSelect) tierSelect.value = tier;
 
       currentUserProfile = await fetchUserProfile(currentUser.id);
+      updateSciencePathChip();
       await loadDashboard();
+      await loadTopics();
+      loadRevisionCards();
+      updateTierBoundaryBadge();
+      syncExamPrepModeOptions();
       closeSettings(tabBeforeSettings);
 
       showToastBanner("Study preferences updated.");
@@ -2448,45 +2672,18 @@ function updateOnboardingStepUI() {
   if (btnBack) btnBack.classList.toggle("hidden", onboardingStep <= 1);
   if (btnNext) btnNext.classList.toggle("hidden", onboardingStep >= ONBOARDING_STEP_COUNT);
   if (btnFinish) btnFinish.classList.toggle("hidden", onboardingStep !== ONBOARDING_STEP_COUNT);
-  if (btnSkip) btnSkip.classList.toggle("hidden", onboardingStep !== 4);
+  if (btnSkip) btnSkip.classList.toggle("hidden", onboardingStep !== 5);
 
-  if (onboardingStep === 5) {
+  syncOnboardingTierPanels();
+
+  if (onboardingStep === 6) {
     const prefList = el("preferenceRankList");
     const diffList = el("difficultyRankList");
     if (prefList) onboardingState.subject_preference = buildRankMapsFromList(prefList, "preference");
     if (diffList) onboardingState.subject_difficulty = buildRankMapsFromList(diffList, "difficulty");
 
     const summary = el("onboardingSummary");
-    if (summary) {
-      const tierLabel = onboardingState.preferred_tier === "HT" ? "Higher Tier" : "Foundation Tier";
-      const prefOrder = [...ONBOARDING_SUBJECTS]
-        .sort((a, b) => onboardingState.subject_preference[a] - onboardingState.subject_preference[b])
-        .map((s) => s.charAt(0).toUpperCase() + s.slice(1))
-        .join(" → ");
-      const diffOrder = [...ONBOARDING_SUBJECTS]
-        .sort((a, b) => {
-          const order = { easiest: 0, medium: 1, hardest: 2 };
-          return (order[onboardingState.subject_difficulty[a]] ?? 1) -
-            (order[onboardingState.subject_difficulty[b]] ?? 1);
-        })
-        .map((s) => {
-          const label = s.charAt(0).toUpperCase() + s.slice(1);
-          const diff = onboardingState.subject_difficulty[s] || "medium";
-          return `${label} (${diff})`;
-        })
-        .join(" → ");
-      const classLine = onboardingState.joined_class_name
-        ? `Class: ${onboardingState.joined_class_name}`
-        : "Class: none (individual)";
-      summary.innerHTML = `
-        <div><strong>Tier:</strong> ${tierLabel}</div>
-        <div><strong>Study order (step 2 — preference):</strong> ${prefOrder}</div>
-        <div><strong>Difficulty ranking (step 3):</strong> ${diffOrder}</div>
-        <p class="muted" style="margin-top: 10px; font-size: 0.85rem;">Starter topics use <em>both</em>: subjects earlier in study order are scheduled first; your hardest subject gets more initial topics.</p>
-        <div><strong>${classLine}</strong></div>
-        <p class="muted onboarding-xp-note" style="margin-top: 12px; font-size: 0.85rem; line-height: 1.45;">⭐ <strong>XP:</strong> ${XP_RULES_FOOTNOTE}</p>
-      `;
-    }
+    if (summary) summary.innerHTML = buildOnboardingSummaryHtml();
   }
 }
 
@@ -2502,15 +2699,10 @@ function showOnboardingUI() {
   renderRankList(el("preferenceRankList"), [...ONBOARDING_SUBJECTS], "preference");
   renderRankList(el("difficultyRankList"), [...ONBOARDING_SUBJECTS], "difficulty");
 
-  document.querySelectorAll(".onboarding-tier-btn").forEach((btn) => {
-    btn.classList.toggle("selected", btn.dataset.tier === onboardingState.preferred_tier);
-    btn.onclick = () => {
-      onboardingState.preferred_tier = btn.dataset.tier;
-      document.querySelectorAll(".onboarding-tier-btn").forEach((b) => {
-        b.classList.toggle("selected", b.dataset.tier === onboardingState.preferred_tier);
-      });
-    };
-  });
+  wireOnboardingPathButtons();
+  wireOnboardingCombinedTierButtons();
+  wireOnboardingSubjectTierButtons();
+  syncOnboardingTierPanels();
 
   updateOnboardingStepUI();
 }
@@ -2536,17 +2728,23 @@ async function finishOnboarding() {
 
     await saveOnboardingProfile(currentUser.id, {
       preferred_tier: onboardingState.preferred_tier,
+      science_path: onboardingState.science_path,
+      subject_tiers: onboardingState.subject_tiers,
       subject_preference: onboardingState.subject_preference,
       subject_difficulty: onboardingState.subject_difficulty
     });
 
-    const tier = normalizeTier(onboardingState.preferred_tier);
+    const tier = normalizeTier(
+      onboardingState.science_path === "triple"
+        ? onboardingState.subject_tiers.physics || onboardingState.preferred_tier
+        : onboardingState.preferred_tier
+    );
     localStorage.setItem("preferred_tier", tier);
-    const tierSelect = el("tierFilter");
-    if (tierSelect) tierSelect.value = tier;
 
     const profileForSeed = {
+      science_path: onboardingState.science_path,
       preferred_tier: normalizeTier(onboardingState.preferred_tier),
+      subject_tiers: onboardingState.subject_tiers,
       subject_preference: onboardingState.subject_preference,
       subject_difficulty: onboardingState.subject_difficulty
     };
@@ -2572,7 +2770,7 @@ function wireOnboardingControls() {
 
   if (btnNext) {
     btnNext.onclick = async () => {
-      if (onboardingStep === 4) {
+      if (onboardingStep === 5) {
         const code = (el("classCodeInput")?.value || "").trim();
         const msgEl = el("classCodeMsg");
         if (code) {
@@ -2615,7 +2813,7 @@ function wireOnboardingControls() {
 
   if (btnSkip) {
     btnSkip.onclick = () => {
-      onboardingStep = 5;
+      onboardingStep = 6;
       updateOnboardingStepUI();
     };
   }
@@ -2668,33 +2866,6 @@ async function handleSignedInUser(user) {
   await setSignedInUI(user);
 }
 
-function wireTierFilterHandler() {
-  const runtimeTierSelect = el("tierFilter");
-  if (!runtimeTierSelect || runtimeTierSelect.dataset.wired === "1") return;
-  runtimeTierSelect.dataset.wired = "1";
-  runtimeTierSelect.onchange = async () => {
-    const newSelectedTier = runtimeTierSelect.value;
-    localStorage.setItem("preferred_tier", newSelectedTier);
-
-    if (!currentUser) return;
-
-    try {
-      const { error: updateError } = await supabaseClient
-        .from("profiles")
-        .update({ preferred_tier: newSelectedTier })
-        .eq("user_id", currentUser.id);
-
-      if (updateError) throw updateError;
-    } catch (saveErr) {
-      console.error("DEBUG DB ERROR: Could not commit preferred_tier:", saveErr);
-    }
-
-    updateTierBoundaryBadge();
-    syncExamPrepModeOptions();
-    await loadTopics();
-  };
-}
-
 async function applyAuthSession(session, event = "") {
   if (session?.user) {
     stashAuthSession(session);
@@ -2724,7 +2895,6 @@ async function applyAuthSession(session, event = "") {
     currentUser = session.user;
     try {
       await handleSignedInUser(session.user);
-      wireTierFilterHandler();
     } catch (pipelineError) {
       console.error("DEBUG CRITICAL: Initialization pipeline failed:", pipelineError);
       showToastBanner("Pipeline Error: " + pipelineError.message, true);
@@ -2790,32 +2960,6 @@ async function syncUserTierAndLoadTopics(user) {
   } catch (err) {
     console.warn("Adaptive practice state load skipped:", err);
   }
-
-  try {
-    const dbQuery = supabaseClient
-      .from("profiles")
-      .select("preferred_tier")
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    const result = await Promise.race([dbQuery, timeoutPromise(3000, "Background sync timed out")]);
-    
-    if (result && result.data && result.data.preferred_tier) {
-      let mappedTier = result.data.preferred_tier;
-      if (mappedTier === "foundation") mappedTier = "FT";
-      if (mappedTier === "higher") mappedTier = "HT";
-
-      const runtimeTierSelect = el("tierFilter");
-      if (runtimeTierSelect && runtimeTierSelect.value !== mappedTier) {
-        runtimeTierSelect.value = mappedTier;
-        localStorage.setItem("preferred_tier", mappedTier);
-        console.log("DEBUG: Remote DB tier differs from cached tier. Local storage synchronized:", mappedTier);
-        await loadTopics();
-      }
-    }
-  } catch (err) {
-    console.warn("Silent preference sync skipped secure context:", err.message || err);
-  }
 }
 
 function showSignedInLayout() {
@@ -2826,13 +2970,6 @@ function showSignedInLayout() {
   if (currentUser) {
     updateUserChipDisplay();
     if (authMsg) authMsg.classList.add("hidden");
-  }
-
-  const runtimeTierSelect = el("tierFilter");
-  if (runtimeTierSelect) {
-    const cachedTier = localStorage.getItem("preferred_tier") || "FT";
-    runtimeTierSelect.value = cachedTier;
-    console.log("DEBUG: Rendered tier dropdown instantly via cache:", cachedTier);
   }
 
   try {
@@ -2893,23 +3030,36 @@ async function loadTopics() {
     return;
   }
 
-  const subject = subjectFilter.value;
-  const paper = paperFilter.value;
-  const topic = topicFilter.value; 
-  const qType = el("typeFilter")?.value || "";
-  const { tier } = getSelectedFilters(); 
-  const targetTiers = tier === "HT" ? ["HT", "both"] : ["FT", "both"];
+  const { subject, paper, topic, qType, tier } = getSelectedFilters();
+  const targetTiers = currentUserProfile
+    ? targetTiersForProfile(currentUserProfile, subject)
+    : tier === "HT" ? ["HT", "both"] : ["FT", "both"];
+  const courseTrack = courseTrackForProfile(currentUserProfile);
 
   console.log(`DEBUG loadTopics: Launching parallel concurrent database query batch...`);
 
   let rows, questions, rawDue, attempts, markPoints;
   try {
-    const pipeline = await fetchSyllabusPipelineData(currentUser?.id, subject, paper, targetTiers, qType);
+    const pipeline = await fetchSyllabusPipelineData(
+      currentUser?.id,
+      subject,
+      paper,
+      targetTiers,
+      qType,
+      courseTrack
+    );
     rows = pipeline.rows;
     questions = pipeline.questions;
     rawDue = pipeline.rawDue;
     attempts = pipeline.attempts;
     markPoints = pipeline.markPoints;
+
+    const track = courseTrackForProfile(currentUserProfile);
+    questions = (questions || []).filter((q) => {
+      const aud = q.audience || "both";
+      if (track === "combined") return aud === "both";
+      return aud === "both" || aud === "triple_only";
+    });
   } catch (err) {
     console.error("Pipeline failure fetching synchronized syllabus statistics:", err);
     return;
@@ -2930,7 +3080,10 @@ async function loadTopics() {
 
   let totalMatchingQuestions = 0;
   (questions || []).forEach(q => {
-    const matchedTopic = specToTopicMap[q.spec_point_id];
+    let matchedTopic = specToTopicMap[q.spec_point_id];
+    if (matchedTopic === undefined && courseTrack === "triple") {
+      matchedTopic = specToTopicMap[q.triple_spec_point_id];
+    }
     if (matchedTopic !== undefined) {
       topicCounts[matchedTopic] = (topicCounts[matchedTopic] || 0) + 1;
       totalMatchingQuestions++;

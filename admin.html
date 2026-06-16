@@ -497,6 +497,29 @@
                 <option value="foundation">Foundation (Trilogy Level 1-5)</option>
               </select>
             </div>
+            <div class="field-fit">
+              <label>Course track:</label>
+              <select id="courseTrackSelect" class="select-fit">
+                <option value="combined">Combined (Trilogy 8464)</option>
+                <option value="triple">Triple (8461/62/63)</option>
+              </select>
+            </div>
+            <div class="field-fit">
+              <label>Question audience:</label>
+              <select id="audienceSelect" class="select-fit">
+                <option value="both">Both combined &amp; triple</option>
+                <option value="triple_only">Triple only</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="row row-compact hidden" id="tripleSpecLinkRow">
+            <div class="field-fit" style="min-width: min(100%, 420px); flex: 1 1 320px;">
+              <label>Linked triple spec point (for &quot;Both&quot; audience):</label>
+              <select id="tripleSpecPointSelect" style="width: 100%; max-width: 100%;">
+                <option value="">— Optional: select triple equivalent —</option>
+              </select>
+            </div>
           </div>
 
           <div class="row row-compact">
@@ -595,6 +618,14 @@
             <div class="flag-row">
               <label><input type="checkbox" id="chkMathsSkill" /> Maths skill question</label>
               <label><input type="checkbox" id="chkRequiredPractical" /> Required practical</label>
+            </div>
+            <div id="requiredPracticalRow" class="row row-compact hidden">
+              <div class="field-fit" style="min-width: min(100%, 360px);">
+                <label for="requiredPracticalSelect">Which required practical?</label>
+                <select id="requiredPracticalSelect" class="select-fit" style="width: 100%; max-width: 100%;">
+                  <option value="">Select practical…</option>
+                </select>
+              </div>
             </div>
             <div id="metadataWarnings" class="metadata-warnings hidden"></div>
           </div>
@@ -1031,6 +1062,14 @@
             <label><input type="checkbox" id="editChkMathsSkill" /> Maths skill</label>
             <label><input type="checkbox" id="editChkRequiredPractical" /> Required practical</label>
           </div>
+          <div id="editRequiredPracticalRow" class="row row-compact hidden">
+            <div class="field-fit" style="min-width: min(100%, 360px);">
+              <label for="editRequiredPracticalSelect">Which required practical?</label>
+              <select id="editRequiredPracticalSelect" class="select-fit" style="width: 100%; max-width: 100%;">
+                <option value="">Select practical…</option>
+              </select>
+            </div>
+          </div>
         </div>
 
         <!-- Section 2 Keywords Edit Panel -->
@@ -1415,6 +1454,7 @@
 
     showAdminToast("Developer session validated.");
     loadSyllabusReferenceSelects();
+    void loadRequiredPracticalCatalog();
   }
 
   // Switch Panel Tabs
@@ -1432,9 +1472,89 @@
   };
 
   // ====== SYLLABUS LOADER ======
+  let cachedRequiredPracticals = [];
+
+  async function loadRequiredPracticalCatalog() {
+    try {
+      const { data, error } = await supabaseClient
+        .from("required_practicals")
+        .select("id, subject, course_track, code, title, sort_order")
+        .order("sort_order", { ascending: true });
+      if (error) throw error;
+      cachedRequiredPracticals = data || [];
+    } catch (err) {
+      console.warn("required_practicals load failed:", err);
+      cachedRequiredPracticals = [];
+    }
+  }
+
+  function getAuthoringCourseTrack() {
+    return document.getElementById("courseTrackSelect")?.value || "combined";
+  }
+
+  function fillRequiredPracticalSelect(selectEl, subject, courseTrack, selectedId = "") {
+    if (!selectEl) return;
+    const tracks = courseTrack === "triple" ? ["triple", "both"] : ["combined", "both"];
+    const rows = cachedRequiredPracticals.filter(
+      (r) => r.subject === subject && tracks.includes(r.course_track)
+    );
+    selectEl.innerHTML =
+      `<option value="">Select practical…</option>` +
+      rows.map((r) =>
+        `<option value="${r.id}"${r.id === selectedId ? " selected" : ""}>${r.code} — ${r.title}</option>`
+      ).join("");
+  }
+
+  function syncRequiredPracticalRow(mode = "creator") {
+    const isCreator = mode === "creator";
+    const checked = document.getElementById(isCreator ? "chkRequiredPractical" : "editChkRequiredPractical")?.checked;
+    const row = document.getElementById(isCreator ? "requiredPracticalRow" : "editRequiredPracticalRow");
+    const select = document.getElementById(isCreator ? "requiredPracticalSelect" : "editRequiredPracticalSelect");
+    if (row) row.classList.toggle("hidden", !checked);
+    if (checked && select) {
+      const subject = isCreator
+        ? document.getElementById("subjectSelect")?.value
+        : document.getElementById("editEqSheetSubject")?.value || document.getElementById("auditSubject")?.value;
+      fillRequiredPracticalSelect(select, subject, getAuthoringCourseTrack());
+    }
+  }
+
+  function syncAudienceUi() {
+    const audience = document.getElementById("audienceSelect")?.value || "both";
+    const track = getAuthoringCourseTrack();
+    const row = document.getElementById("tripleSpecLinkRow");
+    if (row) row.classList.toggle("hidden", audience !== "both" || track !== "combined");
+  }
+
+  async function loadTripleSpecPointSelect() {
+    const subject = document.getElementById("subjectSelect")?.value;
+    const paper = document.getElementById("paperSelect")?.value;
+    const selector = document.getElementById("tripleSpecPointSelect");
+    if (!selector) return;
+    selector.innerHTML = "<option value=\"\">Loading triple references…</option>";
+    try {
+      const { data, error } = await supabaseClient
+        .from("spec_points")
+        .select("id, spec_ref, topic_name, spec_text")
+        .eq("subject", subject)
+        .eq("paper", paper)
+        .eq("course_track", "triple")
+        .order("spec_ref", { ascending: true });
+      if (error) throw error;
+      selector.innerHTML =
+        `<option value="">— Optional: select triple equivalent —</option>` +
+        (data || []).map((row) =>
+          `<option value="${row.id}">${row.spec_ref} - [${row.topic_name}] ${row.spec_text.slice(0, 75)}...</option>`
+        ).join("");
+    } catch (err) {
+      selector.innerHTML = "<option>Error loading triple spec points</option>";
+    }
+  }
+
   async function loadSyllabusReferenceSelects() {
     const subject = document.getElementById("subjectSelect").value;
     const paper = document.getElementById("paperSelect").value;
+    const courseTrack = getAuthoringCourseTrack();
     const selector = document.getElementById("specPointSelect");
     
     selector.innerHTML = "<option>Loading references...</option>";
@@ -1445,6 +1565,7 @@
         .select("id, spec_ref, topic_name, spec_text")
         .eq("subject", subject)
         .eq("paper", paper)
+        .eq("course_track", courseTrack)
         .order("spec_ref", { ascending: true });
         
       if (error) throw error;
@@ -1457,12 +1578,21 @@
       console.error(err);
       selector.innerHTML = "<option>Error loading syllabus data.</option>";
     }
+
+    syncAudienceUi();
+    await loadTripleSpecPointSelect();
+    fillRequiredPracticalSelect(
+      document.getElementById("requiredPracticalSelect"),
+      subject,
+      courseTrack
+    );
   }
 
   async function refreshCreatorEquationSheetDropdown({ autoLink = true } = {}) {
     const subject = document.getElementById("subjectSelect")?.value || "physics";
+    const courseTrack = getAuthoringCourseTrack();
     const current = document.getElementById("CalcEquationSheet")?.value || "";
-    const sheets = await CalcWorkflow.loadEquationSheetCatalog(supabaseClient, subject);
+    const sheets = await CalcWorkflow.loadEquationSheetCatalog(supabaseClient, subject, courseTrack);
     CalcWorkflow.fillEquationSheetSelect(document.getElementById("CalcEquationSheet"), sheets, current);
     if (autoLink) CalcWorkflow.applyAutoEquationSheet("");
     await onCalcWorkflowChange("");
@@ -1486,6 +1616,10 @@
   document.getElementById("subjectSelect").onchange = onAuthoringMetadataChange;
   document.getElementById("paperSelect").onchange = onAuthoringMetadataChange;
   document.getElementById("tierSelect").onchange = onAuthoringMetadataChange;
+  document.getElementById("courseTrackSelect")?.addEventListener("change", onAuthoringMetadataChange);
+  document.getElementById("audienceSelect")?.addEventListener("change", syncAudienceUi);
+  document.getElementById("chkRequiredPractical")?.addEventListener("change", () => syncRequiredPracticalRow("creator"));
+  document.getElementById("editChkRequiredPractical")?.addEventListener("change", () => syncRequiredPracticalRow("edit"));
 
   // ====== MCQ CHOOSE DROPDOWN LOADER ======
   const mcqCorrectSelect = document.getElementById("mcqCorrect");
@@ -1813,10 +1947,24 @@
       };
 
       if (window.AdminMetadata) {
-        const meta = window.AdminMetadata.validateCreatorMetadata().meta;
+        const validation = window.AdminMetadata.validateCreatorMetadata();
+        if (!validation.ok) {
+          alert(validation.error);
+          return;
+        }
+        const meta = validation.meta;
         window.AdminMetadata.applyMetadataToInsertPayload(insertPayload, meta, questionDraft);
       } else {
         insertPayload.difficulty = 2;
+      }
+
+      const audience = document.getElementById("audienceSelect")?.value || "both";
+      insertPayload.audience = audience;
+      const tripleSpecId = document.getElementById("tripleSpecPointSelect")?.value || null;
+      if (audience === "both" && getAuthoringCourseTrack() === "combined") {
+        insertPayload.triple_spec_point_id = tripleSpecId || null;
+      } else if (audience === "triple_only") {
+        insertPayload.triple_spec_point_id = null;
       }
       
       if (questionType === "numeric" && window.CalcWorkflow) {
@@ -2168,8 +2316,8 @@
         checkPointsCounterMap[mp.question_id] = (checkPointsCounterMap[mp.question_id] || 0) + 1;
       });
       
-      const selectWithMeta = "id, spec_point_id, question_type, prompt, options, tier, marking_method, max_marks, resource_links, hints, image_url, calculation_config, command_word, demand_level, ao1_marks, ao2_marks, ao3_marks, is_maths_skill, is_required_practical, difficulty, answer_keys(key_type, key_payload)";
-      const selectBasic = "id, spec_point_id, question_type, prompt, options, tier, marking_method, max_marks, resource_links, hints, image_url, calculation_config, difficulty, answer_keys(key_type, key_payload)";
+      const selectWithMeta = "id, spec_point_id, triple_spec_point_id, audience, question_type, prompt, options, tier, marking_method, max_marks, resource_links, hints, image_url, calculation_config, command_word, demand_level, ao1_marks, ao2_marks, ao3_marks, is_maths_skill, is_required_practical, required_practical_id, difficulty, required_practicals(code), answer_keys(key_type, key_payload)";
+      const selectBasic = "id, spec_point_id, triple_spec_point_id, audience, question_type, prompt, options, tier, marking_method, max_marks, resource_links, hints, image_url, calculation_config, difficulty, answer_keys(key_type, key_payload)";
 
       let query = supabaseClient
         .from("questions")
@@ -2290,7 +2438,9 @@
         const cmd = q.command_word || "—";
         const demand = window.AdminMetadata ? window.AdminMetadata.formatDemandLabel(q.demand_level) : (q.demand_level || "—");
         const aoSplit = window.AdminMetadata ? window.AdminMetadata.formatAoSplit(q) : "—";
-        const flags = `${q.is_maths_skill ? "M" : "·"}/${q.is_required_practical ? "RP" : "·"}`;
+        const rpCode = q.required_practicals?.code || (q.is_required_practical ? "RP" : "·");
+        const aud = q.audience === "triple_only" ? "T" : "B";
+        const flags = `${q.is_maths_skill ? "M" : "·"}/${rpCode}/${aud}`;
         const metaIncomplete = window.AdminMetadata && window.AdminMetadata.isMetadataIncomplete(q);
         const metaBadge = metaIncomplete
           ? `<span class="meta-badge">Gap</span>`
