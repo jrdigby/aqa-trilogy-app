@@ -12,8 +12,13 @@ import {
   questionLinksToSpecPoint
 } from "./sciencePath.js";
 
+const QUESTION_SKILLS_EMBED =
+  "question_skills(skill_id,skill_framework_items(id,framework,full_code,title,category))";
+
 const QUESTION_SELECT =
-  "id,question_type,prompt,options,spec_point_id,triple_spec_point_id,audience,tier,difficulty,demand_level,ao1_marks,ao2_marks,ao3_marks,is_maths_skill,is_required_practical,required_practical_id,resource_links,hints,marking_method,max_marks,image_url,calculation_config,spec_points!spec_point_id(subject,paper,topic_name,spec_ref,spec_text,course_track),triple_spec_point:spec_points!triple_spec_point_id(subject,paper,topic_name,spec_ref,spec_text,course_track)";
+  "id,question_type,prompt,options,spec_point_id,triple_spec_point_id,audience,tier,difficulty,demand_level,ao1_marks,ao2_marks,ao3_marks,is_maths_skill,is_required_practical,required_practical_id,resource_links,hints,marking_method,max_marks,image_url,calculation_config," +
+  QUESTION_SKILLS_EMBED +
+  ",spec_points!spec_point_id(subject,paper,topic_name,spec_ref,spec_text,course_track),triple_spec_point:spec_points!triple_spec_point_id(subject,paper,topic_name,spec_ref,spec_text,course_track)";
 
 const QUESTION_SELECT_FALLBACK =
   "id,question_type,prompt,options,spec_point_id,triple_spec_point_id,audience,tier,difficulty,resource_links,marking_method,max_marks,image_url,spec_points!spec_point_id(subject,paper,topic_name,spec_ref,spec_text,course_track),triple_spec_point:spec_points!triple_spec_point_id(subject,paper,topic_name,spec_ref,spec_text,course_track)";
@@ -265,6 +270,95 @@ export async function startSessionForSpecPoint(specPointId, qType = "", context)
   if (dashSection) dashSection.classList.add("hidden");
   if (sessionSection) sessionSection.classList.remove("hidden");
   await loadQuestion();
+}
+
+export async function startSkillPractice(context, { fullCode }) {
+  const { supabaseClient, getUserProfile, showToastBanner, timeoutPromise } = context;
+  const profile = getUserProfile?.() || null;
+  const courseTrack = courseTrackForProfile(profile);
+  const tierSet = new Set(["both"]);
+  if (profile) {
+    for (const sub of ["biology", "chemistry", "physics"]) {
+      targetTiersForProfile(profile, sub).forEach((t) => tierSet.add(t));
+    }
+  } else {
+    tierSet.add("FT");
+    tierSet.add("HT");
+  }
+  const targetTiers = [...tierSet];
+
+  let skillRow = null;
+  try {
+    const { data, error } = await supabaseClient
+      .from("skill_framework_items")
+      .select("id, full_code")
+      .eq("full_code", fullCode)
+      .maybeSingle();
+    if (error) throw error;
+    skillRow = data;
+  } catch (err) {
+    showToastBanner("Could not load skill catalog: " + err.message, true);
+    return;
+  }
+
+  if (!skillRow?.id) {
+    showToastBanner(`Skill ${fullCode} not found in catalog.`, true);
+    return;
+  }
+
+  let links = [];
+  try {
+    const { data, error } = await supabaseClient
+      .from("question_skills")
+      .select("question_id")
+      .eq("skill_id", skillRow.id);
+    if (error) throw error;
+    links = data || [];
+  } catch (err) {
+    showToastBanner("Could not load skill-tagged questions: " + err.message, true);
+    return;
+  }
+
+  const questionIds = links.map((l) => l.question_id).filter(Boolean);
+  if (!questionIds.length) {
+    showToastBanner(`No questions tagged with ${fullCode} yet.`, true);
+    return;
+  }
+
+  let rawQs = [];
+  try {
+    rawQs = await Promise.race([
+      fetchQuestionsWithFallback(supabaseClient, (selectCols) =>
+        supabaseClient.from("questions").select(selectCols).in("id", questionIds).in("tier", targetTiers)
+      ),
+      timeoutPromise(6000, "Skill practice pool timed out")
+    ]);
+  } catch (err) {
+    showToastBanner("Error loading skill practice pool: " + err.message, true);
+    return;
+  }
+
+  const activeQs = (rawQs || []).filter((q) => {
+    if (courseTrack === "triple") {
+      return q.audience === "both" || q.audience === "triple_only";
+    }
+    return q.audience !== "triple_only";
+  });
+
+  if (!activeQs.length) {
+    showToastBanner(`No ${fullCode} questions available for your tier and course.`, true);
+    return;
+  }
+
+  const adaptiveState = context.getAdaptivePracticeState?.() || { difficulty_offset: 0 };
+  const selected = adaptiveSelectQuestions(activeQs, {
+    count: Math.min(10, activeQs.length),
+    tier: profile?.preferred_tier === "HT" ? "HT" : "FT",
+    offset: adaptiveState.difficulty_offset || 0,
+    mode: "skill_practice"
+  });
+
+  await beginSession(context, selected, { mode: "skill_practice", skillCode: fullCode });
 }
 
 export async function upsertSRS(specPointId, quality, context) {

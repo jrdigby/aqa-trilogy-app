@@ -12,6 +12,7 @@ import {
 import { formatSciencePathLabel, courseTrackForProfile } from "./sciencePath.js";
 import { renderMasteryHeatmap } from "./uiComponents.js";
 import { addDaysISO, escapeHtml, todayISO } from "./utils.js";
+import { computeQuestionAOMaxCaps } from "./evalEngine.js";
 
 const el = (id) => document.getElementById(id);
 
@@ -352,24 +353,15 @@ async function computeAOMastery(userId) {
     fetchMarkPointsForQuestions(questionIds),
   ]);
 
-  const qMaxAOMap = {};
-  for (const q of questions) {
-    qMaxAOMap[q.id] = { AO1: 0, AO2: 0, AO3: 0 };
-    if (q.question_type === "mcq") qMaxAOMap[q.id].AO1 = 1;
-    else if (q.question_type === "numeric") qMaxAOMap[q.id].AO2 = 1;
-    else if (q.question_type === "extended_response") {
-      qMaxAOMap[q.id].AO1 = 2;
-      qMaxAOMap[q.id].AO2 = 2;
-      qMaxAOMap[q.id].AO3 = 2;
-    }
+  const markPointsByQuestion = {};
+  for (const mp of markPoints) {
+    if (!markPointsByQuestion[mp.question_id]) markPointsByQuestion[mp.question_id] = [];
+    markPointsByQuestion[mp.question_id].push(mp);
   }
 
-  for (const mp of markPoints) {
-    if (!qMaxAOMap[mp.question_id]) continue;
-    const aoKey = mp.ao;
-    if (qMaxAOMap[mp.question_id][aoKey] !== undefined) {
-      qMaxAOMap[mp.question_id][aoKey] += mp.max_marks || 1;
-    }
+  const qMaxAOMap = {};
+  for (const q of questions) {
+    qMaxAOMap[q.id] = computeQuestionAOMaxCaps(q, markPointsByQuestion[q.id] || []);
   }
 
   const aoStats = {
@@ -381,9 +373,9 @@ async function computeAOMastery(userId) {
   for (const att of attempts) {
     const caps = qMaxAOMap[att.question_id];
     if (!caps) continue;
-    aoStats.AO1.earned += att.ao1_score || 0;
-    aoStats.AO2.earned += att.ao2_score || 0;
-    aoStats.AO3.earned += att.ao3_score || 0;
+    aoStats.AO1.earned += Number(att.ao1_score) || 0;
+    aoStats.AO2.earned += Number(att.ao2_score) || 0;
+    aoStats.AO3.earned += Number(att.ao3_score) || 0;
     aoStats.AO1.max += caps.AO1;
     aoStats.AO2.max += caps.AO2;
     aoStats.AO3.max += caps.AO3;

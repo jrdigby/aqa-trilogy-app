@@ -1,4 +1,4 @@
-import { startAnyPractice, startExamPrep, startSessionForSpecPoint, previewExamPaper, upsertSRS as importUpsertSRS } from './sessionEngine.js';
+import { startAnyPractice, startExamPrep, startSessionForSpecPoint, startSkillPractice, previewExamPaper, upsertSRS as importUpsertSRS } from './sessionEngine.js';
 import { formatPaperPreviewSummary } from './paperBuilder.js';
 import { showToastBanner, renderQuestionLayout, renderFeedback, renderLiveAIFeedback, renderAQAExtendedResponseFeedback, renderMasteryHeatmap, renderSessionContext, renderSessionCompleteSummary, renderExamPaperFeedbackSummary, renderSelfRatingPrompt, renderAdaptiveFeedback, renderHintsPanel, normalizeQuestionHints } from './uiComponents.js';
 import {
@@ -13,7 +13,7 @@ import {
   normalizeAdaptiveState
 } from './adaptiveSelector.js';
 import { triggerMathTypeset } from './mathEngine.js';
-import { checkKeywordOrSynonymsMatch, updateSRS, computeSessionQuality, getAQACommandWordHelper, isFuzzyMatch } from './evalEngine.js';
+import { checkKeywordOrSynonymsMatch, updateSRS, computeSessionQuality, getAQACommandWordHelper, isFuzzyMatch, computeQuestionAOMaxCaps } from './evalEngine.js';
 import { escapeHtml, shuffleArray, todayISO, addDaysISO, resolveAppUrl } from './utils.js';
 import { supabaseClient, timeoutPromise, fetchDashboardDueItems, fetchConceptGapAttempts, fetchWeeklyForecastSchedules, fetchSyllabusPipelineData, fetchAttemptActivity, fetchUserProfile, fetchUserClassLicense, fetchPlanQuotas, tryConsumeAiMark, tryConsumeHalfPaper, stashAuthSession, clearAuthGraceSession, endAuthGracePeriod, isAuthGraceActive, incrementUserXp } from './dbClient.js';
 import dbClient from "./dbClient.js";
@@ -36,6 +36,8 @@ import {
   formatSciencePathLabel,
   courseTrackForProfile,
   targetTiersForProfile,
+  resolveSpecPointIdForTrack,
+  questionTierMatchesProfile,
   getSubjectTiers,
   resolveQuestionSpecMeta,
   questionLinksToSpecPoint,
@@ -62,6 +64,7 @@ import {
   wireStudentEquationSelectPreview
 } from './calculationWorkflow.js';
 import { computeAttemptXp, formatXpToastMessage, XP_RULES_FOOTNOTE, XP_RULES_TOAST_KEY } from './xpEngine.js';
+import { renderSkillsAnalytics } from './skillsAnalytics.js';
 
 console.log("APP VERSION", "v-" + Date.now());
 
@@ -163,6 +166,9 @@ function switchDashboardTab(tab) {
   if (schedulePracticeBlock) {
     schedulePracticeBlock.classList.toggle("hidden", active !== "practice");
   }
+  if (active === "analytics" && currentUser) {
+    void loadTopics();
+  }
   if (tabPractice) {
     tabPractice.classList.toggle("active", active === "practice");
     tabPractice.setAttribute("aria-selected", active === "practice" ? "true" : "false");
@@ -255,6 +261,7 @@ let sessionQualityLog = [];
 let sessionAttemptLog = [];
 let sessionMode = null;
 let sessionSpecPointId = null;
+let sessionSkillCode = null;
 let idx = 0;
 let currentQ = null;
 let currentEquationSheet = null;
@@ -1068,7 +1075,7 @@ async function resolveScheduledSpecPoint(dueItems, { excludeSpecPointId } = {}) 
     const hasQuestion = matchingQs.some(
       (q) =>
         questionLinksToSpecPoint(q, item.spec_point_id, track) &&
-        targetTiers.includes(q.tier)
+        questionTierMatchesProfile(q.tier, targetTiers)
     );
     if (hasQuestion) {
       return { specPointId: item.spec_point_id, specMeta: item.spec_points };
@@ -1294,6 +1301,7 @@ const engineContext = {
     sessionAttemptLog = [];
     sessionMode = config.mode || null;
     sessionSpecPointId = config.specPointId || null;
+    sessionSkillCode = config.skillCode || null;
   },
   getDomSections: () => ({
     dashSection: document.getElementById('dashboard'), // replace with actual selector logic if different
@@ -1477,7 +1485,7 @@ async function awardAttemptXp(xpEarned, hintsRevealed) {
 async function insertAttemptRow(payload) {
   let result = await supabaseClient.from("attempts").insert(payload);
   if (result.error && /column/i.test(result.error.message || "")) {
-    const { xp_earned, hints_revealed, ...legacyPayload } = payload;
+    const { xp_earned, hints_revealed, ao1_score, ao2_score, ao3_score, ...legacyPayload } = payload;
     result = await supabaseClient.from("attempts").insert(legacyPayload);
   }
   return result;
@@ -1556,6 +1564,7 @@ async function exitSessionToDashboard() {
   lastSessionSelfRating = null;
   sessionMode = null;
   sessionSpecPointId = null;
+  sessionSkillCode = null;
   sessionQuestions = [];
   sessionAttemptLog = [];
   sessionQualityLog = [];
@@ -1708,13 +1717,18 @@ async function showSessionSummary() {
   if (sessionSummary) sessionSummary.classList.remove("hidden");
   if (progress) progress.textContent = "Session complete";
 
-  const isPracticeMode = sessionMode === "any_practice" || sessionMode === "spec_point";
+  const isPracticeMode = sessionMode === "any_practice" || sessionMode === "spec_point" || sessionMode === "skill_practice";
   const examFeedback = sessionMode === "paper_practice"
     ? renderExamPaperFeedbackSummary(sessionAttemptLog)
     : "";
 
+  const skillBanner = sessionSkillCode
+    ? `<div style="margin-bottom:12px;padding:10px 14px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;font-size:0.88rem;"><strong>Skill practice:</strong> ${escapeHtml(sessionSkillCode)} — questions drawn from all topics tagged with this criterion.</div>`
+    : "";
+
   if (summaryContent) {
     summaryContent.innerHTML =
+      skillBanner +
       renderSessionCompleteSummary(getSessionSummaryMeta(), sessionAttemptLog) +
       examFeedback +
       (isPracticeMode ? `<div id="sessionAdaptiveFeedback"></div>${renderSelfRatingPrompt()}` : "");
@@ -3069,17 +3083,22 @@ async function loadTopics() {
       if (track === "combined") return aud === "both";
       return aud === "both" || aud === "triple_only";
     });
+    questions = questions.filter((q) => questionTierMatchesProfile(q.tier, targetTiers));
   } catch (err) {
     console.error("Pipeline failure fetching synchronized syllabus statistics:", err);
     return;
   }
 
-  console.log(`DEBUG loadTopics: All queries completed. Processing payloads... [Points: ${rows.length}, Questions: ${questions.length}, Due: ${rawDue.length}]`);
+  console.log(`DEBUG loadTopics: All queries completed. Processing payloads... [Points: ${rows.length}, Questions: ${questions.length}, Due: ${rawDue.length}, Attempts: ${(attempts || []).length}]`);
 
   const specToTopicMap = {};
   rows.forEach(sp => {
     specToTopicMap[sp.id] = sp.topic_name;
   });
+
+  function specPointIdForQuestion(q) {
+    return resolveSpecPointIdForTrack(q, currentUserProfile);
+  }
 
   const topicCounts = {};
   const uniqueTopics = [...new Set(rows.map(r => r.topic_name).filter(Boolean))];
@@ -3089,10 +3108,8 @@ async function loadTopics() {
 
   let totalMatchingQuestions = 0;
   (questions || []).forEach(q => {
-    let matchedTopic = specToTopicMap[q.spec_point_id];
-    if (matchedTopic === undefined && courseTrack === "triple") {
-      matchedTopic = specToTopicMap[q.triple_spec_point_id];
-    }
+    if (!questionTierMatchesProfile(q.tier, targetTiers)) return;
+    const matchedTopic = specToTopicMap[specPointIdForQuestion(q)];
     if (matchedTopic !== undefined) {
       topicCounts[matchedTopic] = (topicCounts[matchedTopic] || 0) + 1;
       totalMatchingQuestions++;
@@ -3125,7 +3142,8 @@ async function loadTopics() {
 
   const validQuestionIds = new Set();
   (questions || []).forEach(q => {
-    const matchedTopic = specToTopicMap[q.spec_point_id];
+    if (!questionTierMatchesProfile(q.tier, targetTiers)) return;
+    const matchedTopic = specToTopicMap[specPointIdForQuestion(q)];
     if (matchedTopic === undefined) return;
     if (topic && matchedTopic !== topic) return;
     validQuestionIds.add(q.id);
@@ -3145,7 +3163,7 @@ async function loadTopics() {
     try {
       const questionToSpecMap = {};
       (questions || []).forEach(q => {
-        questionToSpecMap[q.id] = q.spec_point_id;
+        questionToSpecMap[q.id] = specPointIdForQuestion(q);
       });
 
       const topicMasteryTally = {};
@@ -3154,19 +3172,20 @@ async function loadTopics() {
       });
 
       (attempts || []).forEach(att => {
+        if (!validQuestionIds.has(att.question_id)) return;
         const specId = questionToSpecMap[att.question_id];
         const topicName = specToTopicMap[specId];
 
         if (topicName !== undefined && topicMasteryTally[topicName]) {
-          topicMasteryTally[topicName].earned += att.score_total;
-          topicMasteryTally[topicName].max += att.score_max;
+          topicMasteryTally[topicName].earned += Number(att.score_total) || 0;
+          topicMasteryTally[topicName].max += Number(att.score_max) || 0;
         }
       });
 
       masteryWrapper.innerHTML = uniqueTopics.map(t => {
         const tally = topicMasteryTally[t];
         const hasAttempts = tally.max > 0;
-        const percentage = hasAttempts ? Math.round((tally.earned / tally.max) * 100) : 0;
+        const percentage = hasAttempts ? Math.min(100, Math.round((tally.earned / tally.max) * 100)) : 0;
 
         let colorTheme = "#bdc3c7"; 
         if (hasAttempts) {
@@ -3176,17 +3195,17 @@ async function loadTopics() {
         }
 
         return `
-          <div style="background: #fafbfc; border: 1px solid #edf2f7; padding: 12px; border-radius: 8px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 0.9rem; font-weight: 600;">
-              <span style="color: #2c3e50;">${t}</span>
-              <span style="color: ${colorTheme}; font-weight: 700;">
+          <div class="subject-mastery-card">
+            <div class="subject-mastery-card-header">
+              <span class="subject-mastery-topic">${t}</span>
+              <span class="subject-mastery-pct" style="color: ${colorTheme};">
                 ${hasAttempts ? `${percentage}%` : "No Attempts"}
               </span>
             </div>
-            <div style="width: 100%; height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden;">
-              <div style="width: ${percentage}%; height: 100%; background: ${colorTheme}; transition: width 0.4s ease-on-out;"></div>
+            <div class="subject-mastery-track">
+              <div class="subject-mastery-fill" style="width: ${percentage}%; background: ${colorTheme};"></div>
             </div>
-            <div class="muted" style="font-size: 0.75rem; margin-top: 4px;">
+            <div class="subject-mastery-meta muted">
               ${hasAttempts ? `Earned ${tally.earned} of ${tally.max} total marks across syllabus items.` : "No questions attempted yet."}
             </div>
           </div>
@@ -3203,32 +3222,22 @@ async function loadTopics() {
 
   if (aoMasteryWrapper && currentUser) {
     try {
-      const qMaxAOMap = {};
-      
-      questions.forEach(q => {
-        const matchedTopic = specToTopicMap[q.spec_point_id];
-        if (matchedTopic === undefined) return; 
-        if (topic && matchedTopic !== topic) return; 
-
-        qMaxAOMap[q.id] = { AO1: 0, AO2: 0, AO3: 0 };
-        if (q.question_type === "mcq") {
-          qMaxAOMap[q.id].AO1 = 1;
-        } else if (q.question_type === "numeric") {
-          qMaxAOMap[q.id].AO2 = 1;
-        } else if (q.question_type === "extended_response") {
-          qMaxAOMap[q.id].AO1 = 2;
-          qMaxAOMap[q.id].AO2 = 2;
-          qMaxAOMap[q.id].AO3 = 2;
-        }
+      const markPointsByQuestion = {};
+      (markPoints || []).forEach((mp) => {
+        if (!markPointsByQuestion[mp.question_id]) markPointsByQuestion[mp.question_id] = [];
+        markPointsByQuestion[mp.question_id].push(mp);
       });
 
-      markPoints.forEach(mp => {
-        if (qMaxAOMap[mp.question_id]) {
-          const aoKey = mp.ao;
-          if (qMaxAOMap[mp.question_id][aoKey] !== undefined) {
-            qMaxAOMap[mp.question_id][aoKey] += (mp.max_marks || 1);
-          }
-        }
+      const qMaxAOMap = {};
+
+      questions.forEach(q => {
+        if (!questionTierMatchesProfile(q.tier, targetTiers)) return;
+        const specId = specPointIdForQuestion(q);
+        const matchedTopic = specToTopicMap[specId];
+        if (matchedTopic === undefined) return;
+        if (topic && matchedTopic !== topic) return;
+
+        qMaxAOMap[q.id] = computeQuestionAOMaxCaps(q, markPointsByQuestion[q.id] || []);
       });
 
       const aoStats = {
@@ -3238,11 +3247,12 @@ async function loadTopics() {
       };
 
       attempts.forEach(att => {
+        if (!validQuestionIds.has(att.question_id)) return;
         const qId = att.question_id;
         if (qMaxAOMap[qId]) {
-          aoStats.AO1.earned += (att.ao1_score || 0);
-          aoStats.AO2.earned += (att.ao2_score || 0);
-          aoStats.AO3.earned += (att.ao3_score || 0);
+          aoStats.AO1.earned += Number(att.ao1_score) || 0;
+          aoStats.AO2.earned += Number(att.ao2_score) || 0;
+          aoStats.AO3.earned += Number(att.ao3_score) || 0;
 
           aoStats.AO1.max += qMaxAOMap[qId].AO1;
           aoStats.AO2.max += qMaxAOMap[qId].AO2;
@@ -3277,7 +3287,7 @@ async function loadTopics() {
       aoMasteryWrapper.innerHTML = aosConfig.map(ao => {
         const stats = aoStats[ao.id];
         const hasAttempts = stats.max > 0;
-        const percentage = hasAttempts ? Math.round((stats.earned / stats.max) * 100) : 0;
+        const percentage = hasAttempts ? Math.min(100, Math.round((stats.earned / stats.max) * 100)) : 0;
 
         return `
           <div style="background: #ffffff; border: 1px solid ${ao.border}; padding: 16px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
@@ -3301,6 +3311,30 @@ async function loadTopics() {
       console.error("DEBUG loadTopics: Failed to render AO mastery graph:", aoErr);
       aoMasteryWrapper.innerHTML = `<div class="muted" style="text-align: center; padding: 10px;">AO mastery tracker offline (waiting for database interactions).</div>`;
     }
+  }
+
+  const skillsAnalyticsWrapper = el("skillsAnalyticsWrapper");
+  if (skillsAnalyticsWrapper && currentUser && currentAccess?.canFullAnalytics) {
+    try {
+      renderSkillsAnalytics(
+        skillsAnalyticsWrapper,
+        { questions, attempts, validQuestionIds },
+        {
+          onPracticeSkill: (code) => {
+            if (!currentAccess?.canSkillPractice) {
+              showUpgradeModal("analytics");
+              return;
+            }
+            startSkillPractice(engineContext, { fullCode: code });
+          },
+        }
+      );
+    } catch (skillsErr) {
+      console.warn("Skills analytics render failed:", skillsErr);
+      skillsAnalyticsWrapper.innerHTML = "";
+    }
+  } else if (skillsAnalyticsWrapper) {
+    skillsAnalyticsWrapper.innerHTML = "";
   }
 
   syncExamPrepModeOptions();
