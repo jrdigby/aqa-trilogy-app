@@ -474,6 +474,7 @@
         <button class="tab-btn active" onclick="switchPanel('creator')">✏️ Create Question</button>
         <button class="tab-btn" onclick="switchPanel('csv')">📂 Packaged CSV Importer</button>
         <button class="tab-btn" onclick="switchPanel('audit')">🔍 Database Audit &amp; Review</button>
+        <button class="tab-btn" onclick="switchPanel('pilot')">🎫 Pilot Pro Access</button>
       </div>
 
       <!-- TAB 1: CREATOR PANEL -->
@@ -984,6 +985,31 @@
         </div>
       </div>
 
+      <!-- TAB 4: PILOT PRO ACCESS -->
+      <div id="panelPilot" class="panel">
+        <div class="card">
+          <h3 style="margin-top:0; color:var(--primary-dark); font-size:1.1rem; border-bottom:1px solid var(--border); padding-bottom:8px;">Pilot: Grant Student Pro</h3>
+          <p style="color:var(--text-muted); font-size:0.85rem; line-height:1.45;">
+            Manually set a student&apos;s subscription tier before Stripe checkout is live. Developer accounts only — teachers cannot promote students.
+          </p>
+          <div class="row" style="margin-top: 16px;">
+            <div>
+              <label>Student email</label>
+              <input type="email" id="pilotStudentEmail" placeholder="student@school.example" />
+            </div>
+            <div>
+              <label>Subscription tier</label>
+              <select id="pilotSubscriptionTier">
+                <option value="paid">Student Pro (paid)</option>
+                <option value="free">Free</option>
+              </select>
+            </div>
+          </div>
+          <button type="button" id="btnPilotGrantPro" class="btn btn-primary" style="margin-top: 12px;">Update subscription</button>
+          <p id="pilotGrantStatus" class="muted" style="margin-top: 12px; font-size: 0.85rem;"></p>
+        </div>
+      </div>
+
     </div>
 
   </div>
@@ -1408,6 +1434,50 @@
 
   document.getElementById("btnAddCreatorHint")?.addEventListener("click", () => addHintRow("creatorHintsList"));
   document.getElementById("btnAddEditHint")?.addEventListener("click", () => addHintRow("editHintsList"));
+
+  document.getElementById("btnPilotGrantPro")?.addEventListener("click", async () => {
+    const email = document.getElementById("pilotStudentEmail")?.value?.trim();
+    const tier = document.getElementById("pilotSubscriptionTier")?.value || "paid";
+    const statusEl = document.getElementById("pilotGrantStatus");
+
+    if (!email) {
+      showAdminToast("Enter the student email address.", true);
+      return;
+    }
+
+    const btn = document.getElementById("btnPilotGrantPro");
+    if (btn) btn.disabled = true;
+    if (statusEl) statusEl.textContent = "Updating subscription…";
+
+    try {
+      const { data, error } = await supabaseClient.rpc("developer_set_subscription_by_email", {
+        p_email: email,
+        p_tier: tier,
+      });
+      if (error) throw error;
+      if (!data?.ok) {
+        const reason = data?.reason || "unknown_error";
+        const messages = {
+          forbidden: "Developer role required.",
+          user_not_found: "No student account found for that email.",
+          invalid_tier: "Invalid tier selected.",
+          not_authenticated: "Sign in again and retry.",
+        };
+        throw new Error(messages[reason] || `Update failed (${reason}).`);
+      }
+      const label = data.subscription_tier === "paid" ? "Student Pro" : "Free";
+      const name = data.display_name ? ` (${data.display_name})` : "";
+      if (statusEl) {
+        statusEl.textContent = `Updated${name} to ${label}. Previous tier: ${data.previous_tier || "unknown"}.`;
+      }
+      showAdminToast(`Subscription set to ${label}.`);
+    } catch (err) {
+      if (statusEl) statusEl.textContent = "";
+      showAdminToast(err.message || "Could not update subscription.", true);
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  });
 
   // Check Auth State on Boot
   window.onload = async function() {

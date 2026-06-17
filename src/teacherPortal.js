@@ -258,6 +258,7 @@ async function loadClassDetails(classId) {
           <thead>
             <tr>
               <th>Student</th>
+              <th>Plan</th>
               <th>Course</th>
               <th>Last active</th>
               <th>Avg (30d)</th>
@@ -276,9 +277,11 @@ async function loadClassDetails(classId) {
                   overdue > 5 || (stats.avgScorePct != null && stats.avgScorePct < 50)
                     ? " teacher-roster-row--alert"
                     : "";
+                const planLabel = s.subscription_tier === "paid" ? "Pro" : "Free";
                 return `
               <tr class="teacher-roster-row${alertClass}" data-user-id="${escapeHtml(s.user_id)}" tabindex="0" role="button" aria-label="View progress for ${escapeHtml(name)}">
                 <td class="teacher-roster-name">${escapeHtml(name)}</td>
+                <td><span class="teacher-plan-badge teacher-plan-badge--${planLabel.toLowerCase()}">${escapeHtml(planLabel)}</span></td>
                 <td>${escapeHtml(formatSciencePathLabel(s))}</td>
                 <td>${escapeHtml(formatLastActive(s.last_login_date))}</td>
                 <td>${escapeHtml(avg)}</td>

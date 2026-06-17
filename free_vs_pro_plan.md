@@ -3,7 +3,7 @@
 **Source of truth:** [`gcse-competitive-analysis-and-growth.md`](gcse-competitive-analysis-and-growth.md) §5.5 and §5.2  
 **Principle:** Keep core SRS **free** (Seneca-competitive hook). Gate **AI marking volume**, **full paper simulation**, **PDF flashcards**, **full analytics**, and **streak freeze**.
 
-> **Status:** Gates implemented in the student app (`src/featureAccess.js`, `src/app.js`). Apply [`supabase/migrations/20250617_free_pro_gates.sql`](supabase/migrations/20250617_free_pro_gates.sql) in Supabase SQL Editor before testing quotas in production.
+> **Status:** Phase 2 complete — gates in student app, landing page, teacher roster Plan column, developer pilot override in admin. Apply migrations in Supabase SQL Editor before testing quotas in production.
 
 ---
 

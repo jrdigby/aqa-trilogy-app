@@ -183,6 +183,7 @@ create policy classes_student_select_enrolled on classes
 
 -- Free vs Pro gates — run full script: supabase/migrations/20250617_free_pro_gates.sql
 -- (weekly_ai_usage, monthly_paper_usage, get_plan_quotas, try_consume_ai_mark, try_consume_half_paper)
+-- Pilot Pro override — run: supabase/migrations/20250622_developer_grant_pro.sql
 
 -- WS exam examples — From: supabase/migrations/20250620_ws_skill_descriptions.sql
 

@@ -19,8 +19,8 @@
 |-------|--------|--------|
 | **1B** | Landing page, `app.html` split, password reset, Terms/Privacy | **Done** |
 | **1A** | Domain, Cloudflare Pages, production Supabase URLs | Deferred |
-| **2** | Free vs Pro feature gates | **Next** ΓÇö see [`free_vs_pro_plan.md`](free_vs_pro_plan.md) |
-| **3** | Stripe Student Pro checkout | Pending |
+| **2** | Free vs Pro feature gates | **Done** — see [`free_vs_pro_plan.md`](free_vs_pro_plan.md); apply migrations in Supabase SQL Editor |
+| **3** | Stripe Student Pro checkout | **Next** |
 | **4** | Class licence billing | Pending |
 | **5** | Launch polish | Pending |
 
@@ -47,4 +47,9 @@ Full implementation spec: **[`free_vs_pro_plan.md`](free_vs_pro_plan.md)**
 
 ## Next step
 
-Switch to **agent mode** and ask to **"implement free vs pro gates (Phase 2)"** to build `featureAccess.js`, migration, app gates, upgrade modal, and update the landing page pricing table.
+Apply pending Supabase migrations if not already run:
+
+1. [`supabase/migrations/20250617_free_pro_gates.sql`](supabase/migrations/20250617_free_pro_gates.sql) — quotas and billing columns
+2. [`supabase/migrations/20250622_developer_grant_pro.sql`](supabase/migrations/20250622_developer_grant_pro.sql) — developer pilot Pro override
+
+Then proceed to **Phase 3**: Stripe Student Pro checkout.

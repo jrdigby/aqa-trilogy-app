@@ -1724,6 +1724,28 @@ body.teacher-portal {
   border-bottom: none;
 }
 
+.teacher-plan-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.teacher-plan-badge--pro {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+}
+
+.teacher-plan-badge--free {
+  background: #f8fafc;
+  color: #64748b;
+  border: 1px solid #e2e8f0;
+}
+
 .teacher-empty-state {
   text-align: center;
   padding: 28px 16px;

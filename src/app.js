@@ -2256,8 +2256,10 @@ function applyAnalyticsTierUI() {
 function updateFreeAnalyticsSummary() {
   const streakEl = el("freeAnalyticsStreak");
   const dueEl = el("freeAnalyticsDue");
+  const xpEl = el("freeAnalyticsXp");
   if (streakEl) streakEl.textContent = String(el("streakCount")?.textContent || "0");
   if (dueEl) dueEl.textContent = String(el("dueCount")?.textContent || "0");
+  if (xpEl) xpEl.textContent = String(el("xpTotal")?.textContent || "0");
 }
 
 function showUpgradeModal(featureKey = "generic") {
