@@ -28,10 +28,23 @@ export function getCatalogByFullCode() {
   return catalogByFullCode;
 }
 
+function escapeTooltipText(text) {
+  if (!text) return "";
+  return String(text).replace(/"/g, "&quot;");
+}
+
+function buildSkillTooltip(framework, item, dbRow) {
+  const title = item.title || dbRow?.title || "";
+  if (framework !== "WS" || !dbRow?.description) {
+    return escapeTooltipText(title);
+  }
+  return escapeTooltipText(`${title}\n\n${dbRow.description}`);
+}
+
 export async function loadSkillCatalog(supabaseClient) {
   const { data, error } = await supabaseClient
     .from("skill_framework_items")
-    .select("id, framework, code, full_code, category, title, subjects, sort_order")
+    .select("id, framework, code, full_code, category, title, description, subjects, sort_order")
     .order("sort_order", { ascending: true });
   if (error) {
     console.warn("Skill catalog unavailable (run migration?):", error.message);
@@ -101,8 +114,9 @@ function renderSkillCheckboxes(container, framework, mode, selectedFullCodes = n
       const subjectHint = item.subjects?.length
         ? ` <span class="skill-subject-hint">(${item.subjects.join(", ")})</span>`
         : "";
+      const tooltip = buildSkillTooltip(framework, item, dbRow);
       html.push(
-        `<label class="skill-check-label" title="${item.title.replace(/"/g, "&quot;")}">` +
+        `<label class="skill-check-label" title="${tooltip}">` +
           `<input type="checkbox" class="skill-cb" data-framework="${framework}" data-full-code="${item.full_code}" data-skill-id="${id}"${checked}${autoMark}/>` +
           `<span class="skill-code">${item.full_code}</span>${subjectHint}` +
         `</label>`
