@@ -1,0 +1,107 @@
+{
+  "id": "triple_physics_p1_ht",
+  "exam_series": "2026",
+  "subject": "physics",
+  "course_track": "triple",
+  "paper": "paper1",
+  "tier": "HT",
+  "title": "AQA Triple Physics Paper 1 (Higher)",
+  "equations": [
+    {
+      "label": "Kinetic energy",
+      "latex": "E_k = \\frac{1}{2} m v^2",
+      "id": "kinetic_energy",
+      "topic_tags": ["energy"]
+    },
+    {
+      "label": "Elastic potential energy",
+      "latex": "E_e = \\frac{1}{2} k e^2",
+      "id": "elastic_potential_energy",
+      "topic_tags": ["energy"]
+    },
+    {
+      "label": "Gravitational potential energy",
+      "latex": "E_p = m g h",
+      "id": "gravitational_potential_energy",
+      "topic_tags": ["energy"]
+    },
+    {
+      "label": "Change in thermal energy",
+      "latex": "\\Delta E = m c \\Delta\\theta",
+      "id": "specific_heat_capacity",
+      "topic_tags": ["particle_model"]
+    },
+    {
+      "label": "Power (energy transferred)",
+      "latex": "P = \\frac{E}{t}",
+      "id": "power_energy",
+      "topic_tags": ["energy"]
+    },
+    {
+      "label": "Power (work done)",
+      "latex": "P = \\frac{W}{t}",
+      "id": "power_work",
+      "topic_tags": ["energy"]
+    },
+    {
+      "label": "Efficiency (energy)",
+      "latex": "\\text{efficiency} = \\frac{\\text{useful output energy transfer}}{\\text{total input energy transfer}}",
+      "id": "efficiency_energy",
+      "topic_tags": ["energy"]
+    },
+    {
+      "label": "Efficiency (power)",
+      "latex": "\\text{efficiency} = \\frac{\\text{useful power output}}{\\text{total power input}}",
+      "id": "efficiency_power",
+      "topic_tags": ["energy"]
+    },
+    {
+      "label": "Charge flow",
+      "latex": "Q = I t",
+      "id": "charge",
+      "topic_tags": ["electricity"]
+    },
+    {
+      "label": "Potential difference",
+      "latex": "V = I R",
+      "id": "potential_difference",
+      "topic_tags": ["electricity"]
+    },
+    {
+      "label": "Power (potential difference x current)",
+      "latex": "P = V I",
+      "id": "power_vi",
+      "topic_tags": ["electricity"]
+    },
+    {
+      "label": "Power (current squared x resistance)",
+      "latex": "P = I^2 R",
+      "id": "power_i2r",
+      "topic_tags": ["electricity"]
+    },
+    {
+      "label": "Energy transferred (power x time)",
+      "latex": "E = P t",
+      "id": "energy_pt",
+      "topic_tags": ["electricity"]
+    },
+    {
+      "label": "Energy transferred (charge x p.d.)",
+      "latex": "E = Q V",
+      "id": "energy_qv",
+      "topic_tags": ["electricity"]
+    },
+    {
+      "label": "Density",
+      "latex": "\\rho = \\frac{m}{V}",
+      "id": "density",
+      "topic_tags": ["particle_model"]
+    },
+    {
+      "label": "Thermal energy for a change of state",
+      "latex": "E = m L",
+      "id": "specific_latent_heat",
+      "topic_tags": ["particle_model"]
+    }
+  ]
+}

@@ -1029,6 +1029,7 @@
         <input type="hidden" id="editQuestionId"/>
         <input type="hidden" id="editEqSheetSubject" value="physics"/>
         <input type="hidden" id="editEqSheetPaper" value="paper1"/>
+        <input type="hidden" id="editEqSheetCourseTrack" value="combined"/>
         
         <div style="margin-bottom:12px;">
           <label>Question Prompt Stem:</label>
@@ -1731,8 +1732,9 @@
 
   async function refreshEditEquationSheetDropdown({ autoLink = false, selectedId = "" } = {}) {
     const subject = document.getElementById("editEqSheetSubject")?.value || "physics";
+    const courseTrack = document.getElementById("editEqSheetCourseTrack")?.value || "combined";
     const current = selectedId || document.getElementById("editCalcEquationSheet")?.value || "";
-    const sheets = await CalcWorkflow.loadEquationSheetCatalog(supabaseClient, subject);
+    const sheets = await CalcWorkflow.loadEquationSheetCatalog(supabaseClient, subject, courseTrack);
     CalcWorkflow.fillEquationSheetSelect(document.getElementById("editCalcEquationSheet"), sheets, current);
     if (autoLink) CalcWorkflow.applyAutoEquationSheet("edit");
     await onCalcWorkflowChange("edit");
@@ -2756,11 +2758,13 @@
     try {
       const { data: sp } = await supabaseClient
         .from("spec_points")
-        .select("subject, paper")
+        .select("subject, paper, course_track")
         .eq("id", q.spec_point_id)
         .maybeSingle();
       document.getElementById("editEqSheetSubject").value = sp?.subject || "physics";
       document.getElementById("editEqSheetPaper").value = sp?.paper || "paper1";
+      document.getElementById("editEqSheetCourseTrack").value =
+        q.audience === "triple_only" ? "triple" : (sp?.course_track || "combined");
       await loadEditTripleSpecPointSelect(sp?.subject, sp?.paper, q.triple_spec_point_id || "");
       if (!q.triple_spec_point_id && (q.audience || "both") === "both") {
         await autoFillEditTripleSpecFromEquivalence(q.spec_point_id);
@@ -2768,6 +2772,7 @@
     } catch (_) {
       document.getElementById("editEqSheetSubject").value = "physics";
       document.getElementById("editEqSheetPaper").value = "paper1";
+      document.getElementById("editEqSheetCourseTrack").value = "combined";
     }
     syncEditAudienceUi();
     

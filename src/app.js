@@ -57,11 +57,11 @@ import {
 } from './featureAccess.js';
 import {
   getPresentationMode,
-  getCalculationConfig,
   collectCalculationResponse,
   validateCalculationResponse,
   applyCalculationStepHighlighting,
-  wireStudentEquationSelectPreview
+  wireStudentEquationSelectPreview,
+  resolveEquationSheetIdForQuestion
 } from './calculationWorkflow.js';
 import { computeAttemptXp, formatXpToastMessage, XP_RULES_FOOTNOTE, XP_RULES_TOAST_KEY } from './xpEngine.js';
 import { renderSkillsAnalytics } from './skillsAnalytics.js';
@@ -2119,12 +2119,12 @@ async function loadQuestion() {
   currentMarkPoints = markRes.data || [];
 
   currentEquationSheet = null;
-  const calcCfg = getCalculationConfig(currentQ);
-  if (calcCfg.equation_sheet_id && calcCfg.equation_given === false) {
+  const sheetId = resolveEquationSheetIdForQuestion(currentQ, currentUserProfile);
+  if (sheetId) {
     const sheetRes = await supabaseClient
       .from("equation_sheets")
       .select("id, title, equations")
-      .eq("id", calcCfg.equation_sheet_id)
+      .eq("id", sheetId)
       .maybeSingle();
     if (!sheetRes.error) {
       currentEquationSheet = sheetRes.data;

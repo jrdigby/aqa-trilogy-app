@@ -1,0 +1,77 @@
+{
+  "id": "triple_physics_p2_ft",
+  "exam_series": "2026",
+  "subject": "physics",
+  "course_track": "triple",
+  "paper": "paper2",
+  "tier": "FT",
+  "title": "AQA Triple Physics Paper 2 (Foundation)",
+  "equations": [
+    {
+      "label": "Weight",
+      "latex": "W = m g",
+      "id": "weight",
+      "topic_tags": ["forces"]
+    },
+    {
+      "label": "Work done",
+      "latex": "W = F s",
+      "id": "work_done",
+      "topic_tags": ["forces"]
+    },
+    {
+      "label": "Force on a spring",
+      "latex": "F = k e",
+      "id": "spring_force",
+      "topic_tags": ["forces"]
+    },
+    {
+      "label": "Moment of a force",
+      "latex": "M = F d",
+      "id": "moment",
+      "topic_tags": ["forces"]
+    },
+    {
+      "label": "Pressure",
+      "latex": "p = \\frac{F}{A}",
+      "id": "pressure",
+      "topic_tags": ["forces"]
+    },
+    {
+      "label": "Distance travelled",
+      "latex": "s = v t",
+      "id": "distance_speed",
+      "topic_tags": ["forces"]
+    },
+    {
+      "label": "Acceleration",
+      "latex": "a = \\frac{\\Delta v}{t}",
+      "id": "acceleration",
+      "topic_tags": ["forces"]
+    },
+    {
+      "label": "Resultant force",
+      "latex": "F = m a",
+      "id": "force",
+      "topic_tags": ["forces"]
+    },
+    {
+      "label": "Period",
+      "latex": "T = \\frac{1}{f}",
+      "id": "period",
+      "topic_tags": ["waves"]
+    },
+    {
+      "label": "Wave speed",
+      "latex": "v = f \\lambda",
+      "id": "wave_speed",
+      "topic_tags": ["waves"]
+    },
+    {
+      "label": "Magnification",
+      "latex": "\\text{magnification} = \\frac{\\text{image height}}{\\text{object height}}",
+      "id": "magnification",
+      "topic_tags": ["waves"]
+    }
+  ]
+}

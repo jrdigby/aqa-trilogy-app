@@ -1,0 +1,287 @@
+{
+  "exam_series": "2026",
+  "source": "AQA GCSE Physics (8463) — June 2026 equation insert; curated per paper for student UI",
+  "course_track": "triple",
+  "equations": [
+    {
+      "id": "kinetic_energy",
+      "label": "Kinetic energy",
+      "latex": "E_k = \\frac{1}{2} m v^2",
+      "topic_tags": ["energy"],
+      "paper": "paper1",
+      "ht_only": false
+    },
+    {
+      "id": "elastic_potential_energy",
+      "label": "Elastic potential energy",
+      "latex": "E_e = \\frac{1}{2} k e^2",
+      "topic_tags": ["energy"],
+      "paper": "paper1",
+      "ht_only": false
+    },
+    {
+      "id": "gravitational_potential_energy",
+      "label": "Gravitational potential energy",
+      "latex": "E_p = m g h",
+      "topic_tags": ["energy"],
+      "paper": "paper1",
+      "ht_only": false
+    },
+    {
+      "id": "specific_heat_capacity",
+      "label": "Change in thermal energy",
+      "latex": "\\Delta E = m c \\Delta\\theta",
+      "topic_tags": ["particle_model"],
+      "paper": "paper1",
+      "ht_only": false
+    },
+    {
+      "id": "power_energy",
+      "label": "Power (energy transferred)",
+      "latex": "P = \\frac{E}{t}",
+      "topic_tags": ["energy"],
+      "paper": "paper1",
+      "ht_only": false
+    },
+    {
+      "id": "power_work",
+      "label": "Power (work done)",
+      "latex": "P = \\frac{W}{t}",
+      "topic_tags": ["energy"],
+      "paper": "paper1",
+      "ht_only": false
+    },
+    {
+      "id": "efficiency_energy",
+      "label": "Efficiency (energy)",
+      "latex": "\\text{efficiency} = \\frac{\\text{useful output energy transfer}}{\\text{total input energy transfer}}",
+      "topic_tags": ["energy"],
+      "paper": "paper1",
+      "ht_only": false
+    },
+    {
+      "id": "efficiency_power",
+      "label": "Efficiency (power)",
+      "latex": "\\text{efficiency} = \\frac{\\text{useful power output}}{\\text{total power input}}",
+      "topic_tags": ["energy"],
+      "paper": "paper1",
+      "ht_only": false
+    },
+    {
+      "id": "charge",
+      "label": "Charge flow",
+      "latex": "Q = I t",
+      "topic_tags": ["electricity"],
+      "paper": "paper1",
+      "ht_only": false
+    },
+    {
+      "id": "potential_difference",
+      "label": "Potential difference",
+      "latex": "V = I R",
+      "topic_tags": ["electricity"],
+      "paper": "paper1",
+      "ht_only": false
+    },
+    {
+      "id": "power_vi",
+      "label": "Power (potential difference x current)",
+      "latex": "P = V I",
+      "topic_tags": ["electricity"],
+      "paper": "paper1",
+      "ht_only": false
+    },
+    {
+      "id": "power_i2r",
+      "label": "Power (current squared x resistance)",
+      "latex": "P = I^2 R",
+      "topic_tags": ["electricity"],
+      "paper": "paper1",
+      "ht_only": true
+    },
+    {
+      "id": "energy_pt",
+      "label": "Energy transferred (power x time)",
+      "latex": "E = P t",
+      "topic_tags": ["electricity"],
+      "paper": "paper1",
+      "ht_only": false
+    },
+    {
+      "id": "energy_qv",
+      "label": "Energy transferred (charge x p.d.)",
+      "latex": "E = Q V",
+      "topic_tags": ["electricity"],
+      "paper": "paper1",
+      "ht_only": false
+    },
+    {
+      "id": "density",
+      "label": "Density",
+      "latex": "\\rho = \\frac{m}{V}",
+      "topic_tags": ["particle_model"],
+      "paper": "paper1",
+      "ht_only": false
+    },
+    {
+      "id": "specific_latent_heat",
+      "label": "Thermal energy for a change of state",
+      "latex": "E = m L",
+      "topic_tags": ["particle_model"],
+      "paper": "paper1",
+      "ht_only": false
+    },
+    {
+      "id": "weight",
+      "label": "Weight",
+      "latex": "W = m g",
+      "topic_tags": ["forces"],
+      "paper": "paper2",
+      "ht_only": false
+    },
+    {
+      "id": "work_done",
+      "label": "Work done",
+      "latex": "W = F s",
+      "topic_tags": ["forces"],
+      "paper": "paper2",
+      "ht_only": false
+    },
+    {
+      "id": "spring_force",
+      "label": "Force on a spring",
+      "latex": "F = k e",
+      "topic_tags": ["forces"],
+      "paper": "paper2",
+      "ht_only": false
+    },
+    {
+      "id": "moment",
+      "label": "Moment of a force",
+      "latex": "M = F d",
+      "topic_tags": ["forces"],
+      "paper": "paper2",
+      "ht_only": false
+    },
+    {
+      "id": "pressure",
+      "label": "Pressure",
+      "latex": "p = \\frac{F}{A}",
+      "topic_tags": ["forces"],
+      "paper": "paper2",
+      "ht_only": false
+    },
+    {
+      "id": "pressure_column",
+      "label": "Pressure due to a column of liquid",
+      "latex": "p = h \\rho g",
+      "topic_tags": ["forces"],
+      "paper": "paper2",
+      "ht_only": true
+    },
+    {
+      "id": "distance_speed",
+      "label": "Distance travelled",
+      "latex": "s = v t",
+      "topic_tags": ["forces"],
+      "paper": "paper2",
+      "ht_only": false
+    },
+    {
+      "id": "acceleration",
+      "label": "Acceleration",
+      "latex": "a = \\frac{\\Delta v}{t}",
+      "topic_tags": ["forces"],
+      "paper": "paper2",
+      "ht_only": false
+    },
+    {
+      "id": "suvat",
+      "label": "Equations of motion",
+      "latex": "v^2 - u^2 = 2 a s",
+      "topic_tags": ["forces"],
+      "paper": "paper2",
+      "ht_only": true
+    },
+    {
+      "id": "force_momentum",
+      "label": "Force (change in momentum)",
+      "latex": "F = \\frac{m \\Delta v}{\\Delta t}",
+      "topic_tags": ["forces"],
+      "paper": "paper2",
+      "ht_only": true
+    },
+    {
+      "id": "force",
+      "label": "Resultant force",
+      "latex": "F = m a",
+      "topic_tags": ["forces"],
+      "paper": "paper2",
+      "ht_only": false
+    },
+    {
+      "id": "momentum",
+      "label": "Momentum",
+      "latex": "p = m v",
+      "topic_tags": ["forces"],
+      "paper": "paper2",
+      "ht_only": true
+    },
+    {
+      "id": "period",
+      "label": "Period",
+      "latex": "T = \\frac{1}{f}",
+      "topic_tags": ["waves"],
+      "paper": "paper2",
+      "ht_only": false
+    },
+    {
+      "id": "wave_speed",
+      "label": "Wave speed",
+      "latex": "v = f \\lambda",
+      "topic_tags": ["waves"],
+      "paper": "paper2",
+      "ht_only": false
+    },
+    {
+      "id": "magnification",
+      "label": "Magnification",
+      "latex": "\\text{magnification} = \\frac{\\text{image height}}{\\text{object height}}",
+      "topic_tags": ["waves"],
+      "paper": "paper2",
+      "ht_only": false
+    },
+    {
+      "id": "force_on_conductor",
+      "label": "Force on a conductor in a magnetic field",
+      "latex": "F = B I l",
+      "topic_tags": ["magnetism"],
+      "paper": "paper2",
+      "ht_only": true
+    },
+    {
+      "id": "transformer",
+      "label": "Transformer (power)",
+      "latex": "V_p I_p = V_s I_s",
+      "topic_tags": ["magnetism"],
+      "paper": "paper2",
+      "ht_only": true
+    },
+    {
+      "id": "transformer_turns",
+      "label": "Transformer (turns ratio)",
+      "latex": "\\frac{V_p}{V_s} = \\frac{n_p}{n_s}",
+      "topic_tags": ["magnetism"],
+      "paper": "paper2",
+      "ht_only": true
+    },
+    {
+      "id": "pv_constant",
+      "label": "Pressure x volume (gases)",
+      "latex": "p V = \\text{constant}",
+      "topic_tags": ["particle_model"],
+      "paper": "paper2",
+      "ht_only": false
+    }
+  ]
+}

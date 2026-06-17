@@ -1,0 +1,125 @@
+{
+  "id": "triple_physics_p2_ht",
+  "exam_series": "2026",
+  "subject": "physics",
+  "course_track": "triple",
+  "paper": "paper2",
+  "tier": "HT",
+  "title": "AQA Triple Physics Paper 2 (Higher)",
+  "equations": [
+    {
+      "label": "Weight",
+      "latex": "W = m g",
+      "id": "weight",
+      "topic_tags": ["forces"]
+    },
+    {
+      "label": "Work done",
+      "latex": "W = F s",
+      "id": "work_done",
+      "topic_tags": ["forces"]
+    },
+    {
+      "label": "Force on a spring",
+      "latex": "F = k e",
+      "id": "spring_force",
+      "topic_tags": ["forces"]
+    },
+    {
+      "label": "Moment of a force",
+      "latex": "M = F d",
+      "id": "moment",
+      "topic_tags": ["forces"]
+    },
+    {
+      "label": "Pressure",
+      "latex": "p = \\frac{F}{A}",
+      "id": "pressure",
+      "topic_tags": ["forces"]
+    },
+    {
+      "label": "Pressure due to a column of liquid",
+      "latex": "p = h \\rho g",
+      "id": "pressure_column",
+      "topic_tags": ["forces"]
+    },
+    {
+      "label": "Distance travelled",
+      "latex": "s = v t",
+      "id": "distance_speed",
+      "topic_tags": ["forces"]
+    },
+    {
+      "label": "Acceleration",
+      "latex": "a = \\frac{\\Delta v}{t}",
+      "id": "acceleration",
+      "topic_tags": ["forces"]
+    },
+    {
+      "label": "Equations of motion",
+      "latex": "v^2 - u^2 = 2 a s",
+      "id": "suvat",
+      "topic_tags": ["forces"]
+    },
+    {
+      "label": "Force (change in momentum)",
+      "latex": "F = \\frac{m \\Delta v}{\\Delta t}",
+      "id": "force_momentum",
+      "topic_tags": ["forces"]
+    },
+    {
+      "label": "Resultant force",
+      "latex": "F = m a",
+      "id": "force",
+      "topic_tags": ["forces"]
+    },
+    {
+      "label": "Momentum",
+      "latex": "p = m v",
+      "id": "momentum",
+      "topic_tags": ["forces"]
+    },
+    {
+      "label": "Period",
+      "latex": "T = \\frac{1}{f}",
+      "id": "period",
+      "topic_tags": ["waves"]
+    },
+    {
+      "label": "Wave speed",
+      "latex": "v = f \\lambda",
+      "id": "wave_speed",
+      "topic_tags": ["waves"]
+    },
+    {
+      "label": "Magnification",
+      "latex": "\\text{magnification} = \\frac{\\text{image height}}{\\text{object height}}",
+      "id": "magnification",
+      "topic_tags": ["waves"]
+    },
+    {
+      "label": "Force on a conductor in a magnetic field",
+      "latex": "F = B I l",
+      "id": "force_on_conductor",
+      "topic_tags": ["magnetism"]
+    },
+    {
+      "label": "Transformer (power)",
+      "latex": "V_p I_p = V_s I_s",
+      "id": "transformer",
+      "topic_tags": ["magnetism"]
+    },
+    {
+      "label": "Transformer (turns ratio)",
+      "latex": "\\frac{V_p}{V_s} = \\frac{n_p}{n_s}",
+      "id": "transformer_turns",
+      "topic_tags": ["magnetism"]
+    },
+    {
+      "label": "Pressure x volume (gases)",
+      "latex": "p V = \\text{constant}",
+      "id": "pv_constant",
+      "topic_tags": ["particle_model"]
+    }
+  ]
+}

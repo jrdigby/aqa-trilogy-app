@@ -271,29 +271,62 @@ export function inferCalculationPreset(demandLevel) {
   return ["low", "standard"].includes(demandLevel) ? "given_equation" : "equation_sheet";
 }
 
-/** Map admin subject / paper / tier to a shared equation_sheets row id. */
-export function resolveEquationSheetId({ subject, paper, tier }) {
+const COMBINED_SHEET_ID_RE = /^physics_(p[12])_(ft|ht)$/;
+const TRIPLE_SHEET_ID_RE = /^triple_physics_(p[12])_(ft|ht)$/;
+
+/** Map admin subject / paper / tier / course track to an equation_sheets row id. */
+export function resolveEquationSheetId({ subject, paper, tier, courseTrack = "combined" }) {
   if (subject !== "physics") return null;
   const paperKey = paper === "paper1" ? "p1" : paper === "paper2" ? "p2" : null;
   if (!paperKey) return null;
   const t = String(tier || "").toLowerCase();
   const tierKey = t === "higher" || t === "ht" ? "ht" : "ft";
-  return `physics_${paperKey}_${tierKey}`;
+  const prefix = courseTrack === "triple" ? "triple_" : "";
+  return `${prefix}physics_${paperKey}_${tierKey}`;
 }
 
-/** Read subject, paper, and tier from the creator or edit admin form. */
+/** Map a stored sheet id to the student's course track (combined ↔ triple). */
+export function mapEquationSheetIdForCourseTrack(sheetId, courseTrack = "combined") {
+  if (!sheetId) return sheetId;
+  const track = courseTrack === "triple" ? "triple" : "combined";
+  if (track === "triple") {
+    const combined = sheetId.match(COMBINED_SHEET_ID_RE);
+    if (combined) return `triple_physics_${combined[1]}_${combined[2]}`;
+    return sheetId;
+  }
+  const triple = sheetId.match(TRIPLE_SHEET_ID_RE);
+  if (triple) return `physics_${triple[1]}_${triple[2]}`;
+  return sheetId;
+}
+
+/**
+ * Resolve which equation sheet row to load for a question and student profile.
+ * Uses calculation_config.equation_sheet_id, remapped for science path when needed.
+ */
+export function resolveEquationSheetIdForQuestion(q, profile, { courseTrack = null } = {}) {
+  const cfg = getCalculationConfig(q);
+  const storedId = cfg.equation_sheet_id;
+  if (!storedId || cfg.equation_given !== false) return null;
+
+  const track = courseTrack || (profile?.science_path === "triple" ? "triple" : "combined");
+  return mapEquationSheetIdForCourseTrack(storedId, track);
+}
+
+/** Read subject, paper, tier, and course track from the creator or edit admin form. */
 export function readAuthoringContext(prefix = "") {
   if (prefix === "edit") {
     return {
       subject: document.getElementById("editEqSheetSubject")?.value || "physics",
       paper: document.getElementById("editEqSheetPaper")?.value || "paper1",
-      tier: document.getElementById("editTier")?.value || "both"
+      tier: document.getElementById("editTier")?.value || "both",
+      courseTrack: document.getElementById("editEqSheetCourseTrack")?.value || "combined"
     };
   }
   return {
     subject: document.getElementById("subjectSelect")?.value || "physics",
     paper: document.getElementById("paperSelect")?.value || "paper1",
-    tier: document.getElementById("tierSelect")?.value || "both"
+    tier: document.getElementById("tierSelect")?.value || "both",
+    courseTrack: document.getElementById("courseTrackSelect")?.value || "combined"
   };
 }
 
