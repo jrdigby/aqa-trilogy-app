@@ -11,7 +11,7 @@ const FEATURE_COPY = {
   full_paper: "Unlimited full mock papers (70 marks)",
   heatmap: "Click any topic on the mastery matrix to practise",
   pdf_flashcards: "Download your gap flashcards as a PDF",
-  analytics: "Full analytics — activity charts, AO breakdown, and mastery index",
+  analytics: "Full analytics — activity charts, AO breakdown, MS/WS skills, and mastery index",
   generic: "Student Pro features",
 };
 
@@ -33,6 +33,7 @@ export function resolveAccess(profile, classInfo = null) {
     canHeatmapPractice: isPro,
     canPdfFlashcards: isPro,
     canFullAnalytics: isPro,
+    canSkillPractice: isPro,
     canFullPaperSim: isPro,
     aiMarksLimit: isPro ? null : FREE_AI_MARKS_PER_WEEK,
     halfPaperLimit: isPro ? null : FREE_HALF_PAPERS_PER_MONTH,

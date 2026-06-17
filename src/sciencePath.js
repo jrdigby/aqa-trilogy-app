@@ -17,8 +17,16 @@ export function normalizeTier(tier) {
 export function targetTiersForTier(tier) {
   const t = normalizeTier(tier);
   return t === "HT"
-    ? ["HT", "ht", "both", "Both"]
-    : ["FT", "ft", "both", "Both"];
+    ? ["HT", "ht", "higher", "both", "Both"]
+    : ["FT", "ft", "foundation", "both", "Both"];
+}
+
+/** True if a question row tier is visible for the student's target tier list. */
+export function questionTierMatchesProfile(qTier, targetTiers) {
+  if (!qTier) return false;
+  if (targetTiers?.includes(qTier)) return true;
+  const normalized = normalizeTier(qTier);
+  return targetTiers?.some((t) => normalizeTier(t) === normalized);
 }
 
 export function getSciencePath(profile) {

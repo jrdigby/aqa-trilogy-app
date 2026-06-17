@@ -717,7 +717,7 @@
       <div id="dashboardTabAnalytics" class="dashboard-tab-panel hidden" role="tabpanel">
         <div id="analyticsFreeSummary" class="analytics-free-summary hidden">
           <h3 class="scoped-panel-heading">Your progress snapshot</h3>
-          <p class="muted analytics-free-lead">Student Pro unlocks activity charts, AO breakdown, and subject mastery detail.</p>
+          <p class="muted analytics-free-lead">Student Pro unlocks activity charts, AO breakdown, MS/WS skills analytics, and subject mastery detail.</p>
           <div class="analytics-free-stats">
             <div class="analytics-free-stat-card">
               <strong id="freeAnalyticsStreak">0</strong>
@@ -729,7 +729,7 @@
             </div>
           </div>
           <div class="analytics-locked-preview">
-            <p class="muted">🔒 Detailed analytics are included with Student Pro.</p>
+            <p class="muted">🔒 Detailed analytics and MS/WS skill breakdown are included with Student Pro.</p>
             <button type="button" id="btnUpgradeFromAnalytics" class="btn-primary upgrade-cta-btn">See Student Pro</button>
           </div>
         </div>
@@ -765,7 +765,7 @@
             📊 Subject Mastery Index
           </h3>
           <p class="muted" style="margin-bottom: 15px;">Your real-time performance strength based on aggregate exam marks earned within this paper.</p>
-          <div id="masteryWrapper" style="display: flex; flex-direction: column; gap: 12px;">
+          <div id="masteryWrapper" class="subject-mastery-grid">
             <div class="muted" style="text-align: center; padding: 10px;">Loading syllabus data nodes...</div>
           </div>
 
@@ -773,6 +773,7 @@
           <div id="aoMasteryWrapper" class="ao-mastery-stack">
             <div class="muted" style="text-align: center; padding: 10px;">Syncing performance indicators…</div>
           </div>
+          <div id="skillsAnalyticsWrapper"></div>
         </div>
         </div>
       </div>

@@ -332,13 +332,26 @@ export async function fetchSyllabusPipelineData(userId, subject, paper, targetTi
     specPointsQuery = specPointsQuery.eq("course_track", courseTrack);
   }
 
-  let questionsQuery = supabaseClient
-    .from("questions")
-    .select("id, spec_point_id, triple_spec_point_id, question_type, tier, image_url, audience")
-    .in("tier", targetTiers);
+  const questionsSelectWithSkills =
+    "id, spec_point_id, triple_spec_point_id, question_type, tier, image_url, audience, is_maths_skill, max_marks, calculation_config, question_skills(skill_id, skill_framework_items(id, framework, full_code, title, category))";
+  const questionsSelectBasic =
+    "id, spec_point_id, triple_spec_point_id, question_type, tier, image_url, audience, is_maths_skill, max_marks, calculation_config";
 
-  if (qType) {
-    questionsQuery = questionsQuery.eq("question_type", qType);
+  let questionsRes;
+  try {
+    let questionsQuery = supabaseClient
+      .from("questions")
+      .select(questionsSelectWithSkills)
+      .in("tier", targetTiers);
+    if (qType) questionsQuery = questionsQuery.eq("question_type", qType);
+    questionsRes = await Promise.race([questionsQuery, timeoutPromise(4000, "questions lookup timed out")]);
+    if (questionsRes.error && /column|relation|question_skills/i.test(questionsRes.error.message || "")) {
+      let fallbackQuery = supabaseClient.from("questions").select(questionsSelectBasic).in("tier", targetTiers);
+      if (qType) fallbackQuery = fallbackQuery.eq("question_type", qType);
+      questionsRes = await Promise.race([fallbackQuery, timeoutPromise(4000, "questions lookup timed out")]);
+    }
+  } catch (err) {
+    questionsRes = { data: [], error: err };
   }
 
   const srsStatePromise = restGet("srs_state", userId, {
@@ -349,19 +362,37 @@ export async function fetchSyllabusPipelineData(userId, subject, paper, targetTi
     },
   }).catch(() => []);
 
-  const attemptsQuery = supabaseClient
-    .from("attempts")
-    .select("score_total, score_max, question_id, ao1_score, ao2_score, ao3_score");
+  const attemptsSelectFull =
+    "score_total, score_max, question_id, ao1_score, ao2_score, ao3_score";
+  const attemptsSelectBasic = "score_total, score_max, question_id";
+
+  async function fetchAttemptsForUser() {
+    if (!userId) return { data: [] };
+    let result = await Promise.race([
+      supabaseClient.from("attempts").select(attemptsSelectFull).eq("user_id", userId),
+      timeoutPromise(4000, "attempts statistics lookup timed out"),
+    ]);
+    if (result.error && /column/i.test(result.error.message || "")) {
+      result = await Promise.race([
+        supabaseClient.from("attempts").select(attemptsSelectBasic).eq("user_id", userId),
+        timeoutPromise(4000, "attempts statistics lookup timed out"),
+      ]);
+    }
+    if (result.error) {
+      console.warn("fetchSyllabusPipelineData attempts:", result.error.message);
+      return { data: [] };
+    }
+    return result;
+  }
 
   const markPointsQuery = supabaseClient
     .from("mark_points")
     .select("question_id, ao, max_marks, image_url");
 
-  const [specPointsRes, questionsRes, srsStateData, attemptsRes, markPointsRes] = await Promise.all([
+  const [specPointsRes, srsStateData, attemptsRes, markPointsRes] = await Promise.all([
     Promise.race([specPointsQuery, timeoutPromise(4000, "spec_points lookup timed out")]).catch(() => ({ data: [] })),
-    Promise.race([questionsQuery, timeoutPromise(4000, "questions lookup timed out")]).catch(() => ({ data: [] })),
     srsStatePromise,
-    Promise.race([attemptsQuery, timeoutPromise(4000, "attempts statistics lookup timed out")]).catch(() => ({ data: [] })),
+    fetchAttemptsForUser(),
     Promise.race([markPointsQuery, timeoutPromise(4000, "mark_points list lookup timed out")]).catch(() => ({ data: [] }))
   ]);
 
@@ -614,7 +645,7 @@ export async function fetchQuestionsMeta(questionIds) {
   if (!questionIds?.length) return [];
   const { data, error } = await supabaseClient
     .from("questions")
-    .select("id, spec_point_id, question_type")
+    .select("id, spec_point_id, question_type, max_marks, calculation_config")
     .in("id", questionIds);
   if (error) throw error;
   return data || [];

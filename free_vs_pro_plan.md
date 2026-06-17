@@ -21,7 +21,7 @@
 | Flashcards (in-app deck) | Yes | Yes |
 | **Flashcards PDF export** | Locked | Yes |
 | **AI long-answer marking** (`mark-long-answer`) | **3 per rolling 7 days** | Unlimited |
-| Analytics tab | Summary only (streak, due count, XP) | Full (AO, activity charts, forecast, mastery index) |
+| Analytics tab | Summary only (streak, due count, XP) | Full (AO, activity charts, MS/WS skills, forecast, mastery index) |
 | Hints panel | All hints (XP penalty applies) | All hints |
 | **Streak freeze** | No | Yes (1/week — future) |
 | Class join | Yes | Pro if class has active licence |

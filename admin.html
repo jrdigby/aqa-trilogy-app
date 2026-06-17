@@ -241,6 +241,16 @@
       border-color: #a7f3d0;
     }
 
+    .skill-category { margin-bottom: 10px; }
+    .skill-category-title { font-size: 0.78rem; font-weight: 700; color: #475569; margin-bottom: 6px; }
+    .skill-check-grid { display: flex; flex-wrap: wrap; gap: 6px 10px; }
+    .skill-check-label { display: inline-flex; align-items: center; gap: 4px; font-size: 0.78rem; cursor: pointer; padding: 3px 6px; border-radius: 6px; background: #f8fafc; border: 1px solid #e2e8f0; }
+    .skill-check-label input { margin: 0; }
+    .skill-code { font-weight: 700; font-family: monospace; color: #0f766e; }
+    .skill-subject-hint { font-size: 0.68rem; color: #94a3b8; }
+    .skills-panel-block { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--border); }
+    .skills-panel-block.hidden { display: none; }
+
     .container {
       max-width: 1200px;
       margin: 32px auto;
@@ -627,6 +637,17 @@
                 </select>
               </div>
             </div>
+            <div id="msSkillsPanel" class="skills-panel-block hidden">
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+                <h5 style="margin:0;font-size:0.85rem;">Maths Skills (MS)</h5>
+                <button type="button" class="btn btn-secondary btn-compact" id="btnAutoDetectSkills">Auto-detect skills</button>
+              </div>
+              <div id="msSkillsWrap"></div>
+            </div>
+            <div id="wsSkillsPanel" class="skills-panel-block">
+              <h5 style="margin:0 0 8px;font-size:0.85rem;">Working Scientifically (WS)</h5>
+              <div id="wsSkillsWrap"></div>
+            </div>
             <div id="metadataWarnings" class="metadata-warnings hidden"></div>
           </div>
 
@@ -934,6 +955,7 @@
           </div>
 
           <button class="btn btn-primary" id="btnQueryQuestions" style="margin-top: 10px;">Query Active Database</button>
+          <button type="button" class="btn btn-secondary" id="btnBulkAutoTagSkills" style="margin-top: 10px; margin-left: 8px;">Auto-tag untagged questions</button>
         </div>
 
         <div class="card" style="padding:0; overflow-x:auto;">
@@ -948,13 +970,14 @@
                 <th style="width: 80px;">Demand</th>
                 <th style="width: 64px;">AO</th>
                 <th style="width: 56px;">M/RP</th>
+                <th style="width: 88px;">MS/WS</th>
                 <th style="width: 72px;">Meta</th>
                 <th style="width: 200px; text-align:right;">Operations</th>
               </tr>
             </thead>
             <tbody id="questionsAuditList">
               <tr>
-                <td colspan="10" style="padding:24px; text-align:center; color:var(--text-muted);">Set filters and query active tables.</td>
+                <td colspan="11" style="padding:24px; text-align:center; color:var(--text-muted);">Set filters and query active tables.</td>
               </tr>
             </tbody>
           </table>
@@ -1087,6 +1110,17 @@
                 <option value="">Select practical…</option>
               </select>
             </div>
+          </div>
+          <div id="editMsSkillsPanel" class="skills-panel-block hidden">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+              <h5 style="margin:0;font-size:0.85rem;">Maths Skills (MS)</h5>
+              <button type="button" class="btn btn-secondary btn-compact" id="btnAutoDetectEditSkills">Auto-detect</button>
+            </div>
+            <div id="editMsSkillsWrap"></div>
+          </div>
+          <div id="editWsSkillsPanel" class="skills-panel-block">
+            <h5 style="margin:0 0 8px;font-size:0.85rem;">Working Scientifically (WS)</h5>
+            <div id="editWsSkillsWrap"></div>
           </div>
         </div>
 
@@ -1304,6 +1338,7 @@
   import * as CalcWorkflow from "./src/calculationWorkflow.js";
 
   window.CalcWorkflow = CalcWorkflow;
+  window.supabaseClient = supabaseClient;
 
   let currentAuthSessionUser = null;
   let loadedQuestionsCache = [];
@@ -1322,6 +1357,7 @@
       banner.style.transform = "translateY(-20px)";
     }, 5000);
   }
+  window.showAdminToast = showAdminToast;
 
   const MAX_HINTS = 5;
 
@@ -1473,6 +1509,9 @@
     showAdminToast("Developer session validated.");
     loadSyllabusReferenceSelects();
     void loadRequiredPracticalCatalog();
+    if (window.AdminSkills) {
+      void window.AdminSkills.loadSkillCatalog(supabaseClient);
+    }
   }
 
   // Switch Panel Tabs
@@ -2155,6 +2194,10 @@
         const { error: mpErr } = await supabaseClient.from("mark_points").insert(markPayloads);
         if (mpErr) throw mpErr;
       }
+
+      if (window.AdminSkills) {
+        await window.AdminSkills.saveSkillsFromForm(supabaseClient, qResult.id, "creator");
+      }
       
       showAdminToast("Question committed successfully! ✅");
       clearQuestionCreatorForm();
@@ -2204,6 +2247,7 @@
       warnEl.innerHTML = "";
     }
     if (window.AdminMetadata) window.AdminMetadata.resetCreatorMetadataFields();
+    if (window.AdminSkills) window.AdminSkills.resetCreatorSkillsUI();
   }
   document.getElementById("btnReset").onclick = clearQuestionCreatorForm;
 
@@ -2417,6 +2461,16 @@
             });
             
           if (kErr) throw kErr;
+
+          const msCodes = (parts[22] || "").trim();
+          const wsCodes = (parts[23] || "").trim();
+          if (window.AdminSkills && (msCodes || wsCodes)) {
+            const skillIds = window.AdminSkills.resolveSkillIdsFromCodeStrings(msCodes, wsCodes);
+            if (skillIds.length) {
+              await window.AdminSkills.saveQuestionSkills(supabaseClient, qNode.id, skillIds);
+            }
+          }
+
           processed++;
           logArea.textContent += `\n🟢 Successfully uploaded Question ID: ${qNode.id}`;
           
@@ -2437,7 +2491,9 @@
   const btnQueryQuestions = document.getElementById("btnQueryQuestions");
   const auditList = document.getElementById("questionsAuditList");
   
-  const AUDIT_COLSPAN = 10;
+  const AUDIT_COLSPAN = 11;
+
+  window.refreshAuditTable = () => btnQueryQuestions.click();
 
   btnQueryQuestions.onclick = async () => {
     const sub = document.getElementById("auditSubject").value;
@@ -2473,7 +2529,7 @@
         checkPointsCounterMap[mp.question_id] = (checkPointsCounterMap[mp.question_id] || 0) + 1;
       });
       
-      const selectWithMeta = "id, spec_point_id, triple_spec_point_id, audience, question_type, prompt, options, tier, marking_method, max_marks, resource_links, hints, image_url, calculation_config, command_word, demand_level, ao1_marks, ao2_marks, ao3_marks, is_maths_skill, is_required_practical, required_practical_id, difficulty, required_practicals(code), answer_keys(key_type, key_payload)";
+      const selectWithMeta = "id, spec_point_id, triple_spec_point_id, audience, question_type, prompt, options, tier, marking_method, max_marks, resource_links, hints, image_url, calculation_config, command_word, demand_level, ao1_marks, ao2_marks, ao3_marks, is_maths_skill, is_required_practical, required_practical_id, difficulty, required_practicals(code), answer_keys(key_type, key_payload), question_skills(skill_id, skill_framework_items(full_code, framework, title))";
       const selectBasic = "id, spec_point_id, triple_spec_point_id, audience, question_type, prompt, options, tier, marking_method, max_marks, resource_links, hints, image_url, calculation_config, difficulty, answer_keys(key_type, key_payload)";
 
       let query = supabaseClient
@@ -2483,7 +2539,13 @@
       if (qTypeFilter) query = query.eq("question_type", qTypeFilter);
 
       let { data: questions, error: qErr } = await query;
-      if (qErr && /column/i.test(qErr.message || "")) {
+      if (qErr && /column|relation|question_skills/i.test(qErr.message || "")) {
+        query = supabaseClient.from("questions").select(selectBasic).in("spec_point_id", specIds);
+        if (qTypeFilter) query = query.eq("question_type", qTypeFilter);
+        const retry = await query;
+        questions = retry.data;
+        qErr = retry.error;
+      } else if (qErr && /column/i.test(qErr.message || "")) {
         query = supabaseClient.from("questions").select(selectBasic).in("spec_point_id", specIds);
         if (qTypeFilter) query = query.eq("question_type", qTypeFilter);
         const retry = await query;
@@ -2501,6 +2563,10 @@
           const incomplete = window.AdminMetadata.isMetadataIncomplete(q);
           return metaFilter === "incomplete" ? incomplete : !incomplete;
         });
+      }
+
+      if (window.AdminSkills?.attachSkillsToQuestions) {
+        filtered = await window.AdminSkills.attachSkillsToQuestions(supabaseClient, filtered);
       }
       
       // Audit engine mapping to calculate severity & prepare prioritized sorting rules
@@ -2585,6 +2651,7 @@
       
       // Store in memory cache for Sandbox loading & modal populates
       loadedQuestionsCache = filtered;
+      window.loadedQuestionsCache = filtered;
       
       if (filtered.length === 0) {
         auditList.innerHTML = `<tr><td colspan="${AUDIT_COLSPAN}" style="padding:24px; text-align:center; color:var(--text-muted);">No records found in active tables matching your search rules.</td></tr>`;
@@ -2602,10 +2669,14 @@
         const aud = q.audience === "triple_only" ? "T" : "B";
         const flags = `${q.is_maths_skill ? "M" : "·"}/${rpCode}/${aud}`;
         const metaIncomplete = window.AdminMetadata && window.AdminMetadata.isMetadataIncomplete(q);
+        const skillsGap = window.AdminSkills && window.AdminSkills.isSkillsMetadataIncomplete(q);
         const dualLinkGap = window.AdminMetadata && window.AdminMetadata.isDualLinkIncomplete(q);
-        const metaBadge = metaIncomplete || dualLinkGap
+        const metaBadge = metaIncomplete || dualLinkGap || skillsGap
           ? `<span class="meta-badge">Gap</span>`
           : `<span class="meta-badge meta-badge--ok">OK</span>`;
+        const skillsBadge = window.AdminSkills
+          ? window.AdminSkills.formatQuestionSkillsBadge(q)
+          : "—";
         
         // Build text warnings displays to slide directly under each question row
         let warningsHtml = "";
@@ -2641,6 +2712,7 @@
             <td style="padding:12px 16px 4px 16px; font-size:0.78rem;">${escapeHtml(demand)}</td>
             <td style="padding:12px 16px 4px 16px; font-size:0.78rem; font-family:monospace;">${escapeHtml(aoSplit)}</td>
             <td style="padding:12px 16px 4px 16px; font-size:0.78rem;">${flags}</td>
+            <td style="padding:12px 16px 4px 16px; font-size:0.72rem;font-family:monospace;max-width:88px;overflow:hidden;text-overflow:ellipsis;" title="${escapeHtml(skillsBadge)}">${escapeHtml(skillsBadge)}</td>
             <td style="padding:12px 16px 4px 16px;">${metaBadge}</td>
             <td style="padding:12px 16px 4px 16px; text-align:right; display:flex; gap:6px; justify-content:flex-end;">
               <button onclick="launchSandboxTest('${q.id}')" class="btn btn-secondary" style="padding:6px 10px; font-size:0.75rem; background:#3b82f6; color:white;">Test</button>
@@ -2864,6 +2936,9 @@
     }
 
     if (window.AdminMetadata) window.AdminMetadata.initEditMetadataUI(q);
+    if (window.AdminSkills) {
+      await window.AdminSkills.prepareEditSkillsUI(supabaseClient, q);
+    }
 
     document.getElementById("editModalOverlay").classList.remove("hidden");
   };
@@ -3024,6 +3099,10 @@
         
         const { error: mpErr } = await supabaseClient.from("mark_points").insert(markPayloads);
         if (mpErr) throw mpErr;
+      }
+
+      if (window.AdminSkills) {
+        await window.AdminSkills.saveSkillsFromForm(supabaseClient, qId, "edit");
       }
 
       closeEditModal();
@@ -3428,10 +3507,14 @@
 </script>
 <script type="module">
   import * as AdminMetadata from "./src/adminMetadata.js";
+  import * as AdminSkills from "./src/adminSkills.js";
   import { getDemandOptionsForTier } from "./src/examRules.js";
+  import { supabaseClient } from "./src/dbClient.js";
 
   window.AdminMetadata = AdminMetadata;
+  window.AdminSkills = AdminSkills;
   AdminMetadata.initCreatorMetadataUI();
+  AdminSkills.initAdminSkillsUI(supabaseClient);
 
   const editTier = document.getElementById("editTier");
   if (editTier) {

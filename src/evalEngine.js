@@ -444,3 +444,48 @@ export function markResponse(q, resp, key, markPoints) {
 
   return { total, max, ao, maxAo, missing, quality, feedbackPayload: { missing }, stepResults };
 }
+
+/** Max AO marks per question — mirrors markResponse / markCalculationResponse caps. */
+export function computeQuestionAOMaxCaps(q, markPoints = []) {
+  const max = q.max_marks || 1;
+  const maxAo = { AO1: 0, AO2: 0, AO3: 0 };
+
+  if (q.question_type === "numeric") {
+    const config = getCalculationConfig(q);
+    const steps = getActiveSteps(config);
+    if (steps.length > 0) {
+      if (steps.length === 1 && steps[0]?.type === "calculate") {
+        maxAo.AO2 = max;
+        return maxAo;
+      }
+      for (const step of steps) {
+        const marks = Number(step.marks) || 0;
+        const stepAo = step.ao || (step.type === "equation_select" ? "AO1" : "AO2");
+        maxAo[stepAo] = (maxAo[stepAo] || 0) + marks;
+      }
+      return maxAo;
+    }
+  }
+
+  if (markPoints.length > 0) {
+    for (const mp of markPoints) {
+      if (mp.ao && maxAo[mp.ao] !== undefined) {
+        maxAo[mp.ao] += Number(mp.max_marks) || 1;
+      }
+    }
+    return maxAo;
+  }
+
+  if (q.question_type === "mcq") {
+    maxAo.AO1 = max;
+  } else if (q.question_type === "numeric") {
+    maxAo.AO2 = max;
+  } else if (q.question_type === "extended_response") {
+    maxAo.AO1 = Math.ceil(max / 3);
+    maxAo.AO2 = Math.floor(max / 3);
+    maxAo.AO3 = max - maxAo.AO1 - maxAo.AO2;
+  } else {
+    maxAo.AO1 = max;
+  }
+  return maxAo;
+}
