@@ -258,6 +258,149 @@
       box-sizing: border-box;
     }
 
+    @media (min-width: 1280px) {
+      .container {
+        max-width: 1440px;
+      }
+    }
+
+    .spec-link-panel .spec-link-warning {
+      font-size: 0.78rem;
+      color: #b45309;
+      margin: 6px 0 0;
+      line-height: 1.4;
+    }
+
+    .spec-link-panel .spec-link-warning.hidden {
+      display: none;
+    }
+
+    #linkedSpecDisplay,
+    #editTripleSpecDisplay,
+    #editCombinedSpecDisplay {
+      background: #f1f5f9;
+      cursor: default;
+    }
+
+    .creator-workspace .card:last-of-type {
+      margin-bottom: 0;
+    }
+
+    .creator-answers-row {
+      display: grid;
+      gap: 24px;
+      margin-bottom: 24px;
+    }
+
+    .creator-core-body {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .spec-link-panel {
+      padding: 14px;
+      border: 2px solid #cbd5e1;
+      border-radius: 10px;
+      background: #f8fafc;
+      margin-bottom: 4px;
+    }
+
+    .spec-link-panel .spec-link-status {
+      font-size: 0.78rem;
+      color: #64748b;
+      margin: 0 0 10px;
+      line-height: 1.4;
+    }
+
+    .spec-link-linked-row.hidden {
+      display: none;
+    }
+
+    .creator-actions {
+      display: flex;
+      gap: 12px;
+      justify-content: flex-end;
+      margin-bottom: 40px;
+      padding-top: 4px;
+    }
+
+    .metadata-inner {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    .edit-form-layout {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .edit-answers-markpoints {
+      display: grid;
+      gap: 16px;
+    }
+
+    #editModalOverlay .card {
+      max-width: 800px;
+    }
+
+    @media (min-width: 1100px) {
+      .creator-answers-row {
+        grid-template-columns: 1fr 1fr;
+        align-items: start;
+      }
+
+      .creator-core-body {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px 24px;
+        align-items: start;
+      }
+
+      .creator-core-span-full {
+        grid-column: 1 / -1;
+      }
+
+      .creator-core-side-col {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .metadata-inner {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px 20px;
+        align-items: start;
+      }
+
+      .metadata-inner .metadata-span-full {
+        grid-column: 1 / -1;
+      }
+
+      #editModalOverlay .card {
+        max-width: 1180px;
+      }
+
+      .edit-form-layout {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px 24px;
+        align-items: start;
+      }
+
+      .edit-form-span-full {
+        grid-column: 1 / -1;
+      }
+
+      .edit-answers-markpoints {
+        grid-column: 1 / -1;
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
     .card {
       background: var(--card-bg);
       border: 1px solid var(--border);
@@ -303,6 +446,202 @@
     input:focus, select:focus, textarea:focus {
       outline: none;
       border-color: var(--primary);
+    }
+
+    /* Create & modify question — high-contrast editable fields */
+    #panelCreator,
+    #editForm {
+      --field-border: #94a3b8;
+      --field-border-hover: #64748b;
+      --field-bg: #f8fafc;
+      --field-bg-focus: #ffffff;
+      --field-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+      --field-focus-ring: 0 0 0 3px rgba(16, 185, 129, 0.22);
+    }
+
+    #panelCreator input[type="text"],
+    #panelCreator input[type="number"],
+    #panelCreator input[type="file"],
+    #panelCreator select,
+    #panelCreator textarea,
+    #editForm input[type="text"],
+    #editForm input[type="number"],
+    #editForm input[type="file"],
+    #editForm select,
+    #editForm textarea {
+      border: 2px solid var(--field-border);
+      background-color: var(--field-bg);
+      box-shadow: var(--field-shadow);
+      min-height: 42px;
+      padding: 10px 14px;
+      font-size: 0.95rem;
+      line-height: 1.4;
+    }
+
+    #panelCreator textarea,
+    #editForm textarea {
+      min-height: 80px;
+      resize: vertical;
+    }
+
+    #panelCreator select,
+    #editForm select {
+      cursor: pointer;
+      appearance: none;
+      -webkit-appearance: none;
+      --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23475569' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
+      background-image: var(--select-chevron);
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      padding-right: 36px;
+    }
+
+    #panelCreator input[type="file"],
+    #editForm input[type="file"] {
+      border-style: dashed;
+      background-color: #fff;
+      cursor: pointer;
+    }
+
+    #panelCreator input:hover,
+    #panelCreator select:hover,
+    #panelCreator textarea:hover,
+    #editForm input:hover,
+    #editForm select:hover,
+    #editForm textarea:hover {
+      border-color: var(--field-border-hover);
+    }
+
+    #panelCreator input[type="text"]:hover,
+    #panelCreator input[type="number"]:hover,
+    #panelCreator textarea:hover,
+    #editForm input[type="text"]:hover,
+    #editForm input[type="number"]:hover,
+    #editForm textarea:hover {
+      background-color: #f1f5f9;
+    }
+
+    #panelCreator select:hover,
+    #editForm select:hover {
+      background-color: #f1f5f9;
+      background-image: var(--select-chevron);
+    }
+
+    #panelCreator input:focus,
+    #panelCreator select:focus,
+    #panelCreator textarea:focus,
+    #editForm input:focus,
+    #editForm select:focus,
+    #editForm textarea:focus {
+      border-color: var(--primary);
+      background-color: var(--field-bg-focus);
+      box-shadow: var(--field-focus-ring);
+    }
+
+    #panelCreator select:focus,
+    #editForm select:focus {
+      background-image: var(--select-chevron);
+    }
+
+    #panelCreator input::placeholder,
+    #panelCreator textarea::placeholder,
+    #editForm input::placeholder,
+    #editForm textarea::placeholder {
+      color: #94a3b8;
+      opacity: 1;
+    }
+
+    #panelCreator .input-compact,
+    #editForm .input-compact {
+      min-height: 38px;
+      padding: 8px 10px !important;
+      font-size: 0.9rem !important;
+      font-weight: 600;
+      text-align: center;
+      background-color: #ecfdf5;
+      border-color: #6ee7b7;
+    }
+
+    #panelCreator .input-compact:focus,
+    #editForm .input-compact:focus {
+      background-color: #fff;
+      border-color: var(--primary);
+    }
+
+    #panelCreator .hints-author-panel .hint-row,
+    #editForm .hints-author-panel .hint-row {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      margin-bottom: 10px;
+    }
+
+    #panelCreator .hints-author-panel .hint-row-label,
+    #editForm .hints-author-panel .hint-row-label {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #475569;
+      min-width: 56px;
+      padding-top: 12px;
+    }
+
+    #markPointsWrapper,
+    #editMarkPointsWrapper {
+      padding: 14px;
+      border: 2px dashed #94a3b8;
+      border-radius: 10px;
+      background: #f1f5f9;
+    }
+
+    #markPointsWrapper:empty::before,
+    #editMarkPointsWrapper:empty::before {
+      content: "No mark checkpoints yet — click “+ Add Criteria Step” to add grading steps.";
+      display: block;
+      font-size: 0.85rem;
+      color: #64748b;
+      font-style: italic;
+      text-align: center;
+      padding: 12px 0;
+    }
+
+    #panelCreator input[type="checkbox"],
+    #editForm input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      min-height: unset;
+      accent-color: var(--primary);
+      cursor: pointer;
+    }
+
+    #panelCreator label,
+    #editForm label {
+      color: #1e293b;
+    }
+
+    #panelCreator .mp-text,
+    #panelCreator .mp-feedback,
+    #panelCreator .edit-mp-text,
+    #panelCreator .edit-mp-feedback,
+    #editForm .mp-text,
+    #editForm .mp-feedback,
+    #editForm .edit-mp-text,
+    #editForm .edit-mp-feedback {
+      min-height: 42px;
+    }
+
+    #panelCreator .mp-feedback,
+    #panelCreator .edit-mp-feedback,
+    #editForm .mp-feedback,
+    #editForm .edit-mp-feedback {
+      min-height: 56px;
+    }
+
+    #panelCreator .calc-workflow-panel,
+    #editForm .calc-workflow-panel {
+      border: 2px solid #94a3b8;
+      background: #f1f5f9;
+      padding: 16px;
+      border-radius: 10px;
     }
 
     .btn {
@@ -478,10 +817,10 @@
       </div>
 
       <!-- TAB 1: CREATOR PANEL -->
-      <div id="panelCreator" class="panel active">
+      <div id="panelCreator" class="panel active creator-workspace">
         
-        <!-- SECTION 1: METADATA -->
-        <div class="card">
+        <!-- SECTION 1: CORE -->
+        <div class="card creator-section-core">
           <h3 style="margin-top:0; color:var(--primary-dark); font-size:1.1rem; border-bottom:1px solid var(--border); padding-bottom:8px;">Section 1: Question Core &amp; Curriculum Mapping</h3>
           
           <div class="row row-filters">
@@ -524,142 +863,97 @@
             </div>
           </div>
 
-          <div class="row row-compact hidden" id="tripleSpecLinkRow">
-            <div class="field-fit" style="min-width: min(100%, 420px); flex: 1 1 320px;">
-              <label>Linked triple spec point (for &quot;Both&quot; audience):</label>
-              <select id="tripleSpecPointSelect" style="width: 100%; max-width: 100%;">
-                <option value="">— Optional: select triple equivalent —</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="row row-compact">
-            <div class="field-fit" style="min-width: min(100%, 420px); flex: 1 1 320px;">
-              <label>Target Specification Reference Point (Syllabus Link):</label>
-              <select id="specPointSelect" style="width: 100%; max-width: 100%;">
-                <option>Select subject and paper targets to sync points...</option>
-              </select>
-            </div>
-            <div class="field-fit">
-              <label>AQA Question Type:</label>
-              <select id="qType" class="select-fit">
-                <option value="short_text">Short Answer (Written)</option>
-                <option value="numeric">Numeric (Calculation)</option>
-                <option value="mcq">Multiple Choice Question (MCQ)</option>
-                <option value="extended_response">6-Mark Extended Response (AI graded)</option>
-              </select>
-            </div>
-          </div>
-
-          <div id="maxMarksRow" class="row row-compact">
-            <div class="field-fit">
-              <label>Awardable Assessment Weight (Max Marks):</label>
-              <select id="maxMarks" class="select-fit">
-                <option value="1">1 mark</option>
-                <option value="2" selected>2 marks</option>
-                <option value="3">3 marks</option>
-                <option value="4">4 marks</option>
-                <option value="5">5 marks</option>
-                <option value="6">6 marks</option>
-              </select>
-            </div>
-            <div class="field-fit">
-              <label>Computed difficulty (1–5):</label>
-              <div id="difficultyBadge" class="difficulty-badge" aria-live="polite">—</div>
-            </div>
-          </div>
-
-          <div style="margin-top: 12px;">
-            <label>Question Prompt / Stem (supports MathJax LaTeX: use $ or $$):</label>
-            <textarea id="qPrompt" rows="4" placeholder="Type prompt here..."></textarea>
-          </div>
-
-          <div class="row" style="margin-top: 16px;">
-            <div>
-              <label>Optional Diagram Attachment / Graphic (JPG/PNG File):</label>
-              <input type="file" id="qImage" accept="image/*" />
-            </div>
-            <div>
-              <label>Walkthrough Resource Video URL (YouTube embed):</label>
-              <input type="text" id="qVideo" placeholder="https://www.youtube.com/embed/WalkthroughID" />
-            </div>
-          </div>
-
-          <div class="hints-author-panel" style="margin-top: 16px;">
-            <label>Practice hints (optional — revealed one at a time, reduces student XP)</label>
-            <p class="muted" style="font-size: 0.78rem; margin: 4px 0 8px;">
-              Add 1–3 progressive nudges. Hint 1 should be subtle; later hints more direct. Leave empty if none.
-            </p>
-            <div id="creatorHintsList">
-              <div class="hint-row">
-                <span class="hint-row-label">Hint 1</span>
-                <textarea class="hint-input" rows="2" placeholder="Gentle nudge…"></textarea>
-              </div>
-            </div>
-            <button type="button" id="btnAddCreatorHint" class="btn btn-secondary" style="margin-top: 8px;">+ Add hint</button>
-          </div>
-
-          <div class="metadata-panel">
-            <h4>Exam metadata (AO, demand &amp; paper assembly)</h4>
-            <div class="row row-compact">
-              <div class="field-fit">
-                <label for="commandWordSelect">Command word</label>
-                <div class="inline-field">
-                  <select id="commandWordSelect" class="select-fit"></select>
-                  <button type="button" class="btn btn-secondary btn-compact" id="btnDetectCommandWord">Detect from prompt</button>
-                </div>
-              </div>
-              <div class="field-fit">
-                <label for="demandLevelSelect">Demand level</label>
-                <select id="demandLevelSelect" class="select-fit"></select>
-              </div>
-            </div>
-            <div class="row row-compact">
-              <div class="field-fit">
-                <label>AO mark allocation</label>
-                <div class="ao-inputs">
-                  <span class="ao-mini">AO1 <input type="number" id="ao1Marks" class="input-compact" min="0" max="20" /></span>
-                  <span class="ao-mini">AO2 <input type="number" id="ao2Marks" class="input-compact" min="0" max="20" /></span>
-                  <span class="ao-mini">AO3 <input type="number" id="ao3Marks" class="input-compact" min="0" max="20" /></span>
-                </div>
-                <span id="aoMarksValidation" class="ao-validation ao-validation--warn">Set AO marks to match max marks</span>
-                <button type="button" class="btn btn-secondary btn-compact" id="btnAutoAoFromMarkPoints">Auto from mark points</button>
-              </div>
-            </div>
-            <div class="flag-row">
-              <label><input type="checkbox" id="chkMathsSkill" /> Maths skill question</label>
-              <label><input type="checkbox" id="chkRequiredPractical" /> Required practical</label>
-            </div>
-            <div id="requiredPracticalRow" class="row row-compact hidden">
-              <div class="field-fit" style="min-width: min(100%, 360px);">
-                <label for="requiredPracticalSelect">Which required practical?</label>
-                <select id="requiredPracticalSelect" class="select-fit" style="width: 100%; max-width: 100%;">
-                  <option value="">Select practical…</option>
+          <div class="spec-link-panel" id="specLinkPanel">
+            <p class="spec-link-status" id="specLinkStatus">Select the primary spec point for your course track. When audience is Both, the linked equivalent is filled automatically.</p>
+            <div class="row row-compact" style="margin-bottom: 8px;">
+              <div class="field-fit creator-core-span-full" style="min-width: min(100%, 420px); flex: 1 1 320px;">
+                <label id="primarySpecLabel">Combined spec point (Trilogy 8464):</label>
+                <select id="specPointSelect" style="width: 100%; max-width: 100%;">
+                  <option>Select subject and paper targets to sync points...</option>
                 </select>
               </div>
             </div>
-            <div id="msSkillsPanel" class="skills-panel-block hidden">
-              <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
-                <h5 style="margin:0;font-size:0.85rem;">Maths Skills (MS)</h5>
-                <button type="button" class="btn btn-secondary btn-compact" id="btnAutoDetectSkills">Auto-detect skills</button>
+            <div class="row row-compact spec-link-linked-row hidden" id="specLinkLinkedRow">
+              <div class="field-fit creator-core-span-full" style="min-width: min(100%, 420px); flex: 1 1 320px;">
+                <label id="linkedSpecLabel">Linked triple spec point:</label>
+                <input type="text" id="linkedSpecDisplay" readonly placeholder="— Auto-matched when an equivalent exists —" style="background:#f1f5f9;cursor:default;" />
+                <p id="specLinkWarning" class="hidden" style="font-size:0.78rem;color:#b45309;margin:6px 0 0;line-height:1.4;"></p>
               </div>
-              <div id="msSkillsWrap"></div>
             </div>
-            <div id="wsSkillsPanel" class="skills-panel-block">
-              <h5 style="margin:0 0 8px;font-size:0.85rem;">Working Scientifically (WS)</h5>
-              <div id="wsSkillsWrap"></div>
-            </div>
-            <div id="metadataWarnings" class="metadata-warnings hidden"></div>
           </div>
 
-          <details class="guidelines-panel">
+          <div class="creator-core-body">
+            <div class="creator-core-side-col">
+              <div class="row row-compact" style="margin-bottom: 0;">
+                <div class="field-fit">
+                  <label>AQA Question Type:</label>
+                  <select id="qType" class="select-fit">
+                    <option value="short_text">Short Answer (Written)</option>
+                    <option value="numeric">Numeric (Calculation)</option>
+                    <option value="mcq">Multiple Choice Question (MCQ)</option>
+                    <option value="extended_response">6-Mark Extended Response (AI graded)</option>
+                  </select>
+                </div>
+                <div class="field-fit" id="maxMarksRow">
+                  <label>Awardable Assessment Weight (Max Marks):</label>
+                  <select id="maxMarks" class="select-fit">
+                    <option value="1">1 mark</option>
+                    <option value="2" selected>2 marks</option>
+                    <option value="3">3 marks</option>
+                    <option value="4">4 marks</option>
+                    <option value="5">5 marks</option>
+                    <option value="6">6 marks</option>
+                  </select>
+                </div>
+                <div class="field-fit">
+                  <label>Computed difficulty (1–5):</label>
+                  <div id="difficultyBadge" class="difficulty-badge" aria-live="polite">—</div>
+                </div>
+              </div>
+
+              <div class="row" style="margin-bottom: 0;">
+                <div>
+                  <label>Optional Diagram Attachment / Graphic (JPG/PNG File):</label>
+                  <input type="file" id="qImage" accept="image/*" />
+                </div>
+                <div>
+                  <label>Walkthrough Resource Video URL (YouTube embed):</label>
+                  <input type="text" id="qVideo" placeholder="https://www.youtube.com/embed/WalkthroughID" />
+                </div>
+              </div>
+            </div>
+
+            <div class="creator-core-side-col">
+              <div>
+                <label>Question Prompt / Stem (supports MathJax LaTeX: use $ or $$):</label>
+                <textarea id="qPrompt" rows="5" placeholder="Type prompt here..."></textarea>
+              </div>
+
+              <div class="hints-author-panel">
+                <label>Practice hints (optional — revealed one at a time, reduces student XP)</label>
+                <p class="muted" style="font-size: 0.78rem; margin: 4px 0 8px;">
+                  Add 1–3 progressive nudges. Hint 1 should be subtle; later hints more direct. Leave empty if none.
+                </p>
+                <div id="creatorHintsList">
+                  <div class="hint-row">
+                    <span class="hint-row-label">Hint 1</span>
+                    <textarea class="hint-input" rows="2" placeholder="Gentle nudge…"></textarea>
+                  </div>
+                </div>
+                <button type="button" id="btnAddCreatorHint" class="btn btn-secondary" style="margin-top: 8px;">+ Add hint</button>
+              </div>
+            </div>
+          </div>
+
+          <details class="guidelines-panel" style="margin-top: 16px;">
             <summary>AQA Authoring Guidelines</summary>
             <div id="authoringGuidelinesBody" class="guidelines-body"></div>
           </details>
         </div>
 
+        <div class="creator-answers-row">
         <!-- SECTION 2: EXPECTED ANSWER CONFIG -->
-        <div class="card">
+        <div class="card creator-section-answers" style="margin-bottom: 0;">
           <h3 style="margin-top:0; color:var(--primary-dark); font-size:1.1rem; border-bottom:1px solid var(--border); padding-bottom:8px;">Section 2: Interactive Answers &amp; Keys Config</h3>
 
           <!-- Sub Panel: MCQ Answers -->
@@ -710,7 +1004,7 @@
             </div>
 
             <!-- Calculation workflow steps -->
-            <div style="border: 1px solid var(--border); background: #f8fafc; padding: 15px; border-radius: 8px; margin-top: 15px;">
+            <div class="calc-workflow-panel" style="margin-top: 15px;">
               <h4 style="margin-top: 0; margin-bottom: 8px; color: #1e293b; font-size: 0.9rem;">Calculation workflow</h4>
               <p class="muted" style="font-size: 0.78rem; margin: 0 0 12px; line-height: 1.4;">
                 <strong>Marks:</strong> Equation given → 1 substitution + 1 answer (+1 each for conversion, rearrangement, or sig figs if ticked).
@@ -760,7 +1054,7 @@
                       <select id="CalcEquationAnswer" class="select-fit">
                         <option value="">— Select an equation sheet above —</option>
                       </select>
-                      <span id="CalcEquationAnswerPreview" class="calc-eq-select-preview" style="display:none;align-items:center;padding:6px 12px;background:#f8fafc;border:1px solid var(--border);border-radius:8px;font-size:0.9rem;min-height:38px;"></span>
+                      <span id="CalcEquationAnswerPreview" class="calc-eq-select-preview" style="display:none;align-items:center;padding:10px 14px;background:#f8fafc;border:2px solid #94a3b8;border-radius:8px;font-size:0.9rem;min-height:42px;"></span>
                     </div>
                   </div>
                   <div id="CalcEquationDistractorsRow">
@@ -839,9 +1133,9 @@
         </div>
 
         <!-- SECTION 3: DETAILED STEP-BY-STEP CHECKPOINTS -->
-        <div class="card">
+        <div class="card creator-section-markpoints" style="margin-bottom: 0;">
           <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:8px; margin-bottom:16px;">
-            <h3 style="margin:0; color:var(--primary-dark); font-size:1.1rem;">Section 3: Detailed Step-by-Step Mark Checkpoints (Grading Criteria)</h3>
+            <h3 style="margin:0; color:var(--primary-dark); font-size:1.1rem;">Section 3: Step-by-Step Mark Checkpoints</h3>
             <button class="btn btn-secondary" id="btnAddMarkPoint" style="padding:4px 10px; font-size:0.75rem;">+ Add Criteria Step</button>
           </div>
           <p style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.4; margin-bottom: 16px;">
@@ -851,9 +1145,66 @@
           </p>
           <div id="markPointsWrapper"></div>
         </div>
+        </div>
+
+        <!-- EXAM METADATA (after answers & checkpoints) -->
+        <div class="card creator-section-metadata">
+          <h3 style="margin-top:0; color:var(--primary-dark); font-size:1.1rem; border-bottom:1px solid var(--border); padding-bottom:8px;">Exam Metadata (AO, demand &amp; paper assembly)</h3>
+          <div class="metadata-panel" style="margin-top: 0; padding-top: 0; border-top: none;">
+            <div class="metadata-inner">
+              <div class="row row-compact metadata-span-full" style="margin-bottom: 0;">
+                <div class="field-fit">
+                  <label for="commandWordSelect">Command word</label>
+                  <div class="inline-field">
+                    <select id="commandWordSelect" class="select-fit"></select>
+                    <button type="button" class="btn btn-secondary btn-compact" id="btnDetectCommandWord">Detect from prompt</button>
+                  </div>
+                </div>
+                <div class="field-fit">
+                  <label for="demandLevelSelect">Demand level</label>
+                  <select id="demandLevelSelect" class="select-fit"></select>
+                </div>
+              </div>
+              <div class="field-fit metadata-span-full" id="creatorAoToolsRow">
+                <label>AO mark allocation</label>
+                <div class="ao-inputs">
+                  <span class="ao-mini">AO1 <input type="number" id="ao1Marks" class="input-compact" min="0" max="20" /></span>
+                  <span class="ao-mini">AO2 <input type="number" id="ao2Marks" class="input-compact" min="0" max="20" /></span>
+                  <span class="ao-mini">AO3 <input type="number" id="ao3Marks" class="input-compact" min="0" max="20" /></span>
+                </div>
+                <span id="aoMarksValidation" class="ao-validation ao-validation--warn">Set AO marks to match max marks</span>
+                <button type="button" class="btn btn-secondary btn-compact" id="btnAutoAoFromMarkPoints">Auto from mark points</button>
+              </div>
+              <div class="flag-row metadata-span-full">
+                <label><input type="checkbox" id="chkMathsSkill" /> Maths skill question</label>
+                <label><input type="checkbox" id="chkRequiredPractical" /> Required practical</label>
+              </div>
+              <div id="requiredPracticalRow" class="row row-compact hidden metadata-span-full">
+                <div class="field-fit" style="min-width: min(100%, 360px);">
+                  <label for="requiredPracticalSelect">Which required practical?</label>
+                  <select id="requiredPracticalSelect" class="select-fit" style="width: 100%; max-width: 100%;">
+                    <option value="">Select practical…</option>
+                  </select>
+                </div>
+              </div>
+              <div id="msSkillsPanel" class="skills-panel-block hidden metadata-span-full">
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+                  <h5 style="margin:0;font-size:0.85rem;">Maths Skills (MS)</h5>
+                  <button type="button" class="btn btn-secondary btn-compact" id="btnAutoDetectSkills">Auto-detect skills</button>
+                </div>
+                <div id="msSkillsWrap"></div>
+              </div>
+              <div id="wsSkillsPanel" class="skills-panel-block metadata-span-full">
+                <h5 style="margin:0 0 8px;font-size:0.85rem;">Working Scientifically (WS)</h5>
+                <div id="wsSkillsWrap"></div>
+              </div>
+              <div id="metadataWarnings" class="metadata-warnings hidden metadata-span-full"></div>
+            </div>
+          </div>
+        </div>
 
         <!-- Panel Submission Actions -->
-        <div style="display: flex; gap: 12px; justify-content: flex-end; margin-bottom: 40px;">
+        <div class="creator-actions">
           <button class="btn btn-secondary" id="btnReset">Clear Inputs</button>
           <button class="btn btn-primary" id="btnCommit">Commit Question to Supabase</button>
         </div>
@@ -1051,18 +1402,18 @@
 
       <div id="editGradingModeIndicator" style="border: 1px solid transparent; padding: 12px; border-radius: 8px; font-size: 0.8rem; line-height: 1.45; margin-bottom: 16px;"></div>
 
-      <form id="editForm" onsubmit="return false;">
+      <form id="editForm" class="edit-form-layout" onsubmit="return false;">
         <input type="hidden" id="editQuestionId"/>
         <input type="hidden" id="editEqSheetSubject" value="physics"/>
         <input type="hidden" id="editEqSheetPaper" value="paper1"/>
         <input type="hidden" id="editEqSheetCourseTrack" value="combined"/>
         
-        <div style="margin-bottom:12px;">
+        <div class="edit-form-span-full">
           <label>Question Prompt Stem:</label>
           <textarea id="editPrompt" rows="3" style="font-family:inherit;"></textarea>
         </div>
 
-        <div class="row row-compact">
+        <div class="row row-compact edit-form-span-full">
           <div class="field-fit">
             <label>Syllabus Cognitive Tier:</label>
             <select id="editTier" class="select-fit">
@@ -1071,7 +1422,7 @@
               <option value="foundation">Foundation Tier</option>
             </select>
           </div>
-          <div class="field-fit">
+          <div class="field-fit" id="editMaxMarksRow">
             <label>Awardable Max Marks:</label>
             <select id="editMaxMarks" class="select-fit"></select>
           </div>
@@ -1079,9 +1430,6 @@
             <label>Revision Walkthrough Video:</label>
             <input type="text" id="editResource" />
           </div>
-        </div>
-
-        <div class="row row-compact">
           <div class="field-fit">
             <label>Question audience:</label>
             <select id="editAudienceSelect" class="select-fit">
@@ -1090,67 +1438,24 @@
             </select>
           </div>
         </div>
-        <div class="row row-compact hidden" id="editTripleSpecLinkRow">
-          <div class="field-fit" style="min-width: min(100%, 420px); flex: 1 1 320px;">
-            <label>Linked triple spec point (for &quot;Both&quot; audience):</label>
-            <select id="editTripleSpecPointSelect" style="width: 100%; max-width: 100%;">
-              <option value="">— Select triple equivalent —</option>
-            </select>
+
+        <div class="spec-link-panel edit-form-span-full hidden" id="editSpecLinkPanel">
+          <p class="spec-link-status">Shared questions link a combined spec point (primary) with its triple equivalent.</p>
+          <div class="row row-compact" style="margin-bottom: 8px;">
+            <div class="field-fit" style="min-width: min(100%, 360px); flex: 1 1 320px;">
+              <label>Combined spec point (primary):</label>
+              <input type="text" id="editCombinedSpecDisplay" readonly style="background:#f1f5f9; cursor:default;" />
+            </div>
+            <div class="field-fit" style="min-width: min(100%, 360px); flex: 1 1 320px;">
+              <label>Linked triple spec point:</label>
+              <input type="text" id="editTripleSpecDisplay" readonly style="background:#f1f5f9;cursor:default;" />
+            </div>
           </div>
         </div>
 
-        <div class="hints-author-panel" style="margin-bottom: 16px;">
-          <label>Practice hints</label>
-          <p class="muted" style="font-size: 0.78rem; margin: 4px 0 8px;">
-            Progressive nudges shown one at a time during practice. Each hint revealed reduces XP earned.
-          </p>
-          <div id="editHintsList"></div>
-          <button type="button" id="btnAddEditHint" class="btn btn-secondary" style="margin-top: 8px;">+ Add hint</button>
-        </div>
-
-        <div class="metadata-panel" style="margin-bottom: 16px;">
-          <h4 style="margin: 0 0 10px; font-size: 0.9rem;">Exam metadata</h4>
-          <div class="row row-compact">
-            <div class="field-fit">
-              <label for="editCommandWordSelect">Command word</label>
-              <select id="editCommandWordSelect" class="select-fit"></select>
-            </div>
-            <div class="field-fit">
-              <label for="editDemandLevelSelect">Demand level</label>
-              <select id="editDemandLevelSelect" class="select-fit"></select>
-            </div>
-          </div>
-          <div class="ao-inputs">
-            <span class="ao-mini">AO1 <input type="number" id="editAo1Marks" class="input-compact" min="0" /></span>
-            <span class="ao-mini">AO2 <input type="number" id="editAo2Marks" class="input-compact" min="0" /></span>
-            <span class="ao-mini">AO3 <input type="number" id="editAo3Marks" class="input-compact" min="0" /></span>
-          </div>
-          <span id="editAoMarksValidation" class="ao-validation"></span>
-          <div class="flag-row">
-            <label><input type="checkbox" id="editChkMathsSkill" /> Maths skill</label>
-            <label><input type="checkbox" id="editChkRequiredPractical" /> Required practical</label>
-          </div>
-          <div id="editRequiredPracticalRow" class="row row-compact hidden">
-            <div class="field-fit" style="min-width: min(100%, 360px);">
-              <label for="editRequiredPracticalSelect">Which required practical?</label>
-              <select id="editRequiredPracticalSelect" class="select-fit" style="width: 100%; max-width: 100%;">
-                <option value="">Select practical…</option>
-              </select>
-            </div>
-          </div>
-          <div id="editMsSkillsPanel" class="skills-panel-block hidden">
-            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
-              <h5 style="margin:0;font-size:0.85rem;">Maths Skills (MS)</h5>
-              <button type="button" class="btn btn-secondary btn-compact" id="btnAutoDetectEditSkills">Auto-detect</button>
-            </div>
-            <div id="editMsSkillsWrap"></div>
-          </div>
-          <div id="editWsSkillsPanel" class="skills-panel-block">
-            <h5 style="margin:0 0 8px;font-size:0.85rem;">Working Scientifically (WS)</h5>
-            <div id="editWsSkillsWrap"></div>
-          </div>
-        </div>
-
+        <div class="edit-answers-markpoints edit-form-span-full">
+          <div class="edit-answers-block" style="border:1px solid var(--border); border-radius:10px; padding:14px; background:#fafbfc;">
+            <h4 style="margin:0 0 12px; font-size:0.95rem; color:var(--primary-dark);">Section 2: Answers &amp; Keys</h4>
         <!-- Section 2 Keywords Edit Panel -->
         <div id="editMcqPanel" class="hidden">
           <div class="row">
@@ -1196,34 +1501,34 @@
           </div>
 
           <!-- Calculation workflow (edit) -->
-          <div style="border: 1px solid var(--border); background: #f8fafc; padding: 12px; border-radius: 8px; margin-top: 12px; margin-bottom: 12px;">
-            <h4 style="margin-top: 0; margin-bottom: 10px; font-size: 0.85rem; color:#334155;">Calculation workflow</h4>
+          <div class="calc-workflow-panel" style="margin-top: 12px; margin-bottom: 12px;">
+            <h4 style="margin-top: 0; margin-bottom: 10px; font-size: 0.9rem; color:#334155;">Calculation workflow</h4>
             <div class="row" style="margin-bottom:8px;">
               <div>
-                <label style="font-size:0.78rem;">Preset</label>
-                <select id="editCalcPreset" style="font-size:0.8rem;">
+                <label>Preset</label>
+                <select id="editCalcPreset">
                   <option value="custom">Custom</option>
                   <option value="given_equation">Low demand</option>
                   <option value="equation_sheet">High demand</option>
                 </select>
               </div>
               <div style="display:flex;align-items:flex-end;">
-                <label style="font-size:0.78rem;margin:0;cursor:pointer;"><input type="checkbox" id="editCalcEquationGiven" /> Equation in prompt</label>
+                <label style="margin:0;cursor:pointer;"><input type="checkbox" id="editCalcEquationGiven" /> Equation in prompt</label>
               </div>
             </div>
             <div class="row" style="margin-bottom:8px;">
               <div>
-                <label style="font-size:0.78rem;">Equation sheet</label>
-                <select id="editCalcEquationSheet" style="font-size:0.8rem;">
+                <label>Equation sheet</label>
+                <select id="editCalcEquationSheet">
                   <option value="">— Loading sheets… —</option>
                 </select>
               </div>
               <div>
-                <label style="font-size:0.78rem;">Override distractors</label>
-                <input type="text" id="editCalcEquationOverride" style="font-size:0.8rem;padding:6px;" />
+                <label>Override distractors</label>
+                <input type="text" id="editCalcEquationOverride" />
               </div>
             </div>
-            <div style="display:flex;flex-wrap:wrap;gap:8px 14px;font-size:0.78rem;margin-bottom:8px;">
+            <div style="display:flex;flex-wrap:wrap;gap:8px 14px;margin-bottom:8px;">
               <label><input type="checkbox" id="editCalcStepEquation" /> Equation</label>
               <label><input type="checkbox" id="editCalcStepSubstitution" /> Substitution</label>
               <label><input type="checkbox" id="editCalcStepConversion" /> Conversion</label>
@@ -1233,40 +1538,40 @@
             <div id="editCalcPanelEquation" class="hidden" style="border-top:1px solid var(--border);padding-top:8px;margin-bottom:8px;">
               <div class="row">
                 <div>
-                  <label style="font-size:0.78rem;">Correct equation</label>
+                  <label>Correct equation</label>
                   <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-                    <select id="editCalcEquationAnswer" class="select-fit" style="font-size:0.8rem;">
+                    <select id="editCalcEquationAnswer" class="select-fit">
                       <option value="">— Select equation sheet —</option>
                     </select>
-                    <span id="editCalcEquationAnswerPreview" class="calc-eq-select-preview" style="display:none;align-items:center;padding:5px 10px;background:#f8fafc;border:1px solid var(--border);border-radius:6px;font-size:0.85rem;min-height:34px;"></span>
+                    <span id="editCalcEquationAnswerPreview" class="calc-eq-select-preview" style="display:none;align-items:center;padding:10px 14px;background:#f8fafc;border:2px solid #94a3b8;border-radius:8px;font-size:0.9rem;min-height:42px;"></span>
                   </div>
                 </div>
                 <div id="editCalcEquationDistractorsRow">
-                  <label style="font-size:0.78rem;">Fallback distractors</label>
-                  <input type="text" id="editCalcEquationDistractors" style="font-size:0.8rem;padding:6px;"/>
+                  <label>Fallback distractors</label>
+                  <input type="text" id="editCalcEquationDistractors" />
                 </div>
               </div>
             </div>
             <div id="editCalcPanelSubstitution" class="hidden" style="border-top:1px solid var(--border);padding-top:8px;margin-bottom:8px;">
-              <label style="font-size:0.78rem;">Accepted forms (one per line)</label>
-              <textarea id="editCalcSubstitutionAccepted" rows="2" style="font-size:0.8rem;width:100%;"></textarea>
+              <label>Accepted forms (one per line)</label>
+              <textarea id="editCalcSubstitutionAccepted" rows="2"></textarea>
             </div>
             <div id="editCalcPanelConversion" class="hidden" style="border-top:1px solid var(--border);padding-top:8px;margin-bottom:8px;">
               <div class="row">
-                <div><label style="font-size:0.78rem;">Label</label><input type="text" id="editCalcConversionLabel" style="font-size:0.8rem;padding:6px;"/></div>
-                <div><label style="font-size:0.78rem;">Value</label><input type="number" id="editCalcConversionAnswer" step="any" style="font-size:0.8rem;padding:6px;"/></div>
-                <div><label style="font-size:0.78rem;">Tol</label><input type="number" id="editCalcConversionTol" step="any" style="font-size:0.8rem;padding:6px;"/></div>
+                <div><label>Label</label><input type="text" id="editCalcConversionLabel" /></div>
+                <div><label>Value</label><input type="number" id="editCalcConversionAnswer" step="any" /></div>
+                <div><label>Tol</label><input type="number" id="editCalcConversionTol" step="any" /></div>
               </div>
             </div>
             <div id="editCalcPanelRearrangement" class="hidden" style="border-top:1px solid var(--border);padding-top:8px;margin-bottom:8px;">
               <div class="row">
-                <div><label style="font-size:0.78rem;">Correct</label><input type="text" id="editCalcRearrangeAnswer" style="font-size:0.8rem;padding:6px;"/></div>
-                <div><label style="font-size:0.78rem;">Distractors</label><input type="text" id="editCalcRearrangeDistractors" style="font-size:0.8rem;padding:6px;"/></div>
+                <div><label>Correct</label><input type="text" id="editCalcRearrangeAnswer" /></div>
+                <div><label>Distractors</label><input type="text" id="editCalcRearrangeDistractors" /></div>
               </div>
             </div>
             <div id="editCalcPanelSigFigs" class="hidden" style="border-top:1px solid var(--border);padding-top:8px;">
               <div class="row">
-                <div><label style="font-size:0.78rem;">Sig figs</label><input type="number" id="editCalcSigFigsCount" min="1" style="font-size:0.8rem;padding:6px;"/></div>
+                <div><label>Sig figs</label><input type="number" id="editCalcSigFigsCount" min="1" /></div>
               </div>
             </div>
           </div>
@@ -1297,30 +1602,88 @@
           <div class="row">
             <div>
               <label>Level 3 Descriptor (5-6 marks):</label>
-              <textarea id="editLvl3" rows="2" style="font-family:inherit; font-size:0.8rem;"></textarea>
+              <textarea id="editLvl3" rows="2"></textarea>
             </div>
             <div>
               <label>Level 2 Descriptor (3-4 marks):</label>
-              <textarea id="editLvl2" rows="2" style="font-family:inherit; font-size:0.8rem;"></textarea>
+              <textarea id="editLvl2" rows="2"></textarea>
             </div>
             <div>
               <label>Level 1 Descriptor (1-2 marks):</label>
-              <textarea id="editLvl1" rows="2" style="font-family:inherit; font-size:0.8rem;"></textarea>
+              <textarea id="editLvl1" rows="2"></textarea>
             </div>
           </div>
         </div>
 
-        <!-- Section 3 Checkpoints Edit Panel -->
-        <div style="margin-top:16px; border-top:1px solid var(--border); padding-top:12px;">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-            <label style="font-size:0.9rem; font-weight:700; color:var(--primary-dark); margin-bottom:0;">Section 3: Step-by-Step Mark Checkpoints</label>
-            <button type="button" class="btn btn-secondary" id="btnEditAddMarkPoint" style="padding:3px 8px; font-size:0.75rem;">+ Add Criteria Step</button>
           </div>
-          <div id="editMarkPointsWrapper" style="max-height: 200px; overflow-y: auto; border: 1px solid var(--border); padding: 10px; border-radius: 8px; background: #fafbfc;"></div>
+
+          <div class="edit-markpoints-block" style="border:1px solid var(--border); border-radius:10px; padding:14px; background:#fafbfc;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+              <h4 style="margin:0; font-size:0.95rem; color:var(--primary-dark);">Section 3: Mark Checkpoints</h4>
+              <button type="button" class="btn btn-secondary" id="btnEditAddMarkPoint" style="padding:3px 8px; font-size:0.75rem;">+ Add Criteria Step</button>
+            </div>
+            <div id="editMarkPointsWrapper" style="max-height: 220px; overflow-y: auto;"></div>
+          </div>
+        </div>
+
+        <div class="hints-author-panel edit-form-span-full">
+          <label>Practice hints</label>
+          <p class="muted" style="font-size: 0.78rem; margin: 4px 0 8px;">
+            Progressive nudges shown one at a time during practice. Each hint revealed reduces XP earned.
+          </p>
+          <div id="editHintsList"></div>
+          <button type="button" id="btnAddEditHint" class="btn btn-secondary" style="margin-top: 8px;">+ Add hint</button>
+        </div>
+
+        <div class="metadata-panel edit-form-span-full" style="margin-bottom: 0;">
+          <h4 style="margin: 0 0 10px; font-size: 0.95rem; color:var(--primary-dark);">Exam Metadata</h4>
+          <div class="metadata-inner">
+            <div class="row row-compact metadata-span-full" style="margin-bottom: 0;">
+              <div class="field-fit">
+                <label for="editCommandWordSelect">Command word</label>
+                <select id="editCommandWordSelect" class="select-fit"></select>
+              </div>
+              <div class="field-fit">
+                <label for="editDemandLevelSelect">Demand level</label>
+                <select id="editDemandLevelSelect" class="select-fit"></select>
+              </div>
+            </div>
+            <div class="metadata-span-full" id="editAoToolsRow">
+              <div class="ao-inputs">
+                <span class="ao-mini">AO1 <input type="number" id="editAo1Marks" class="input-compact" min="0" /></span>
+                <span class="ao-mini">AO2 <input type="number" id="editAo2Marks" class="input-compact" min="0" /></span>
+                <span class="ao-mini">AO3 <input type="number" id="editAo3Marks" class="input-compact" min="0" /></span>
+              </div>
+              <span id="editAoMarksValidation" class="ao-validation"></span>
+            </div>
+            <div class="flag-row metadata-span-full">
+              <label><input type="checkbox" id="editChkMathsSkill" /> Maths skill</label>
+              <label><input type="checkbox" id="editChkRequiredPractical" /> Required practical</label>
+            </div>
+            <div id="editRequiredPracticalRow" class="row row-compact hidden metadata-span-full">
+              <div class="field-fit" style="min-width: min(100%, 360px);">
+                <label for="editRequiredPracticalSelect">Which required practical?</label>
+                <select id="editRequiredPracticalSelect" class="select-fit" style="width: 100%; max-width: 100%;">
+                  <option value="">Select practical…</option>
+                </select>
+              </div>
+            </div>
+            <div id="editMsSkillsPanel" class="skills-panel-block hidden metadata-span-full">
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+                <h5 style="margin:0;font-size:0.85rem;">Maths Skills (MS)</h5>
+                <button type="button" class="btn btn-secondary btn-compact" id="btnAutoDetectEditSkills">Auto-detect</button>
+              </div>
+              <div id="editMsSkillsWrap"></div>
+            </div>
+            <div id="editWsSkillsPanel" class="skills-panel-block metadata-span-full">
+              <h5 style="margin:0 0 8px;font-size:0.85rem;">Working Scientifically (WS)</h5>
+              <div id="editWsSkillsWrap"></div>
+            </div>
+          </div>
         </div>
 
         <!-- Attachment Management -->
-        <div class="row" style="margin-top:16px; align-items:flex-end;">
+        <div class="row edit-form-span-full" style="margin-top:0; align-items:flex-end;">
           <div style="grid-column: span 2;">
             <label>Diagram Image URL:</label>
             <input type="text" id="editImageUrl" placeholder="Manual URL..." />
@@ -1647,106 +2010,166 @@
     }
   }
 
+  function syncSpecLinkUi() {
+    const audience = document.getElementById("audienceSelect")?.value || "both";
+    const track = getAuthoringCourseTrack();
+    const linkedRow = document.getElementById("specLinkLinkedRow");
+    const primaryLabel = document.getElementById("primarySpecLabel");
+    const linkedLabel = document.getElementById("linkedSpecLabel");
+    const status = document.getElementById("specLinkStatus");
+
+    if (linkedRow) linkedRow.classList.toggle("hidden", audience !== "both");
+
+    if (track === "triple") {
+      if (primaryLabel) primaryLabel.textContent = "Triple spec point (Separate sciences):";
+      if (linkedLabel) linkedLabel.textContent = "Linked combined spec point (auto-matched):";
+      if (status) {
+        status.textContent = audience === "both"
+          ? "Select the triple spec point. The combined Trilogy equivalent is resolved from the equivalences table at save time."
+          : "Select the triple spec point for triple-only questions.";
+      }
+    } else {
+      if (primaryLabel) primaryLabel.textContent = "Combined spec point (Trilogy 8464):";
+      if (linkedLabel) linkedLabel.textContent = "Linked triple spec point (auto-matched):";
+      if (status) {
+        status.textContent = audience === "both"
+          ? "Select the combined spec point. The triple equivalent is resolved from the equivalences table at save time."
+          : "Select the combined spec point for this question.";
+      }
+    }
+  }
+
+  // Back-compat alias
   function syncAudienceUi() {
-    const audience = document.getElementById("audienceSelect")?.value || "both";
-    const track = getAuthoringCourseTrack();
-    const row = document.getElementById("tripleSpecLinkRow");
-    if (row) row.classList.toggle("hidden", audience !== "both" || track !== "combined");
+    syncSpecLinkUi();
   }
 
-  function syncEditAudienceUi() {
-    const audience = document.getElementById("editAudienceSelect")?.value || "both";
-    const row = document.getElementById("editTripleSpecLinkRow");
-    if (row) row.classList.toggle("hidden", audience !== "both");
-  }
-
-  async function autoFillTripleSpecFromEquivalence(combinedSpecPointId, selectorId = "tripleSpecPointSelect") {
-    const audience = document.getElementById("audienceSelect")?.value || "both";
-    const track = getAuthoringCourseTrack();
-    const selector = document.getElementById(selectorId);
-    if (!selector || audience !== "both" || track !== "combined" || !combinedSpecPointId) return;
-
+  async function lookupEquivalence(primarySpecPointId, track) {
+    if (!primarySpecPointId) return null;
     try {
+      if (track === "combined") {
+        const { data, error } = await supabaseClient
+          .from("spec_point_equivalences")
+          .select("triple_spec_point_id")
+          .eq("combined_spec_point_id", primarySpecPointId)
+          .maybeSingle();
+        if (error) throw error;
+        return { triple: data?.triple_spec_point_id || null, combined: primarySpecPointId };
+      }
       const { data, error } = await supabaseClient
         .from("spec_point_equivalences")
-        .select("triple_spec_point_id")
-        .eq("combined_spec_point_id", combinedSpecPointId)
+        .select("combined_spec_point_id")
+        .eq("triple_spec_point_id", primarySpecPointId)
         .maybeSingle();
       if (error) throw error;
-      if (data?.triple_spec_point_id) {
-        selector.value = data.triple_spec_point_id;
-      }
+      return { combined: data?.combined_spec_point_id || null, triple: primarySpecPointId };
     } catch (err) {
-      console.warn("Equivalence auto-fill failed:", err);
+      console.warn("Equivalence lookup failed:", err);
+      return null;
     }
+  }
+
+  async function formatSpecPointLabel(specPointId) {
+    if (!specPointId) return "";
+    const { data: sp } = await supabaseClient
+      .from("spec_points")
+      .select("spec_ref, topic_name, spec_text")
+      .eq("id", specPointId)
+      .maybeSingle();
+    return sp
+      ? `${sp.spec_ref} - [${sp.topic_name}] ${(sp.spec_text || "").slice(0, 75)}...`
+      : "";
+  }
+
+  async function autoFillLinkedSpecFromPrimary(primarySpecPointId) {
+    const audience = document.getElementById("audienceSelect")?.value || "both";
+    const display = document.getElementById("linkedSpecDisplay");
+    const warning = document.getElementById("specLinkWarning");
+    if (!display) return;
+
+    if (!primarySpecPointId || audience !== "both") {
+      display.value = "";
+      if (warning) {
+        warning.classList.add("hidden");
+        warning.textContent = "";
+      }
+      return;
+    }
+
+    const track = getAuthoringCourseTrack();
+    const equiv = await lookupEquivalence(primarySpecPointId, track);
+    const linkedId = track === "combined" ? equiv?.triple : equiv?.combined;
+
+    if (!linkedId) {
+      display.value = "";
+      if (warning) {
+        warning.classList.remove("hidden");
+        warning.textContent = track === "triple"
+          ? "No combined equivalent for this triple spec point. Set audience to \"Triple only\" — it cannot be shared with Combined students."
+          : "No triple equivalent for this combined spec point.";
+      }
+      return;
+    }
+
+    display.value = await formatSpecPointLabel(linkedId);
+    if (warning) {
+      warning.classList.add("hidden");
+      warning.textContent = "";
+    }
+  }
+
+  async function autoFillTripleSpecFromEquivalence(combinedSpecPointId) {
+    await autoFillLinkedSpecFromPrimary(combinedSpecPointId);
   }
 
   async function autoFillEditTripleSpecFromEquivalence(combinedSpecPointId) {
     const audience = document.getElementById("editAudienceSelect")?.value || "both";
-    const selector = document.getElementById("editTripleSpecPointSelect");
-    if (!selector || audience !== "both" || !combinedSpecPointId) return;
-
-    try {
-      const { data, error } = await supabaseClient
-        .from("spec_point_equivalences")
-        .select("triple_spec_point_id")
-        .eq("combined_spec_point_id", combinedSpecPointId)
-        .maybeSingle();
-      if (error) throw error;
-      if (data?.triple_spec_point_id) {
-        selector.value = data.triple_spec_point_id;
-      }
-    } catch (err) {
-      console.warn("Edit equivalence auto-fill failed:", err);
+    const display = document.getElementById("editTripleSpecDisplay");
+    if (!display || audience !== "both" || !combinedSpecPointId) {
+      if (display) display.value = "";
+      return;
     }
+
+    const equiv = await lookupEquivalence(combinedSpecPointId, "combined");
+    display.value = equiv?.triple ? await formatSpecPointLabel(equiv.triple) : "";
   }
 
-  async function loadTripleSpecPointSelect() {
-    const subject = document.getElementById("subjectSelect")?.value;
-    const paper = document.getElementById("paperSelect")?.value;
-    const selector = document.getElementById("tripleSpecPointSelect");
-    if (!selector) return;
-    selector.innerHTML = "<option value=\"\">Loading triple references…</option>";
-    try {
-      const { data, error } = await supabaseClient
-        .from("spec_points")
-        .select("id, spec_ref, topic_name, spec_text")
-        .eq("subject", subject)
-        .eq("paper", paper)
-        .eq("course_track", "triple")
-        .order("spec_ref", { ascending: true });
-      if (error) throw error;
-      selector.innerHTML =
-        `<option value="">— Optional: select triple equivalent —</option>` +
-        (data || []).map((row) =>
-          `<option value="${row.id}">${row.spec_ref} - [${row.topic_name}] ${row.spec_text.slice(0, 75)}...</option>`
-        ).join("");
-    } catch (err) {
-      selector.innerHTML = "<option>Error loading triple spec points</option>";
+  /** Resolve spec IDs for save — always from equivalences table, never from stale UI state. */
+  async function resolveCreatorSpecIdsForCommit() {
+    const audience = document.getElementById("audienceSelect")?.value || "both";
+    const track = getAuthoringCourseTrack();
+    const primaryId = document.getElementById("specPointSelect")?.value || "";
+
+    if (!primaryId) {
+      return { spec_point_id: null, triple_spec_point_id: null, ok: false };
     }
+
+    if (audience === "triple_only") {
+      return { spec_point_id: primaryId, triple_spec_point_id: null, ok: true };
+    }
+
+    const equiv = await lookupEquivalence(primaryId, track);
+    if (!equiv?.combined || !equiv?.triple) {
+      return { spec_point_id: null, triple_spec_point_id: null, ok: false };
+    }
+
+    return {
+      spec_point_id: equiv.combined,
+      triple_spec_point_id: equiv.triple,
+      ok: true
+    };
   }
 
-  async function loadEditTripleSpecPointSelect(subject, paper, selectedId = "") {
-    const selector = document.getElementById("editTripleSpecPointSelect");
-    if (!selector) return;
-    selector.innerHTML = "<option value=\"\">Loading triple references…</option>";
-    try {
-      const { data, error } = await supabaseClient
-        .from("spec_points")
-        .select("id, spec_ref, topic_name, spec_text")
-        .eq("subject", subject)
-        .eq("paper", paper)
-        .eq("course_track", "triple")
-        .order("spec_ref", { ascending: true });
-      if (error) throw error;
-      selector.innerHTML =
-        `<option value="">— Select triple equivalent —</option>` +
-        (data || []).map((row) =>
-          `<option value="${row.id}"${row.id === selectedId ? " selected" : ""}>${row.spec_ref} - [${row.topic_name}] ${row.spec_text.slice(0, 75)}...</option>`
-        ).join("");
-    } catch (err) {
-      selector.innerHTML = "<option>Error loading triple spec points</option>";
-    }
+  /** Canonical triple link for a stored combined spec_point_id (edit save). */
+  async function resolveTripleLinkForCombinedSpec(combinedSpecPointId) {
+    const equiv = await lookupEquivalence(combinedSpecPointId, "combined");
+    return equiv?.triple || null;
+  }
+
+  function syncEditAudienceUi() {
+    const audience = document.getElementById("editAudienceSelect")?.value || "both";
+    const row = document.getElementById("editSpecLinkPanel");
+    if (row) row.classList.toggle("hidden", audience !== "both");
   }
 
   async function loadSyllabusReferenceSelects() {
@@ -1777,11 +2200,10 @@
       selector.innerHTML = "<option>Error loading syllabus data.</option>";
     }
 
-    syncAudienceUi();
-    await loadTripleSpecPointSelect();
-    const combinedSpecId = document.getElementById("specPointSelect")?.value;
-    if (combinedSpecId && courseTrack === "combined") {
-      await autoFillTripleSpecFromEquivalence(combinedSpecId);
+    syncSpecLinkUi();
+    const primarySpecId = document.getElementById("specPointSelect")?.value;
+    if (primarySpecId) {
+      await autoFillLinkedSpecFromPrimary(primarySpecId);
     }
     fillRequiredPracticalSelect(
       document.getElementById("requiredPracticalSelect"),
@@ -1820,18 +2242,25 @@
   document.getElementById("paperSelect").onchange = onAuthoringMetadataChange;
   document.getElementById("tierSelect").onchange = onAuthoringMetadataChange;
   document.getElementById("courseTrackSelect")?.addEventListener("change", onAuthoringMetadataChange);
-  document.getElementById("audienceSelect")?.addEventListener("change", syncAudienceUi);
-  document.getElementById("editAudienceSelect")?.addEventListener("change", () => {
+  document.getElementById("audienceSelect")?.addEventListener("change", () => {
+    syncSpecLinkUi();
+    const specId = document.getElementById("specPointSelect")?.value;
+    if (specId) void autoFillLinkedSpecFromPrimary(specId);
+  });
+  document.getElementById("editAudienceSelect")?.addEventListener("change", async () => {
     syncEditAudienceUi();
     const qId = document.getElementById("editQuestionId")?.value;
     const q = loadedQuestionsCache.find((x) => x.id === qId);
     if (q && document.getElementById("editAudienceSelect")?.value === "both") {
-      void autoFillEditTripleSpecFromEquivalence(q.spec_point_id);
+      await autoFillEditTripleSpecFromEquivalence(q.spec_point_id);
+    } else {
+      const display = document.getElementById("editTripleSpecDisplay");
+      if (display) display.value = "";
     }
   });
   document.getElementById("specPointSelect")?.addEventListener("change", async () => {
     const specId = document.getElementById("specPointSelect")?.value;
-    if (specId) await autoFillTripleSpecFromEquivalence(specId);
+    if (specId) await autoFillLinkedSpecFromPrimary(specId);
   });
   document.getElementById("chkRequiredPractical")?.addEventListener("change", () => syncRequiredPracticalRow("creator"));
   document.getElementById("editChkRequiredPractical")?.addEventListener("change", () => syncRequiredPracticalRow("edit"));
@@ -1861,6 +2290,23 @@
   const qType = document.getElementById("qType");
   const maxMarksRow = document.getElementById("maxMarksRow");
   const maxMarks = document.getElementById("maxMarks");
+  const creatorAoToolsRow = document.getElementById("creatorAoToolsRow");
+
+  function syncCreatorMcqUi(type) {
+    const isMcq = type === "mcq";
+    if (maxMarksRow) maxMarksRow.classList.toggle("hidden", isMcq);
+    if (creatorAoToolsRow) creatorAoToolsRow.classList.toggle("hidden", isMcq);
+    if (isMcq && maxMarks) {
+      maxMarks.innerHTML = "<option value=\"1\">1 mark</option>";
+      maxMarks.value = "1";
+      const ao1 = document.getElementById("ao1Marks");
+      const ao2 = document.getElementById("ao2Marks");
+      const ao3 = document.getElementById("ao3Marks");
+      if (ao1) ao1.value = "1";
+      if (ao2) ao2.value = "0";
+      if (ao3) ao3.value = "0";
+    }
+  }
   
   qType.onchange = function() {
     const type = qType.value;
@@ -1873,20 +2319,17 @@
     
     // Setup clean Max Marks rules dynamically
     maxMarks.removeAttribute("disabled");
-    maxMarks.innerHTML = "";
+    if (type !== "mcq") {
+      maxMarks.innerHTML = "";
+    }
     
     if (type === "mcq") {
       document.getElementById("mcqPanel").classList.remove("hidden");
-      
-      const opt = document.createElement("option");
-      opt.value = "1";
-      opt.textContent = "1 mark";
-      maxMarks.appendChild(opt);
-      maxMarks.value = "1";
-      maxMarksRow.classList.add("hidden");
+      syncCreatorMcqUi("mcq");
     } 
     else if (type === "numeric") {
       document.getElementById("numericPanel").classList.remove("hidden");
+      syncCreatorMcqUi("numeric");
 
       maxMarks.innerHTML = "";
       for (let i = 1; i <= 6; i++) {
@@ -1895,7 +2338,6 @@
         opt.textContent = i === 1 ? "1 mark" : `${i} marks`;
         maxMarks.appendChild(opt);
       }
-      maxMarksRow.classList.remove("hidden");
       if (window.CalcWorkflow) {
         window.CalcWorkflow.syncMaxMarksSelect("");
       } else {
@@ -1904,6 +2346,7 @@
     } 
     else if (type === "short_text") {
       document.getElementById("shortTextKeywordsPanel").classList.remove("hidden");
+      syncCreatorMcqUi("short_text");
       
       const opt1 = document.createElement("option");
       opt1.value = "1";
@@ -1915,10 +2358,10 @@
       maxMarks.appendChild(opt1);
       maxMarks.appendChild(opt2);
       maxMarks.value = "1";
-      maxMarksRow.classList.remove("hidden");
     } 
     else if (type === "extended_response") {
       document.getElementById("extendedPanel").classList.remove("hidden");
+      syncCreatorMcqUi("extended_response");
       
       const opt4 = document.createElement("option");
       opt4.value = "4";
@@ -1934,7 +2377,6 @@
       maxMarks.appendChild(opt5);
       maxMarks.appendChild(opt6);
       maxMarks.value = "6";
-      maxMarksRow.classList.remove("hidden");
     }
 
     if (window.AdminMetadata) {
@@ -1942,6 +2384,8 @@
       window.AdminMetadata.autoSizeAdminSelects(document.getElementById("panelCreator"));
     }
   };
+
+  syncCreatorMcqUi(qType?.value || "short_text");
 
   function updateEquationAuthoringHints(prefix) {
     const p = (id) => document.getElementById(prefix + id);
@@ -2013,13 +2457,13 @@
     row.style = "grid-template-columns: 100px 1fr 1fr 40px; align-items: flex-start; gap:10px; margin-bottom: 8px;";
     
     row.innerHTML = `
-      <select class="mp-ao select-fit" style="height: 38px;">
+      <select class="mp-ao select-fit">
         <option value="AO1" ${selectedAo === "AO1" ? "selected" : ""}>AO1</option>
         <option value="AO2" ${selectedAo === "AO2" ? "selected" : ""}>AO2</option>
         <option value="AO3" ${selectedAo === "AO3" ? "selected" : ""}>AO3</option>
       </select>
-      <input class="mp-text" type="text" placeholder="Point target keyword (e.g. gravity|gravitational)" value="${escapeHtml(ptText)}" style="height: 38px; box-sizing: border-box;"/>
-      <textarea class="mp-feedback" rows="2" placeholder="Remediation tips..." style="box-sizing: border-box; width: 100%; resize: vertical; min-height: 38px; font-family: inherit; font-size: 0.9rem; border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px;">${escapeHtml(fbText)}</textarea>
+      <input class="mp-text" type="text" placeholder="Point target keyword (e.g. gravity|gravitational)" value="${escapeHtml(ptText)}"/>
+      <textarea class="mp-feedback" rows="2" placeholder="Remediation tips...">${escapeHtml(fbText)}</textarea>
       <button onclick="removeMarkPointRow(${markPointsCounter})" style="background:var(--error); color:white; border:none; border-radius:6px; cursor:pointer; height:38px; font-weight:bold; width: 100%;">&times;</button>
     `;
     wrap.appendChild(row);
@@ -2044,13 +2488,13 @@
     row.style = "grid-template-columns: 100px 1fr 1fr 40px; align-items: flex-start; gap:10px; margin-bottom: 8px;";
     
     row.innerHTML = `
-      <select class="edit-mp-ao" style="height: 38px;">
+      <select class="edit-mp-ao select-fit">
         <option value="AO1" ${selectedAo === "AO1" ? "selected" : ""}>AO1</option>
         <option value="AO2" ${selectedAo === "AO2" ? "selected" : ""}>AO2</option>
         <option value="AO3" ${selectedAo === "AO3" ? "selected" : ""}>AO3</option>
       </select>
-      <input class="edit-mp-text" type="text" placeholder="Point target keyword (e.g. gravity|gravitational)" value="${escapeHtml(ptText)}" style="height: 38px; box-sizing: border-box;"/>
-      <textarea class="edit-mp-feedback" rows="2" placeholder="Remediation tips..." style="box-sizing: border-box; width: 100%; resize: vertical; min-height: 38px; font-family: inherit; font-size: 0.9rem; border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px;">${escapeHtml(fbText)}</textarea>
+      <input class="edit-mp-text" type="text" placeholder="Point target keyword (e.g. gravity|gravitational)" value="${escapeHtml(ptText)}"/>
+      <textarea class="edit-mp-feedback" rows="2" placeholder="Remediation tips...">${escapeHtml(fbText)}</textarea>
       <button type="button" onclick="removeEditMarkPointRow(${editMarkPointsCounter})" style="background:var(--error); color:white; border:none; border-radius:6px; cursor:pointer; height:38px; font-weight:bold; width: 100%;">&times;</button>
     `;
     wrap.appendChild(row);
@@ -2076,15 +2520,25 @@
       return;
     }
     
-    const specPointId = document.getElementById("specPointSelect").value;
+    const specIds = await resolveCreatorSpecIdsForCommit();
     const questionType = qType.value;
     const prompt = document.getElementById("qPrompt").value.trim();
     const tier = document.getElementById("tierSelect").value;
     const youtubeUrl = document.getElementById("qVideo").value.trim();
     const imageInput = document.getElementById("qImage");
     
-    if (!specPointId || !prompt) {
+    if (!specIds.spec_point_id || !prompt) {
       showAdminToast("Validation Alert: Please set prompt details and select specification target point.", true);
+      return;
+    }
+
+    const audience = document.getElementById("audienceSelect")?.value || "both";
+    if (audience === "both" && !specIds.ok) {
+      const track = getAuthoringCourseTrack();
+      const msg = track === "triple"
+        ? "Select a triple spec point with a linked combined equivalent for shared (Both) questions."
+        : "Select a combined spec point with a linked triple equivalent for shared (Both) questions.";
+      showAdminToast(msg, true);
       return;
     }
 
@@ -2125,7 +2579,7 @@
       }
       
       // Compute Max Marks accurately
-      let calculatedMaxMarks = parseInt(maxMarks.value) || 1;
+      let calculatedMaxMarks = questionType === "mcq" ? 1 : (parseInt(maxMarks.value) || 1);
       let calculatedMarkingMethod = "keyword";
       
       if (questionType === "numeric") {
@@ -2144,7 +2598,6 @@
 
       // Create Parent Question Record
       const insertPayload = {
-        spec_point_id: specPointId,
         question_type: questionType,
         prompt: prompt,
         options: questionType === "mcq" ? [
@@ -2173,16 +2626,12 @@
         insertPayload.difficulty = 2;
       }
 
-      const audience = document.getElementById("audienceSelect")?.value || "both";
-      insertPayload.audience = audience;
-      const tripleSpecId = document.getElementById("tripleSpecPointSelect")?.value || null;
-      if (audience === "both" && getAuthoringCourseTrack() === "combined") {
-        if (!tripleSpecId) {
-          alert("Select a linked triple spec point for shared (Both) questions, or choose Triple only audience.");
-          return;
-        }
-        insertPayload.triple_spec_point_id = tripleSpecId;
-      } else if (audience === "triple_only") {
+      const audienceVal = document.getElementById("audienceSelect")?.value || "both";
+      insertPayload.audience = audienceVal;
+      insertPayload.spec_point_id = specIds.spec_point_id;
+      if (audienceVal === "both") {
+        insertPayload.triple_spec_point_id = specIds.triple_spec_point_id;
+      } else if (audienceVal === "triple_only") {
         insertPayload.triple_spec_point_id = null;
       }
       
@@ -2811,6 +3260,27 @@
   };
 
   // ====== EDIT MODAL WORKFLOW ======
+  function syncEditMcqUi(questionType) {
+    const isMcq = questionType === "mcq";
+    const maxRow = document.getElementById("editMaxMarksRow");
+    const aoRow = document.getElementById("editAoToolsRow");
+    if (maxRow) maxRow.classList.toggle("hidden", isMcq);
+    if (aoRow) aoRow.classList.toggle("hidden", isMcq);
+    if (isMcq) {
+      const editMaxMarks = document.getElementById("editMaxMarks");
+      if (editMaxMarks) {
+        editMaxMarks.innerHTML = "<option value=\"1\">1 mark</option>";
+        editMaxMarks.value = "1";
+      }
+      const ao1 = document.getElementById("editAo1Marks");
+      const ao2 = document.getElementById("editAo2Marks");
+      const ao3 = document.getElementById("editAo3Marks");
+      if (ao1) ao1.value = "1";
+      if (ao2) ao2.value = "0";
+      if (ao3) ao3.value = "0";
+    }
+  }
+
   window.requestInteractiveEdit = async function(id) {
     const q = loadedQuestionsCache.find(x => x.id === id);
     if (!q) return;
@@ -2828,17 +3298,20 @@
     try {
       const { data: sp } = await supabaseClient
         .from("spec_points")
-        .select("subject, paper, course_track")
+        .select("subject, paper, course_track, spec_ref, topic_name, spec_text")
         .eq("id", q.spec_point_id)
         .maybeSingle();
       document.getElementById("editEqSheetSubject").value = sp?.subject || "physics";
       document.getElementById("editEqSheetPaper").value = sp?.paper || "paper1";
       document.getElementById("editEqSheetCourseTrack").value =
         q.audience === "triple_only" ? "triple" : (sp?.course_track || "combined");
-      await loadEditTripleSpecPointSelect(sp?.subject, sp?.paper, q.triple_spec_point_id || "");
-      if (!q.triple_spec_point_id && (q.audience || "both") === "both") {
-        await autoFillEditTripleSpecFromEquivalence(q.spec_point_id);
+      const combinedDisplay = document.getElementById("editCombinedSpecDisplay");
+      if (combinedDisplay) {
+        combinedDisplay.value = sp
+          ? `${sp.spec_ref} - [${sp.topic_name}] ${(sp.spec_text || "").slice(0, 75)}...`
+          : "";
       }
+      await autoFillEditTripleSpecFromEquivalence(q.spec_point_id);
     } catch (_) {
       document.getElementById("editEqSheetSubject").value = "physics";
       document.getElementById("editEqSheetPaper").value = "paper1";
@@ -2871,6 +3344,7 @@
       editMaxMarks.appendChild(opt);
     });
     editMaxMarks.value = (q.max_marks || 1).toString();
+    syncEditMcqUi(q.question_type);
 
     // Reset modal panels
     document.getElementById("editMcqPanel").classList.add("hidden");
@@ -3027,7 +3501,7 @@
     const prompt = document.getElementById("editPrompt").value.trim();
     const resource = document.getElementById("editResource").value.trim();
     const tier = document.getElementById("editTier").value;
-    let marks = parseInt(document.getElementById("editMaxMarks").value) || 1;
+    let marks = q.question_type === "mcq" ? 1 : (parseInt(document.getElementById("editMaxMarks").value) || 1);
 
     const q = loadedQuestionsCache.find(x => x.id === qId);
     if (!q) return;
@@ -3066,10 +3540,13 @@
 
       // Update parent questions values
       const editAudience = document.getElementById("editAudienceSelect")?.value || "both";
-      const editTripleSpecId = document.getElementById("editTripleSpecPointSelect")?.value || null;
-      if (editAudience === "both" && !editTripleSpecId) {
-        showAdminToast("Select a linked triple spec point for Both audience, or set Triple only.", true);
-        return;
+      let editTripleSpecId = null;
+      if (editAudience === "both") {
+        editTripleSpecId = await resolveTripleLinkForCombinedSpec(q.spec_point_id);
+        if (!editTripleSpecId) {
+          showAdminToast("This combined spec point has no registered triple equivalent. Set audience to Triple only.", true);
+          return;
+        }
       }
 
       const updatePayload = {
@@ -3109,6 +3586,10 @@
         updatePayload.calculation_config = calcCfg;
         updatePayload.max_marks = parseInt(document.getElementById("editMaxMarks")?.value, 10)
           || window.CalcWorkflow.computeMaxMarksFromConfig(calcCfg);
+      }
+
+      if (q.question_type === "mcq") {
+        updatePayload.max_marks = 1;
       }
 
       const { error: uErr } = await supabaseClient
