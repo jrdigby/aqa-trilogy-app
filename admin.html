@@ -262,13 +262,56 @@
       border-color: #a7f3d0;
     }
 
-    .skill-category { margin-bottom: 10px; }
+    .skill-category { margin-bottom: 12px; }
     .skill-category-title { font-size: 0.78rem; font-weight: 700; color: #475569; margin-bottom: 6px; }
-    .skill-check-grid { display: flex; flex-wrap: wrap; gap: 6px 10px; }
-    .skill-check-label { display: inline-flex; align-items: center; gap: 4px; font-size: 0.78rem; cursor: pointer; padding: 3px 6px; border-radius: 6px; background: #f8fafc; border: 1px solid #e2e8f0; }
-    .skill-check-label input { margin: 0; }
-    .skill-code { font-weight: 700; font-family: monospace; color: #0f766e; }
-    .skill-subject-hint { font-size: 0.68rem; color: #94a3b8; }
+    .skill-check-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 8px;
+    }
+    .skill-check-label {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      font-size: 0.78rem;
+      cursor: pointer;
+      padding: 8px 10px;
+      border-radius: 8px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      line-height: 1.35;
+    }
+    .skill-check-label:hover {
+      background: #f1f5f9;
+      border-color: #cbd5e1;
+    }
+    .skill-check-label input {
+      margin: 2px 0 0;
+      flex-shrink: 0;
+    }
+    .skill-check-content {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+    .skill-code {
+      font-weight: 700;
+      font-family: monospace;
+      color: #0f766e;
+      font-size: 0.76rem;
+    }
+    .skill-title {
+      font-size: 0.74rem;
+      color: #334155;
+      font-weight: 500;
+    }
+    .skill-subject-hint {
+      display: block;
+      font-size: 0.68rem;
+      color: #64748b;
+      margin-top: 2px;
+    }
     .skills-panel-block { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--border); }
     .skills-panel-block.hidden { display: none; }
 
@@ -343,8 +386,7 @@
     }
 
     #linkedSpecDisplay,
-    #editTripleSpecDisplay,
-    #editCombinedSpecDisplay {
+    #editTripleSpecDisplay {
       background: #f1f5f9;
       cursor: default;
     }
@@ -1505,16 +1547,42 @@
           </div>
         </div>
 
-        <div class="spec-link-panel edit-form-span-full hidden" id="editSpecLinkPanel">
-          <p class="spec-link-status">Shared questions link a combined spec point (primary) with its triple equivalent.</p>
+        <div class="spec-link-panel edit-form-span-full" id="editSpecPanel">
+          <p class="spec-link-status" id="editSpecLinkStatus">Change subject, paper, or course track to load spec points, then pick the target specification statement.</p>
           <div class="row row-compact" style="margin-bottom: 8px;">
-            <div class="field-fit" style="min-width: min(100%, 360px); flex: 1 1 320px;">
-              <label>Combined spec point (primary):</label>
-              <input type="text" id="editCombinedSpecDisplay" readonly style="background:#f1f5f9; cursor:default;" />
+            <div class="field-fit">
+              <label for="editSpecSubjectSelect">Subject</label>
+              <select id="editSpecSubjectSelect" class="select-fit">
+                <option value="physics">Physics</option>
+                <option value="chemistry">Chemistry</option>
+                <option value="biology">Biology</option>
+              </select>
             </div>
+            <div class="field-fit">
+              <label for="editSpecPaperSelect">Paper</label>
+              <select id="editSpecPaperSelect" class="select-fit">
+                <option value="paper1">Paper 1</option>
+                <option value="paper2">Paper 2</option>
+              </select>
+            </div>
+            <div class="field-fit">
+              <label for="editSpecCourseTrackSelect">Course track</label>
+              <select id="editSpecCourseTrackSelect" class="select-fit">
+                <option value="combined">Combined (8464)</option>
+                <option value="triple">Triple</option>
+              </select>
+            </div>
+          </div>
+          <div class="field-fit" style="margin-bottom: 8px;">
+            <label id="editPrimarySpecLabel" for="editSpecPointSelect">Spec point:</label>
+            <select id="editSpecPointSelect" class="select-fit" style="width: 100%; max-width: 100%;">
+              <option value="">Loading spec points…</option>
+            </select>
+          </div>
+          <div class="row row-compact spec-link-linked-row hidden" id="editSpecLinkLinkedRow">
             <div class="field-fit" style="min-width: min(100%, 360px); flex: 1 1 320px;">
-              <label>Linked triple spec point:</label>
-              <input type="text" id="editTripleSpecDisplay" readonly style="background:#f1f5f9;cursor:default;" />
+              <label id="editLinkedSpecLabel">Linked spec point:</label>
+              <input type="text" id="editTripleSpecDisplay" readonly placeholder="— Auto-matched when an equivalent exists —" />
             </div>
           </div>
         </div>
@@ -2194,15 +2262,154 @@
   }
 
   async function autoFillEditTripleSpecFromEquivalence(combinedSpecPointId) {
+    await autoFillEditLinkedSpecFromPrimary(combinedSpecPointId);
+  }
+
+  function getEditCourseTrack() {
+    return document.getElementById("editSpecCourseTrackSelect")?.value || "combined";
+  }
+
+  function syncEditSpecLinkUi() {
+    const audience = document.getElementById("editAudienceSelect")?.value || "both";
+    const track = getEditCourseTrack();
+    const linkedRow = document.getElementById("editSpecLinkLinkedRow");
+    const primaryLabel = document.getElementById("editPrimarySpecLabel");
+    const linkedLabel = document.getElementById("editLinkedSpecLabel");
+    const status = document.getElementById("editSpecLinkStatus");
+    const courseTrackSel = document.getElementById("editSpecCourseTrackSelect");
+
+    if (linkedRow) linkedRow.classList.toggle("hidden", audience !== "both");
+
+    if (audience === "triple_only" && courseTrackSel) {
+      courseTrackSel.value = "triple";
+      courseTrackSel.disabled = true;
+    } else if (courseTrackSel) {
+      courseTrackSel.disabled = false;
+    }
+
+    if (track === "triple") {
+      if (primaryLabel) primaryLabel.textContent = "Triple spec point (Separate sciences):";
+      if (linkedLabel) linkedLabel.textContent = "Linked combined spec point (auto-matched):";
+      if (status) {
+        status.textContent = audience === "both"
+          ? "Select the triple spec point. The combined Trilogy equivalent is resolved at save time."
+          : "Select the triple spec point for triple-only questions.";
+      }
+    } else {
+      if (primaryLabel) primaryLabel.textContent = "Combined spec point (Trilogy 8464):";
+      if (linkedLabel) linkedLabel.textContent = "Linked triple spec point (auto-matched):";
+      if (status) {
+        status.textContent = audience === "both"
+          ? "Select the combined spec point. The triple equivalent is resolved at save time."
+          : "Select the combined spec point for this question.";
+      }
+    }
+  }
+
+  async function autoFillEditLinkedSpecFromPrimary(primarySpecPointId) {
     const audience = document.getElementById("editAudienceSelect")?.value || "both";
     const display = document.getElementById("editTripleSpecDisplay");
-    if (!display || audience !== "both" || !combinedSpecPointId) {
-      if (display) display.value = "";
+    if (!display) return;
+
+    if (!primarySpecPointId || audience !== "both") {
+      display.value = "";
       return;
     }
 
-    const equiv = await lookupEquivalence(combinedSpecPointId, "combined");
-    display.value = equiv?.triple ? await formatSpecPointLabel(equiv.triple) : "";
+    const track = getEditCourseTrack();
+    const equiv = await lookupEquivalence(primarySpecPointId, track);
+    const linkedId = track === "combined" ? equiv?.triple : equiv?.combined;
+    display.value = linkedId ? await formatSpecPointLabel(linkedId) : "";
+  }
+
+  async function loadEditSyllabusReferenceSelects(selectedSpecPointId = "") {
+    const subject = document.getElementById("editSpecSubjectSelect")?.value;
+    const paper = document.getElementById("editSpecPaperSelect")?.value;
+    const courseTrack = getEditCourseTrack();
+    const selector = document.getElementById("editSpecPointSelect");
+    if (!selector) return;
+
+    selector.innerHTML = "<option>Loading references...</option>";
+
+    try {
+      const { data, error } = await supabaseClient
+        .from("spec_points")
+        .select("id, spec_ref, topic_name, spec_text")
+        .eq("subject", subject)
+        .eq("paper", paper)
+        .eq("course_track", courseTrack)
+        .order("spec_ref", { ascending: true });
+
+      if (error) throw error;
+
+      const rows = data || [];
+      selector.innerHTML = rows.length
+        ? rows.map((row) => `
+            <option value="${row.id}"${row.id === selectedSpecPointId ? " selected" : ""}>${row.spec_ref} - [${row.topic_name}] ${row.spec_text.slice(0, 75)}...</option>
+          `).join("")
+        : `<option value="">No spec points found for this filter</option>`;
+
+      if (selectedSpecPointId && !rows.some((row) => row.id === selectedSpecPointId)) {
+        const label = await formatSpecPointLabel(selectedSpecPointId);
+        if (label) {
+          const opt = document.createElement("option");
+          opt.value = selectedSpecPointId;
+          opt.textContent = `${label} (current — outside filter)`;
+          opt.selected = true;
+          selector.insertBefore(opt, selector.firstChild);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      selector.innerHTML = "<option>Error loading syllabus data.</option>";
+    }
+
+    syncEditSpecLinkUi();
+    const primaryId = selector.value;
+    if (primaryId) {
+      await autoFillEditLinkedSpecFromPrimary(primaryId);
+      try {
+        const { data: sp } = await supabaseClient
+          .from("spec_points")
+          .select("subject, paper, course_track")
+          .eq("id", primaryId)
+          .maybeSingle();
+        if (sp) {
+          document.getElementById("editEqSheetSubject").value = sp.subject;
+          document.getElementById("editEqSheetPaper").value = sp.paper;
+          document.getElementById("editEqSheetCourseTrack").value =
+            document.getElementById("editAudienceSelect")?.value === "triple_only"
+              ? "triple"
+              : (sp.course_track || "combined");
+        }
+      } catch (_) { /* ignore */ }
+    }
+  }
+
+  /** Resolve spec IDs for edit save — from equivalences table, same rules as creator. */
+  async function resolveEditSpecIdsForCommit() {
+    const audience = document.getElementById("editAudienceSelect")?.value || "both";
+    const track = getEditCourseTrack();
+    const primaryId = document.getElementById("editSpecPointSelect")?.value || "";
+
+    if (!primaryId) {
+      return { spec_point_id: null, triple_spec_point_id: null, ok: false };
+    }
+
+    if (audience === "triple_only") {
+      return { spec_point_id: primaryId, triple_spec_point_id: null, ok: true };
+    }
+
+    const equiv = await lookupEquivalence(primaryId, track);
+    if (!equiv?.combined || !equiv?.triple) {
+      return { spec_point_id: null, triple_spec_point_id: null, ok: false };
+    }
+
+    return {
+      spec_point_id: equiv.combined,
+      triple_spec_point_id: equiv.triple,
+      ok: true,
+    };
   }
 
   /** Resolve spec IDs for save — always from equivalences table, never from stale UI state. */
@@ -2238,9 +2445,7 @@
   }
 
   function syncEditAudienceUi() {
-    const audience = document.getElementById("editAudienceSelect")?.value || "both";
-    const row = document.getElementById("editSpecLinkPanel");
-    if (row) row.classList.toggle("hidden", audience !== "both");
+    syncEditSpecLinkUi();
   }
 
   async function loadSyllabusReferenceSelects() {
@@ -2319,14 +2524,45 @@
     if (specId) void autoFillLinkedSpecFromPrimary(specId);
   });
   document.getElementById("editAudienceSelect")?.addEventListener("change", async () => {
-    syncEditAudienceUi();
-    const qId = document.getElementById("editQuestionId")?.value;
-    const q = loadedQuestionsCache.find((x) => x.id === qId);
-    if (q && document.getElementById("editAudienceSelect")?.value === "both") {
-      await autoFillEditTripleSpecFromEquivalence(q.spec_point_id);
+    syncEditSpecLinkUi();
+    const specId = document.getElementById("editSpecPointSelect")?.value;
+    if (specId && document.getElementById("editAudienceSelect")?.value === "both") {
+      await autoFillEditLinkedSpecFromPrimary(specId);
     } else {
       const display = document.getElementById("editTripleSpecDisplay");
       if (display) display.value = "";
+    }
+    if (document.getElementById("editAudienceSelect")?.value === "triple_only") {
+      await loadEditSyllabusReferenceSelects(specId || "");
+    }
+  });
+  ["editSpecSubjectSelect", "editSpecPaperSelect", "editSpecCourseTrackSelect"].forEach((id) => {
+    document.getElementById(id)?.addEventListener("change", async () => {
+      await loadEditSyllabusReferenceSelects();
+      await refreshEditEquationSheetDropdown({ autoLink: false });
+      if (window.AdminSkills) window.AdminSkills.renderSkillPanels("edit");
+    });
+  });
+  document.getElementById("editSpecPointSelect")?.addEventListener("change", async () => {
+    const specId = document.getElementById("editSpecPointSelect")?.value;
+    if (specId) {
+      await autoFillEditLinkedSpecFromPrimary(specId);
+      try {
+        const { data: sp } = await supabaseClient
+          .from("spec_points")
+          .select("subject, paper, course_track")
+          .eq("id", specId)
+          .maybeSingle();
+        if (sp) {
+          document.getElementById("editEqSheetSubject").value = sp.subject;
+          document.getElementById("editEqSheetPaper").value = sp.paper;
+          document.getElementById("editEqSheetCourseTrack").value =
+            document.getElementById("editAudienceSelect")?.value === "triple_only"
+              ? "triple"
+              : (sp.course_track || "combined");
+          await refreshEditEquationSheetDropdown({ autoLink: false });
+        }
+      } catch (_) { /* ignore */ }
     }
   });
   document.getElementById("specPointSelect")?.addEventListener("change", async () => {
@@ -3370,23 +3606,38 @@
         .select("subject, paper, course_track, spec_ref, topic_name, spec_text")
         .eq("id", q.spec_point_id)
         .maybeSingle();
-      document.getElementById("editEqSheetSubject").value = sp?.subject || "physics";
-      document.getElementById("editEqSheetPaper").value = sp?.paper || "paper1";
-      document.getElementById("editEqSheetCourseTrack").value =
-        q.audience === "triple_only" ? "triple" : (sp?.course_track || "combined");
-      const combinedDisplay = document.getElementById("editCombinedSpecDisplay");
-      if (combinedDisplay) {
-        combinedDisplay.value = sp
-          ? `${sp.spec_ref} - [${sp.topic_name}] ${(sp.spec_text || "").slice(0, 75)}...`
-          : "";
+
+      const subjectSel = document.getElementById("editSpecSubjectSelect");
+      const paperSel = document.getElementById("editSpecPaperSelect");
+      const trackSel = document.getElementById("editSpecCourseTrackSelect");
+
+      if (sp) {
+        if (subjectSel) subjectSel.value = sp.subject;
+        if (paperSel) paperSel.value = sp.paper;
+        if (trackSel) {
+          trackSel.value = q.audience === "triple_only" ? "triple" : (sp.course_track || "combined");
+        }
+        document.getElementById("editEqSheetSubject").value = sp.subject;
+        document.getElementById("editEqSheetPaper").value = sp.paper;
+        document.getElementById("editEqSheetCourseTrack").value =
+          q.audience === "triple_only" ? "triple" : (sp.course_track || "combined");
+        await loadEditSyllabusReferenceSelects(q.spec_point_id);
+      } else {
+        if (subjectSel) subjectSel.value = document.getElementById("auditSubject")?.value || "physics";
+        if (paperSel) paperSel.value = document.getElementById("auditPaper")?.value || "paper1";
+        if (trackSel) trackSel.value = q.audience === "triple_only" ? "triple" : "combined";
+        document.getElementById("editEqSheetSubject").value = subjectSel?.value || "physics";
+        document.getElementById("editEqSheetPaper").value = paperSel?.value || "paper1";
+        document.getElementById("editEqSheetCourseTrack").value = trackSel?.value || "combined";
+        await loadEditSyllabusReferenceSelects(q.spec_point_id || "");
       }
-      await autoFillEditTripleSpecFromEquivalence(q.spec_point_id);
     } catch (_) {
       document.getElementById("editEqSheetSubject").value = "physics";
       document.getElementById("editEqSheetPaper").value = "paper1";
       document.getElementById("editEqSheetCourseTrack").value = "combined";
+      await loadEditSyllabusReferenceSelects(q.spec_point_id || "");
     }
-    syncEditAudienceUi();
+    syncEditSpecLinkUi();
     
     // Populate image properties in edit modal
     const editImgUrl = document.getElementById("editImageUrl");
@@ -3557,6 +3808,9 @@
     if (window.AdminSkills) {
       await window.AdminSkills.prepareEditSkillsUI(supabaseClient, q);
     }
+    if (window.AdminMetadata) {
+      window.AdminMetadata.autoSizeAdminSelects(document.getElementById("editForm"));
+    }
 
     document.getElementById("editModalOverlay").classList.remove("hidden");
   };
@@ -3609,13 +3863,14 @@
 
       // Update parent questions values
       const editAudience = document.getElementById("editAudienceSelect")?.value || "both";
-      let editTripleSpecId = null;
-      if (editAudience === "both") {
-        editTripleSpecId = await resolveTripleLinkForCombinedSpec(q.spec_point_id);
-        if (!editTripleSpecId) {
-          showAdminToast("This combined spec point has no registered triple equivalent. Set audience to Triple only.", true);
-          return;
-        }
+      const specIds = await resolveEditSpecIdsForCommit();
+      if (!specIds.spec_point_id) {
+        showAdminToast("Select a valid spec point for this question.", true);
+        return;
+      }
+      if (editAudience === "both" && !specIds.ok) {
+        showAdminToast("This spec point has no registered equivalent for shared (Both) audience. Set audience to Triple only or pick a linked spec point.", true);
+        return;
       }
 
       const updatePayload = {
@@ -3626,7 +3881,8 @@
         max_marks: marks,
         image_url: finalImageUrl,
         audience: editAudience,
-        triple_spec_point_id: editAudience === "both" ? editTripleSpecId : null
+        spec_point_id: specIds.spec_point_id,
+        triple_spec_point_id: editAudience === "both" ? specIds.triple_spec_point_id : null
       };
 
       if (window.AdminMetadata) {

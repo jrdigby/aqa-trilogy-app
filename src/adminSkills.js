@@ -10,6 +10,7 @@ import {
   extractQuestionSkillCodes,
 } from "./skillTagging.js";
 import { collectCreatorMarkPoints } from "./adminMetadata.js";
+import { escapeHtml } from "./utils.js";
 
 let skillCatalog = [];
 let catalogByFullCode = new Map();
@@ -33,12 +34,13 @@ function escapeTooltipText(text) {
   return String(text).replace(/"/g, "&quot;");
 }
 
-function buildSkillTooltip(framework, item, dbRow) {
+function buildSkillTooltip(item, dbRow) {
   const title = item.title || dbRow?.title || "";
-  if (framework !== "WS" || !dbRow?.description) {
-    return escapeTooltipText(title);
+  const description = dbRow?.description;
+  if (description) {
+    return escapeTooltipText(`${title}\n\n${description}`);
   }
-  return escapeTooltipText(`${title}\n\n${dbRow.description}`);
+  return escapeTooltipText(title);
 }
 
 export async function loadSkillCatalog(supabaseClient) {
@@ -78,6 +80,8 @@ function resolveSkillIdFromCheckbox(cb) {
 
 function getSubjectForMode(mode) {
   if (mode === "edit") {
+    const editSubj = document.getElementById("editSpecSubjectSelect")?.value;
+    if (editSubj) return editSubj;
     const subj = document.getElementById("auditSubject")?.value;
     if (subj) return subj;
   }
@@ -113,14 +117,19 @@ function renderSkillCheckboxes(container, framework, mode, selectedFullCodes = n
       const id = dbRow.id;
       const checked = selectedFullCodes.has(item.full_code) ? " checked" : "";
       const autoMark = autoCodes.has(item.full_code) ? ' data-auto="true"' : "";
+      const title = item.title || dbRow?.title || "";
       const subjectHint = item.subjects?.length
-        ? ` <span class="skill-subject-hint">(${item.subjects.join(", ")})</span>`
+        ? `<span class="skill-subject-hint">(${escapeHtml(item.subjects.join(", "))})</span>`
         : "";
-      const tooltip = buildSkillTooltip(framework, item, dbRow);
+      const tooltip = buildSkillTooltip(item, dbRow);
       html.push(
         `<label class="skill-check-label" title="${tooltip}">` +
           `<input type="checkbox" class="skill-cb" data-framework="${framework}" data-full-code="${item.full_code}" data-skill-id="${id}"${checked}${autoMark}/>` +
-          `<span class="skill-code">${item.full_code}</span>${subjectHint}` +
+          `<span class="skill-check-content">` +
+            `<span class="skill-code">${escapeHtml(item.full_code)}</span>` +
+            `<span class="skill-title">${escapeHtml(title)}</span>` +
+            subjectHint +
+          `</span>` +
         `</label>`
       );
     }
