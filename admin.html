@@ -3723,7 +3723,6 @@
       editMaxMarks.appendChild(opt);
     });
     editMaxMarks.value = (q.max_marks || 1).toString();
-    syncEditMcqUi(q.question_type);
 
     // Reset modal panels
     document.getElementById("editMcqPanel").classList.add("hidden");
@@ -3864,6 +3863,7 @@
     }
 
     if (window.AdminMetadata) window.AdminMetadata.initEditMetadataUI(q);
+    syncEditMcqUi(q.question_type);
     if (window.AdminSkills) {
       await window.AdminSkills.prepareEditSkillsUI(supabaseClient, q);
     }
@@ -3947,6 +3947,12 @@
           editMeta.ao1_marks = q.ao1_marks;
           editMeta.ao2_marks = q.ao2_marks;
           editMeta.ao3_marks = q.ao3_marks;
+        }
+
+        if (q.question_type === "mcq") {
+          editMeta.ao1_marks = 1;
+          editMeta.ao2_marks = 0;
+          editMeta.ao3_marks = 0;
         }
       }
 
