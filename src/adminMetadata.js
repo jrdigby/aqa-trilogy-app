@@ -49,7 +49,11 @@ export function isDualLinkIncomplete(q) {
 }
 
 export function formatAoSplit(q) {
-  if (q?.ao1_marks == null) return "—";
+  if (!q) return "—";
+  if (q.ao1_marks == null) {
+    if (q.question_type === "mcq") return "1/0/0";
+    return "—";
+  }
   return `${q.ao1_marks}/${q.ao2_marks}/${q.ao3_marks}`;
 }
 
@@ -298,9 +302,16 @@ export function resetCreatorMetadataFields() {
 export function initEditMetadataUI(q) {
   populateCommandWordSelect(document.getElementById("editCommandWordSelect"), q.command_word || "");
   populateDemandSelect(document.getElementById("editDemandLevelSelect"), q.tier || "both", q.demand_level || "");
-  document.getElementById("editAo1Marks").value = q.ao1_marks ?? "";
-  document.getElementById("editAo2Marks").value = q.ao2_marks ?? "";
-  document.getElementById("editAo3Marks").value = q.ao3_marks ?? "";
+  const isMcq = q.question_type === "mcq";
+  document.getElementById("editAo1Marks").value = isMcq
+    ? (q.ao1_marks ?? 1)
+    : (q.ao1_marks ?? "");
+  document.getElementById("editAo2Marks").value = isMcq
+    ? (q.ao2_marks ?? 0)
+    : (q.ao2_marks ?? "");
+  document.getElementById("editAo3Marks").value = isMcq
+    ? (q.ao3_marks ?? 0)
+    : (q.ao3_marks ?? "");
   document.getElementById("editChkMathsSkill").checked = q.is_maths_skill === true;
   document.getElementById("editChkRequiredPractical").checked = q.is_required_practical === true;
   const editRpRow = document.getElementById("editRequiredPracticalRow");

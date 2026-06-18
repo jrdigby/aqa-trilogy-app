@@ -13,7 +13,7 @@ import {
   normalizeAdaptiveState
 } from './adaptiveSelector.js';
 import { triggerMathTypeset } from './mathEngine.js';
-import { checkKeywordOrSynonymsMatch, updateSRS, computeSessionQuality, getAQACommandWordHelper, isFuzzyMatch, computeQuestionAOMaxCaps } from './evalEngine.js';
+import { checkKeywordOrSynonymsMatch, updateSRS, computeSessionQuality, getAQACommandWordHelper, isFuzzyMatch, computeQuestionAOMaxCaps, flashcardInsightFromMissing } from './evalEngine.js';
 import { escapeHtml, shuffleArray, todayISO, addDaysISO, resolveAppUrl } from './utils.js';
 import { supabaseClient, timeoutPromise, fetchDashboardDueItems, fetchConceptGapAttempts, fetchWeeklyForecastSchedules, fetchSyllabusPipelineData, fetchAttemptActivity, fetchUserProfile, fetchUserClassLicense, fetchPlanQuotas, tryConsumeAiMark, tryConsumeHalfPaper, stashAuthSession, clearAuthGraceSession, endAuthGracePeriod, isAuthGraceActive, incrementUserXp } from './dbClient.js';
 import dbClient from "./dbClient.js";
@@ -61,7 +61,8 @@ import {
   validateCalculationResponse,
   applyCalculationStepHighlighting,
   wireStudentEquationSelectPreview,
-  resolveEquationSheetIdForQuestion
+  resolveEquationSheetIdForQuestion,
+  buildNumericFlashcardInsights
 } from './calculationWorkflow.js';
 import { computeAttemptXp, formatXpToastMessage, XP_RULES_FOOTNOTE, XP_RULES_TOAST_KEY } from './xpEngine.js';
 import { renderSkillsAnalytics } from './skillsAnalytics.js';
@@ -848,6 +849,59 @@ async function loadDashboard(user = currentUser) {
   await loadRevisionCards();
 }
 
+/** @returns {{ text: string, imageUrl: string }[]} */
+function extractFlashcardInsights(att) {
+  const q = att.questions || {};
+  const payload = att.feedback_payload;
+
+  const asInsight = (text, imageUrl = "") => ({ text: String(text || ""), imageUrl: imageUrl || "" });
+
+  if (Array.isArray(payload?.flashcard_steps) && payload.flashcard_steps.length) {
+    return payload.flashcard_steps.map((step) => asInsight(step));
+  }
+
+  if (q.question_type === "numeric") {
+    const rebuilt = buildNumericFlashcardInsights(q, null, payload, null);
+    if (rebuilt?.length) return rebuilt.map((step) => asInsight(step));
+  }
+
+  if (Array.isArray(payload?.missing)) {
+    return payload.missing.map((m) =>
+      asInsight(flashcardInsightFromMissing(m), m.image_url || "")
+    );
+  }
+  if (Array.isArray(payload?.missing_or_incorrect)) {
+    return payload.missing_or_incorrect.map((line) =>
+      asInsight(typeof line === "string" ? line : line?.text || "")
+    );
+  }
+  return [
+    asInsight("Review standard definitions and practical procedures for this specification statement.")
+  ];
+}
+
+function renderFlashcardQuestionImage(imageUrl) {
+  const url = (imageUrl || "").trim();
+  if (!url) return "";
+  return `
+    <div class="revision-card-question-img-wrap">
+      <img class="revision-card-question-img" src="${escapeHtml(url)}" alt="" loading="lazy"/>
+    </div>
+  `;
+}
+
+function renderFlashcardInsightList(insights) {
+  return (insights || [])
+    .map(({ text, imageUrl }) => {
+      const img =
+        (imageUrl || "").trim()
+          ? `<img class="revision-card-feedback-img" src="${escapeHtml(imageUrl)}" alt="" loading="lazy"/>`
+          : "";
+      return `<li class="revision-card-insight-item">${escapeHtml(text)}${img}</li>`;
+    })
+    .join("");
+}
+
 function flashcardFilterLabel({ subject, paper, topic }) {
   const subjectLabel = subject.charAt(0).toUpperCase() + subject.slice(1);
   const paperLabel = paper === "paper2" ? "Paper 2" : "Paper 1";
@@ -855,44 +909,57 @@ function flashcardFilterLabel({ subject, paper, topic }) {
   return `${subjectLabel} · ${paperLabel}${topicPart}`;
 }
 
-function compileFlashcardDeck(attempts, { subject, paper, topic }, profile = null) {
-  const qualified = [];
+function attemptMatchesFlashcardFilters(att, { subject, paper, topic }, profile = null) {
+  if (!att.feedback_payload) return false;
+  const q = att.questions;
+  if (!q) return false;
+  if (q.question_type === "extended_response") return false;
+  const spec = resolveQuestionSpecMeta(q, profile);
+  if (!spec) return false;
   const subjectNorm = subject.toLowerCase().trim();
+  if (spec.subject?.toString().toLowerCase().trim() !== subjectNorm) return false;
+  if (spec.paper !== paper) return false;
+  if (topic && spec.topic_name !== topic) return false;
+  return true;
+}
 
-  for (const att of attempts || []) {
-    if (att.score_total >= att.score_max) continue;
-    if (!att.feedback_payload) continue;
-    const q = att.questions;
-    if (!q) continue;
-    if (q.question_type === "extended_response") continue;
-    const spec = resolveQuestionSpecMeta(q, profile);
-    if (!spec) continue;
-    if (spec.subject?.toString().toLowerCase().trim() !== subjectNorm) continue;
-    if (spec.paper !== paper) continue;
-    if (topic && spec.topic_name !== topic) continue;
-    qualified.push(att);
+function compileFlashcardDeck(attempts, { subject, paper, topic }, profile = null) {
+  const list = attempts || [];
+  const filters = { subject, paper, topic };
+
+  // Attempts are newest-first — keep only the latest row per question.
+  const latestByQuestion = new Map();
+  for (const att of list) {
+    if (!att.question_id || latestByQuestion.has(att.question_id)) continue;
+    latestByQuestion.set(att.question_id, att);
   }
 
+  // Count prior failures for sort priority (repeat gaps float to the top).
   const failureCounts = new Map();
-  for (const att of qualified) {
+  for (const att of list) {
+    if (att.score_total >= att.score_max) continue;
+    if (!attemptMatchesFlashcardFilters(att, filters, profile)) continue;
     failureCounts.set(att.question_id, (failureCounts.get(att.question_id) || 0) + 1);
   }
 
-  const seen = new Set();
-  const deduped = [];
-  for (const att of qualified) {
-    if (seen.has(att.question_id)) continue;
-    seen.add(att.question_id);
-    deduped.push({ ...att, _failureCount: failureCounts.get(att.question_id) || 1 });
+  const deck = [];
+  for (const att of latestByQuestion.values()) {
+    // Drop questions whose most recent attempt was full credit.
+    if (att.score_total >= att.score_max) continue;
+    if (!attemptMatchesFlashcardFilters(att, filters, profile)) continue;
+    deck.push({
+      ...att,
+      _failureCount: failureCounts.get(att.question_id) || 1
+    });
   }
 
-  deduped.sort((a, b) => {
+  deck.sort((a, b) => {
     const countDiff = (b._failureCount || 0) - (a._failureCount || 0);
     if (countDiff !== 0) return countDiff;
     return String(b.submitted_at || "").localeCompare(String(a.submitted_at || ""));
   });
 
-  return deduped;
+  return deck;
 }
 
 // ====== "MISSING INFO" REVISION FLASHCARD COMPILER ======
@@ -937,49 +1004,35 @@ async function loadRevisionCards() {
       const spec = resolveQuestionSpecMeta(q, currentUserProfile) || {};
       const topicLabel = formatSpecTopicForProfile(spec, currentUserProfile);
       const refChip = formatSpecRefChipForProfile(spec, currentUserProfile) || spec.spec_ref || "AQA Ref";
-      
-      // Extract missed keywords from payload
-      let missedBulletPoints = [];
-      if (Array.isArray(att.feedback_payload?.missing)) {
-        missedBulletPoints = att.feedback_payload.missing.map(m => m.text);
-      } else if (Array.isArray(att.feedback_payload?.missing_or_incorrect)) {
-        missedBulletPoints = att.feedback_payload.missing_or_incorrect;
-      } else {
-        missedBulletPoints = ["Review standard definitions and practical procedures for this specification statement."];
-      }
+      const insights = extractFlashcardInsights(att);
+      const questionImageUrl = (q.image_url || "").trim();
+      const hasQuestionImg = !!questionImageUrl;
 
       const uid = `card_${idx}`;
       return `
-        <div id="${uid}" class="revision-card" style="height: 180px; perspective: 1000px; cursor: pointer;">
-          <div class="card-inner" style="position: relative; width: 100%; height: 100%; transition: transform 0.6s; transform-style: preserve-3d; border-radius: 10px; border: 1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
-            
-            <div class="card-front" style="position: absolute; width: 100%; height: 100%; backface-visibility: hidden; background: #ffffff; padding: 16px; border-radius: 10px; display: flex; flex-direction: column; justify-content: space-between; box-sizing: border-box;">
-              <div>
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                  <span style="font-size:0.7rem; font-weight:700; color:#4f46e5; text-transform:uppercase; letter-spacing:0.05em;">${escapeHtml(topicLabel)}</span>
-                  <span style="font-size:0.7rem; background:#f1f5f9; color:#475569; padding:2px 6px; border-radius:4px; font-weight:600;">${escapeHtml(refChip)}</span>
+        <div id="${uid}" class="revision-card${hasQuestionImg ? " revision-card--has-question-img" : ""}">
+          <div class="card-inner">
+            <div class="card-front">
+              <div class="revision-card-front-body">
+                <div class="revision-card-header">
+                  <span class="revision-card-topic">${escapeHtml(topicLabel)}</span>
+                  <span class="revision-card-ref">${escapeHtml(refChip)}</span>
                 </div>
-                <p style="font-size:0.82rem; font-weight:600; line-height:1.4; color:#1e293b; margin:0; display:-webkit-box; -webkit-line-clamp:4; -webkit-box-orient:vertical; overflow:hidden;">
-                  ${escapeHtml(q.prompt)}
-                </p>
+                ${renderFlashcardQuestionImage(questionImageUrl)}
+                <p class="revision-card-prompt">${escapeHtml(q.prompt)}</p>
               </div>
-              <div style="font-size:0.72rem; color:#64748b; font-weight:600; text-align:right;">
-                💡 Tap to reveal missed concept
-              </div>
+              <div class="revision-card-front-hint">💡 Tap to reveal missed concept</div>
             </div>
 
-            <div class="card-back" style="position: absolute; width: 100%; height: 100%; backface-visibility: hidden; background: #fffbeb; color: #78350f; border: 1px solid #fde68a; padding: 16px; border-radius: 10px; transform: rotateY(180deg); display: flex; flex-direction: column; justify-content: space-between; box-sizing: border-box;">
-              <div style="overflow-y:auto; max-height: 120px;">
-                <span style="font-size:0.7rem; font-weight:700; text-transform:uppercase; display:block; margin-bottom:4px; color:#b45309;">⚠️ Examiner Insight</span>
-                <ul style="margin:0; padding-left:14px; font-size:0.75rem; line-height:1.4; font-weight:500;">
-                  ${missedBulletPoints.map(p => `<li style="margin-bottom:4px;">${escapeHtml(p)}</li>`).join("")}
+            <div class="card-back">
+              <div class="revision-card-back-scroll">
+                <span class="revision-card-back-label">⚠️ Examiner Insight</span>
+                <ul class="revision-card-insight-list">
+                  ${renderFlashcardInsightList(insights)}
                 </ul>
               </div>
-              <div style="font-size:0.7rem; font-weight:600; text-align:left; color:#b45309; padding-top:4px; border-top:1px dashed #fcd34d;">
-                🔄 Tap to view question again
-              </div>
+              <div class="revision-card-back-hint">🔄 Tap to view question again</div>
             </div>
-
           </div>
         </div>
       `;
@@ -1038,26 +1091,30 @@ async function downloadStudyGuideText(attempts) {
     const spec = resolveQuestionSpecMeta(q, currentUserProfile) || {};
     const heading = formatSpecLabelForProfile(spec, currentUserProfile);
 
-    let bullets = [];
-    if (Array.isArray(att.feedback_payload?.missing)) {
-      bullets = att.feedback_payload.missing.map(m => m.text);
-    } else if (Array.isArray(att.feedback_payload?.missing_or_incorrect)) {
-      bullets = att.feedback_payload.missing_or_incorrect;
-    } else {
-      bullets = ["Review overall syllabus definitions."];
-    }
+    let insights = extractFlashcardInsights(att);
+    const questionImageUrl = (q.image_url || "").trim();
+    const questionImgHtml = questionImageUrl
+      ? `<img src="${escapeHtml(questionImageUrl)}" style="max-width:100%; max-height:160px; object-fit:contain; border-radius:8px; border:1px solid #e2e8f0; margin:0 0 10px 0; display:block;" alt=""/>`
+      : "";
 
-    // Capture the exact typeset text markup, preserving LaTeX notation properties cleanly
     const itemBlock = document.createElement("div");
     itemBlock.style.marginBottom = "24px";
-    itemBlock.style.pageBreakInside = "avoid"; 
+    itemBlock.style.pageBreakInside = "avoid";
     itemBlock.innerHTML = `
       <h3 style="color: #1e293b; margin: 0 0 6px 0; font-size: 1.1rem; font-weight: 700;">${i + 1}. ${escapeHtml(heading)}</h3>
       <p style="margin: 0 0 4px 0; font-size: 0.8rem; font-weight: 700; color: #64748b; text-transform: uppercase;">Question Context:</p>
-      <p style="margin: 0 0 12px 0; font-size: 0.92rem; color: #475569; font-style: italic; line-height: 1.4;">"${q.prompt}"</p>
+      ${questionImgHtml}
+      <p style="margin: 0 0 12px 0; font-size: 0.92rem; color: #475569; font-style: italic; line-height: 1.4;">"${escapeHtml(q.prompt)}"</p>
       <p style="margin: 0 0 4px 0; font-size: 0.8rem; font-weight: 700; color: #991b1b; text-transform: uppercase;">Target Examiner Criteria Missed:</p>
       <ul style="margin: 0; padding-left: 20px; font-size: 0.92rem; color: #78350f; line-height: 1.5; font-weight: 500;">
-        ${bullets.map(b => `<li style="margin-bottom: 6px;">${b}</li>`).join("")}
+        ${insights
+          .map(({ text, imageUrl }) => {
+            const img = (imageUrl || "").trim()
+              ? `<br/><img src="${escapeHtml(imageUrl)}" style="max-height:120px; max-width:100%; object-fit:contain; margin-top:6px; border-radius:6px; border:1px solid #fcd34d;" alt=""/>`
+              : "";
+            return `<li style="margin-bottom: 6px;">${escapeHtml(text)}${img}</li>`;
+          })
+          .join("")}
       </ul>
     `;
 
@@ -2173,18 +2230,25 @@ async function loadQuestion() {
   currentMarkPoints = markRes.data || [];
 
   currentEquationSheet = null;
-  const sheetId = resolveEquationSheetIdForQuestion(currentQ, currentUserProfile);
+  const questionId = currentQ.id;
+  const sheetId = resolveEquationSheetIdForQuestion(currentQ, currentUserProfile, {
+    sessionTier: getSelectedFilters().tier
+  });
   if (sheetId) {
     const sheetRes = await supabaseClient
       .from("equation_sheets")
       .select("id, title, equations")
       .eq("id", sheetId)
       .maybeSingle();
-    if (!sheetRes.error) {
+    if (!sheetRes.error && currentQ?.id === questionId) {
       currentEquationSheet = sheetRes.data;
     }
   }
-  currentQ._equationSheet = currentEquationSheet;
+  if (currentQ?.id === questionId) {
+    currentQ._equationSheet = currentEquationSheet;
+  }
+
+  if (currentQ?.id !== questionId) return;
 
   const commandWordBanner = getAQACommandWordHelper(currentQ.prompt);
   const presentation = getPresentationMode(sessionMode);
