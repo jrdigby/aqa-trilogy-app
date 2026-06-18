@@ -874,6 +874,25 @@ export function renderExamPaperFeedbackSummary(attemptLog) {
   `;
 }
 
+function renderSessionFlashcardNotice(attemptLog) {
+  const gapCount = (attemptLog || []).filter(
+    (entry) =>
+      entry.scoreTotal < entry.scoreMax &&
+      entry.questionType !== "extended_response"
+  ).length;
+
+  if (gapCount === 0) return "";
+
+  const noun = gapCount === 1 ? "answer" : "answers";
+  const verb = gapCount === 1 ? "has" : "have";
+  return `
+    <p class="session-summary-flashcard-note muted">
+      📚 ${gapCount} incorrect ${noun} from this session ${verb} been added to your flashcard list.
+      Review them on the Flashcards tab.
+    </p>
+  `;
+}
+
 export function renderSessionCompleteSummary(meta, attemptLog) {
   const { marksSummary, bySpecPoint, tableTotals, xpTotal } = buildSessionSummaryData(attemptLog);
   const rows = buildSpecPointSummaryRows(bySpecPoint);
@@ -884,6 +903,7 @@ export function renderSessionCompleteSummary(meta, attemptLog) {
 
   return `
     ${renderSessionSummaryHeader(meta, marksSummary, xpTotal)}
+    ${renderSessionFlashcardNotice(attemptLog)}
     ${xpNote}
     <div class="session-summary-results">
       ${renderMarksBreakdownTable(rows, tableTotals)}

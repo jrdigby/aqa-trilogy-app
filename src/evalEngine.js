@@ -2,6 +2,18 @@
 import { escapeHtml } from './utils.js';
 import { markCalculationResponse, getCalculationConfig, getActiveSteps } from './calculationWorkflow.js';
 
+export const MCQ_FLASHCARD_ADDED_MSG = "This question has been added to your flashcard list.";
+const LEGACY_FLASHCARD_REVIEW_SUFFIX = / Review your flashcards for this specific unit or definition\.?$/i;
+
+/** Text for flashcard backs — strips UI-only flashcard prompts from stored feedback. */
+export function flashcardInsightFromMissing(m) {
+  if (m?.flashcard_text) return m.flashcard_text;
+  let text = m?.text || "";
+  text = text.replace(LEGACY_FLASHCARD_REVIEW_SUFFIX, "");
+  text = text.replace(new RegExp(`\\s*${MCQ_FLASHCARD_ADDED_MSG.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*$`), "");
+  return text.trim();
+}
+
 // ====== 🧠 FUZZY STRING MATCHING ENGINE (LEVENSHTEIN DISTANCE) ======
 export function getLevenshteinDistance(s1, s2) {
   const track = Array(s2.length + 1).fill(null).map(() => Array(s1.length + 1).fill(null));
@@ -344,15 +356,17 @@ export function markResponse(q, resp, key, markPoints) {
     if (total > 0) {
       ao[targetAo] = max;
     } else {
-      let feedbackText = markPoints?.[0]?.feedback_if_missing 
-        ? markPoints[0].feedback_if_missing 
-        : `The correct answer is "${targetCorrect}". Review your flashcards for this specific unit or definition.`;
-      
-      missing.push({ 
-        ao: targetAo, 
-        text: feedbackText, 
+      let flashcardText = markPoints?.[0]?.feedback_if_missing
+        ? markPoints[0].feedback_if_missing.replace(LEGACY_FLASHCARD_REVIEW_SUFFIX, "").trim()
+        : `The correct answer is "${targetCorrect}".`;
+      const feedbackText = `${flashcardText} ${MCQ_FLASHCARD_ADDED_MSG}`;
+
+      missing.push({
+        ao: targetAo,
+        text: feedbackText,
+        flashcard_text: flashcardText,
         url: cleanUrl,
-        image_url: markPoints?.[0]?.image_url || "" 
+        image_url: markPoints?.[0]?.image_url || ""
       });
     }
   }

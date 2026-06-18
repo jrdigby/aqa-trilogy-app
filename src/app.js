@@ -13,7 +13,7 @@ import {
   normalizeAdaptiveState
 } from './adaptiveSelector.js';
 import { triggerMathTypeset } from './mathEngine.js';
-import { checkKeywordOrSynonymsMatch, updateSRS, computeSessionQuality, getAQACommandWordHelper, isFuzzyMatch, computeQuestionAOMaxCaps } from './evalEngine.js';
+import { checkKeywordOrSynonymsMatch, updateSRS, computeSessionQuality, getAQACommandWordHelper, isFuzzyMatch, computeQuestionAOMaxCaps, flashcardInsightFromMissing } from './evalEngine.js';
 import { escapeHtml, shuffleArray, todayISO, addDaysISO, resolveAppUrl } from './utils.js';
 import { supabaseClient, timeoutPromise, fetchDashboardDueItems, fetchConceptGapAttempts, fetchWeeklyForecastSchedules, fetchSyllabusPipelineData, fetchAttemptActivity, fetchUserProfile, fetchUserClassLicense, fetchPlanQuotas, tryConsumeAiMark, tryConsumeHalfPaper, stashAuthSession, clearAuthGraceSession, endAuthGracePeriod, isAuthGraceActive, incrementUserXp } from './dbClient.js';
 import dbClient from "./dbClient.js";
@@ -941,7 +941,7 @@ async function loadRevisionCards() {
       // Extract missed keywords from payload
       let missedBulletPoints = [];
       if (Array.isArray(att.feedback_payload?.missing)) {
-        missedBulletPoints = att.feedback_payload.missing.map(m => m.text);
+        missedBulletPoints = att.feedback_payload.missing.map(flashcardInsightFromMissing);
       } else if (Array.isArray(att.feedback_payload?.missing_or_incorrect)) {
         missedBulletPoints = att.feedback_payload.missing_or_incorrect;
       } else {
@@ -1040,7 +1040,7 @@ async function downloadStudyGuideText(attempts) {
 
     let bullets = [];
     if (Array.isArray(att.feedback_payload?.missing)) {
-      bullets = att.feedback_payload.missing.map(m => m.text);
+      bullets = att.feedback_payload.missing.map(flashcardInsightFromMissing);
     } else if (Array.isArray(att.feedback_payload?.missing_or_incorrect)) {
       bullets = att.feedback_payload.missing_or_incorrect;
     } else {

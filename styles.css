@@ -446,6 +446,12 @@
   letter-spacing: 0.04em;
 }
 
+.session-summary-flashcard-note {
+  margin: 0 0 12px 0;
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
 .session-summary-xp-footnote {
   font-size: 0.78rem;
   margin: 0 0 12px;
