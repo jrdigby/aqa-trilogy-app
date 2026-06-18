@@ -106,6 +106,20 @@ export function formatSpecLabelForProfile(spec, profile) {
   return `${ref}${topic}`.trim();
 }
 
+/** Flashcard header: subject · spec_ref · topic (subject included on triple science). */
+export function formatFlashcardHeaderMeta(spec, profile) {
+  if (!spec) return "Topic";
+  const topic = spec.topic_name || "Topic";
+  const ref = spec.spec_ref || "";
+  const parts = [];
+  if (getSciencePath(profile) === "triple" && spec.subject) {
+    parts.push(SUBJECT_DISPLAY_NAMES[spec.subject] || spec.subject);
+  }
+  if (ref) parts.push(ref);
+  parts.push(topic);
+  return parts.join(" · ");
+}
+
 /** Compact ref chip; includes subject shorthand on triple science. */
 export function formatSpecRefChipForProfile(spec, profile) {
   if (!spec?.spec_ref) return "";

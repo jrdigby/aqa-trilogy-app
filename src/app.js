@@ -44,7 +44,8 @@ import {
   buildSpecPointQuestionsOrFilter,
   formatSpecLabelForProfile,
   formatSpecRefChipForProfile,
-  formatSpecTopicForProfile
+  formatSpecTopicForProfile,
+  formatFlashcardHeaderMeta
 } from './sciencePath.js';
 import { markResponse } from './evalEngine.js';
 import {
@@ -902,6 +903,46 @@ function renderFlashcardInsightList(insights) {
     .join("");
 }
 
+const FLASHCARD_HEADER_TAP_MAX_LEN = 38;
+
+function renderFlashcardHeader(metaLine, tapLabel) {
+  const showTap = tapLabel && metaLine.length <= FLASHCARD_HEADER_TAP_MAX_LEN;
+  return `
+    <div class="revision-card-header">
+      <span class="revision-card-meta" title="${escapeHtml(metaLine)}">${escapeHtml(metaLine)}</span>
+      ${showTap ? `<span class="revision-card-tap-hint">${escapeHtml(tapLabel)}</span>` : ""}
+    </div>
+  `;
+}
+
+function renderFlashcardMcqOptions(q) {
+  if (q.question_type !== "mcq") return "";
+  const opts = Array.isArray(q.options) ? q.options : [];
+  if (!opts.length) return "";
+  const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  return `
+    <ul class="revision-card-mcq-options">
+      ${opts
+        .map(
+          (option, i) => `
+        <li class="revision-card-mcq-option">
+          <span class="revision-card-mcq-letter">${letters[i] || "?"}.</span>
+          <span class="revision-card-mcq-text">${escapeHtml(option)}</span>
+        </li>
+      `
+        )
+        .join("")}
+    </ul>
+  `;
+}
+
+function revisionCardClassNames(q, hasQuestionImg) {
+  const parts = ["revision-card"];
+  if (q.question_type === "mcq") parts.push("revision-card--mcq");
+  if (hasQuestionImg) parts.push("revision-card--has-question-img");
+  return parts.join(" ");
+}
+
 function flashcardFilterLabel({ subject, paper, topic }) {
   const subjectLabel = subject.charAt(0).toUpperCase() + subject.slice(1);
   const paperLabel = paper === "paper2" ? "Paper 2" : "Paper 1";
@@ -1002,36 +1043,31 @@ async function loadRevisionCards() {
     container.innerHTML = failedAttempts.map((att, idx) => {
       const q = att.questions || {};
       const spec = resolveQuestionSpecMeta(q, currentUserProfile) || {};
-      const topicLabel = formatSpecTopicForProfile(spec, currentUserProfile);
-      const refChip = formatSpecRefChipForProfile(spec, currentUserProfile) || spec.spec_ref || "AQA Ref";
+      const headerMeta = formatFlashcardHeaderMeta(spec, currentUserProfile);
       const insights = extractFlashcardInsights(att);
       const questionImageUrl = (q.image_url || "").trim();
       const hasQuestionImg = !!questionImageUrl;
 
       const uid = `card_${idx}`;
       return `
-        <div id="${uid}" class="revision-card${hasQuestionImg ? " revision-card--has-question-img" : ""}">
+        <div id="${uid}" class="${revisionCardClassNames(q, hasQuestionImg)}">
           <div class="card-inner">
             <div class="card-front">
-              <div class="revision-card-front-body">
-                <div class="revision-card-header">
-                  <span class="revision-card-topic">${escapeHtml(topicLabel)}</span>
-                  <span class="revision-card-ref">${escapeHtml(refChip)}</span>
-                </div>
+              ${renderFlashcardHeader(headerMeta, "Tap for answer")}
+              <div class="revision-card-body">
                 ${renderFlashcardQuestionImage(questionImageUrl)}
                 <p class="revision-card-prompt">${escapeHtml(q.prompt)}</p>
+                ${renderFlashcardMcqOptions(q)}
               </div>
-              <div class="revision-card-front-hint">💡 Tap to reveal missed concept</div>
             </div>
 
             <div class="card-back">
-              <div class="revision-card-back-scroll">
-                <span class="revision-card-back-label">⚠️ Examiner Insight</span>
+              ${renderFlashcardHeader("Examiner insight", "Tap to view question again")}
+              <div class="revision-card-body revision-card-body--back">
                 <ul class="revision-card-insight-list">
                   ${renderFlashcardInsightList(insights)}
                 </ul>
               </div>
-              <div class="revision-card-back-hint">🔄 Tap to view question again</div>
             </div>
           </div>
         </div>
@@ -1089,13 +1125,22 @@ async function downloadStudyGuideText(attempts) {
   attempts.forEach((att, i) => {
     const q = att.questions || {};
     const spec = resolveQuestionSpecMeta(q, currentUserProfile) || {};
-    const heading = formatSpecLabelForProfile(spec, currentUserProfile);
-
-    let insights = extractFlashcardInsights(att);
+    const heading = formatFlashcardHeaderMeta(spec, currentUserProfile);
+    const insights = extractFlashcardInsights(att);
     const questionImageUrl = (q.image_url || "").trim();
     const questionImgHtml = questionImageUrl
       ? `<img src="${escapeHtml(questionImageUrl)}" style="max-width:100%; max-height:160px; object-fit:contain; border-radius:8px; border:1px solid #e2e8f0; margin:0 0 10px 0; display:block;" alt=""/>`
       : "";
+    const mcqOpts = Array.isArray(q.options) ? q.options : [];
+    const mcqHtml =
+      q.question_type === "mcq" && mcqOpts.length
+        ? `<ul style="margin:0 0 12px 0; padding-left:20px; font-size:0.9rem; color:#475569; line-height:1.5;">${mcqOpts
+            .map(
+              (option, i) =>
+                `<li style="margin-bottom:4px;"><strong>${String.fromCharCode(65 + i)}.</strong> ${escapeHtml(option)}</li>`
+            )
+            .join("")}</ul>`
+        : "";
 
     const itemBlock = document.createElement("div");
     itemBlock.style.marginBottom = "24px";
@@ -1104,7 +1149,8 @@ async function downloadStudyGuideText(attempts) {
       <h3 style="color: #1e293b; margin: 0 0 6px 0; font-size: 1.1rem; font-weight: 700;">${i + 1}. ${escapeHtml(heading)}</h3>
       <p style="margin: 0 0 4px 0; font-size: 0.8rem; font-weight: 700; color: #64748b; text-transform: uppercase;">Question Context:</p>
       ${questionImgHtml}
-      <p style="margin: 0 0 12px 0; font-size: 0.92rem; color: #475569; font-style: italic; line-height: 1.4;">"${escapeHtml(q.prompt)}"</p>
+      <p style="margin: 0 0 8px 0; font-size: 0.92rem; color: #475569; font-style: italic; line-height: 1.4;">"${escapeHtml(q.prompt)}"</p>
+      ${mcqHtml}
       <p style="margin: 0 0 4px 0; font-size: 0.8rem; font-weight: 700; color: #991b1b; text-transform: uppercase;">Target Examiner Criteria Missed:</p>
       <ul style="margin: 0; padding-left: 20px; font-size: 0.92rem; color: #78350f; line-height: 1.5; font-weight: 500;">
         ${insights
