@@ -168,6 +168,22 @@
       margin: 4px 0 8px;
     }
 
+    .metadata-top-row {
+      align-items: end;
+    }
+
+    .metadata-top-row .ao-inputs {
+      margin-bottom: 0;
+    }
+
+    .metadata-top-row .ao-validation {
+      margin: 4px 0 0;
+    }
+
+    .metadata-top-row .btn-compact {
+      margin-top: 6px;
+    }
+
     .ao-validation--ok { color: #047857; }
     .ao-validation--warn { color: #b45309; }
 
@@ -250,6 +266,52 @@
     .skill-subject-hint { font-size: 0.68rem; color: #94a3b8; }
     .skills-panel-block { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--border); }
     .skills-panel-block.hidden { display: none; }
+
+    .skills-columns-row {
+      display: grid;
+      gap: 16px 20px;
+      margin-top: 12px;
+      padding-top: 10px;
+      border-top: 1px dashed var(--border);
+    }
+
+    .skills-columns-row .skills-panel-block {
+      margin-top: 0;
+      padding-top: 0;
+      border-top: none;
+    }
+
+    @media (min-width: 768px) {
+      .skills-columns-row {
+        grid-template-columns: 1fr 1fr;
+        align-items: start;
+      }
+
+      .skills-columns-row:has(.skills-panel-block.hidden) .skills-panel-block:not(.hidden) {
+        grid-column: 1 / -1;
+      }
+    }
+
+    .mark-point-row {
+      display: grid;
+      grid-template-columns: 100px 1fr 40px;
+      gap: 10px;
+      align-items: start;
+      margin-bottom: 12px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .mark-point-row:last-child {
+      border-bottom: none;
+      margin-bottom: 0;
+      padding-bottom: 0;
+    }
+
+    .mark-point-row .mp-feedback,
+    .mark-point-row .edit-mp-feedback {
+      grid-column: 1 / -1;
+    }
 
     .container {
       max-width: 1200px;
@@ -347,11 +409,6 @@
     }
 
     @media (min-width: 1100px) {
-      .creator-answers-row {
-        grid-template-columns: 1fr 1fr;
-        align-items: start;
-      }
-
       .creator-core-body {
         display: grid;
         grid-template-columns: 1fr 1fr;
@@ -397,7 +454,6 @@
 
       .edit-answers-markpoints {
         grid-column: 1 / -1;
-        grid-template-columns: 1fr 1fr;
       }
     }
 
@@ -634,6 +690,7 @@
     #editForm .mp-feedback,
     #editForm .edit-mp-feedback {
       min-height: 56px;
+      resize: vertical;
     }
 
     #panelCreator .calc-workflow-panel,
@@ -953,8 +1010,9 @@
 
         <div class="creator-answers-row">
         <!-- SECTION 2: EXPECTED ANSWER CONFIG -->
-        <div class="card creator-section-answers" style="margin-bottom: 0;">
-          <h3 style="margin-top:0; color:var(--primary-dark); font-size:1.1rem; border-bottom:1px solid var(--border); padding-bottom:8px;">Section 2: Interactive Answers &amp; Keys Config</h3>
+        <details class="guidelines-panel creator-section-answers" style="margin-bottom: 0;">
+          <summary>Section 2: Interactive Answers &amp; Keys Config</summary>
+          <div class="section-answers-body" style="padding-top: 8px;">
 
           <!-- Sub Panel: MCQ Answers -->
           <div id="mcqPanel" class="hidden" style="margin-top: 16px;">
@@ -1130,7 +1188,8 @@
               </div>
             </div>
           </div>
-        </div>
+          </div>
+        </details>
 
         <!-- SECTION 3: DETAILED STEP-BY-STEP CHECKPOINTS -->
         <div class="card creator-section-markpoints" style="margin-bottom: 0;">
@@ -1152,7 +1211,7 @@
           <h3 style="margin-top:0; color:var(--primary-dark); font-size:1.1rem; border-bottom:1px solid var(--border); padding-bottom:8px;">Exam Metadata (AO, demand &amp; paper assembly)</h3>
           <div class="metadata-panel" style="margin-top: 0; padding-top: 0; border-top: none;">
             <div class="metadata-inner">
-              <div class="row row-compact metadata-span-full" style="margin-bottom: 0;">
+              <div class="row row-compact metadata-span-full metadata-top-row" style="margin-bottom: 0;">
                 <div class="field-fit">
                   <label for="commandWordSelect">Command word</label>
                   <div class="inline-field">
@@ -1164,16 +1223,16 @@
                   <label for="demandLevelSelect">Demand level</label>
                   <select id="demandLevelSelect" class="select-fit"></select>
                 </div>
-              </div>
-              <div class="field-fit metadata-span-full" id="creatorAoToolsRow">
-                <label>AO mark allocation</label>
-                <div class="ao-inputs">
-                  <span class="ao-mini">AO1 <input type="number" id="ao1Marks" class="input-compact" min="0" max="20" /></span>
-                  <span class="ao-mini">AO2 <input type="number" id="ao2Marks" class="input-compact" min="0" max="20" /></span>
-                  <span class="ao-mini">AO3 <input type="number" id="ao3Marks" class="input-compact" min="0" max="20" /></span>
+                <div class="field-fit" id="creatorAoToolsRow">
+                  <label>AO mark allocation</label>
+                  <div class="ao-inputs">
+                    <span class="ao-mini">AO1 <input type="number" id="ao1Marks" class="input-compact" min="0" max="20" /></span>
+                    <span class="ao-mini">AO2 <input type="number" id="ao2Marks" class="input-compact" min="0" max="20" /></span>
+                    <span class="ao-mini">AO3 <input type="number" id="ao3Marks" class="input-compact" min="0" max="20" /></span>
+                  </div>
+                  <span id="aoMarksValidation" class="ao-validation ao-validation--warn">Set AO marks to match max marks</span>
+                  <button type="button" class="btn btn-secondary btn-compact" id="btnAutoAoFromMarkPoints">Auto from mark points</button>
                 </div>
-                <span id="aoMarksValidation" class="ao-validation ao-validation--warn">Set AO marks to match max marks</span>
-                <button type="button" class="btn btn-secondary btn-compact" id="btnAutoAoFromMarkPoints">Auto from mark points</button>
               </div>
               <div class="flag-row metadata-span-full">
                 <label><input type="checkbox" id="chkMathsSkill" /> Maths skill question</label>
@@ -1187,16 +1246,18 @@
                   </select>
                 </div>
               </div>
-              <div id="msSkillsPanel" class="skills-panel-block hidden metadata-span-full">
-                <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
-                  <h5 style="margin:0;font-size:0.85rem;">Maths Skills (MS)</h5>
-                  <button type="button" class="btn btn-secondary btn-compact" id="btnAutoDetectSkills">Auto-detect skills</button>
+              <div class="skills-columns-row metadata-span-full">
+                <div id="msSkillsPanel" class="skills-panel-block hidden">
+                  <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+                    <h5 style="margin:0;font-size:0.85rem;">Maths Skills (MS)</h5>
+                    <button type="button" class="btn btn-secondary btn-compact" id="btnAutoDetectSkills">Auto-detect skills</button>
+                  </div>
+                  <div id="msSkillsWrap"></div>
                 </div>
-                <div id="msSkillsWrap"></div>
-              </div>
-              <div id="wsSkillsPanel" class="skills-panel-block metadata-span-full">
-                <h5 style="margin:0 0 8px;font-size:0.85rem;">Working Scientifically (WS)</h5>
-                <div id="wsSkillsWrap"></div>
+                <div id="wsSkillsPanel" class="skills-panel-block">
+                  <h5 style="margin:0 0 8px;font-size:0.85rem;">Working Scientifically (WS)</h5>
+                  <div id="wsSkillsWrap"></div>
+                </div>
               </div>
               <div id="metadataWarnings" class="metadata-warnings hidden metadata-span-full"></div>
             </div>
@@ -1321,7 +1382,7 @@
                 <th style="width: 72px;">Cmd</th>
                 <th style="width: 80px;">Demand</th>
                 <th style="width: 64px;">AO</th>
-                <th style="width: 56px;">M/RP</th>
+                <th style="width: 72px;">M/RP/Aud</th>
                 <th style="width: 88px;">MS/WS</th>
                 <th style="width: 72px;">Meta</th>
                 <th style="width: 200px; text-align:right;">Operations</th>
@@ -1454,8 +1515,9 @@
         </div>
 
         <div class="edit-answers-markpoints edit-form-span-full">
-          <div class="edit-answers-block" style="border:1px solid var(--border); border-radius:10px; padding:14px; background:#fafbfc;">
-            <h4 style="margin:0 0 12px; font-size:0.95rem; color:var(--primary-dark);">Section 2: Answers &amp; Keys</h4>
+          <details class="guidelines-panel edit-answers-block">
+            <summary>Section 2: Answers &amp; Keys</summary>
+            <div class="section-answers-body" style="padding-top: 8px;">
         <!-- Section 2 Keywords Edit Panel -->
         <div id="editMcqPanel" class="hidden">
           <div class="row">
@@ -1615,14 +1677,15 @@
           </div>
         </div>
 
-          </div>
+            </div>
+          </details>
 
           <div class="edit-markpoints-block" style="border:1px solid var(--border); border-radius:10px; padding:14px; background:#fafbfc;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
               <h4 style="margin:0; font-size:0.95rem; color:var(--primary-dark);">Section 3: Mark Checkpoints</h4>
               <button type="button" class="btn btn-secondary" id="btnEditAddMarkPoint" style="padding:3px 8px; font-size:0.75rem;">+ Add Criteria Step</button>
             </div>
-            <div id="editMarkPointsWrapper" style="max-height: 220px; overflow-y: auto;"></div>
+            <div id="editMarkPointsWrapper"></div>
           </div>
         </div>
 
@@ -1638,7 +1701,7 @@
         <div class="metadata-panel edit-form-span-full" style="margin-bottom: 0;">
           <h4 style="margin: 0 0 10px; font-size: 0.95rem; color:var(--primary-dark);">Exam Metadata</h4>
           <div class="metadata-inner">
-            <div class="row row-compact metadata-span-full" style="margin-bottom: 0;">
+            <div class="row row-compact metadata-span-full metadata-top-row" style="margin-bottom: 0;">
               <div class="field-fit">
                 <label for="editCommandWordSelect">Command word</label>
                 <select id="editCommandWordSelect" class="select-fit"></select>
@@ -1647,14 +1710,15 @@
                 <label for="editDemandLevelSelect">Demand level</label>
                 <select id="editDemandLevelSelect" class="select-fit"></select>
               </div>
-            </div>
-            <div class="metadata-span-full" id="editAoToolsRow">
-              <div class="ao-inputs">
-                <span class="ao-mini">AO1 <input type="number" id="editAo1Marks" class="input-compact" min="0" /></span>
-                <span class="ao-mini">AO2 <input type="number" id="editAo2Marks" class="input-compact" min="0" /></span>
-                <span class="ao-mini">AO3 <input type="number" id="editAo3Marks" class="input-compact" min="0" /></span>
+              <div class="field-fit" id="editAoToolsRow">
+                <label>AO mark allocation</label>
+                <div class="ao-inputs">
+                  <span class="ao-mini">AO1 <input type="number" id="editAo1Marks" class="input-compact" min="0" /></span>
+                  <span class="ao-mini">AO2 <input type="number" id="editAo2Marks" class="input-compact" min="0" /></span>
+                  <span class="ao-mini">AO3 <input type="number" id="editAo3Marks" class="input-compact" min="0" /></span>
+                </div>
+                <span id="editAoMarksValidation" class="ao-validation"></span>
               </div>
-              <span id="editAoMarksValidation" class="ao-validation"></span>
             </div>
             <div class="flag-row metadata-span-full">
               <label><input type="checkbox" id="editChkMathsSkill" /> Maths skill</label>
@@ -1668,16 +1732,18 @@
                 </select>
               </div>
             </div>
-            <div id="editMsSkillsPanel" class="skills-panel-block hidden metadata-span-full">
-              <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
-                <h5 style="margin:0;font-size:0.85rem;">Maths Skills (MS)</h5>
-                <button type="button" class="btn btn-secondary btn-compact" id="btnAutoDetectEditSkills">Auto-detect</button>
+            <div class="skills-columns-row metadata-span-full">
+              <div id="editMsSkillsPanel" class="skills-panel-block hidden">
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+                  <h5 style="margin:0;font-size:0.85rem;">Maths Skills (MS)</h5>
+                  <button type="button" class="btn btn-secondary btn-compact" id="btnAutoDetectEditSkills">Auto-detect</button>
+                </div>
+                <div id="editMsSkillsWrap"></div>
               </div>
-              <div id="editMsSkillsWrap"></div>
-            </div>
-            <div id="editWsSkillsPanel" class="skills-panel-block metadata-span-full">
-              <h5 style="margin:0 0 8px;font-size:0.85rem;">Working Scientifically (WS)</h5>
-              <div id="editWsSkillsWrap"></div>
+              <div id="editWsSkillsPanel" class="skills-panel-block">
+                <h5 style="margin:0 0 8px;font-size:0.85rem;">Working Scientifically (WS)</h5>
+                <div id="editWsSkillsWrap"></div>
+              </div>
             </div>
           </div>
         </div>
@@ -2452,9 +2518,8 @@
     const wrap = document.getElementById("markPointsWrapper");
     
     const row = document.createElement("div");
-    row.className = "row";
+    row.className = "mark-point-row";
     row.id = `mp_row_${markPointsCounter}`;
-    row.style = "grid-template-columns: 100px 1fr 1fr 40px; align-items: flex-start; gap:10px; margin-bottom: 8px;";
     
     row.innerHTML = `
       <select class="mp-ao select-fit">
@@ -2483,9 +2548,8 @@
     const wrap = document.getElementById("editMarkPointsWrapper");
     
     const row = document.createElement("div");
-    row.className = "row edit-mp-row";
+    row.className = "mark-point-row edit-mp-row";
     row.id = `edit_mp_row_${editMarkPointsCounter}`;
-    row.style = "grid-template-columns: 100px 1fr 1fr 40px; align-items: flex-start; gap:10px; margin-bottom: 8px;";
     
     row.innerHTML = `
       <select class="edit-mp-ao select-fit">
@@ -2702,7 +2766,7 @@
       if (kErr) throw kErr;
       
       // Save Section 3 detailed Mark Points
-      const rows = Array.from(document.querySelectorAll("#markPointsWrapper .row"));
+      const rows = Array.from(document.querySelectorAll("#markPointsWrapper .mark-point-row"));
       if (rows.length > 0) {
         const markPayloads = rows.map(r => ({
           question_id: qResult.id,
@@ -3498,13 +3562,13 @@
 
   document.getElementById("btnSaveEdits").onclick = async () => {
     const qId = document.getElementById("editQuestionId").value;
+    const q = loadedQuestionsCache.find(x => x.id === qId);
+    if (!q) return;
+
     const prompt = document.getElementById("editPrompt").value.trim();
     const resource = document.getElementById("editResource").value.trim();
     const tier = document.getElementById("editTier").value;
     let marks = q.question_type === "mcq" ? 1 : (parseInt(document.getElementById("editMaxMarks").value) || 1);
-
-    const q = loadedQuestionsCache.find(x => x.id === qId);
-    if (!q) return;
 
     try {
       showAdminToast("Saving database updates...");

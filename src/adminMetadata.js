@@ -27,7 +27,7 @@ export function validateAoMarksSum(ao1, ao2, ao3, maxMarks) {
 }
 
 export function collectCreatorMarkPoints() {
-  return Array.from(document.querySelectorAll("#markPointsWrapper .row")).map((row) => ({
+  return Array.from(document.querySelectorAll("#markPointsWrapper .mark-point-row")).map((row) => ({
     ao: row.querySelector(".mp-ao")?.value || "AO1",
     point_text: row.querySelector(".mp-text")?.value?.trim() || "",
     max_marks: 1
