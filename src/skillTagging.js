@@ -75,16 +75,12 @@ export function suggestSkillsForQuestion(draft, markPoints = []) {
     }
   }
 
-  if (qType === "numeric") {
+  if (qType === "numeric" && (steps.length > 0 || prompt.trim())) {
     if (subject === "biology") {
       addSkill(ms, "MS3d", sources, "question type: numeric");
     } else {
       addSkill(ms, "MS3c", sources, "question type: numeric");
     }
-  }
-
-  if (draft.is_maths_skill && qType !== "numeric") {
-    addSkill(ms, "MS1c", sources, "flagged maths skill");
   }
 
   if (draft.is_required_practical) {

@@ -56,6 +56,8 @@ export async function loadSkillCatalog(supabaseClient) {
   skillCatalog = data || [];
   catalogByFullCode = new Map(skillCatalog.map((s) => [s.full_code, s]));
   catalogById = new Map(skillCatalog.map((s) => [s.id, s]));
+  renderSkillPanels("creator");
+  syncSkillPanelsVisibility("creator");
   return skillCatalog;
 }
 
@@ -171,6 +173,15 @@ export function collectSelectedFullCodes(mode = "creator") {
   return [...root.querySelectorAll(".skill-cb:checked")].map((cb) => cb.dataset.fullCode).filter(Boolean);
 }
 
+/** Checked skills the author picked manually (excludes prior auto-detect selections). */
+function collectManualSelectedFullCodes(mode = "creator") {
+  const root = mode === "edit" ? document.getElementById("editForm") : document.getElementById("panelCreator");
+  if (!root) return [];
+  return [...root.querySelectorAll(".skill-cb:checked:not([data-auto])")]
+    .map((cb) => cb.dataset.fullCode)
+    .filter(Boolean);
+}
+
 export function buildQuestionDraftForSkills(mode = "creator") {
   const isEdit = mode === "edit";
   const qType = isEdit ? loadedEditQuestionType() : document.getElementById("qType")?.value;
@@ -183,9 +194,9 @@ export function buildQuestionDraftForSkills(mode = "creator") {
     calculation_config = window.CalcWorkflow.buildCalculationConfigFromForm(isEdit ? "edit" : "");
   }
   const markPoints = isEdit
-    ? Array.from(document.querySelectorAll("#editMarkPointsWrapper .row")).map((row) => ({
-        ao: row.querySelector(".mp-ao")?.value,
-        point_text: row.querySelector(".mp-text")?.value?.trim(),
+    ? Array.from(document.querySelectorAll("#editMarkPointsWrapper .edit-mp-row, #editMarkPointsWrapper .mark-point-row")).map((row) => ({
+        ao: row.querySelector(".edit-mp-ao")?.value,
+        point_text: row.querySelector(".edit-mp-text")?.value?.trim(),
       }))
     : collectCreatorMarkPoints();
   return {
@@ -205,16 +216,16 @@ export function autoDetectSkills(mode = "creator", { mergeManual = true } = {}) 
   }
   const draft = buildQuestionDraftForSkills(mode);
   const markPoints = mode === "edit"
-    ? Array.from(document.querySelectorAll("#editMarkPointsWrapper .row")).map((row) => ({
-        ao: row.querySelector(".mp-ao")?.value,
-        point_text: row.querySelector(".mp-text")?.value?.trim(),
+    ? Array.from(document.querySelectorAll("#editMarkPointsWrapper .edit-mp-row, #editMarkPointsWrapper .mark-point-row")).map((row) => ({
+        ao: row.querySelector(".edit-mp-ao")?.value,
+        point_text: row.querySelector(".edit-mp-text")?.value?.trim(),
       }))
     : collectCreatorMarkPoints();
   const suggested = suggestSkillsForQuestion(draft, markPoints);
   const autoCodes = [...suggested.ms, ...suggested.ws];
   let selected = new Set(autoCodes);
   if (mergeManual) {
-    for (const code of collectSelectedFullCodes(mode)) selected.add(code);
+    for (const code of collectManualSelectedFullCodes(mode)) selected.add(code);
   }
   renderSkillPanels(mode, { question_skills: [...selected].map((fc) => ({ skill_framework_items: { full_code: fc } })) }, { autoCodes });
   return { suggested, autoCodes };
@@ -376,7 +387,11 @@ export function initAdminSkillsUI(supabaseClient) {
   ["qType", "chkMathsSkill", "chkRequiredPractical", "subjectSelect"].forEach((id) => {
     document.getElementById(id)?.addEventListener("change", () => {
       syncSkillPanelsVisibility("creator");
-      if (id !== "subjectSelect") triggerAuto();
+      if (id === "subjectSelect") {
+        renderSkillPanels("creator");
+      } else {
+        triggerAuto();
+      }
     });
   });
 
