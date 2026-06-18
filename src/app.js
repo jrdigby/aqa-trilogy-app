@@ -269,6 +269,56 @@ let currentKey = null;
 let currentMarkPoints = [];
 let currentHintState = { revealedCount: 0, panelOpen: false };
 let currentQuestionHints = [];
+let lastAnswerFocusState = null;
+
+function isAnswerFormControl(node) {
+  if (!node || !node.tagName) return false;
+  const tag = node.tagName.toLowerCase();
+  if (tag === "textarea") return true;
+  if (tag === "select") return true;
+  if (tag !== "input") return false;
+  const type = (node.type || "text").toLowerCase();
+  return !["radio", "hidden", "checkbox", "button", "submit"].includes(type);
+}
+
+function captureAnswerFocusState(target) {
+  if (!target || !isAnswerFormControl(target)) return null;
+  const state = { id: target.id || null, selectionStart: null, selectionEnd: null };
+  if (typeof target.selectionStart === "number") {
+    state.selectionStart = target.selectionStart;
+    state.selectionEnd = target.selectionEnd;
+  }
+  return state;
+}
+
+function restoreAnswerFocus(focusState) {
+  if (!qBox) return;
+  let target = focusState?.id ? document.getElementById(focusState.id) : null;
+  if (!target || !qBox.contains(target)) {
+    target = qBox.querySelector(
+      "textarea, input:not([type=radio]):not([type=hidden]):not([type=checkbox]), select"
+    );
+  }
+  if (!target || typeof target.focus !== "function") return;
+  target.focus({ preventScroll: true });
+  if (
+    focusState?.selectionStart != null &&
+    typeof target.setSelectionRange === "function"
+  ) {
+    const end = focusState.selectionEnd ?? focusState.selectionStart;
+    target.setSelectionRange(focusState.selectionStart, end);
+  }
+}
+
+function wireAnswerFocusTracking() {
+  if (!questionView || questionView.dataset.answerFocusWired === "1") return;
+  questionView.dataset.answerFocusWired = "1";
+  questionView.addEventListener("focusin", (e) => {
+    if (qBox?.contains(e.target) && isAnswerFormControl(e.target)) {
+      lastAnswerFocusState = captureAnswerFocusState(e.target);
+    }
+  });
+}
 let isInitializingPipeline = false;
 let authHandledByButton = false;
 let hasImprovedCurrentQ = false;
@@ -1497,11 +1547,13 @@ function wireHintsPanel() {
   const openBtn = el("btnOpenHints");
   if (openBtn) {
     openBtn.onclick = () => {
+      const focusState = lastAnswerFocusState;
       currentHintState.panelOpen = true;
       if (currentHintState.revealedCount < 1) {
         currentHintState.revealedCount = 1;
       }
       refreshHintsPanel();
+      requestAnimationFrame(() => restoreAnswerFocus(focusState));
     };
   }
 
@@ -1509,8 +1561,10 @@ function wireHintsPanel() {
   if (nextBtn) {
     nextBtn.onclick = () => {
       if (currentHintState.revealedCount < currentQuestionHints.length) {
+        const focusState = lastAnswerFocusState;
         currentHintState.revealedCount += 1;
         refreshHintsPanel();
+        requestAnimationFrame(() => restoreAnswerFocus(focusState));
       }
     };
   }
@@ -2142,6 +2196,7 @@ async function loadQuestion() {
     });
     triggerMathTypeset();
     wireStudentEquationSelectPreview(triggerMathTypeset);
+    lastAnswerFocusState = null;
   }
 
   renderQuestionHintsPanel();
@@ -3727,3 +3782,4 @@ if (btnNext) {
 }
 
 console.log("DEBUG: app.js engine parsing completed.");
+wireAnswerFocusTracking();
