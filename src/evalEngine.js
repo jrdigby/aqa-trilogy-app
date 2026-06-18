@@ -1,6 +1,6 @@
 // src/evalEngine.js
 import { escapeHtml } from './utils.js';
-import { markCalculationResponse, getCalculationConfig, getActiveSteps } from './calculationWorkflow.js';
+import { markCalculationResponse, getCalculationConfig, getActiveSteps, buildNumericFlashcardInsights } from './calculationWorkflow.js';
 
 export const MCQ_FLASHCARD_ADDED_MSG = "This question has been added to your flashcard list.";
 const LEGACY_FLASHCARD_REVIEW_SUFFIX = / Review your flashcards for this specific unit or definition\.?$/i;
@@ -391,6 +391,17 @@ export function markResponse(q, resp, key, markPoints) {
     missing.push(...calcResult.missing);
     quality = calcResult.quality;
     stepResults = calcResult.stepResults;
+
+    const feedbackPayload = {
+      missing: calcResult.missing,
+      stepResults: calcResult.stepResults,
+      flashcard_steps: buildNumericFlashcardInsights(q, key, {
+        missing: calcResult.missing,
+        stepResults: calcResult.stepResults
+      }, equationSheet)
+    };
+
+    return { total, max, ao, maxAo, missing, quality, feedbackPayload, stepResults };
   }
   else if (key.key_type === "keywords") {
     const required = key.key_payload.required || [];

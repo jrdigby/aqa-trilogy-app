@@ -1,6 +1,7 @@
 // Physics calculation workflow — render, collect, validate, and mark step-by-step numeric questions
 import { escapeHtml } from "./utils.js";
 import { matchesSigFigs, roundToSigFigs } from "./sigFigs.js";
+import { normalizeTier, courseTrackForProfile, resolveQuestionSpecMeta } from "./sciencePath.js";
 
 const STEP_ORDER = [
   "equation_select",
@@ -299,17 +300,49 @@ export function mapEquationSheetIdForCourseTrack(sheetId, courseTrack = "combine
   return sheetId;
 }
 
+/** Remap FT ↔ HT suffix on a canonical physics sheet id. */
+export function mapEquationSheetIdForTier(sheetId, tier) {
+  if (!sheetId) return sheetId;
+  const tierKey = normalizeTier(tier) === "HT" ? "ht" : "ft";
+  if (COMBINED_SHEET_ID_RE.test(sheetId) || TRIPLE_SHEET_ID_RE.test(sheetId)) {
+    return sheetId.replace(/_(ft|ht)$/, `_${tierKey}`);
+  }
+  return sheetId;
+}
+
+function resolveEffectiveTierForEquationSheet(q, profile, sessionTier) {
+  const qt = String(q?.tier || "both").toLowerCase();
+  if (qt === "ht" || qt === "higher") return "HT";
+  if (qt === "ft" || qt === "foundation") return "FT";
+  return normalizeTier(sessionTier || profile?.preferred_tier || "FT");
+}
+
 /**
  * Resolve which equation sheet row to load for a question and student profile.
- * Uses calculation_config.equation_sheet_id, remapped for science path when needed.
+ * Derives paper/tier from spec metadata when available, then remaps for science path and tier.
  */
-export function resolveEquationSheetIdForQuestion(q, profile, { courseTrack = null } = {}) {
+export function resolveEquationSheetIdForQuestion(q, profile, { courseTrack = null, sessionTier = null } = {}) {
   const cfg = getCalculationConfig(q);
-  const storedId = cfg.equation_sheet_id;
-  if (!storedId || cfg.equation_given !== false) return null;
+  if (cfg.equation_given !== false) return null;
 
-  const track = courseTrack || (profile?.science_path === "triple" ? "triple" : "combined");
-  return mapEquationSheetIdForCourseTrack(storedId, track);
+  const track = courseTrack || courseTrackForProfile(profile);
+  const effectiveTier = resolveEffectiveTierForEquationSheet(q, profile, sessionTier);
+  const spec = resolveQuestionSpecMeta(q, profile);
+
+  let sheetId = cfg.equation_sheet_id || null;
+  if (spec?.subject === "physics" && spec?.paper) {
+    const derived = resolveEquationSheetId({
+      subject: spec.subject,
+      paper: spec.paper,
+      tier: effectiveTier,
+      courseTrack: track
+    });
+    if (derived) sheetId = derived;
+  }
+
+  if (!sheetId) return null;
+  sheetId = mapEquationSheetIdForCourseTrack(sheetId, track);
+  return mapEquationSheetIdForTier(sheetId, effectiveTier);
 }
 
 /** Read subject, paper, tier, and course track from the creator or edit admin form. */
@@ -406,24 +439,62 @@ function getStepLabel(type, presentation, step) {
 }
 
 function getEquationOptions(config, equationSheet) {
-  if (Array.isArray(config.equation_override_distractors) && config.equation_override_distractors.length) {
-    return config.equation_override_distractors.map((item) => {
-      if (typeof item === "string") {
-        return { id: item, label: item, latex: item };
-      }
-      return item;
-    });
-  }
+  let options = [];
   if (equationSheet?.equations?.length) {
-    return equationSheet.equations;
+    options = equationSheet.equations;
+  } else {
+    const step = (config.steps || []).find((s) => s.type === "equation_select");
+    if (step?.distractors?.length) {
+      options = step.distractors.map((d) =>
+        typeof d === "string" ? { id: d, label: d, latex: d } : d
+      );
+    }
   }
-  const step = (config.steps || []).find((s) => s.type === "equation_select");
-  if (step?.distractors?.length) {
-    return step.distractors.map((d) =>
-      typeof d === "string" ? { id: d, label: d, latex: d } : d
-    );
+
+  const overrideIds = config.equation_override_distractors;
+  if (Array.isArray(overrideIds) && overrideIds.length && options.length) {
+    const idSet = new Set(overrideIds.map((id) => String(id).trim()).filter(Boolean));
+    const filtered = options.filter((eq) => idSet.has(eq.id || eq.label));
+    if (filtered.length) return filtered;
   }
-  return [];
+
+  return options;
+}
+
+function findEquationOption(value, config, equationSheet) {
+  const needle = String(value || "").trim();
+  if (!needle) return null;
+  const options = getEquationOptions(config, equationSheet);
+  const lower = needle.toLowerCase();
+  return (
+    options.find(
+      (eq) =>
+        eq.id === needle ||
+        eq.label === needle ||
+        String(eq.id || "").toLowerCase() === lower ||
+        String(eq.label || "").toLowerCase() === lower
+    ) || null
+  );
+}
+
+function resolveEquationCanonicalId(value, config, equationSheet) {
+  const eq = findEquationOption(value, config, equationSheet);
+  return eq ? eq.id || eq.label : String(value || "").trim();
+}
+
+function resolveEquationStepTarget(step, config) {
+  const raw = step?.answer ?? step?.correct ?? config?.equation_answer ?? "";
+  return String(raw).trim();
+}
+
+function equationSelectionMatches(studentVal, step, config, equationSheet) {
+  if (!studentVal) return false;
+  const target = resolveEquationStepTarget(step, config);
+  if (!target) return !!studentVal;
+  return (
+    resolveEquationCanonicalId(studentVal, config, equationSheet) ===
+    resolveEquationCanonicalId(target, config, equationSheet)
+  );
 }
 
 function renderEquationSheetPanel(config, equationSheet, presentation) {
@@ -705,9 +776,12 @@ function getStepFeedback(markPoints, stepType, defaultText) {
 }
 
 function findEquationLabel(config, equationSheet, answerId) {
-  const options = getEquationOptions(config, equationSheet);
-  const match = options.find((eq) => (eq.id || eq.label) === answerId);
-  return match?.label || answerId;
+  const needle = String(answerId || "").trim();
+  if (!needle) return "the required equation";
+  const eq = findEquationOption(needle, config, equationSheet);
+  if (eq?.label) return eq.label;
+  if (eq?.latex) return latexToPlainOptionText(eq.latex) || needle;
+  return needle;
 }
 
 export function markCalculationResponse(q, resp, key, markPoints, cleanUrl, equationSheet = null) {
@@ -741,11 +815,11 @@ export function markCalculationResponse(q, resp, key, markPoints, cleanUrl, equa
     let isEcf = false;
 
     if (step.type === "equation_select") {
-      const target = step.answer || "";
-      isCorrect = !!(studentVal && studentVal === target);
+      const target = resolveEquationStepTarget(step, config);
+      isCorrect = equationSelectionMatches(studentVal, step, config, equationSheet);
       if (isCorrect) {
         earned = marks;
-      } else {
+      } else if (target) {
         const expectedLabel = findEquationLabel(config, equationSheet, target);
         missing.push({
           ao: stepAo,
@@ -1018,6 +1092,74 @@ const STEP_SUMMARY_LABELS = {
   calculate: "Final answer",
   sig_figs: "Significant figures"
 };
+
+function getStepExpectedHint(step, config, key, equationSheet) {
+  switch (step.type) {
+    case "equation_select": {
+      const target = resolveEquationStepTarget(step, config);
+      const label = findEquationLabel(config, equationSheet, target);
+      return `Correct equation: ${label}`;
+    }
+    case "substitution":
+      return step.accepted?.[0]
+        ? `Example: ${step.accepted[0]}`
+        : "Substitute values into the equation correctly.";
+    case "conversion":
+      return `Convert to: ${step.answer}${step.label ? ` (${step.label})` : ""}`;
+    case "rearrangement":
+      return `Correct form: ${step.answer}`;
+    case "calculate": {
+      const ans = key?.key_payload?.answer;
+      const unit = key?.key_payload?.unit || "";
+      return ans != null ? `Answer: ${ans}${unit ? ` ${unit}` : ""}` : "Calculate the final value.";
+    }
+    case "sig_figs":
+      return step.enforce_on_final ? null : `Round to ${step.sig_figs} significant figures`;
+    default:
+      return "";
+  }
+}
+
+/** Ordered step lines for multistep numeric flashcards (all steps, with ✓/✗). */
+export function buildNumericFlashcardInsights(q, key, feedbackPayload, equationSheet = null) {
+  const config = getCalculationConfig(q);
+  const steps = getActiveSteps(config);
+  const isMultistep = steps.length > 1 || steps[0]?.type !== "calculate";
+  if (!isMultistep) return null;
+
+  const stepResults = feedbackPayload?.stepResults || {};
+  const missingByType = {};
+  for (const m of feedbackPayload?.missing || []) {
+    if (m.isEcf || !m.stepType) continue;
+    missingByType[m.stepType] = m.flashcard_text || m.text;
+  }
+
+  const lines = [];
+  for (const step of steps) {
+    if (step.type === "sig_figs" && step.enforce_on_final) continue;
+
+    let sr = stepResults[step.type];
+    if (step.type === "calculate" && stepResults.sig_figs?.enforceOnFinal) {
+      sr = combineCalcAndSigResults(stepResults.calculate, stepResults.sig_figs);
+    }
+
+    const label = STEP_SUMMARY_LABELS[step.type] || step.type;
+    let correct;
+    if (sr) {
+      correct = !!sr.correct;
+    } else {
+      correct = !missingByType[step.type];
+    }
+
+    const detail = missingByType[step.type]
+      || getStepExpectedHint(step, config, key, equationSheet);
+    if (!detail) continue;
+
+    lines.push(`${correct ? "✓" : "✗"} ${label}: ${detail}`);
+  }
+
+  return lines.length ? lines : null;
+}
 
 export function renderCalculationStepSummary(stepResults) {
   if (!stepResults || !Object.keys(stepResults).length) return "";
