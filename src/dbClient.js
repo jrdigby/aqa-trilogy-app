@@ -252,7 +252,7 @@ export async function fetchConceptGapAttempts(userId) {
     .select(`
       submitted_at, question_id, score_total, score_max, feedback_payload,
       questions(
-        question_type, prompt, image_url, audience, triple_spec_point_id, calculation_config,
+        question_type, prompt, options, image_url, audience, triple_spec_point_id, calculation_config,
         spec_points!spec_point_id(subject, paper, topic_name, spec_ref, course_track),
         triple_spec_point:spec_points!triple_spec_point_id(subject, paper, topic_name, spec_ref, course_track)
       )
