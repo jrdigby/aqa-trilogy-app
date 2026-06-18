@@ -865,7 +865,7 @@
       position: fixed;
       top: 24px;
       right: 24px;
-      z-index: 1000;
+      z-index: 2500;
       padding: 12px 24px;
       color: #fff;
       border-radius: 8px;
@@ -875,6 +875,25 @@
       opacity: 0;
       transform: translateY(-20px);
       pointer-events: none;
+      max-width: min(420px, calc(100vw - 48px));
+      line-height: 1.4;
+    }
+
+    #editSaveError {
+      display: none;
+      margin-bottom: 12px;
+      padding: 12px 14px;
+      border-radius: 8px;
+      background: #fef2f2;
+      border: 1px solid #fca5a5;
+      color: #991b1b;
+      font-size: 0.84rem;
+      font-weight: 600;
+      line-height: 1.45;
+    }
+
+    #editSaveError.visible {
+      display: block;
     }
   </style>
 </head>
@@ -1842,6 +1861,7 @@
 
       </form>
 
+      <div id="editSaveError" role="alert" aria-live="assertive"></div>
       <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:20px; border-top:1px solid var(--border); padding-top:16px;">
         <button onclick="closeEditModal()" class="btn btn-secondary" style="padding:8px 16px;">Discard Changes</button>
         <button id="btnSaveEdits" class="btn btn-primary" style="padding:8px 16px;">Save Changes</button>
@@ -1873,18 +1893,40 @@
   let loadedQuestionsCache = [];
   let markPointsCounter = 0;
   let editMarkPointsCounter = 0; // Distinct counter for editor window
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   
   // Custom Toast Notifier
+  function clearEditSaveError() {
+    const el = document.getElementById("editSaveError");
+    if (!el) return;
+    el.textContent = "";
+    el.classList.remove("visible");
+  }
+
+  function showEditSaveFeedback(msg, isError = false) {
+    showAdminToast(msg, isError);
+    const editErr = document.getElementById("editSaveError");
+    const modalOpen = !document.getElementById("editModalOverlay")?.classList.contains("hidden");
+    if (editErr && modalOpen && isError) {
+      editErr.textContent = msg;
+      editErr.classList.add("visible");
+      editErr.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    } else if (editErr && !isError) {
+      clearEditSaveError();
+    }
+  }
+
   function showAdminToast(msg, isError = false) {
     const banner = document.getElementById("toastBanner");
     banner.textContent = msg;
     banner.style.background = isError ? "var(--error)" : "var(--primary)";
     banner.style.opacity = "1";
     banner.style.transform = "translateY(0)";
+    const duration = isError ? 8000 : 5000;
     setTimeout(() => {
       banner.style.opacity = "0";
       banner.style.transform = "translateY(-20px)";
-    }, 5000);
+    }, duration);
   }
   window.showAdminToast = showAdminToast;
 
@@ -2329,7 +2371,7 @@
     const selector = document.getElementById("editSpecPointSelect");
     if (!selector) return;
 
-    selector.innerHTML = "<option>Loading references...</option>";
+    selector.innerHTML = "<option value=\"\">Loading references...</option>";
 
     try {
       const { data, error } = await supabaseClient
@@ -2361,7 +2403,7 @@
       }
     } catch (err) {
       console.error(err);
-      selector.innerHTML = "<option>Error loading syllabus data.</option>";
+      selector.innerHTML = "<option value=\"\">Error loading syllabus data.</option>";
     }
 
     syncEditSpecLinkUi();
@@ -2387,12 +2429,12 @@
   }
 
   /** Resolve spec IDs for edit save — from equivalences table, same rules as creator. */
-  async function resolveEditSpecIdsForCommit() {
+  async function resolveEditSpecIdsForCommit(q = null) {
     const audience = document.getElementById("editAudienceSelect")?.value || "both";
     const track = getEditCourseTrack();
-    const primaryId = document.getElementById("editSpecPointSelect")?.value || "";
+    const primaryId = (document.getElementById("editSpecPointSelect")?.value || "").trim();
 
-    if (!primaryId) {
+    if (!primaryId || !UUID_RE.test(primaryId)) {
       return { spec_point_id: null, triple_spec_point_id: null, ok: false };
     }
 
@@ -2400,16 +2442,33 @@
       return { spec_point_id: primaryId, triple_spec_point_id: null, ok: true };
     }
 
-    const equiv = await lookupEquivalence(primaryId, track);
+    let equiv = await lookupEquivalence(primaryId, track);
     if (!equiv?.combined || !equiv?.triple) {
-      return { spec_point_id: null, triple_spec_point_id: null, ok: false };
+      const altTrack = track === "combined" ? "triple" : "combined";
+      equiv = await lookupEquivalence(primaryId, altTrack);
     }
 
-    return {
-      spec_point_id: equiv.combined,
-      triple_spec_point_id: equiv.triple,
-      ok: true,
-    };
+    if (equiv?.combined && equiv?.triple) {
+      return {
+        spec_point_id: equiv.combined,
+        triple_spec_point_id: equiv.triple,
+        ok: true,
+      };
+    }
+
+    if (q && q.triple_spec_point_id) {
+      const unchangedCombined = primaryId === q.spec_point_id;
+      const unchangedTriple = primaryId === q.triple_spec_point_id;
+      if (unchangedCombined || unchangedTriple) {
+        return {
+          spec_point_id: q.spec_point_id,
+          triple_spec_point_id: q.triple_spec_point_id,
+          ok: true,
+        };
+      }
+    }
+
+    return { spec_point_id: null, triple_spec_point_id: null, ok: false };
   }
 
   /** Resolve spec IDs for save — always from equivalences table, never from stale UI state. */
@@ -3812,10 +3871,12 @@
       window.AdminMetadata.autoSizeAdminSelects(document.getElementById("editForm"));
     }
 
+    clearEditSaveError();
     document.getElementById("editModalOverlay").classList.remove("hidden");
   };
 
   window.closeEditModal = function() {
+    clearEditSaveError();
     document.getElementById("editModalOverlay").classList.add("hidden");
   };
 
@@ -3828,8 +3889,11 @@
     const resource = document.getElementById("editResource").value.trim();
     const tier = document.getElementById("editTier").value;
     let marks = q.question_type === "mcq" ? 1 : (parseInt(document.getElementById("editMaxMarks").value) || 1);
+    const btnSave = document.getElementById("btnSaveEdits");
 
     try {
+      clearEditSaveError();
+      if (btnSave) btnSave.disabled = true;
       showAdminToast("Saving database updates...");
 
       // Handle Image upload or URL updates during modification
@@ -3852,24 +3916,49 @@
         finalImageUrl = data.publicUrl;
       }
 
+      let editMeta = null;
       if (window.AdminMetadata) {
-        const meta = window.AdminMetadata.buildEditMetadataPayload();
-        const { valid, sum } = window.AdminMetadata.validateAoMarksSum(meta.ao1_marks, meta.ao2_marks, meta.ao3_marks, marks);
-        if (!valid) {
-          showAdminToast(`AO marks (${sum}) must equal max marks (${marks}).`, true);
+        editMeta = window.AdminMetadata.buildEditMetadataPayload();
+        const ao1Raw = document.getElementById("editAo1Marks")?.value ?? "";
+        const ao2Raw = document.getElementById("editAo2Marks")?.value ?? "";
+        const ao3Raw = document.getElementById("editAo3Marks")?.value ?? "";
+        const aoFieldsEmpty = ao1Raw === "" && ao2Raw === "" && ao3Raw === "";
+        const aoLegacyIncomplete = q.ao1_marks == null || q.ao2_marks == null || q.ao3_marks == null;
+
+        if (aoFieldsEmpty && !aoLegacyIncomplete) {
+          editMeta.ao1_marks = Number(q.ao1_marks) || 0;
+          editMeta.ao2_marks = Number(q.ao2_marks) || 0;
+          editMeta.ao3_marks = Number(q.ao3_marks) || 0;
+        }
+
+        const { valid, sum } = window.AdminMetadata.validateAoMarksSum(
+          editMeta.ao1_marks,
+          editMeta.ao2_marks,
+          editMeta.ao3_marks,
+          marks
+        );
+
+        if (!valid && !(aoFieldsEmpty && aoLegacyIncomplete)) {
+          showEditSaveFeedback(`AO marks (${sum}) must equal max marks (${marks}). Adjust AO1, AO2, and AO3 before saving.`, true);
           return;
+        }
+
+        if (!valid && aoFieldsEmpty && aoLegacyIncomplete) {
+          editMeta.ao1_marks = q.ao1_marks;
+          editMeta.ao2_marks = q.ao2_marks;
+          editMeta.ao3_marks = q.ao3_marks;
         }
       }
 
       // Update parent questions values
       const editAudience = document.getElementById("editAudienceSelect")?.value || "both";
-      const specIds = await resolveEditSpecIdsForCommit();
+      const specIds = await resolveEditSpecIdsForCommit(q);
       if (!specIds.spec_point_id) {
-        showAdminToast("Select a valid spec point for this question.", true);
+        showEditSaveFeedback("Select a valid spec point for this question.", true);
         return;
       }
       if (editAudience === "both" && !specIds.ok) {
-        showAdminToast("This spec point has no registered equivalent for shared (Both) audience. Set audience to Triple only or pick a linked spec point.", true);
+        showEditSaveFeedback("This spec point has no registered equivalent for shared (Both) audience. Set audience to Triple only or pick a linked spec point.", true);
         return;
       }
 
@@ -3885,9 +3974,8 @@
         triple_spec_point_id: editAudience === "both" ? specIds.triple_spec_point_id : null
       };
 
-      if (window.AdminMetadata) {
-        const meta = window.AdminMetadata.buildEditMetadataPayload();
-        window.AdminMetadata.applyMetadataToInsertPayload(updatePayload, meta, {
+      if (window.AdminMetadata && editMeta) {
+        window.AdminMetadata.applyMetadataToInsertPayload(updatePayload, editMeta, {
           question_type: q.question_type,
           prompt,
           tier,
@@ -3968,7 +4056,7 @@
       // Sync edit mark points by dropping old references and writing updated nodes
       await supabaseClient.from("mark_points").delete().eq("question_id", qId);
 
-      const editRows = Array.from(document.querySelectorAll("#editMarkPointsWrapper .edit-mp-row"));
+      const editRows = Array.from(document.querySelectorAll("#editMarkPointsWrapper .edit-mp-row, #editMarkPointsWrapper .mark-point-row"));
       if (editRows.length > 0) {
         const markPayloads = editRows.map(r => ({
           question_id: qId,
@@ -3992,7 +4080,9 @@
 
     } catch(err) {
       console.error(err);
-      showAdminToast("Modification transaction dropped: " + err.message, true);
+      showEditSaveFeedback("Modification transaction dropped: " + err.message, true);
+    } finally {
+      if (btnSave) btnSave.disabled = false;
     }
   };
 
