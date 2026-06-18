@@ -1681,6 +1681,9 @@ function refreshHintsPanel() {
     currentHintState.panelOpen
   );
   wireHintsPanel();
+  if (currentHintState.panelOpen && currentHintState.revealedCount > 0) {
+    triggerMathTypeset(hintsPanelMount);
+  }
 }
 
 function renderQuestionHintsPanel() {

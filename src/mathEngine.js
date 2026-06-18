@@ -2,20 +2,26 @@
 
 // ====== Dynamic Math Typesetting Trigger ======
 // Added "export" so app.js can trigger this whenever a new question loads
-export function triggerMathTypeset() {
+export function triggerMathTypeset(scope) {
+  const scopedElements = scope ? (Array.isArray(scope) ? scope : [scope]) : null;
   try {
     const runTypeset = () => {
       // 1. MathJax v3 (Modern standard)
       if (window.MathJax && typeof window.MathJax.typesetPromise === "function") {
-        window.MathJax.typesetPromise().catch(err => console.warn("MathJax typesetPromise failed:", err));
+        window.MathJax.typesetPromise(scopedElements || undefined).catch(err => console.warn("MathJax typesetPromise failed:", err));
       }
       // 2. MathJax v2 (Legacy standard)
       else if (window.MathJax && window.MathJax.Hub && typeof window.MathJax.Hub.Queue === "function") {
-        window.MathJax.Hub.Queue(["Typeset", window.MathJax.Hub]);
+        if (scopedElements?.length) {
+          window.MathJax.Hub.Queue(["Typeset", window.MathJax.Hub, scopedElements]);
+        } else {
+          window.MathJax.Hub.Queue(["Typeset", window.MathJax.Hub]);
+        }
       }
       // 3. KaTeX with auto-render extension
       else if (typeof window.renderMathInElement === "function") {
-        window.renderMathInElement(document.body, {
+        const target = scopedElements?.[0] || document.body;
+        window.renderMathInElement(target, {
           delimiters: [
             {left: "$$", right: "$$", display: true},
             {left: "$", right: "$", display: false}

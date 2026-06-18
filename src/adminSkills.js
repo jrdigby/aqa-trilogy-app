@@ -241,15 +241,22 @@ export function autoDetectSkills(mode = "creator", { mergeManual = true } = {}) 
 }
 
 export async function saveQuestionSkills(supabaseClient, questionId, skillIds) {
-  const { error: deleteError } = await supabaseClient
-    .from("question_skills")
-    .delete()
-    .eq("question_id", questionId);
-  if (deleteError) throw deleteError;
-  if (!skillIds?.length) return;
-  const rows = skillIds.map((skill_id) => ({ question_id: questionId, skill_id }));
-  const { error: insertError } = await supabaseClient.from("question_skills").insert(rows);
-  if (insertError) throw insertError;
+  const ids = [...new Set((skillIds || []).filter(Boolean))];
+  const { data, error } = await supabaseClient.rpc("sync_question_skills", {
+    p_question_id: questionId,
+    p_skill_ids: ids.length ? ids : [],
+  });
+  if (error) throw error;
+  if (data?.ok === false) {
+    const reason = data.reason || "sync_failed";
+    if (reason === "forbidden") {
+      throw new Error("Developer role required to save MS/WS skill tags.");
+    }
+    if (reason === "invalid_skill_id") {
+      throw new Error("One or more MS/WS skill IDs are invalid — refresh the page and try again.");
+    }
+    throw new Error(`Could not save question skills (${reason}).`);
+  }
 }
 
 export async function saveSkillsFromForm(supabaseClient, questionId, mode = "creator") {
