@@ -98,6 +98,12 @@ export function computeMaxMarksFromConfig(config) {
   return getActiveSteps(config).reduce((sum, s) => sum + (Number(s.marks) || 0), 0);
 }
 
+/** Final-answer-only numeric: one calculate step, no substitution / conversion / etc. */
+export function isSimpleNumericMode(q, config = null) {
+  const steps = getActiveSteps(config ?? getCalculationConfig(q));
+  return steps.length === 1 && steps[0]?.type === "calculate";
+}
+
 /** Fetch equations array from a shared equation sheet row. */
 export async function loadEquationSheetOptions(supabaseClient, sheetId) {
   if (!sheetId || !supabaseClient) return [];
@@ -534,8 +540,8 @@ function getRearrangementChoices(step) {
   });
 }
 
-function formatStepMarksBadge(step) {
-  const marks = Number(step.marks) || 0;
+function formatStepMarksBadge(step, marksOverride = null) {
+  const marks = marksOverride != null ? Number(marksOverride) : (Number(step.marks) || 0);
   const baseStyle = "font-size:0.72rem;font-weight:700;padding:2px 8px;border-radius:999px;margin-left:8px;vertical-align:middle;";
   if (step.type === "equation_select" && marks === 0) {
     return `<span class="calc-step-marks calc-step-marks--none" style="${baseStyle}background:#f1f5f9;color:#64748b;border:1px solid #cbd5e1;">Not marked</span>`;
@@ -545,8 +551,8 @@ function formatStepMarksBadge(step) {
   return `<span class="calc-step-marks" style="${baseStyle}background:#e0f2fe;color:#0369a1;border:1px solid #7dd3fc;">${label}</span>`;
 }
 
-function renderStepLabel(numberedLabel, step) {
-  return `<span>${escapeHtml(numberedLabel)}</span>${formatStepMarksBadge(step)}`;
+function renderStepLabel(numberedLabel, step, marksOverride = null) {
+  return `<span>${escapeHtml(numberedLabel)}</span>${formatStepMarksBadge(step, marksOverride)}`;
 }
 
 function inputStyle() {
@@ -560,6 +566,7 @@ function selectStyle() {
 export function renderCalculationWorkflow(q, currentKey, presentation = "practice", equationSheet = null) {
   const config = getCalculationConfig(q);
   const steps = getActiveSteps(config);
+  const simpleMode = isSimpleNumericMode(q, config);
   const unit = currentKey?.key_payload?.unit || "";
   const unitBadge = unit
     ? `<span class="unit-badge" style="font-size:0.85rem;font-weight:700;color:#475569;background:#f1f5f9;border:1px solid #cbd5e1;padding:6px 12px;border-radius:4px;margin-left:8px;">${escapeHtml(unit)}</span>`
@@ -632,7 +639,8 @@ export function renderCalculationWorkflow(q, currentKey, presentation = "practic
       const sigStep = (config.steps || []).find((s) => s.type === "sig_figs" && s.required !== false && s.enforce_on_final);
       const sfNote = sigStep?.sig_figs ? ` <span style="font-weight:600;color:#64748b;">(to ${sigStep.sig_figs} s.f.)</span>` : "";
       const sigAttr = sigStep ? ' data-sig-enforced="true"' : "";
-      const calcLabel = renderStepLabel(numberedLabel, step);
+      const calcMarksOverride = simpleMode ? (q.max_marks || 1) : null;
+      const calcLabel = renderStepLabel(numberedLabel, step, calcMarksOverride);
       const sigBadge = sigStep ? formatStepMarksBadge(sigStep) : "";
       html += `
         <div class="calc-step" data-step="calculate"${sigAttr} style="margin-bottom:${hasMultiStep ? "0" : "12px"};">
@@ -775,6 +783,59 @@ function getStepFeedback(markPoints, stepType, defaultText) {
   return mp?.feedback_if_missing || defaultText;
 }
 
+function resolveSimpleNumericMaxAo(max, markPoints) {
+  const maxAo = { AO1: 0, AO2: 0, AO3: 0 };
+  if (markPoints?.length > 0) {
+    for (const mp of markPoints) {
+      if (mp.ao && maxAo[mp.ao] !== undefined) {
+        maxAo[mp.ao] += Number(mp.max_marks) || 1;
+      }
+    }
+    return maxAo;
+  }
+  maxAo.AO2 = max;
+  return maxAo;
+}
+
+function awardSimpleNumericAo(max, markPoints, stepAo) {
+  const ao = { AO1: 0, AO2: 0, AO3: 0 };
+  if (markPoints?.length > 0) {
+    for (const mp of markPoints) {
+      const mpAo = mp.ao || "AO2";
+      if (ao[mpAo] !== undefined) {
+        ao[mpAo] += Number(mp.max_marks) || 1;
+      }
+    }
+    return ao;
+  }
+  ao[stepAo] = max;
+  return ao;
+}
+
+function buildSimpleNumericMissing(markPoints, cleanUrl, key) {
+  const ansTarget = parseFloat(key?.key_payload?.answer);
+  const unit = key?.key_payload?.unit || "";
+  const pedagogical = (markPoints || []).filter(
+    (mp) => mp.feedback_if_missing?.trim() || mp.point_text === "[numeric_fallback]"
+  );
+  if (pedagogical.length > 0) {
+    return pedagogical.map((mp) => ({
+      ao: mp.ao || "AO2",
+      stepType: "calculate",
+      text: mp.feedback_if_missing?.trim()
+        || `Checkpoint: ${mp.point_text}`,
+      url: cleanUrl,
+      image_url: mp.image_url || ""
+    }));
+  }
+  return [{
+    ao: "AO2",
+    stepType: "calculate",
+    text: `The correct answer is ${ansTarget}${unit ? " " + unit : ""}. Review your calculation.`,
+    url: cleanUrl
+  }];
+}
+
 function findEquationLabel(config, equationSheet, answerId) {
   const needle = String(answerId || "").trim();
   if (!needle) return "the required equation";
@@ -802,6 +863,26 @@ export function markCalculationResponse(q, resp, key, markPoints, cleanUrl, equa
   const ansTol = parseFloat(key?.key_payload?.tolerance ?? 0);
   const unit = key?.key_payload?.unit || "";
   const stepResults = {};
+
+  if (isSimpleNumericMode(q, config)) {
+    const max = q.max_marks || 1;
+    const maxAo = resolveSimpleNumericMaxAo(max, markPoints);
+    const stepAo = steps[0]?.ao || "AO2";
+    const studentVal = resp.steps?.calculate ?? resp.value;
+    const isCorrect = studentVal != null && Math.abs(studentVal - ansTarget) <= ansTol;
+    const total = isCorrect ? max : 0;
+    const ao = isCorrect ? awardSimpleNumericAo(max, markPoints, stepAo) : { AO1: 0, AO2: 0, AO3: 0 };
+    const missing = isCorrect ? [] : buildSimpleNumericMissing(markPoints, cleanUrl, key);
+    stepResults.calculate = {
+      earned: total,
+      max,
+      correct: isCorrect,
+      ecf: false,
+      enforceOnFinal: false
+    };
+    const quality = total === max && max > 0 ? 5 : 1;
+    return { total, max, ao, maxAo, missing, quality, stepResults };
+  }
 
   for (const step of steps) {
     const marks = Number(step.marks) || 0;
@@ -970,25 +1051,6 @@ export function markCalculationResponse(q, resp, key, markPoints, cleanUrl, equa
       ecf: isEcf,
       enforceOnFinal: !!step.enforce_on_final
     };
-  }
-
-  if (steps.length === 0) {
-    max = q.max_marks || 1;
-    maxAo.AO2 = max;
-    const studentVal = resp.steps?.calculate ?? resp.value;
-    if (studentVal != null && Math.abs(studentVal - ansTarget) <= ansTol) {
-      total = max;
-      ao.AO2 = max;
-    } else {
-      const fallbackPoint = markPoints?.find((mp) => mp.point_text === "[numeric_fallback]");
-      missing.push({
-        ao: "AO2",
-        text: fallbackPoint?.feedback_if_missing
-          || `The correct answer is ${ansTarget}${unit ? " " + unit : ""}. Review your calculation.`,
-        url: cleanUrl,
-        image_url: fallbackPoint?.image_url || ""
-      });
-    }
   }
 
   const quality = total === max && max > 0 ? 5 : total > 0 ? 3 : steps.length > 1 ? 0 : 1;

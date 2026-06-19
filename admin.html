@@ -1267,7 +1267,8 @@
           <p style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.4; margin-bottom: 16px;">
             <strong>Important Tips:</strong><br/>
             • <strong>Short Answer Questions:</strong> If you input steps here, the student is graded against these checkpoints. Each matched row awards 1 mark (AO-specific).<br/>
-            • <strong>Numeric Questions:</strong> To write a custom math walkthrough instead of the default formula, set the point keyword to <code>[numeric_fallback]</code> and input your detailed working out in the Remediation Tips field.
+            • <strong>Numeric Questions (final answer only):</strong> Section 3 rows provide remediation walkthrough text shown when the final answer is wrong — they do not add extra input fields. Use <code>[numeric_fallback]</code> as the keyword (multiple rows allowed); one row per mark-scheme step. Marks are awarded all-or-nothing on the final value (<code>max_marks</code>).<br/>
+            • <strong>Numeric Questions (multi-step workflow):</strong> Enable steps in Section 2 above. Use <code>[calc:substitution]</code>, <code>[calc:calculate]</code>, etc. here for per-step custom feedback.
           </p>
           <div id="markPointsWrapper"></div>
         </div>
@@ -3854,8 +3855,16 @@
         indicator.style.background = "#fafbfc";
         indicator.style.color = "#475569";
         indicator.style.borderColor = "#e2e8f0";
-        indicator.innerHTML = `📐 <strong>Active Grading Mode: Mathematical Calculation</strong><br/>
-          Awarded dynamically based on expected numerical magnitude, tolerance range, units, and active multi-step guided steps.`;
+        const simpleNumeric = window.CalcWorkflow?.isSimpleNumericMode?.(q);
+        let numericHtml = simpleNumeric
+          ? `📐 <strong>Active Grading Mode: Simple Numeric (final answer only)</strong><br/>
+            All <strong>${q.max_marks || 1}</strong> mark(s) awarded on the correct final value. Section 3 rows below supply remediation text when the answer is wrong.`
+          : `📐 <strong>Active Grading Mode: Multi-Step Calculation Workflow</strong><br/>
+            Marks are awarded per enabled step in Section 2 (substitution, conversion, etc.). Use <code>[calc:…]</code> tags in Section 3 for per-step custom feedback.`;
+        if (simpleNumeric && mps?.length > 0 && Number(q.max_marks) !== mps.length) {
+          numericHtml += `<br/><span style="color:#b45309;">⚠️ <strong>${mps.length}</strong> Section 3 remediation row(s) but <strong>${q.max_marks}</strong> max marks — consider aligning these.</span>`;
+        }
+        indicator.innerHTML = numericHtml;
       } else if (q.question_type === "mcq") {
         indicator.style.background = "#fafbfc";
         indicator.style.color = "#475569";
