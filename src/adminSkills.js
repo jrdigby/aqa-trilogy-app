@@ -240,22 +240,53 @@ export function autoDetectSkills(mode = "creator", { mergeManual = true } = {}) 
   return { suggested, autoCodes };
 }
 
+export async function assertDeveloperForSkillSave(supabaseClient) {
+  const { data: { user }, error: userErr } = await supabaseClient.auth.getUser();
+  if (userErr) throw userErr;
+  if (!user) {
+    throw new Error("Sign in again — your session expired before MS/WS skills could be saved.");
+  }
+
+  const { data: profile, error: profileErr } = await supabaseClient
+    .from("profiles")
+    .select("role")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (profileErr) throw profileErr;
+
+  if (profile?.role !== "developer") {
+    const roleLabel = profile?.role || "unknown";
+    throw new Error(
+      `Developer role required to save MS/WS skill tags (signed in as "${roleLabel}"). ` +
+        "Sign in to admin with your developer account, or ask an admin to set profiles.role to developer for your user."
+    );
+  }
+}
+
 export async function saveQuestionSkills(supabaseClient, questionId, skillIds) {
+  await assertDeveloperForSkillSave(supabaseClient);
+
   const ids = [...new Set((skillIds || []).filter(Boolean))];
-  const { data, error } = await supabaseClient.rpc("sync_question_skills", {
-    p_question_id: questionId,
-    p_skill_ids: ids.length ? ids : [],
-  });
-  if (error) throw error;
-  if (data?.ok === false) {
-    const reason = data.reason || "sync_failed";
-    if (reason === "forbidden") {
-      throw new Error("Developer role required to save MS/WS skill tags.");
-    }
-    if (reason === "invalid_skill_id") {
+  const { error: deleteErr } = await supabaseClient
+    .from("question_skills")
+    .delete()
+    .eq("question_id", questionId);
+  if (deleteErr) throw deleteErr;
+
+  if (!ids.length) return;
+
+  const rows = ids.map((skill_id) => ({ question_id: questionId, skill_id }));
+  const { error: insertErr } = await supabaseClient.from("question_skills").insert(rows);
+  if (insertErr) {
+    if (insertErr.code === "23503") {
       throw new Error("One or more MS/WS skill IDs are invalid — refresh the page and try again.");
     }
-    throw new Error(`Could not save question skills (${reason}).`);
+    if (insertErr.code === "42501") {
+      throw new Error(
+        "Database blocked MS/WS skill save — developer role required. Confirm profiles.role is developer for your account."
+      );
+    }
+    throw insertErr;
   }
 }
 

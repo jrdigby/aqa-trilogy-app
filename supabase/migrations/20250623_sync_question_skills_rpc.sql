@@ -31,7 +31,6 @@ security definer
 set search_path = public
 as $$
 declare
-  v_role text;
   v_inserted int := 0;
   v_skill_id uuid;
 begin
@@ -39,8 +38,7 @@ begin
     return jsonb_build_object('ok', false, 'reason', 'not_authenticated');
   end if;
 
-  select role into v_role from public.profiles where user_id = auth.uid();
-  if v_role <> 'developer' then
+  if not public.is_developer() then
     return jsonb_build_object('ok', false, 'reason', 'forbidden');
   end if;
 

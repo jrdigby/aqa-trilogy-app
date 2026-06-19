@@ -2924,6 +2924,9 @@
     }
     
     try {
+      if (window.AdminSkills?.assertDeveloperForSkillSave) {
+        await window.AdminSkills.assertDeveloperForSkillSave(supabaseClient);
+      }
       showAdminToast("Uploading attachments and parsing payloads...");
       let finalImageUrl = null;
       
@@ -3896,6 +3899,9 @@
     try {
       clearEditSaveError();
       if (btnSave) btnSave.disabled = true;
+      if (window.AdminSkills?.assertDeveloperForSkillSave) {
+        await window.AdminSkills.assertDeveloperForSkillSave(supabaseClient);
+      }
       showAdminToast("Saving database updates...");
 
       // Handle Image upload or URL updates during modification
