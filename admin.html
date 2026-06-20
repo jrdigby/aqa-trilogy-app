@@ -848,6 +848,32 @@
       color: #475569;
     }
 
+    th.audit-sort-th {
+      cursor: pointer;
+      user-select: none;
+      white-space: nowrap;
+    }
+
+    th.audit-sort-th:hover {
+      background: #e2e8f0;
+      color: #1e293b;
+    }
+
+    th.audit-sort-th.audit-sort-th--active {
+      color: var(--primary-dark);
+    }
+
+    .audit-sort-indicator {
+      display: inline-block;
+      margin-left: 4px;
+      font-size: 0.7rem;
+      opacity: 0.35;
+    }
+
+    th.audit-sort-th--active .audit-sort-indicator {
+      opacity: 1;
+    }
+
     /* Simulated Interactive Testing Playground */
     .mcq-option-wrap {
       display: flex;
@@ -1392,7 +1418,7 @@
         <div class="card">
           <h3 style="margin-top:0; color:var(--primary-dark); font-size:1.1rem; border-bottom:1px solid var(--border); padding-bottom:8px;">Database Table Audit, Search &amp; Testing Sandbox</h3>
           <p style="color:var(--text-muted); font-size:0.85rem; line-height:1.4;">
-            Filter and query questions inside Supabase. View error badges for missing data or test grading mechanics in the sandbox area before deployment.
+            Filter and query questions inside Supabase. View error badges for missing data or test grading mechanics in the sandbox area before deployment. Click any column header to sort the results.
           </p>
 
           <div class="row" style="margin-top: 16px;">
@@ -1433,6 +1459,19 @@
                 <option value="complete">Complete metadata only</option>
               </select>
             </div>
+            <div>
+              <label>Course track:</label>
+              <select id="auditCourseTrack" class="select-fit">
+                <option value="">All tracks</option>
+                <option value="combined">Combined (Trilogy 8464)</option>
+                <option value="triple">Triple (Separate sciences)</option>
+              </select>
+            </div>
+            <div>
+              <label>Filter topic:</label>
+              <input type="text" id="auditTopicFilter" list="auditTopicList" placeholder="e.g. Energy, Cell biology…" />
+              <datalist id="auditTopicList"></datalist>
+            </div>
           </div>
 
           <button class="btn btn-primary" id="btnQueryQuestions" style="margin-top: 10px;">Query Active Database</button>
@@ -1443,16 +1482,16 @@
           <table style="margin: 0; min-width: 1100px;">
             <thead>
               <tr>
-                <th style="width: 90px;">Ref</th>
-                <th style="width: 90px;">Type</th>
-                <th>Prompt</th>
-                <th style="width: 56px;">Marks</th>
-                <th style="width: 72px;">Cmd</th>
-                <th style="width: 80px;">Demand</th>
-                <th style="width: 64px;">AO</th>
+                <th class="audit-sort-th" data-sort="ref" style="width: 90px;">Ref<span class="audit-sort-indicator"></span></th>
+                <th class="audit-sort-th" data-sort="type" style="width: 90px;">Type<span class="audit-sort-indicator"></span></th>
+                <th class="audit-sort-th" data-sort="prompt">Prompt<span class="audit-sort-indicator"></span></th>
+                <th class="audit-sort-th" data-sort="marks" style="width: 56px;">Marks<span class="audit-sort-indicator"></span></th>
+                <th class="audit-sort-th" data-sort="cmd" style="width: 72px;">Cmd<span class="audit-sort-indicator"></span></th>
+                <th class="audit-sort-th" data-sort="demand" style="width: 80px;">Demand<span class="audit-sort-indicator"></span></th>
+                <th class="audit-sort-th" data-sort="ao" style="width: 64px;">AO<span class="audit-sort-indicator"></span></th>
                 <th style="width: 72px;">M/RP/Aud</th>
                 <th style="width: 88px;">MS/WS</th>
-                <th style="width: 72px;">Meta</th>
+                <th class="audit-sort-th" data-sort="meta" style="width: 72px;">Meta<span class="audit-sort-indicator"></span></th>
                 <th style="width: 200px; text-align:right;">Operations</th>
               </tr>
             </thead>
@@ -1894,6 +1933,11 @@
 
   let currentAuthSessionUser = null;
   let loadedQuestionsCache = [];
+  let auditSpecMap = {};
+  let auditCheckPointsCounterMap = {};
+  let auditSort = { column: "severity", direction: "desc" };
+  let auditCourseTrackFilter = "";
+  const AUDIT_DEMAND_ORDER = { low: 1, standard: 2, standard_45: 3, standard_67: 4, high_89: 5 };
   let markPointsCounter = 0;
   let editMarkPointsCounter = 0; // Distinct counter for editor window
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -3381,221 +3425,275 @@
   // ====== TAB 3: AUDIT CHECKLISTS & ACTIONS ======
   const btnQueryQuestions = document.getElementById("btnQueryQuestions");
   const auditList = document.getElementById("questionsAuditList");
-  
+
   const AUDIT_COLSPAN = 11;
 
-  window.refreshAuditTable = () => btnQueryQuestions.click();
+  function dedupeQuestionsById(rows) {
+    const seen = new Set();
+    return (rows || []).filter((q) => {
+      if (!q?.id || seen.has(q.id)) return false;
+      seen.add(q.id);
+      return true;
+    });
+  }
 
-  btnQueryQuestions.onclick = async () => {
-    const sub = document.getElementById("auditSubject").value;
-    const paper = document.getElementById("auditPaper").value;
-    const qTypeFilter = document.getElementById("auditType").value;
-    const search = document.getElementById("auditSearchQuery").value.trim();
-    const metaFilter = document.getElementById("auditMetadataFilter")?.value || "";
-    
-    auditList.innerHTML = `<tr><td colspan="${AUDIT_COLSPAN}" style="padding:24px; text-align:center;">Querying database records...</td></tr>`;
-    
-    try {
-      // Pull specification points to map topics and names
-      const { data: specs } = await supabaseClient
-        .from("spec_points")
-        .select("id, spec_ref, topic_name")
-        .eq("subject", sub)
-        .eq("paper", paper);
-        
-      const specMap = {};
-      const specIds = [];
-      (specs || []).forEach(row => {
-        specMap[row.id] = row;
-        specIds.push(row.id);
+  function getAuditQuestionSpecRef(q, specMap, courseTrack = auditCourseTrackFilter) {
+    if (!q) return "Global";
+    if (q.audience === "triple_only") {
+      return specMap[q.spec_point_id]?.spec_ref || "Global";
+    }
+    if (courseTrack === "triple" && q.triple_spec_point_id) {
+      return specMap[q.triple_spec_point_id]?.spec_ref || specMap[q.spec_point_id]?.spec_ref || "Global";
+    }
+    return specMap[q.spec_point_id]?.spec_ref || specMap[q.triple_spec_point_id]?.spec_ref || "Global";
+  }
+
+  function getAuditQuestionTopic(q, specMap, courseTrack = auditCourseTrackFilter) {
+    if (!q) return "";
+    if (q.audience === "triple_only") {
+      return specMap[q.spec_point_id]?.topic_name || "";
+    }
+    if (courseTrack === "triple" && q.triple_spec_point_id) {
+      return specMap[q.triple_spec_point_id]?.topic_name || specMap[q.spec_point_id]?.topic_name || "";
+    }
+    return specMap[q.spec_point_id]?.topic_name || specMap[q.triple_spec_point_id]?.topic_name || "";
+  }
+
+  async function runAuditQuestionQuery(selectWithMeta, selectBasic, applyFilters) {
+    const attempt = async (select) => {
+      let query = supabaseClient.from("questions").select(select);
+      applyFilters(query);
+      return query;
+    };
+    let result = await attempt(selectWithMeta);
+    if (result.error && /column|relation|question_skills/i.test(result.error.message || "")) {
+      result = await attempt(selectBasic);
+    }
+    if (result.error) throw result.error;
+    return result.data || [];
+  }
+
+  async function fetchAuditQuestionsForTrack(courseTrack, combinedIds, tripleIds, selectWithMeta, selectBasic, qTypeFilter) {
+    const typeFilter = (q) => { if (qTypeFilter) q.eq("question_type", qTypeFilter); };
+
+    if (courseTrack === "combined") {
+      if (!combinedIds.length) return [];
+      return runAuditQuestionQuery(selectWithMeta, selectBasic, (q) => {
+        q.in("spec_point_id", combinedIds);
+        typeFilter(q);
       });
-      
-      // Pull ALL checkpoints upfront to see if a short_text item uses Section 3 scoring criteria
-      const { data: allMarkPoints } = await supabaseClient
-        .from("mark_points")
-        .select("question_id, id");
+    }
 
-      const checkPointsCounterMap = {};
-      (allMarkPoints || []).forEach(mp => {
-        checkPointsCounterMap[mp.question_id] = (checkPointsCounterMap[mp.question_id] || 0) + 1;
-      });
-      
-      const selectWithMeta = "id, spec_point_id, triple_spec_point_id, audience, question_type, prompt, options, tier, marking_method, max_marks, resource_links, hints, image_url, calculation_config, command_word, demand_level, ao1_marks, ao2_marks, ao3_marks, is_maths_skill, is_required_practical, required_practical_id, difficulty, required_practicals(code), answer_keys(key_type, key_payload), question_skills(skill_id, skill_framework_items(full_code, framework, title))";
-      const selectBasic = "id, spec_point_id, triple_spec_point_id, audience, question_type, prompt, options, tier, marking_method, max_marks, resource_links, hints, image_url, calculation_config, difficulty, answer_keys(key_type, key_payload)";
+    if (courseTrack === "triple") {
+      if (!tripleIds.length) return [];
+      const [tripleOnly, sharedTriple] = await Promise.all([
+        runAuditQuestionQuery(selectWithMeta, selectBasic, (q) => {
+          q.in("spec_point_id", tripleIds).eq("audience", "triple_only");
+          typeFilter(q);
+        }),
+        runAuditQuestionQuery(selectWithMeta, selectBasic, (q) => {
+          q.in("triple_spec_point_id", tripleIds).eq("audience", "both");
+          typeFilter(q);
+        }),
+      ]);
+      return dedupeQuestionsById([...tripleOnly, ...sharedTriple]);
+    }
 
-      let query = supabaseClient
-        .from("questions")
-        .select(selectWithMeta)
-        .in("spec_point_id", specIds);
-      if (qTypeFilter) query = query.eq("question_type", qTypeFilter);
+    const queries = [];
+    if (combinedIds.length) {
+      queries.push(runAuditQuestionQuery(selectWithMeta, selectBasic, (q) => {
+        q.in("spec_point_id", combinedIds);
+        typeFilter(q);
+      }));
+    }
+    if (tripleIds.length) {
+      queries.push(runAuditQuestionQuery(selectWithMeta, selectBasic, (q) => {
+        q.in("spec_point_id", tripleIds).eq("audience", "triple_only");
+        typeFilter(q);
+      }));
+    }
+    const batches = await Promise.all(queries);
+    return dedupeQuestionsById(batches.flat());
+  }
 
-      let { data: questions, error: qErr } = await query;
-      if (qErr && /column|relation|question_skills/i.test(qErr.message || "")) {
-        query = supabaseClient.from("questions").select(selectBasic).in("spec_point_id", specIds);
-        if (qTypeFilter) query = query.eq("question_type", qTypeFilter);
-        const retry = await query;
-        questions = retry.data;
-        qErr = retry.error;
-      } else if (qErr && /column/i.test(qErr.message || "")) {
-        query = supabaseClient.from("questions").select(selectBasic).in("spec_point_id", specIds);
-        if (qTypeFilter) query = query.eq("question_type", qTypeFilter);
-        const retry = await query;
-        questions = retry.data;
-        qErr = retry.error;
-      }
-      if (qErr) throw qErr;
-      
-      let filtered = questions || [];
-      if (search) {
-        filtered = filtered.filter(q => q.prompt.toLowerCase().includes(search.toLowerCase()));
-      }
-      if (metaFilter && window.AdminMetadata) {
-        filtered = filtered.filter((q) => {
-          const incomplete = window.AdminMetadata.isMetadataIncomplete(q);
-          return metaFilter === "incomplete" ? incomplete : !incomplete;
-        });
+  function attachAuditWarnings(filtered, checkPointsCounterMap) {
+    filtered.forEach((q) => {
+      const warnings = [];
+
+      if (!q.prompt || q.prompt.trim() === "") {
+        warnings.push({ type: "error", text: "❌ Missing Prompt" });
       }
 
-      if (window.AdminSkills?.attachSkillsToQuestions) {
-        filtered = await window.AdminSkills.attachSkillsToQuestions(supabaseClient, filtered);
-      }
-      
-      // Audit engine mapping to calculate severity & prepare prioritized sorting rules
-      filtered.forEach(q => {
-        const warnings = [];
-        
-        // 1. Critical Errors (Weight = 10 each)
-        if (!q.prompt || q.prompt.trim() === "") {
-          warnings.push({ type: 'error', text: "❌ Missing Prompt" });
+      const keyRelation = q.answer_keys;
+      const key = Array.isArray(keyRelation) && keyRelation.length > 0 ? keyRelation[0] : keyRelation;
+      const totalCheckpoints = checkPointsCounterMap[q.id] || 0;
+
+      if (!key || !key.key_payload) {
+        warnings.push({ type: "error", text: "❌ Missing Answer Key Relation" });
+      } else {
+        const payload = key.key_payload;
+        if (q.question_type === "mcq") {
+          const correctOpt = payload.correct || payload.answer;
+          if (!correctOpt || correctOpt.trim() === "") {
+            warnings.push({ type: "error", text: "❌ Missing Correct MCQ Option" });
+          }
+        } else if (q.question_type === "numeric") {
+          const numAns = payload.answer;
+          if (numAns === undefined || numAns === null || isNaN(numAns)) {
+            warnings.push({ type: "error", text: "❌ Missing Numeric Answer" });
+          }
+        } else if (q.question_type === "short_text") {
+          const reqWords = payload.required;
+          const hasKeywords = reqWords && Array.isArray(reqWords) && reqWords.filter(Boolean).length > 0;
+          if (!hasKeywords && totalCheckpoints === 0) {
+            warnings.push({ type: "error", text: "❌ Missing Required Keywords or Checkpoints" });
+          }
         }
-        
-        const keyRelation = q.answer_keys;
-        const key = Array.isArray(keyRelation) && keyRelation.length > 0 ? keyRelation[0] : keyRelation;
-        const totalCheckpoints = checkPointsCounterMap[q.id] || 0;
-        
-        if (!key || !key.key_payload) {
-          warnings.push({ type: 'error', text: "❌ Missing Answer Key Relation" });
+      }
+
+      if (!q.resource_links) warnings.push({ type: "warning", text: "⚠️ Missing Video Link" });
+      const hintCount = Array.isArray(q.hints) ? q.hints.filter(Boolean).length : 0;
+      if (!hintCount) warnings.push({ type: "warning", text: "💡 No practice hints" });
+      if (!q.image_url) warnings.push({ type: "warning", text: "🖼️ No Diagram" });
+      if (window.AdminMetadata && window.AdminMetadata.isMetadataIncomplete(q)) {
+        warnings.push({ type: "warning", text: "📊 Incomplete exam metadata" });
+      }
+      if (window.AdminMetadata && window.AdminMetadata.isDualLinkIncomplete(q)) {
+        warnings.push({ type: "warning", text: "🔗 Missing triple spec link (audience Both)" });
+      }
+      if (q.prompt && q.prompt.includes("$") && !window.MathJax) {
+        warnings.push({ type: "warning", text: "📐 LaTeX Warning" });
+      }
+
+      q._warningsList = warnings;
+      let severityScore = 0;
+      warnings.forEach((w) => {
+        if (w.type === "error") severityScore += 10;
+        else severityScore += 1;
+      });
+      q._severityWeight = severityScore;
+    });
+  }
+
+  function compareAuditValues(aVal, bVal) {
+    const aEmpty = aVal == null || aVal === "";
+    const bEmpty = bVal == null || bVal === "";
+    if (aEmpty && bEmpty) return 0;
+    if (aEmpty) return 1;
+    if (bEmpty) return -1;
+    if (typeof aVal === "number" && typeof bVal === "number") return aVal - bVal;
+    return String(aVal).localeCompare(String(bVal), undefined, { numeric: true, sensitivity: "base" });
+  }
+
+  function getAuditSortValue(q, column, specMap) {
+    switch (column) {
+      case "ref":
+        return getAuditQuestionSpecRef(q, specMap);
+      case "type":
+        return q.question_type || "";
+      case "prompt":
+        return q.prompt || "";
+      case "marks":
+        return Number(q.max_marks) || 0;
+      case "cmd":
+        return q.command_word || "";
+      case "demand":
+        return AUDIT_DEMAND_ORDER[q.demand_level] ?? 0;
+      case "ao":
+        return (Number(q.ao1_marks) || 0) + (Number(q.ao2_marks) || 0) + (Number(q.ao3_marks) || 0);
+      case "meta": {
+        const incomplete = window.AdminMetadata?.isMetadataIncomplete(q) ||
+          window.AdminMetadata?.isDualLinkIncomplete(q) ||
+          window.AdminSkills?.isSkillsMetadataIncomplete(q);
+        return incomplete ? 1 : 0;
+      }
+      case "severity":
+        return q._severityWeight || 0;
+      default:
+        return "";
+    }
+  }
+
+  function sortAuditQuestions(questions, specMap) {
+    const sorted = [...questions];
+    const { column, direction } = auditSort;
+    const dir = direction === "asc" ? 1 : -1;
+
+    sorted.sort((a, b) => {
+      const cmp = compareAuditValues(
+        getAuditSortValue(a, column, specMap),
+        getAuditSortValue(b, column, specMap)
+      );
+      if (cmp !== 0) return cmp * dir;
+
+      const refCmp = compareAuditValues(
+        getAuditQuestionSpecRef(a, specMap),
+        getAuditQuestionSpecRef(b, specMap)
+      );
+      return refCmp;
+    });
+    return sorted;
+  }
+
+  function updateAuditSortHeaders() {
+    document.querySelectorAll("#panelAudit .audit-sort-th").forEach((th) => {
+      const col = th.dataset.sort;
+      const indicator = th.querySelector(".audit-sort-indicator");
+      const active = col === auditSort.column;
+      th.classList.toggle("audit-sort-th--active", active);
+      if (indicator) {
+        indicator.textContent = active ? (auditSort.direction === "asc" ? "▲" : "▼") : "⇅";
+      }
+    });
+  }
+
+  function buildAuditRowsHtml(filtered, checkPointsCounterMap, specMap) {
+    return filtered.map((q) => {
+      const ref = getAuditQuestionSpecRef(q, specMap);
+      const topic = getAuditQuestionTopic(q, specMap);
+      const hasCheckpoints = (checkPointsCounterMap[q.id] || 0) > 0;
+      const cmd = q.command_word || "—";
+      const demand = window.AdminMetadata ? window.AdminMetadata.formatDemandLabel(q.demand_level) : (q.demand_level || "—");
+      const aoSplit = window.AdminMetadata ? window.AdminMetadata.formatAoSplit(q) : "—";
+      const rpCode = q.required_practicals?.code || (q.is_required_practical ? "RP" : "·");
+      const aud = q.audience === "triple_only" ? "T" : "B";
+      const flags = `${q.is_maths_skill ? "M" : "·"}/${rpCode}/${aud}`;
+      const metaIncomplete = window.AdminMetadata && window.AdminMetadata.isMetadataIncomplete(q);
+      const skillsGap = window.AdminSkills && window.AdminSkills.isSkillsMetadataIncomplete(q);
+      const dualLinkGap = window.AdminMetadata && window.AdminMetadata.isDualLinkIncomplete(q);
+      const metaBadge = metaIncomplete || dualLinkGap || skillsGap
+        ? `<span class="meta-badge">Gap</span>`
+        : `<span class="meta-badge meta-badge--ok">OK</span>`;
+      const skillsBadge = window.AdminSkills
+        ? window.AdminSkills.formatQuestionSkillsBadge(q)
+        : "—";
+
+      let warningsHtml = "";
+      if (q._warningsList.length > 0) {
+        warningsHtml = q._warningsList.map((w) => {
+          const isError = w.type === "error";
+          const bg = isError ? "#fef2f2" : "#fef3c7";
+          const textCol = isError ? "#991b1b" : "#92400e";
+          const borderCol = isError ? "#fca5a5" : "#fcd34d";
+          return `<span style="background:${bg}; color:${textCol}; border:1px solid ${borderCol}; padding:4px 10px; border-radius:6px; font-size:0.78rem; font-weight:600; display:inline-flex; align-items:center; gap:4px; margin-right:6px; margin-bottom:4px;">${w.text}</span>`;
+        }).join("");
+      }
+
+      if (q.question_type === "short_text") {
+        if (hasCheckpoints) {
+          warningsHtml += `<span style="background:#eff6ff; color:#1e40af; border:1px solid #bfdbfe; padding:4px 10px; border-radius:6px; font-size:0.78rem; font-weight:600; display:inline-flex; align-items:center; gap:4px; margin-right:6px; margin-bottom:4px;">🎯 Grading: Checkpoints Active</span>`;
         } else {
-          const payload = key.key_payload;
-          if (q.question_type === "mcq") {
-            const correctOpt = payload.correct || payload.answer;
-            if (!correctOpt || correctOpt.trim() === "") {
-              warnings.push({ type: 'error', text: "❌ Missing Correct MCQ Option" });
-            }
-          } else if (q.question_type === "numeric") {
-            const numAns = payload.answer;
-            if (numAns === undefined || numAns === null || isNaN(numAns)) {
-              warnings.push({ type: 'error', text: "❌ Missing Numeric Answer" });
-            }
-          } else if (q.question_type === "short_text") {
-            const reqWords = payload.required;
-            const hasKeywords = reqWords && Array.isArray(reqWords) && reqWords.filter(Boolean).length > 0;
-            
-            // FIX: Only throw error if BOTH Section 2 keywords AND Section 3 checkpoints are missing!
-            if (!hasKeywords && totalCheckpoints === 0) {
-              warnings.push({ type: 'error', text: "❌ Missing Required Keywords or Checkpoints" });
-            }
-          }
+          warningsHtml += `<span style="background:#f0fdf4; color:#166534; border:1px solid #bbf7d0; padding:4px 10px; border-radius:6px; font-size:0.78rem; font-weight:600; display:inline-flex; align-items:center; gap:4px; margin-right:6px; margin-bottom:4px;">🔑 Grading: Keyword Engine</span>`;
         }
-        
-        // 2. Standard Warnings (Weight = 1 each)
-        if (!q.resource_links) {
-          warnings.push({ type: 'warning', text: "⚠️ Missing Video Link" });
-        }
-        const hintCount = Array.isArray(q.hints) ? q.hints.filter(Boolean).length : 0;
-        if (!hintCount) {
-          warnings.push({ type: 'warning', text: "💡 No practice hints" });
-        }
-        if (!q.image_url) {
-          warnings.push({ type: 'warning', text: "🖼️ No Diagram" });
-        }
-        if (window.AdminMetadata && window.AdminMetadata.isMetadataIncomplete(q)) {
-          warnings.push({ type: 'warning', text: "📊 Incomplete exam metadata" });
-        }
-        if (window.AdminMetadata && window.AdminMetadata.isDualLinkIncomplete(q)) {
-          warnings.push({ type: 'warning', text: "🔗 Missing triple spec link (audience Both)" });
-        }
-        if (q.prompt && q.prompt.includes("$") && !window.MathJax) {
-          warnings.push({ type: 'warning', text: "📐 LaTeX Warning" });
-        }
-        
-        q._warningsList = warnings;
-        
-        // Severity metric builder
-        let severityScore = 0;
-        warnings.forEach(w => {
-          if (w.type === 'error') severityScore += 10;
-          else severityScore += 1;
-        });
-        q._severityWeight = severityScore;
-      });
-
-      // Sort by severity descending, then syllabus spec ref ascending
-      filtered.sort((a, b) => {
-        const severityDiff = b._severityWeight - a._severityWeight;
-        if (severityDiff !== 0) return severityDiff;
-
-        const refA = specMap[a.spec_point_id]?.spec_ref || "";
-        const refB = specMap[b.spec_point_id]?.spec_ref || "";
-        return refA.localeCompare(refB, undefined, { numeric: true, sensitivity: "base" });
-      });
-      
-      // Store in memory cache for Sandbox loading & modal populates
-      loadedQuestionsCache = filtered;
-      window.loadedQuestionsCache = filtered;
-      
-      if (filtered.length === 0) {
-        auditList.innerHTML = `<tr><td colspan="${AUDIT_COLSPAN}" style="padding:24px; text-align:center; color:var(--text-muted);">No records found in active tables matching your search rules.</td></tr>`;
-        return;
+      } else if (q._warningsList.length === 0) {
+        warningsHtml = `<span style="background:#d1fae5; color:#065f46; border:1px solid #a7f3d0; padding:4px 10px; border-radius:6px; font-size:0.78rem; font-weight:600; display:inline-flex; align-items:center; gap:4px;">🟢 Audit Passed: Question fully configured</span>`;
       }
-      
-      auditList.innerHTML = filtered.map(q => {
-        const spec = specMap[q.spec_point_id] || {};
-        const ref = spec.spec_ref || "Global";
-        const hasCheckpoints = (checkPointsCounterMap[q.id] || 0) > 0;
-        const cmd = q.command_word || "—";
-        const demand = window.AdminMetadata ? window.AdminMetadata.formatDemandLabel(q.demand_level) : (q.demand_level || "—");
-        const aoSplit = window.AdminMetadata ? window.AdminMetadata.formatAoSplit(q) : "—";
-        const rpCode = q.required_practicals?.code || (q.is_required_practical ? "RP" : "·");
-        const aud = q.audience === "triple_only" ? "T" : "B";
-        const flags = `${q.is_maths_skill ? "M" : "·"}/${rpCode}/${aud}`;
-        const metaIncomplete = window.AdminMetadata && window.AdminMetadata.isMetadataIncomplete(q);
-        const skillsGap = window.AdminSkills && window.AdminSkills.isSkillsMetadataIncomplete(q);
-        const dualLinkGap = window.AdminMetadata && window.AdminMetadata.isDualLinkIncomplete(q);
-        const metaBadge = metaIncomplete || dualLinkGap || skillsGap
-          ? `<span class="meta-badge">Gap</span>`
-          : `<span class="meta-badge meta-badge--ok">OK</span>`;
-        const skillsBadge = window.AdminSkills
-          ? window.AdminSkills.formatQuestionSkillsBadge(q)
-          : "—";
-        
-        // Build text warnings displays to slide directly under each question row
-        let warningsHtml = "";
-        if (q._warningsList.length > 0) {
-          warningsHtml = q._warningsList.map(w => {
-            const isError = w.type === 'error';
-            const bg = isError ? "#fef2f2" : "#fef3c7";
-            const textCol = isError ? "#991b1b" : "#92400e";
-            const borderCol = isError ? "#fca5a5" : "#fcd34d";
-            return `<span style="background:${bg}; color:${textCol}; border:1px solid ${borderCol}; padding:4px 10px; border-radius:6px; font-size:0.78rem; font-weight:600; display:inline-flex; align-items:center; gap:4px; margin-right:6px; margin-bottom:4px;">${w.text}</span>`;
-          }).join("");
-        }
-        
-        // Add status badge showing check mode
-        if (q.question_type === "short_text") {
-          if (hasCheckpoints) {
-            warningsHtml += `<span style="background:#eff6ff; color:#1e40af; border:1px solid #bfdbfe; padding:4px 10px; border-radius:6px; font-size:0.78rem; font-weight:600; display:inline-flex; align-items:center; gap:4px; margin-right:6px; margin-bottom:4px;">🎯 Grading: Checkpoints Active</span>`;
-          } else {
-            warningsHtml += `<span style="background:#f0fdf4; color:#166534; border:1px solid #bbf7d0; padding:4px 10px; border-radius:6px; font-size:0.78rem; font-weight:600; display:inline-flex; align-items:center; gap:4px; margin-right:6px; margin-bottom:4px;">🔑 Grading: Keyword Engine</span>`;
-          }
-        } else if (q._warningsList.length === 0) {
-          warningsHtml = `<span style="background:#d1fae5; color:#065f46; border:1px solid #a7f3d0; padding:4px 10px; border-radius:6px; font-size:0.78rem; font-weight:600; display:inline-flex; align-items:center; gap:4px;">🟢 Audit Passed: Question fully configured</span>`;
-        }
-          
-        return `
-          <!-- Row A: Primary metadata metrics -->
+
+      const topicHint = topic ? ` title="${escapeHtml(topic)}"` : "";
+
+      return `
           <tr style="border-top:1px solid var(--border); transition: background 0.15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='none'">
-            <td style="padding:12px 16px 4px 16px; font-weight:700; color:#1e293b;">${ref}</td>
+            <td style="padding:12px 16px 4px 16px; font-weight:700; color:#1e293b;"${topicHint}>${escapeHtml(ref)}</td>
             <td style="padding:12px 16px 4px 16px;"><span class="chip" style="background:#e2e8f0; color:#475569; padding:2px 6px; border-radius:4px; font-size:0.76rem; font-weight:700;">${q.question_type.toUpperCase()}</span></td>
             <td style="padding:12px 16px 4px 16px; max-width:240px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(q.prompt)}">${escapeHtml(q.prompt)}</td>
             <td style="padding:12px 16px 4px 16px; font-weight:700;">${q.max_marks}</td>
@@ -3611,7 +3709,6 @@
               <button onclick="requestSafeSystemDeletion('${q.id}')" class="btn btn-danger" style="padding:6px 10px; font-size:0.75rem;">Remove</button>
             </td>
           </tr>
-          <!-- Row B: Spanning warning container rendering cleanly underneath Row A -->
           <tr style="border-bottom:1px solid var(--border); background: none;">
             <td colspan="${AUDIT_COLSPAN}" style="padding: 4px 16px 12px 16px; font-size: 0.8rem; line-height: 1.45;">
               <div style="display:flex; flex-wrap:wrap; gap:6px; align-items:center;">
@@ -3621,9 +3718,142 @@
             </td>
           </tr>
         `;
-      }).join("");
-      
-    } catch(err) {
+    }).join("");
+  }
+
+  function renderAuditTable() {
+    if (!loadedQuestionsCache.length) {
+      auditList.innerHTML = `<tr><td colspan="${AUDIT_COLSPAN}" style="padding:24px; text-align:center; color:var(--text-muted);">No records found in active tables matching your search rules.</td></tr>`;
+      updateAuditSortHeaders();
+      return;
+    }
+    const sorted = sortAuditQuestions(loadedQuestionsCache, auditSpecMap);
+    auditList.innerHTML = buildAuditRowsHtml(sorted, auditCheckPointsCounterMap, auditSpecMap);
+    updateAuditSortHeaders();
+  }
+
+  async function refreshAuditTopicDatalist() {
+    const sub = document.getElementById("auditSubject")?.value;
+    const paper = document.getElementById("auditPaper")?.value;
+    const track = document.getElementById("auditCourseTrack")?.value || "";
+    if (!sub || !paper) return;
+
+    let query = supabaseClient
+      .from("spec_points")
+      .select("topic_name")
+      .eq("subject", sub)
+      .eq("paper", paper);
+    if (track) query = query.eq("course_track", track);
+
+    const { data } = await query;
+    const topics = [...new Set((data || []).map((row) => row.topic_name).filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+    const datalist = document.getElementById("auditTopicList");
+    if (datalist) {
+      datalist.innerHTML = topics.map((topic) => `<option value="${escapeHtml(topic)}"></option>`).join("");
+    }
+  }
+
+  ["auditSubject", "auditPaper", "auditCourseTrack"].forEach((id) => {
+    document.getElementById(id)?.addEventListener("change", () => { refreshAuditTopicDatalist(); });
+  });
+  refreshAuditTopicDatalist();
+  updateAuditSortHeaders();
+
+  document.querySelector("#panelAudit thead")?.addEventListener("click", (event) => {
+    const th = event.target.closest(".audit-sort-th");
+    if (!th || !loadedQuestionsCache.length) return;
+    const col = th.dataset.sort;
+    if (!col) return;
+    if (auditSort.column === col) {
+      auditSort.direction = auditSort.direction === "asc" ? "desc" : "asc";
+    } else {
+      auditSort.column = col;
+      auditSort.direction = col === "severity" ? "desc" : "asc";
+    }
+    renderAuditTable();
+  });
+
+  window.refreshAuditTable = () => btnQueryQuestions.click();
+
+  btnQueryQuestions.onclick = async () => {
+    const sub = document.getElementById("auditSubject").value;
+    const paper = document.getElementById("auditPaper").value;
+    const qTypeFilter = document.getElementById("auditType").value;
+    const search = document.getElementById("auditSearchQuery").value.trim();
+    const metaFilter = document.getElementById("auditMetadataFilter")?.value || "";
+    const courseTrack = document.getElementById("auditCourseTrack")?.value || "";
+    const topicFilter = document.getElementById("auditTopicFilter")?.value.trim().toLowerCase() || "";
+
+    auditList.innerHTML = `<tr><td colspan="${AUDIT_COLSPAN}" style="padding:24px; text-align:center;">Querying database records...</td></tr>`;
+
+    try {
+      const { data: specs, error: specErr } = await supabaseClient
+        .from("spec_points")
+        .select("id, spec_ref, topic_name, course_track")
+        .eq("subject", sub)
+        .eq("paper", paper);
+      if (specErr) throw specErr;
+
+      auditSpecMap = {};
+      const combinedIds = [];
+      const tripleIds = [];
+      (specs || []).forEach((row) => {
+        auditSpecMap[row.id] = row;
+        if (row.course_track === "triple") tripleIds.push(row.id);
+        else combinedIds.push(row.id);
+      });
+
+      const { data: allMarkPoints } = await supabaseClient
+        .from("mark_points")
+        .select("question_id, id");
+
+      auditCheckPointsCounterMap = {};
+      (allMarkPoints || []).forEach((mp) => {
+        auditCheckPointsCounterMap[mp.question_id] = (auditCheckPointsCounterMap[mp.question_id] || 0) + 1;
+      });
+
+      const selectWithMeta = "id, spec_point_id, triple_spec_point_id, audience, question_type, prompt, options, tier, marking_method, max_marks, resource_links, hints, image_url, calculation_config, command_word, demand_level, ao1_marks, ao2_marks, ao3_marks, is_maths_skill, is_required_practical, required_practical_id, difficulty, required_practicals(code), answer_keys(key_type, key_payload), question_skills(skill_id, skill_framework_items(full_code, framework, title))";
+      const selectBasic = "id, spec_point_id, triple_spec_point_id, audience, question_type, prompt, options, tier, marking_method, max_marks, resource_links, hints, image_url, calculation_config, command_word, demand_level, ao1_marks, ao2_marks, ao3_marks, is_maths_skill, is_required_practical, required_practical_id, difficulty, required_practicals(code), answer_keys(key_type, key_payload)";
+
+      auditCourseTrackFilter = courseTrack;
+
+      let filtered = await fetchAuditQuestionsForTrack(
+        courseTrack,
+        combinedIds,
+        tripleIds,
+        selectWithMeta,
+        selectBasic,
+        qTypeFilter
+      );
+
+      if (search) {
+        filtered = filtered.filter((q) => q.prompt.toLowerCase().includes(search.toLowerCase()));
+      }
+
+      if (topicFilter) {
+        filtered = filtered.filter((q) =>
+          getAuditQuestionTopic(q, auditSpecMap).toLowerCase().includes(topicFilter)
+        );
+      }
+
+      if (metaFilter && window.AdminMetadata) {
+        filtered = filtered.filter((q) => {
+          const incomplete = window.AdminMetadata.isMetadataIncomplete(q);
+          return metaFilter === "incomplete" ? incomplete : !incomplete;
+        });
+      }
+
+      if (window.AdminSkills?.attachSkillsToQuestions) {
+        filtered = await window.AdminSkills.attachSkillsToQuestions(supabaseClient, filtered);
+      }
+
+      attachAuditWarnings(filtered, auditCheckPointsCounterMap);
+
+      loadedQuestionsCache = filtered;
+      window.loadedQuestionsCache = filtered;
+      renderAuditTable();
+    } catch (err) {
       console.error(err);
       auditList.innerHTML = `<tr><td colspan="${AUDIT_COLSPAN}" style="padding:24px; text-align:center; color:var(--error);">Failed to audit records: ${err.message}</td></tr>`;
     }
