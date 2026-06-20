@@ -874,6 +874,17 @@
       opacity: 1;
     }
 
+    .audit-result-count {
+      margin: 12px 0 0;
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: var(--primary-dark);
+    }
+
+    .audit-result-count.hidden {
+      display: none;
+    }
+
     /* Simulated Interactive Testing Playground */
     .mcq-option-wrap {
       display: flex;
@@ -1479,6 +1490,7 @@
 
           <button class="btn btn-primary" id="btnQueryQuestions" style="margin-top: 10px;">Query Active Database</button>
           <button type="button" class="btn btn-secondary" id="btnBulkAutoTagSkills" style="margin-top: 10px; margin-left: 8px;">Auto-tag untagged questions</button>
+          <p id="auditResultCount" class="audit-result-count hidden" aria-live="polite"></p>
         </div>
 
         <div class="card" style="padding:0; overflow-x:auto;">
@@ -3734,15 +3746,38 @@
     }).join("");
   }
 
+  function updateAuditResultCount(state) {
+    const countEl = document.getElementById("auditResultCount");
+    if (!countEl) return;
+
+    if (state === "loading") {
+      countEl.textContent = "Querying database…";
+      countEl.classList.remove("hidden");
+      return;
+    }
+
+    if (state === "error") {
+      countEl.textContent = "";
+      countEl.classList.add("hidden");
+      return;
+    }
+
+    const n = Number(state) || 0;
+    countEl.textContent = n === 1 ? "1 question found" : `${n} questions found`;
+    countEl.classList.remove("hidden");
+  }
+
   function renderAuditTable() {
     if (!loadedQuestionsCache.length) {
       auditList.innerHTML = `<tr><td colspan="${AUDIT_COLSPAN}" style="padding:24px; text-align:center; color:var(--text-muted);">No records found in active tables matching your search rules.</td></tr>`;
       updateAuditSortHeaders();
+      updateAuditResultCount(0);
       return;
     }
     const sorted = sortAuditQuestions(loadedQuestionsCache, auditSpecMap);
     auditList.innerHTML = buildAuditRowsHtml(sorted, auditCheckPointsCounterMap, auditSpecMap);
     updateAuditSortHeaders();
+    updateAuditResultCount(loadedQuestionsCache.length);
   }
 
   async function refreshAuditTopicDatalist() {
@@ -3799,6 +3834,7 @@
     const topicFilter = document.getElementById("auditTopicFilter")?.value.trim().toLowerCase() || "";
 
     auditList.innerHTML = `<tr><td colspan="${AUDIT_COLSPAN}" style="padding:24px; text-align:center;">Querying database records...</td></tr>`;
+    updateAuditResultCount("loading");
 
     try {
       const { data: specs, error: specErr } = await supabaseClient
@@ -3868,6 +3904,7 @@
       renderAuditTable();
     } catch (err) {
       console.error(err);
+      updateAuditResultCount("error");
       auditList.innerHTML = `<tr><td colspan="${AUDIT_COLSPAN}" style="padding:24px; text-align:center; color:var(--error);">Failed to audit records: ${err.message}</td></tr>`;
     }
   };
