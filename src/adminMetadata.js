@@ -86,8 +86,34 @@ function metaIds(mode = "creator") {
   return METADATA_FIELD_IDS[mode] || METADATA_FIELD_IDS.creator;
 }
 
+function syncMcqAoFields(mode = "creator") {
+  const ids = metaIds(mode);
+  const ao1 = document.getElementById(ids.ao1);
+  const ao2 = document.getElementById(ids.ao2);
+  const ao3 = document.getElementById(ids.ao3);
+  if (ao1) ao1.value = "1";
+  if (ao2) ao2.value = "0";
+  if (ao3) ao3.value = "0";
+}
+
+function mcqAoDefaults() {
+  return { ao1_marks: 1, ao2_marks: 0, ao3_marks: 0 };
+}
+
 export function buildMetadataPayload(mode = "creator") {
   const ids = metaIds(mode);
+  const qType = mode === "creator" ? document.getElementById("qType")?.value : null;
+  if (qType === "mcq") {
+    syncMcqAoFields(mode);
+    return {
+      command_word: document.getElementById(ids.commandWord)?.value || "",
+      demand_level: document.getElementById(ids.demandLevel)?.value || "",
+      ...mcqAoDefaults(),
+      is_maths_skill: document.getElementById(ids.maths)?.checked || false,
+      is_required_practical: document.getElementById(ids.rp)?.checked || false,
+      required_practical_id: document.getElementById(ids.rpSelect)?.value || null
+    };
+  }
   const ao1 = parseInt(document.getElementById(ids.ao1)?.value, 10) || 0;
   const ao2 = parseInt(document.getElementById(ids.ao2)?.value, 10) || 0;
   const ao3 = parseInt(document.getElementById(ids.ao3)?.value, 10) || 0;
@@ -118,6 +144,14 @@ export function readCreatorDraftForDifficulty() {
     max_marks: parseInt(maxMarksEl?.value, 10) || 1,
     ...meta
   };
+}
+
+export function syncCreatorMcqAoFields() {
+  syncMcqAoFields("creator");
+}
+
+export function syncEditMcqAoFields() {
+  syncMcqAoFields("edit");
 }
 
 function populateCommandWordSelect(selectEl, selected = "") {
@@ -194,9 +228,13 @@ export function autoCreatorAoFromMarkPoints() {
 
 export function validateCreatorMetadata({ block = true } = {}) {
   const qType = document.getElementById("qType")?.value;
-  const maxMarks = parseInt(document.getElementById("maxMarks")?.value, 10) || 1;
+  const maxMarks = qType === "mcq" ? 1 : (parseInt(document.getElementById("maxMarks")?.value, 10) || 1);
   const meta = buildMetadataPayload("creator");
   const warnings = [];
+
+  if (qType === "mcq") {
+    Object.assign(meta, mcqAoDefaults());
+  }
 
   const { valid, sum } = validateAoMarksSum(meta.ao1_marks, meta.ao2_marks, meta.ao3_marks, maxMarks);
   if (!valid) {

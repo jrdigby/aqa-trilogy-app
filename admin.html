@@ -1328,6 +1328,9 @@
                   <button type="button" class="btn btn-secondary btn-compact" id="btnAutoAoFromMarkPoints">Auto from mark points</button>
                 </div>
               </div>
+              <p id="mcqAoAutoNote" class="hidden metadata-span-full" style="margin:0;font-size:0.82rem;color:var(--text-muted);">
+                MCQ questions are always 1 mark on AO1 (0 on AO2/AO3) — set automatically.
+              </p>
               <div class="flag-row metadata-span-full">
                 <label><input type="checkbox" id="chkMathsSkill" /> Maths skill question</label>
                 <label><input type="checkbox" id="chkRequiredPractical" /> Required practical</label>
@@ -2712,13 +2715,19 @@
     if (isMcq && maxMarks) {
       maxMarks.innerHTML = "<option value=\"1\">1 mark</option>";
       maxMarks.value = "1";
-      const ao1 = document.getElementById("ao1Marks");
-      const ao2 = document.getElementById("ao2Marks");
-      const ao3 = document.getElementById("ao3Marks");
-      if (ao1) ao1.value = "1";
-      if (ao2) ao2.value = "0";
-      if (ao3) ao3.value = "0";
+      if (window.AdminMetadata?.syncCreatorMcqAoFields) {
+        window.AdminMetadata.syncCreatorMcqAoFields();
+      } else {
+        const ao1 = document.getElementById("ao1Marks");
+        const ao2 = document.getElementById("ao2Marks");
+        const ao3 = document.getElementById("ao3Marks");
+        if (ao1) ao1.value = "1";
+        if (ao2) ao2.value = "0";
+        if (ao3) ao3.value = "0";
+      }
     }
+    const mcqAoNote = document.getElementById("mcqAoAutoNote");
+    if (mcqAoNote) mcqAoNote.classList.toggle("hidden", !isMcq);
   }
   
   qType.onchange = function() {
@@ -2954,6 +2963,7 @@
     }
 
     if (window.AdminMetadata) {
+      if (questionType === "mcq") syncCreatorMcqUi("mcq");
       const metaCheck = window.AdminMetadata.validateCreatorMetadata({ block: true });
       if (!metaCheck.ok) {
         showAdminToast(metaCheck.error, true);
@@ -3176,6 +3186,8 @@
     document.getElementById("markPointsWrapper").innerHTML = "";
     markPointsCounter = 0;
 
+    populateHintsEditor("creatorHintsList", []);
+
     const warnEl = document.getElementById("metadataWarnings");
     if (warnEl) {
       warnEl.classList.add("hidden");
@@ -3183,6 +3195,7 @@
     }
     if (window.AdminMetadata) window.AdminMetadata.resetCreatorMetadataFields();
     if (window.AdminSkills) window.AdminSkills.resetCreatorSkillsUI();
+    syncCreatorMcqUi(qType?.value || "short_text");
   }
   document.getElementById("btnReset").onclick = clearQuestionCreatorForm;
 
@@ -3872,12 +3885,16 @@
         editMaxMarks.innerHTML = "<option value=\"1\">1 mark</option>";
         editMaxMarks.value = "1";
       }
-      const ao1 = document.getElementById("editAo1Marks");
-      const ao2 = document.getElementById("editAo2Marks");
-      const ao3 = document.getElementById("editAo3Marks");
-      if (ao1) ao1.value = "1";
-      if (ao2) ao2.value = "0";
-      if (ao3) ao3.value = "0";
+      if (window.AdminMetadata?.syncEditMcqAoFields) {
+        window.AdminMetadata.syncEditMcqAoFields();
+      } else {
+        const ao1 = document.getElementById("editAo1Marks");
+        const ao2 = document.getElementById("editAo2Marks");
+        const ao3 = document.getElementById("editAo3Marks");
+        if (ao1) ao1.value = "1";
+        if (ao2) ao2.value = "0";
+        if (ao3) ao3.value = "0";
+      }
     }
   }
 
@@ -4166,13 +4183,19 @@
       let editMeta = null;
       if (window.AdminMetadata) {
         editMeta = window.AdminMetadata.buildEditMetadataPayload();
+
+        if (q.question_type === "mcq") {
+          window.AdminMetadata.syncEditMcqAoFields();
+          Object.assign(editMeta, { ao1_marks: 1, ao2_marks: 0, ao3_marks: 0 });
+        }
+
         const ao1Raw = document.getElementById("editAo1Marks")?.value ?? "";
         const ao2Raw = document.getElementById("editAo2Marks")?.value ?? "";
         const ao3Raw = document.getElementById("editAo3Marks")?.value ?? "";
         const aoFieldsEmpty = ao1Raw === "" && ao2Raw === "" && ao3Raw === "";
         const aoLegacyIncomplete = q.ao1_marks == null || q.ao2_marks == null || q.ao3_marks == null;
 
-        if (aoFieldsEmpty && !aoLegacyIncomplete) {
+        if (aoFieldsEmpty && !aoLegacyIncomplete && q.question_type !== "mcq") {
           editMeta.ao1_marks = Number(q.ao1_marks) || 0;
           editMeta.ao2_marks = Number(q.ao2_marks) || 0;
           editMeta.ao3_marks = Number(q.ao3_marks) || 0;
@@ -4190,16 +4213,10 @@
           return;
         }
 
-        if (!valid && aoFieldsEmpty && aoLegacyIncomplete) {
+        if (!valid && aoFieldsEmpty && aoLegacyIncomplete && q.question_type !== "mcq") {
           editMeta.ao1_marks = q.ao1_marks;
           editMeta.ao2_marks = q.ao2_marks;
           editMeta.ao3_marks = q.ao3_marks;
-        }
-
-        if (q.question_type === "mcq") {
-          editMeta.ao1_marks = 1;
-          editMeta.ao2_marks = 0;
-          editMeta.ao3_marks = 0;
         }
       }
 
