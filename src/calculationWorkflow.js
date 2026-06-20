@@ -116,6 +116,32 @@ export async function loadEquationSheetOptions(supabaseClient, sheetId) {
   return Array.isArray(data.equations) ? data.equations : [];
 }
 
+/** Load equation sheet row for numeric questions that include an equation-select step. */
+export async function loadEquationSheetForQuestion(supabaseClient, q, profile = null, { sessionTier = null } = {}) {
+  if (!supabaseClient || !q) return null;
+
+  const cfg = getCalculationConfig(q);
+  const needsSheet = getActiveSteps(cfg).some((s) => s.type === "equation_select");
+  if (!needsSheet) return null;
+
+  let sheetId = resolveEquationSheetIdForQuestion(q, profile, { sessionTier });
+  if (!sheetId && cfg.equation_sheet_id) {
+    sheetId = cfg.equation_sheet_id;
+  }
+  if (!sheetId) return null;
+
+  const { data, error } = await supabaseClient
+    .from("equation_sheets")
+    .select("id, title, equations")
+    .eq("id", sheetId)
+    .maybeSingle();
+  if (error || !data) {
+    console.warn("loadEquationSheetForQuestion:", error);
+    return null;
+  }
+  return data;
+}
+
 /** Plain-text equation for &lt;option&gt; labels (MathJax cannot run inside options). */
 export function latexToPlainOptionText(latex) {
   if (!latex) return "";

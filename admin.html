@@ -4154,12 +4154,14 @@
   let currentSandboxedQ = null;
   let currentSandboxedKey = null;
   let currentSandboxedMarkPoints = [];
+  let currentSandboxedEquationSheet = null;
 
   window.launchSandboxTest = async function(id) {
     const q = loadedQuestionsCache.find(x => x.id === id);
     if (!q) return;
 
     currentSandboxedQ = q;
+    currentSandboxedEquationSheet = null;
     
     const stage = document.getElementById("sandboxStage");
     const feedbackCard = document.getElementById("sandboxFeedbackCard");
@@ -4179,6 +4181,10 @@
       
       currentSandboxedKey = keyRes.data;
       currentSandboxedMarkPoints = markRes.data || [];
+
+      if (q.question_type === "numeric") {
+        currentSandboxedEquationSheet = await CalcWorkflow.loadEquationSheetForQuestion(supabaseClient, q);
+      }
       
       renderSandboxQuestion(currentSandboxedQ);
       btnSubmitSandbox.disabled = false;
@@ -4221,7 +4227,7 @@
       `;
     } 
     else if (q.question_type === "numeric") {
-      html += CalcWorkflow.renderCalculationWorkflow(q, currentSandboxedKey, "practice", null);
+      html += CalcWorkflow.renderCalculationWorkflow(q, currentSandboxedKey, "practice", currentSandboxedEquationSheet);
     } 
     else if (q.question_type === "extended_response") {
       html += `
@@ -4411,7 +4417,7 @@
         currentSandboxedKey,
         currentSandboxedMarkPoints,
         null,
-        null
+        currentSandboxedEquationSheet
       );
       score = marking.total;
       max = marking.max;
