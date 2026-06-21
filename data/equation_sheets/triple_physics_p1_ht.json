@@ -11,97 +11,905 @@
       "label": "Kinetic energy",
       "latex": "E_k = \\frac{1}{2} m v^2",
       "id": "kinetic_energy",
-      "topic_tags": ["energy"]
+      "topic_tags": [
+        "energy"
+      ],
+      "substitution_template": {
+        "layout": "sum_product",
+        "tokens": [
+          {
+            "kind": "slot",
+            "id": "E_k",
+            "label": "E_k"
+          },
+          {
+            "kind": "op",
+            "text": "="
+          },
+          {
+            "kind": "op",
+            "text": "\u00bd"
+          },
+          {
+            "kind": "op",
+            "text": "\u00d7"
+          },
+          {
+            "kind": "slot",
+            "id": "m",
+            "label": "m"
+          },
+          {
+            "kind": "op",
+            "text": "\u00d7"
+          },
+          {
+            "kind": "slot",
+            "id": "v",
+            "label": "v"
+          },
+          {
+            "kind": "op",
+            "text": "\u00b2"
+          }
+        ]
+      },
+      "rearrangement_forms": {
+        "default_subject": "v",
+        "variants": [
+          {
+            "subject": "v",
+            "correct": "v\u00b2 = 2 \u00d7 E_k / m",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          },
+          {
+            "subject": "m",
+            "correct": "m = 2 \u00d7 E_k / v\u00b2",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          }
+        ]
+      }
     },
     {
       "label": "Elastic potential energy",
       "latex": "E_e = \\frac{1}{2} k e^2",
       "id": "elastic_potential_energy",
-      "topic_tags": ["energy"]
+      "topic_tags": [
+        "energy"
+      ],
+      "substitution_template": {
+        "layout": "sum_product",
+        "tokens": [
+          {
+            "kind": "slot",
+            "id": "E_e",
+            "label": "E_e"
+          },
+          {
+            "kind": "op",
+            "text": "="
+          },
+          {
+            "kind": "op",
+            "text": "\u00bd"
+          },
+          {
+            "kind": "op",
+            "text": "\u00d7"
+          },
+          {
+            "kind": "slot",
+            "id": "k",
+            "label": "k"
+          },
+          {
+            "kind": "op",
+            "text": "\u00d7"
+          },
+          {
+            "kind": "slot",
+            "id": "e",
+            "label": "e"
+          },
+          {
+            "kind": "op",
+            "text": "\u00b2"
+          }
+        ]
+      },
+      "rearrangement_forms": {
+        "default_subject": "e",
+        "variants": [
+          {
+            "subject": "e",
+            "correct": "e\u00b2 = 2 \u00d7 E_e / k",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          },
+          {
+            "subject": "k",
+            "correct": "k = 2 \u00d7 E_e / e\u00b2",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          }
+        ]
+      }
     },
     {
       "label": "Gravitational potential energy",
       "latex": "E_p = m g h",
       "id": "gravitational_potential_energy",
-      "topic_tags": ["energy"]
+      "topic_tags": [
+        "energy"
+      ],
+      "substitution_template": {
+        "layout": "product",
+        "tokens": [
+          {
+            "kind": "slot",
+            "id": "E_p",
+            "label": "E_p"
+          },
+          {
+            "kind": "op",
+            "text": "="
+          },
+          {
+            "kind": "slot",
+            "id": "m",
+            "label": "m"
+          },
+          {
+            "kind": "op",
+            "text": "\u00d7"
+          },
+          {
+            "kind": "slot",
+            "id": "g",
+            "label": "g"
+          },
+          {
+            "kind": "op",
+            "text": "\u00d7"
+          },
+          {
+            "kind": "slot",
+            "id": "h",
+            "label": "h"
+          }
+        ]
+      },
+      "rearrangement_forms": {
+        "default_subject": "h",
+        "variants": [
+          {
+            "subject": "h",
+            "correct": "h = E_p / (m \u00d7 g)",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          }
+        ]
+      }
     },
     {
       "label": "Change in thermal energy",
       "latex": "\\Delta E = m c \\Delta\\theta",
       "id": "specific_heat_capacity",
-      "topic_tags": ["particle_model"]
+      "topic_tags": [
+        "particle_model"
+      ],
+      "substitution_template": {
+        "layout": "product",
+        "tokens": [
+          {
+            "kind": "slot",
+            "id": "delta_E",
+            "label": "\u0394E"
+          },
+          {
+            "kind": "op",
+            "text": "="
+          },
+          {
+            "kind": "slot",
+            "id": "m",
+            "label": "m"
+          },
+          {
+            "kind": "op",
+            "text": "\u00d7"
+          },
+          {
+            "kind": "slot",
+            "id": "c",
+            "label": "c"
+          },
+          {
+            "kind": "op",
+            "text": "\u00d7"
+          },
+          {
+            "kind": "slot",
+            "id": "delta_theta",
+            "label": "\u0394\u03b8"
+          }
+        ]
+      },
+      "rearrangement_forms": {
+        "default_subject": "c",
+        "variants": [
+          {
+            "subject": "c",
+            "correct": "c = delta_E / (m \u00d7 delta_theta)",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          }
+        ]
+      }
     },
     {
       "label": "Power (energy transferred)",
       "latex": "P = \\frac{E}{t}",
       "id": "power_energy",
-      "topic_tags": ["energy"]
+      "topic_tags": [
+        "energy"
+      ],
+      "substitution_template": {
+        "layout": "fraction",
+        "lhs": [
+          {
+            "kind": "slot",
+            "id": "P",
+            "label": "P"
+          }
+        ],
+        "numerator": [
+          {
+            "kind": "slot",
+            "id": "E",
+            "label": "E"
+          }
+        ],
+        "denominator": [
+          {
+            "kind": "slot",
+            "id": "t",
+            "label": "t"
+          }
+        ]
+      },
+      "rearrangement_forms": {
+        "default_subject": "t",
+        "variants": [
+          {
+            "subject": "t",
+            "correct": "t = E / P",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          },
+          {
+            "subject": "E",
+            "correct": "E = P \u00d7 t",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          },
+          {
+            "subject": "P",
+            "correct": "P = E / t",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          }
+        ]
+      }
     },
     {
       "label": "Power (work done)",
       "latex": "P = \\frac{W}{t}",
       "id": "power_work",
-      "topic_tags": ["energy"]
+      "topic_tags": [
+        "energy"
+      ],
+      "substitution_template": {
+        "layout": "fraction",
+        "lhs": [
+          {
+            "kind": "slot",
+            "id": "P",
+            "label": "P"
+          }
+        ],
+        "numerator": [
+          {
+            "kind": "slot",
+            "id": "W",
+            "label": "W"
+          }
+        ],
+        "denominator": [
+          {
+            "kind": "slot",
+            "id": "t",
+            "label": "t"
+          }
+        ]
+      },
+      "rearrangement_forms": {
+        "default_subject": "t",
+        "variants": [
+          {
+            "subject": "t",
+            "correct": "t = W / P",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          },
+          {
+            "subject": "W",
+            "correct": "W = P \u00d7 t",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          },
+          {
+            "subject": "P",
+            "correct": "P = W / t",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          }
+        ]
+      }
     },
     {
       "label": "Efficiency (energy)",
       "latex": "\\text{efficiency} = \\frac{\\text{useful output energy transfer}}{\\text{total input energy transfer}}",
       "id": "efficiency_energy",
-      "topic_tags": ["energy"]
+      "topic_tags": [
+        "energy"
+      ]
     },
     {
       "label": "Efficiency (power)",
       "latex": "\\text{efficiency} = \\frac{\\text{useful power output}}{\\text{total power input}}",
       "id": "efficiency_power",
-      "topic_tags": ["energy"]
+      "topic_tags": [
+        "energy"
+      ]
     },
     {
       "label": "Charge flow",
       "latex": "Q = I t",
       "id": "charge",
-      "topic_tags": ["electricity"]
+      "topic_tags": [
+        "electricity"
+      ],
+      "substitution_template": {
+        "layout": "product",
+        "tokens": [
+          {
+            "kind": "slot",
+            "id": "Q",
+            "label": "Q"
+          },
+          {
+            "kind": "op",
+            "text": "="
+          },
+          {
+            "kind": "slot",
+            "id": "I",
+            "label": "I"
+          },
+          {
+            "kind": "op",
+            "text": "\u00d7"
+          },
+          {
+            "kind": "slot",
+            "id": "t",
+            "label": "t"
+          }
+        ]
+      },
+      "rearrangement_forms": {
+        "default_subject": "I",
+        "variants": [
+          {
+            "subject": "I",
+            "correct": "I = Q / t",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          },
+          {
+            "subject": "t",
+            "correct": "t = Q / I",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          },
+          {
+            "subject": "Q",
+            "correct": "Q = I \u00d7 t",
+            "distractor_patterns": [
+              "multiply_instead",
+              "swap_operands"
+            ]
+          }
+        ]
+      }
     },
     {
       "label": "Potential difference",
       "latex": "V = I R",
       "id": "potential_difference",
-      "topic_tags": ["electricity"]
+      "topic_tags": [
+        "electricity"
+      ],
+      "substitution_template": {
+        "layout": "product",
+        "tokens": [
+          {
+            "kind": "slot",
+            "id": "V",
+            "label": "V"
+          },
+          {
+            "kind": "op",
+            "text": "="
+          },
+          {
+            "kind": "slot",
+            "id": "I",
+            "label": "I"
+          },
+          {
+            "kind": "op",
+            "text": "\u00d7"
+          },
+          {
+            "kind": "slot",
+            "id": "R",
+            "label": "R"
+          }
+        ]
+      },
+      "rearrangement_forms": {
+        "default_subject": "I",
+        "variants": [
+          {
+            "subject": "I",
+            "correct": "I = V / R",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          },
+          {
+            "subject": "R",
+            "correct": "R = V / I",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          },
+          {
+            "subject": "V",
+            "correct": "V = I \u00d7 R",
+            "distractor_patterns": [
+              "multiply_instead",
+              "swap_operands"
+            ]
+          }
+        ]
+      }
     },
     {
       "label": "Power (potential difference x current)",
       "latex": "P = V I",
       "id": "power_vi",
-      "topic_tags": ["electricity"]
+      "topic_tags": [
+        "electricity"
+      ],
+      "substitution_template": {
+        "layout": "product",
+        "tokens": [
+          {
+            "kind": "slot",
+            "id": "P",
+            "label": "P"
+          },
+          {
+            "kind": "op",
+            "text": "="
+          },
+          {
+            "kind": "slot",
+            "id": "V",
+            "label": "V"
+          },
+          {
+            "kind": "op",
+            "text": "\u00d7"
+          },
+          {
+            "kind": "slot",
+            "id": "I",
+            "label": "I"
+          }
+        ]
+      },
+      "rearrangement_forms": {
+        "default_subject": "I",
+        "variants": [
+          {
+            "subject": "I",
+            "correct": "I = P / V",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          },
+          {
+            "subject": "V",
+            "correct": "V = P / I",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          },
+          {
+            "subject": "P",
+            "correct": "P = V \u00d7 I",
+            "distractor_patterns": [
+              "multiply_instead",
+              "swap_operands"
+            ]
+          }
+        ]
+      }
     },
     {
       "label": "Power (current squared x resistance)",
       "latex": "P = I^2 R",
       "id": "power_i2r",
-      "topic_tags": ["electricity"]
+      "topic_tags": [
+        "electricity"
+      ],
+      "substitution_template": {
+        "layout": "sum_product",
+        "tokens": [
+          {
+            "kind": "slot",
+            "id": "P",
+            "label": "P"
+          },
+          {
+            "kind": "op",
+            "text": "="
+          },
+          {
+            "kind": "slot",
+            "id": "I",
+            "label": "I"
+          },
+          {
+            "kind": "op",
+            "text": "\u00b2"
+          },
+          {
+            "kind": "op",
+            "text": "\u00d7"
+          },
+          {
+            "kind": "slot",
+            "id": "R",
+            "label": "R"
+          }
+        ]
+      },
+      "rearrangement_forms": {
+        "default_subject": "I",
+        "variants": [
+          {
+            "subject": "I",
+            "correct": "I\u00b2 = P / R",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          },
+          {
+            "subject": "R",
+            "correct": "R = P / I\u00b2",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          }
+        ]
+      }
     },
     {
       "label": "Energy transferred (power x time)",
       "latex": "E = P t",
       "id": "energy_pt",
-      "topic_tags": ["electricity"]
+      "topic_tags": [
+        "electricity"
+      ],
+      "substitution_template": {
+        "layout": "product",
+        "tokens": [
+          {
+            "kind": "slot",
+            "id": "E",
+            "label": "E"
+          },
+          {
+            "kind": "op",
+            "text": "="
+          },
+          {
+            "kind": "slot",
+            "id": "P",
+            "label": "P"
+          },
+          {
+            "kind": "op",
+            "text": "\u00d7"
+          },
+          {
+            "kind": "slot",
+            "id": "t",
+            "label": "t"
+          }
+        ]
+      },
+      "rearrangement_forms": {
+        "default_subject": "t",
+        "variants": [
+          {
+            "subject": "t",
+            "correct": "t = E / P",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          },
+          {
+            "subject": "P",
+            "correct": "P = E / t",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          },
+          {
+            "subject": "E",
+            "correct": "E = P \u00d7 t",
+            "distractor_patterns": [
+              "multiply_instead",
+              "swap_operands"
+            ]
+          }
+        ]
+      }
     },
     {
       "label": "Energy transferred (charge x p.d.)",
       "latex": "E = Q V",
       "id": "energy_qv",
-      "topic_tags": ["electricity"]
+      "topic_tags": [
+        "electricity"
+      ],
+      "substitution_template": {
+        "layout": "product",
+        "tokens": [
+          {
+            "kind": "slot",
+            "id": "E",
+            "label": "E"
+          },
+          {
+            "kind": "op",
+            "text": "="
+          },
+          {
+            "kind": "slot",
+            "id": "Q",
+            "label": "Q"
+          },
+          {
+            "kind": "op",
+            "text": "\u00d7"
+          },
+          {
+            "kind": "slot",
+            "id": "V",
+            "label": "V"
+          }
+        ]
+      },
+      "rearrangement_forms": {
+        "default_subject": "Q",
+        "variants": [
+          {
+            "subject": "Q",
+            "correct": "Q = E / V",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          },
+          {
+            "subject": "V",
+            "correct": "V = E / Q",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          },
+          {
+            "subject": "E",
+            "correct": "E = Q \u00d7 V",
+            "distractor_patterns": [
+              "multiply_instead",
+              "swap_operands"
+            ]
+          }
+        ]
+      }
     },
     {
       "label": "Density",
       "latex": "\\rho = \\frac{m}{V}",
       "id": "density",
-      "topic_tags": ["particle_model"]
+      "topic_tags": [
+        "particle_model"
+      ],
+      "substitution_template": {
+        "layout": "fraction",
+        "lhs": [
+          {
+            "kind": "slot",
+            "id": "rho",
+            "label": "\u03c1"
+          }
+        ],
+        "numerator": [
+          {
+            "kind": "slot",
+            "id": "m",
+            "label": "m"
+          }
+        ],
+        "denominator": [
+          {
+            "kind": "slot",
+            "id": "V",
+            "label": "V"
+          }
+        ]
+      },
+      "rearrangement_forms": {
+        "default_subject": "m",
+        "variants": [
+          {
+            "subject": "m",
+            "correct": "m = rho \u00d7 V",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          },
+          {
+            "subject": "V",
+            "correct": "V = m / rho",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          },
+          {
+            "subject": "rho",
+            "correct": "rho = m / V",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          }
+        ]
+      }
     },
     {
       "label": "Thermal energy for a change of state",
       "latex": "E = m L",
       "id": "specific_latent_heat",
-      "topic_tags": ["particle_model"]
+      "topic_tags": [
+        "particle_model"
+      ],
+      "substitution_template": {
+        "layout": "product",
+        "tokens": [
+          {
+            "kind": "slot",
+            "id": "E",
+            "label": "E"
+          },
+          {
+            "kind": "op",
+            "text": "="
+          },
+          {
+            "kind": "slot",
+            "id": "m",
+            "label": "m"
+          },
+          {
+            "kind": "op",
+            "text": "\u00d7"
+          },
+          {
+            "kind": "slot",
+            "id": "L",
+            "label": "L"
+          }
+        ]
+      },
+      "rearrangement_forms": {
+        "default_subject": "L",
+        "variants": [
+          {
+            "subject": "L",
+            "correct": "L = E / m",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          },
+          {
+            "subject": "m",
+            "correct": "m = E / L",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          },
+          {
+            "subject": "E",
+            "correct": "E = m \u00d7 L",
+            "distractor_patterns": [
+              "multiply_instead",
+              "swap_operands"
+            ]
+          }
+        ]
+      }
     }
   ]
 }
