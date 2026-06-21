@@ -146,6 +146,21 @@ export function readCreatorDraftForDifficulty() {
   };
 }
 
+export function readEditDraftForDifficulty() {
+  const qType = document.getElementById("editQuestionType")?.value;
+  const maxMarks = qType === "mcq"
+    ? 1
+    : (parseInt(document.getElementById("editMaxMarks")?.value, 10) || 1);
+  const meta = buildMetadataPayload("edit");
+  return {
+    question_type: qType,
+    prompt: document.getElementById("editPrompt")?.value?.trim() || "",
+    tier: document.getElementById("editTier")?.value,
+    max_marks: maxMarks,
+    ...meta
+  };
+}
+
 export function syncCreatorMcqAoFields() {
   syncMcqAoFields("creator");
 }
@@ -184,6 +199,12 @@ export function refreshCreatorDifficultyBadge() {
   const badge = document.getElementById("difficultyBadge");
   if (!badge) return;
   badge.textContent = String(computeQuestionDifficulty(readCreatorDraftForDifficulty()));
+}
+
+export function refreshEditDifficultyBadge() {
+  const badge = document.getElementById("editDifficultyBadge");
+  if (!badge) return;
+  badge.textContent = String(computeQuestionDifficulty(readEditDraftForDifficulty()));
 }
 
 export function syncCreatorMetadataFromForm({ autoDemand = false } = {}) {
@@ -357,7 +378,25 @@ export function initEditMetadataUI(q) {
   if (editRpRow) editRpRow.classList.toggle("hidden", q.is_required_practical !== true);
   if (editRpSelect && q.required_practical_id) editRpSelect.value = q.required_practical_id;
   updateAoValidationLabel("edit", q.max_marks);
+  refreshEditDifficultyBadge();
   autoSizeAdminSelects(document.getElementById("editForm"));
+}
+
+export function initEditMetadataListeners() {
+  const editForm = document.getElementById("editForm");
+  if (!editForm || editForm.dataset.difficultyListeners) return;
+  editForm.dataset.difficultyListeners = "1";
+
+  document.getElementById("editPrompt")?.addEventListener("input", refreshEditDifficultyBadge);
+  document.getElementById("editTier")?.addEventListener("change", refreshEditDifficultyBadge);
+  document.getElementById("editMaxMarks")?.addEventListener("change", refreshEditDifficultyBadge);
+  document.getElementById("editDemandLevelSelect")?.addEventListener("change", refreshEditDifficultyBadge);
+
+  ["editAo1Marks", "editAo2Marks", "editAo3Marks"].forEach((id) => {
+    document.getElementById(id)?.addEventListener("input", refreshEditDifficultyBadge);
+  });
+
+  document.getElementById("editCommandWordSelect")?.addEventListener("change", refreshEditDifficultyBadge);
 }
 
 export function buildEditMetadataPayload() {

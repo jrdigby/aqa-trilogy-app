@@ -146,6 +146,12 @@ export function syncSkillPanelsVisibility(mode = "creator") {
   if (wsPanel) wsPanel.classList.remove("hidden");
 }
 
+function collapseSkillPanels(mode = "creator") {
+  const ids = PANEL_IDS[mode] || PANEL_IDS.creator;
+  document.getElementById(ids.ms)?.removeAttribute("open");
+  document.getElementById(ids.ws)?.removeAttribute("open");
+}
+
 export function renderSkillPanels(mode = "creator", question = null, options = {}) {
   syncSkillPanelsVisibility(mode);
   const ids = PANEL_IDS[mode] || PANEL_IDS.creator;
@@ -467,9 +473,11 @@ export function initEditSkillsUI(question) {
 
 export async function prepareEditSkillsUI(supabaseClient, question) {
   await ensureSkillCatalogLoaded(supabaseClient);
+  collapseSkillPanels("edit");
   renderSkillPanels("edit", question);
 }
 
 export function resetCreatorSkillsUI() {
+  collapseSkillPanels("creator");
   renderSkillPanels("creator");
 }

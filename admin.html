@@ -75,6 +75,13 @@
       color: #047857;
     }
 
+    .difficulty-badge--compact {
+      min-width: 1.5rem;
+      padding: 2px 8px;
+      font-size: 0.8rem;
+      border-radius: 6px;
+    }
+
     /* Must beat .row (defined later) so compact rows don't stretch with 1fr columns */
     .row.row-compact {
       grid-template-columns: repeat(auto-fit, minmax(min-content, max-content));
@@ -314,6 +321,37 @@
     }
     .skills-panel-block { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--border); }
     .skills-panel-block.hidden { display: none; }
+
+    .skills-details {
+      margin-top: 0;
+      padding: 0 12px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #fafbfc;
+    }
+
+    .skills-details summary {
+      cursor: pointer;
+      font-weight: 700;
+      padding: 10px 0;
+      font-size: 0.85rem;
+      color: var(--primary-dark);
+      list-style-position: outside;
+    }
+
+    .skills-details summary::-webkit-details-marker {
+      color: var(--primary);
+    }
+
+    .skills-details-body {
+      padding-top: 4px;
+    }
+
+    .skills-details-toolbar {
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: 8px;
+    }
 
     .skills-columns-row {
       display: grid;
@@ -1355,17 +1393,21 @@
                 </div>
               </div>
               <div class="skills-columns-row metadata-span-full">
-                <div id="wsSkillsPanel" class="skills-panel-block">
-                  <h5 style="margin:0 0 8px;font-size:0.85rem;">Working Scientifically (WS)</h5>
-                  <div id="wsSkillsWrap"></div>
-                </div>
-                <div id="msSkillsPanel" class="skills-panel-block hidden">
-                  <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
-                    <h5 style="margin:0;font-size:0.85rem;">Maths Skills (MS)</h5>
-                    <button type="button" class="btn btn-secondary btn-compact" id="btnAutoDetectSkills">Auto-detect skills</button>
+                <details id="wsSkillsPanel" class="skills-panel-block skills-details">
+                  <summary>Working Scientifically (WS)</summary>
+                  <div class="skills-details-body">
+                    <div id="wsSkillsWrap"></div>
                   </div>
-                  <div id="msSkillsWrap"></div>
-                </div>
+                </details>
+                <details id="msSkillsPanel" class="skills-panel-block skills-details hidden">
+                  <summary>Maths Skills (MS)</summary>
+                  <div class="skills-details-body">
+                    <div class="skills-details-toolbar">
+                      <button type="button" class="btn btn-secondary btn-compact" id="btnAutoDetectSkills">Auto-detect skills</button>
+                    </div>
+                    <div id="msSkillsWrap"></div>
+                  </div>
+                </details>
               </div>
               <div id="metadataWarnings" class="metadata-warnings hidden metadata-span-full"></div>
             </div>
@@ -1503,6 +1545,7 @@
                 <th class="audit-sort-th" data-sort="marks" style="width: 56px;">Marks<span class="audit-sort-indicator"></span></th>
                 <th class="audit-sort-th" data-sort="cmd" style="width: 72px;">Cmd<span class="audit-sort-indicator"></span></th>
                 <th class="audit-sort-th" data-sort="demand" style="width: 80px;">Demand<span class="audit-sort-indicator"></span></th>
+                <th class="audit-sort-th" data-sort="difficulty" style="width: 48px;" title="Computed difficulty (1–5)">Diff<span class="audit-sort-indicator"></span></th>
                 <th class="audit-sort-th" data-sort="ao" style="width: 64px;">AO<span class="audit-sort-indicator"></span></th>
                 <th style="width: 72px;">M/RP/Aud</th>
                 <th style="width: 88px;">MS/WS</th>
@@ -1512,7 +1555,7 @@
             </thead>
             <tbody id="questionsAuditList">
               <tr>
-                <td colspan="11" style="padding:24px; text-align:center; color:var(--text-muted);">Set filters and query active tables.</td>
+                <td colspan="12" style="padding:24px; text-align:center; color:var(--text-muted);">Set filters and query active tables.</td>
               </tr>
             </tbody>
           </table>
@@ -1587,6 +1630,7 @@
 
       <form id="editForm" class="edit-form-layout" onsubmit="return false;">
         <input type="hidden" id="editQuestionId"/>
+        <input type="hidden" id="editQuestionType"/>
         <input type="hidden" id="editEqSheetSubject" value="physics"/>
         <input type="hidden" id="editEqSheetPaper" value="paper1"/>
         <input type="hidden" id="editEqSheetCourseTrack" value="combined"/>
@@ -1859,6 +1903,10 @@
                 <label for="editDemandLevelSelect">Demand level</label>
                 <select id="editDemandLevelSelect" class="select-fit"></select>
               </div>
+              <div class="field-fit">
+                <label>Computed difficulty (1–5):</label>
+                <div id="editDifficultyBadge" class="difficulty-badge" aria-live="polite">—</div>
+              </div>
               <div class="field-fit" id="editAoToolsRow">
                 <label>AO mark allocation</label>
                 <div class="ao-inputs">
@@ -1882,17 +1930,21 @@
               </div>
             </div>
             <div class="skills-columns-row metadata-span-full">
-              <div id="editWsSkillsPanel" class="skills-panel-block">
-                <h5 style="margin:0 0 8px;font-size:0.85rem;">Working Scientifically (WS)</h5>
-                <div id="editWsSkillsWrap"></div>
-              </div>
-              <div id="editMsSkillsPanel" class="skills-panel-block hidden">
-                <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
-                  <h5 style="margin:0;font-size:0.85rem;">Maths Skills (MS)</h5>
-                  <button type="button" class="btn btn-secondary btn-compact" id="btnAutoDetectEditSkills">Auto-detect</button>
+              <details id="editWsSkillsPanel" class="skills-panel-block skills-details">
+                <summary>Working Scientifically (WS)</summary>
+                <div class="skills-details-body">
+                  <div id="editWsSkillsWrap"></div>
                 </div>
-                <div id="editMsSkillsWrap"></div>
-              </div>
+              </details>
+              <details id="editMsSkillsPanel" class="skills-panel-block skills-details hidden">
+                <summary>Maths Skills (MS)</summary>
+                <div class="skills-details-body">
+                  <div class="skills-details-toolbar">
+                    <button type="button" class="btn btn-secondary btn-compact" id="btnAutoDetectEditSkills">Auto-detect</button>
+                  </div>
+                  <div id="editMsSkillsWrap"></div>
+                </div>
+              </details>
             </div>
           </div>
         </div>
@@ -3451,7 +3503,7 @@
   const btnQueryQuestions = document.getElementById("btnQueryQuestions");
   const auditList = document.getElementById("questionsAuditList");
 
-  const AUDIT_COLSPAN = 11;
+  const AUDIT_COLSPAN = 12;
 
   function dedupeQuestionsById(rows) {
     const seen = new Set();
@@ -3624,6 +3676,10 @@
         return q.command_word || "";
       case "demand":
         return AUDIT_DEMAND_ORDER[q.demand_level] ?? 0;
+      case "difficulty":
+        return window.AdminMetadata
+          ? window.AdminMetadata.computeQuestionDifficulty(q)
+          : (Number(q.difficulty) || 0);
       case "ao":
         return (Number(q.ao1_marks) || 0) + (Number(q.ao2_marks) || 0) + (Number(q.ao3_marks) || 0);
       case "meta": {
@@ -3679,6 +3735,9 @@
       const hasCheckpoints = (checkPointsCounterMap[q.id] || 0) > 0;
       const cmd = q.command_word || "—";
       const demand = window.AdminMetadata ? window.AdminMetadata.formatDemandLabel(q.demand_level) : (q.demand_level || "—");
+      const computedDiff = window.AdminMetadata
+        ? window.AdminMetadata.computeQuestionDifficulty(q)
+        : (q.difficulty ?? "—");
       const aoSplit = window.AdminMetadata ? window.AdminMetadata.formatAoSplit(q) : "—";
       const rpCode = q.required_practicals?.code || (q.is_required_practical ? "RP" : "·");
       const aud = q.audience === "triple_only" ? "T" : "B";
@@ -3724,6 +3783,7 @@
             <td style="padding:12px 16px 4px 16px; font-weight:700;">${q.max_marks}</td>
             <td style="padding:12px 16px 4px 16px; font-size:0.8rem;">${escapeHtml(cmd)}</td>
             <td style="padding:12px 16px 4px 16px; font-size:0.78rem;">${escapeHtml(demand)}</td>
+            <td style="padding:12px 16px 4px 16px; text-align:center;"><span class="difficulty-badge difficulty-badge--compact" title="Computed difficulty (1–5)">${computedDiff}</span></td>
             <td style="padding:12px 16px 4px 16px; font-size:0.78rem; font-family:monospace;">${escapeHtml(aoSplit)}</td>
             <td style="padding:12px 16px 4px 16px; font-size:0.78rem;">${flags}</td>
             <td style="padding:12px 16px 4px 16px; font-size:0.72rem;font-family:monospace;max-width:88px;overflow:hidden;text-overflow:ellipsis;" title="${escapeHtml(skillsBadge)}">${escapeHtml(skillsBadge)}</td>
@@ -3941,6 +4001,7 @@
 
     // Populate common elements
     document.getElementById("editQuestionId").value = q.id;
+    document.getElementById("editQuestionType").value = q.question_type || "";
     document.getElementById("editPrompt").value = q.prompt;
     document.getElementById("editResource").value = q.resource_links || "";
     populateHintsEditor("editHintsList", Array.isArray(q.hints) ? q.hints : []);
@@ -4798,6 +4859,7 @@
   window.AdminMetadata = AdminMetadata;
   window.AdminSkills = AdminSkills;
   AdminMetadata.initCreatorMetadataUI();
+  AdminMetadata.initEditMetadataListeners();
   AdminSkills.initAdminSkillsUI(supabaseClient);
 
   const editTier = document.getElementById("editTier");
@@ -4811,6 +4873,7 @@
         if (options.some((o) => o.value === cur)) sel.value = cur;
       }
       AdminMetadata.autoSizeAdminSelects(document.getElementById("editForm"));
+      AdminMetadata.refreshEditDifficultyBadge();
     });
   }
 
@@ -4831,6 +4894,7 @@
     if (word && demandSel) {
       demandSel.value = AdminMetadata.suggestDemandLevel(word, tier);
     }
+    AdminMetadata.refreshEditDifficultyBadge();
   });
 </script>
 </body>
