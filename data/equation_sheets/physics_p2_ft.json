@@ -1,74 +1,513 @@
-﻿{
-    "id":  "physics_p2_ft",
-    "exam_series":  "2026",
-    "subject":  "physics",
-    "paper":  "paper2",
-    "tier":  "FT",
-    "equations":  [
-                      {
-                          "label":  "Weight",
-                          "latex":  "W = m g",
-                          "id":  "weight",
-                          "topic_tags":  [
-                                             "forces"
-                                         ]
-                      },
-                      {
-                          "label":  "Work done",
-                          "latex":  "W = F s",
-                          "id":  "work_done",
-                          "topic_tags":  [
-                                             "forces"
-                                         ]
-                      },
-                      {
-                          "label":  "Force on a spring",
-                          "latex":  "F = k e",
-                          "id":  "spring_force",
-                          "topic_tags":  [
-                                             "forces"
-                                         ]
-                      },
-                      {
-                          "label":  "Distance travelled",
-                          "latex":  "s = v t",
-                          "id":  "distance_speed",
-                          "topic_tags":  [
-                                             "forces"
-                                         ]
-                      },
-                      {
-                          "label":  "Acceleration",
-                          "latex":  "a = \\frac{\\Delta v}{t}",
-                          "id":  "acceleration",
-                          "topic_tags":  [
-                                             "forces"
-                                         ]
-                      },
-                      {
-                          "label":  "Resultant force",
-                          "latex":  "F = m a",
-                          "id":  "force",
-                          "topic_tags":  [
-                                             "forces"
-                                         ]
-                      },
-                      {
-                          "label":  "Period",
-                          "latex":  "T = \\frac{1}{f}",
-                          "id":  "period",
-                          "topic_tags":  [
-                                             "waves"
-                                         ]
-                      },
-                      {
-                          "label":  "Wave speed",
-                          "latex":  "v = f \\lambda",
-                          "id":  "wave_speed",
-                          "topic_tags":  [
-                                             "waves"
-                                         ]
-                      }
-                  ],
-    "title":  "AQA Physics Paper 2 (Foundation)"
+{
+  "id": "physics_p2_ft",
+  "exam_series": "2026",
+  "subject": "physics",
+  "paper": "paper2",
+  "tier": "FT",
+  "equations": [
+    {
+      "label": "Weight",
+      "latex": "W = m g",
+      "id": "weight",
+      "topic_tags": [
+        "forces"
+      ],
+      "substitution_template": {
+        "layout": "product",
+        "tokens": [
+          {
+            "kind": "slot",
+            "id": "W",
+            "label": "W"
+          },
+          {
+            "kind": "op",
+            "text": "="
+          },
+          {
+            "kind": "slot",
+            "id": "m",
+            "label": "m"
+          },
+          {
+            "kind": "op",
+            "text": "\u00d7"
+          },
+          {
+            "kind": "slot",
+            "id": "g",
+            "label": "g"
+          }
+        ]
+      },
+      "rearrangement_forms": {
+        "default_subject": "m",
+        "variants": [
+          {
+            "subject": "m",
+            "correct": "m = W / g",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          },
+          {
+            "subject": "g",
+            "correct": "g = W / m",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          },
+          {
+            "subject": "W",
+            "correct": "W = m \u00d7 g",
+            "distractor_patterns": [
+              "multiply_instead",
+              "swap_operands"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "label": "Work done",
+      "latex": "W = F s",
+      "id": "work_done",
+      "topic_tags": [
+        "forces"
+      ],
+      "substitution_template": {
+        "layout": "product",
+        "tokens": [
+          {
+            "kind": "slot",
+            "id": "W",
+            "label": "W"
+          },
+          {
+            "kind": "op",
+            "text": "="
+          },
+          {
+            "kind": "slot",
+            "id": "F",
+            "label": "F"
+          },
+          {
+            "kind": "op",
+            "text": "\u00d7"
+          },
+          {
+            "kind": "slot",
+            "id": "s",
+            "label": "s"
+          }
+        ]
+      },
+      "rearrangement_forms": {
+        "default_subject": "F",
+        "variants": [
+          {
+            "subject": "F",
+            "correct": "F = W / s",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          },
+          {
+            "subject": "s",
+            "correct": "s = W / F",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          },
+          {
+            "subject": "W",
+            "correct": "W = F \u00d7 s",
+            "distractor_patterns": [
+              "multiply_instead",
+              "swap_operands"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "label": "Force on a spring",
+      "latex": "F = k e",
+      "id": "spring_force",
+      "topic_tags": [
+        "forces"
+      ],
+      "substitution_template": {
+        "layout": "product",
+        "tokens": [
+          {
+            "kind": "slot",
+            "id": "F",
+            "label": "F"
+          },
+          {
+            "kind": "op",
+            "text": "="
+          },
+          {
+            "kind": "slot",
+            "id": "k",
+            "label": "k"
+          },
+          {
+            "kind": "op",
+            "text": "\u00d7"
+          },
+          {
+            "kind": "slot",
+            "id": "e",
+            "label": "e"
+          }
+        ]
+      },
+      "rearrangement_forms": {
+        "default_subject": "k",
+        "variants": [
+          {
+            "subject": "k",
+            "correct": "k = F / e",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          },
+          {
+            "subject": "e",
+            "correct": "e = F / k",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          },
+          {
+            "subject": "F",
+            "correct": "F = k \u00d7 e",
+            "distractor_patterns": [
+              "multiply_instead",
+              "swap_operands"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "label": "Distance travelled",
+      "latex": "s = v t",
+      "id": "distance_speed",
+      "topic_tags": [
+        "forces"
+      ],
+      "substitution_template": {
+        "layout": "product",
+        "tokens": [
+          {
+            "kind": "slot",
+            "id": "s",
+            "label": "s"
+          },
+          {
+            "kind": "op",
+            "text": "="
+          },
+          {
+            "kind": "slot",
+            "id": "v",
+            "label": "v"
+          },
+          {
+            "kind": "op",
+            "text": "\u00d7"
+          },
+          {
+            "kind": "slot",
+            "id": "t",
+            "label": "t"
+          }
+        ]
+      },
+      "rearrangement_forms": {
+        "default_subject": "t",
+        "variants": [
+          {
+            "subject": "t",
+            "correct": "t = s / v",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          },
+          {
+            "subject": "v",
+            "correct": "v = s / t",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          },
+          {
+            "subject": "s",
+            "correct": "s = v \u00d7 t",
+            "distractor_patterns": [
+              "multiply_instead",
+              "swap_operands"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "label": "Acceleration",
+      "latex": "a = \\frac{\\Delta v}{t}",
+      "id": "acceleration",
+      "topic_tags": [
+        "forces"
+      ],
+      "substitution_template": {
+        "layout": "fraction",
+        "lhs": [
+          {
+            "kind": "slot",
+            "id": "a",
+            "label": "a"
+          }
+        ],
+        "numerator": [
+          {
+            "kind": "slot",
+            "id": "delta_v",
+            "label": "\u0394v"
+          }
+        ],
+        "denominator": [
+          {
+            "kind": "slot",
+            "id": "t",
+            "label": "t"
+          }
+        ]
+      },
+      "rearrangement_forms": {
+        "default_subject": "delta_v",
+        "variants": [
+          {
+            "subject": "delta_v",
+            "correct": "delta_v = a \u00d7 t",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          },
+          {
+            "subject": "t",
+            "correct": "t = delta_v / a",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          },
+          {
+            "subject": "a",
+            "correct": "a = delta_v / t",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "label": "Resultant force",
+      "latex": "F = m a",
+      "id": "force",
+      "topic_tags": [
+        "forces"
+      ],
+      "substitution_template": {
+        "layout": "product",
+        "tokens": [
+          {
+            "kind": "slot",
+            "id": "F",
+            "label": "F"
+          },
+          {
+            "kind": "op",
+            "text": "="
+          },
+          {
+            "kind": "slot",
+            "id": "m",
+            "label": "m"
+          },
+          {
+            "kind": "op",
+            "text": "\u00d7"
+          },
+          {
+            "kind": "slot",
+            "id": "a",
+            "label": "a"
+          }
+        ]
+      },
+      "rearrangement_forms": {
+        "default_subject": "a",
+        "variants": [
+          {
+            "subject": "a",
+            "correct": "a = F / m",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          },
+          {
+            "subject": "m",
+            "correct": "m = F / a",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          },
+          {
+            "subject": "F",
+            "correct": "F = m \u00d7 a",
+            "distractor_patterns": [
+              "multiply_instead",
+              "swap_operands"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "label": "Period",
+      "latex": "T = \\frac{1}{f}",
+      "id": "period",
+      "topic_tags": [
+        "waves"
+      ],
+      "substitution_template": {
+        "layout": "fraction",
+        "lhs": [
+          {
+            "kind": "slot",
+            "id": "T",
+            "label": "T"
+          }
+        ],
+        "numerator": [
+          {
+            "kind": "op",
+            "text": "1"
+          }
+        ],
+        "denominator": [
+          {
+            "kind": "slot",
+            "id": "f",
+            "label": "f"
+          }
+        ]
+      },
+      "rearrangement_forms": {
+        "default_subject": "f",
+        "variants": [
+          {
+            "subject": "f",
+            "correct": "f = 1 / T",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          },
+          {
+            "subject": "T",
+            "correct": "T = 1 / f",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "label": "Wave speed",
+      "latex": "v = f \\lambda",
+      "id": "wave_speed",
+      "topic_tags": [
+        "waves"
+      ],
+      "substitution_template": {
+        "layout": "product",
+        "tokens": [
+          {
+            "kind": "slot",
+            "id": "v",
+            "label": "v"
+          },
+          {
+            "kind": "op",
+            "text": "="
+          },
+          {
+            "kind": "slot",
+            "id": "f",
+            "label": "f"
+          },
+          {
+            "kind": "op",
+            "text": "\u00d7"
+          },
+          {
+            "kind": "slot",
+            "id": "lambda",
+            "label": "\u03bb"
+          }
+        ]
+      },
+      "rearrangement_forms": {
+        "default_subject": "f",
+        "variants": [
+          {
+            "subject": "f",
+            "correct": "f = v / lambda",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          },
+          {
+            "subject": "lambda",
+            "correct": "lambda = v / f",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          },
+          {
+            "subject": "v",
+            "correct": "v = f \u00d7 lambda",
+            "distractor_patterns": [
+              "multiply_instead",
+              "swap_operands"
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "title": "AQA Physics Paper 2 (Foundation)"
 }

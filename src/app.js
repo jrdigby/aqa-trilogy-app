@@ -63,6 +63,8 @@ import {
   applyCalculationStepHighlighting,
   wireStudentEquationSelectPreview,
   resolveEquationSheetIdForQuestion,
+  questionNeedsEquationSheet,
+  getCalculationConfig,
   buildNumericFlashcardInsights
 } from './calculationWorkflow.js';
 import { computeAttemptXp, formatXpToastMessage, XP_RULES_FOOTNOTE, XP_RULES_TOAST_KEY } from './xpEngine.js';
@@ -2283,14 +2285,18 @@ async function loadQuestion() {
   const sheetId = resolveEquationSheetIdForQuestion(currentQ, currentUserProfile, {
     sessionTier: getSelectedFilters().tier
   });
-  if (sheetId) {
-    const sheetRes = await supabaseClient
-      .from("equation_sheets")
-      .select("id, title, equations")
-      .eq("id", sheetId)
-      .maybeSingle();
-    if (!sheetRes.error && currentQ?.id === questionId) {
-      currentEquationSheet = sheetRes.data;
+  const needsSheet = questionNeedsEquationSheet(currentQ);
+  if (sheetId || needsSheet) {
+    const loadId = sheetId || getCalculationConfig(currentQ)?.equation_sheet_id;
+    if (loadId) {
+      const sheetRes = await supabaseClient
+        .from("equation_sheets")
+        .select("id, title, equations")
+        .eq("id", loadId)
+        .maybeSingle();
+      if (!sheetRes.error && currentQ?.id === questionId) {
+        currentEquationSheet = sheetRes.data;
+      }
     }
   }
   if (currentQ?.id === questionId) {
@@ -2308,7 +2314,7 @@ async function loadQuestion() {
       equationSheet: currentEquationSheet
     });
     triggerMathTypeset();
-    wireStudentEquationSelectPreview(triggerMathTypeset);
+    wireStudentEquationSelectPreview(triggerMathTypeset, currentQ, currentEquationSheet);
     lastAnswerFocusState = null;
   }
 
@@ -2353,7 +2359,7 @@ function getResponsePayload(q) {
     return { type: "mcq", answer: picked };
   }
   if (q.question_type === "numeric") {
-    const resp = collectCalculationResponse(q, sessionMode);
+    const resp = collectCalculationResponse(q, sessionMode, currentEquationSheet);
     const unit = (currentKey && currentKey.key_payload && currentKey.key_payload.unit)
       ? currentKey.key_payload.unit
       : "";

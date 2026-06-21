@@ -1318,9 +1318,31 @@
               </div>
               <div id="CalcPanelSubstitution" class="hidden" style="border-top:1px solid var(--border);padding-top:10px;margin-bottom:10px;">
                 <h4 class="calc-step-panel-title">Substitution step</h4>
-                <p class="calc-step-panel-hint muted">Student writes the equation with question values plugged in. Add every acceptable form (one per line) — spacing and × vs * are normalised when marking.</p>
-                <label title="Each line is a valid substitution the student may enter. Include units if your mark scheme expects them.">Accepted substitution lines (one per line)</label>
-                <textarea id="CalcSubstitutionAccepted" rows="3" placeholder="e.g.&#10;E_k = 0.5 × 2.0 × 4.0²&#10;E_k = 0.5 * 2.0 * 4.0^2" title="One accepted substitution per line"></textarea>
+                <p class="calc-step-panel-hint muted">Structured mode shows one input per quantity in the equation. Free text uses a single line (legacy).</p>
+                <div class="row" style="margin-bottom:8px;">
+                  <div>
+                    <label title="Structured: slot boxes from equation template. Free text: single input with accepted lines.">Substitution mode</label>
+                    <select id="CalcSubstitutionMode" title="Structured uses slot boxes; free text uses one input">
+                      <option value="free_text">Free text (single input)</option>
+                      <option value="structured">Structured (slot boxes)</option>
+                    </select>
+                  </div>
+                  <div id="CalcSubstitutionEquationRow">
+                    <label title="Equation whose template defines the slot layout">Equation for template</label>
+                    <select id="CalcSubstitutionEquation" class="select-fit" title="Pick equation from sheet — must have a substitution template">
+                      <option value="">— Select equation sheet above —</option>
+                    </select>
+                  </div>
+                </div>
+                <div id="CalcSubstitutionStructuredPanel" class="hidden">
+                  <label title="Expected text in each slot. Use | for alternates (e.g. I | i).">Expected value per slot</label>
+                  <div id="CalcSubstitutionSlots" style="margin:6px 0;"></div>
+                  <div id="CalcSubstitutionPreview" style="margin-top:8px;padding:10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;font-size:0.85rem;"></div>
+                </div>
+                <div id="CalcSubstitutionFreeTextPanel">
+                  <label title="Each line is a valid substitution the student may enter. Include units if your mark scheme expects them.">Accepted substitution lines (one per line)</label>
+                  <textarea id="CalcSubstitutionAccepted" rows="3" placeholder="e.g.&#10;E_k = 0.5 × 2.0 × 4.0²&#10;E_k = 0.5 * 2.0 * 4.0^2" title="One accepted substitution per line"></textarea>
+                </div>
                 <label style="display:block;margin-top:8px;font-size:0.78rem;color:var(--text-muted);">Feedback if wrong (optional)</label>
                 <textarea id="CalcSubstitutionFeedback" class="calc-step-feedback" rows="2" placeholder="e.g. Substitute m = 2.0 kg and v = 4.0 m/s into E_k = ½mv²."></textarea>
               </div>
@@ -1348,7 +1370,23 @@
               </div>
               <div id="CalcPanelRearrangement" class="hidden" style="border-top:1px solid var(--border);padding-top:10px;margin-bottom:10px;">
                 <h4 class="calc-step-panel-title">Rearrangement step</h4>
-                <p class="calc-step-panel-hint muted">Student picks the correctly rearranged formula from a dropdown. Enter the exact string they should select.</p>
+                <p class="calc-step-panel-hint muted">Student picks the correctly rearranged formula from a dropdown. Numeric mode auto-generates options with question values when structured substitution is enabled.</p>
+                <div id="CalcRearrangementStructuredExtras" class="hidden" style="margin-bottom:8px;">
+                  <div class="row">
+                    <div>
+                      <label title="Numeric: dropdown with values plugged in. Symbolic: manual formula strings.">Rearrangement mode</label>
+                      <select id="CalcRearrangementMode">
+                        <option value="numeric">Numeric (auto from slots)</option>
+                        <option value="symbolic">Symbolic (manual strings)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label title="Which unknown the student is solving for">Unknown (subject)</label>
+                      <select id="CalcRearrangementSubject" class="select-fit"></select>
+                    </div>
+                  </div>
+                  <div id="CalcRearrangementNumericPreview" style="font-size:0.78rem;color:#64748b;margin-top:6px;line-height:1.4;"></div>
+                </div>
                 <div class="row">
                   <div>
                     <label title="Exact formula string shown as the correct dropdown option, e.g. v = s / t">Correct rearranged formula</label>
@@ -1914,9 +1952,31 @@
             </div>
             <div id="editCalcPanelSubstitution" class="hidden" style="border-top:1px solid var(--border);padding-top:8px;margin-bottom:8px;">
               <h4 class="calc-step-panel-title">Substitution step</h4>
-              <p class="calc-step-panel-hint muted">Accepted forms the student may write (one per line). Spacing and × vs * are normalised when marking.</p>
-              <label title="One valid substitution per line">Accepted substitution lines (one per line)</label>
-              <textarea id="editCalcSubstitutionAccepted" rows="3" placeholder="e.g.&#10;E_k = 0.5 × 2.0 × 4.0²"></textarea>
+              <p class="calc-step-panel-hint muted">Structured: slot boxes. Free text: accepted lines (one per line).</p>
+              <div class="row" style="margin-bottom:8px;">
+                <div>
+                  <label>Substitution mode</label>
+                  <select id="editCalcSubstitutionMode">
+                    <option value="free_text">Free text (single input)</option>
+                    <option value="structured">Structured (slot boxes)</option>
+                  </select>
+                </div>
+                <div id="editCalcSubstitutionEquationRow">
+                  <label>Equation for template</label>
+                  <select id="editCalcSubstitutionEquation" class="select-fit">
+                    <option value="">— Select equation sheet —</option>
+                  </select>
+                </div>
+              </div>
+              <div id="editCalcSubstitutionStructuredPanel" class="hidden">
+                <label>Expected value per slot (use | for alternates)</label>
+                <div id="editCalcSubstitutionSlots" style="margin:6px 0;"></div>
+                <div id="editCalcSubstitutionPreview" style="margin-top:8px;padding:10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;font-size:0.85rem;"></div>
+              </div>
+              <div id="editCalcSubstitutionFreeTextPanel">
+                <label title="One valid substitution per line">Accepted substitution lines (one per line)</label>
+                <textarea id="editCalcSubstitutionAccepted" rows="3" placeholder="e.g.&#10;E_k = 0.5 × 2.0 × 4.0²"></textarea>
+              </div>
               <label style="display:block;margin-top:8px;font-size:0.78rem;color:var(--text-muted);">Feedback if wrong (optional)</label>
               <textarea id="editCalcSubstitutionFeedback" class="calc-step-feedback" rows="2" placeholder="e.g. Substitute m = 2.0 kg and v = 4.0 m/s into the equation."></textarea>
             </div>
@@ -1944,7 +2004,23 @@
             </div>
             <div id="editCalcPanelRearrangement" class="hidden" style="border-top:1px solid var(--border);padding-top:8px;margin-bottom:8px;">
               <h4 class="calc-step-panel-title">Rearrangement step</h4>
-              <p class="calc-step-panel-hint muted">Exact formula string for the correct dropdown option.</p>
+              <p class="calc-step-panel-hint muted">Exact formula string for the correct dropdown option. Numeric mode auto-generates when structured substitution is enabled.</p>
+              <div id="editCalcRearrangementStructuredExtras" class="hidden" style="margin-bottom:8px;">
+                <div class="row">
+                  <div>
+                    <label>Rearrangement mode</label>
+                    <select id="editCalcRearrangementMode">
+                      <option value="numeric">Numeric (auto from slots)</option>
+                      <option value="symbolic">Symbolic (manual strings)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label>Unknown (subject)</label>
+                    <select id="editCalcRearrangementSubject" class="select-fit"></select>
+                  </div>
+                </div>
+                <div id="editCalcRearrangementNumericPreview" style="font-size:0.78rem;color:#64748b;margin-top:6px;line-height:1.4;"></div>
+              </div>
               <div class="row">
                 <div>
                   <label title="Exact string for the correct dropdown choice">Correct rearranged formula</label>
@@ -3048,7 +3124,12 @@
     const select = document.getElementById(prefix + "CalcEquationAnswer");
     const pending = select?.dataset?.pendingAnswer || select?.value || "";
     if (select?.dataset?.pendingAnswer) delete select.dataset.pendingAnswer;
-    await CalcWorkflow.refreshEquationSelect(supabaseClient, prefix, pending);
+    const equations = await CalcWorkflow.refreshEquationSelect(supabaseClient, prefix, pending);
+    window._calcEquationOptions = window._calcEquationOptions || {};
+    window._calcEquationOptions[prefix || "creator"] = equations || [];
+    if (window.CalcWorkflow?.refreshStructuredSubstitutionAdmin) {
+      await window.CalcWorkflow.refreshStructuredSubstitutionAdmin(supabaseClient, prefix);
+    }
     if (window.CalcWorkflow) window.CalcWorkflow.updateNumericAuthoringUi(prefix);
   }
 
@@ -3089,6 +3170,8 @@
   if (window.CalcWorkflow) {
     window.CalcWorkflow.wireCalculationFormToggles("", () => onCalcWorkflowChange(""));
     window.CalcWorkflow.wireCalculationFormToggles("edit", () => onCalcWorkflowChange("edit"));
+    window.CalcWorkflow.wireStructuredSubstitutionAuthoring("", supabaseClient, () => onCalcWorkflowChange(""));
+    window.CalcWorkflow.wireStructuredSubstitutionAuthoring("edit", supabaseClient, () => onCalcWorkflowChange("edit"));
     window.CalcWorkflow.populateCalculationForm("", null);
     window.CalcWorkflow.syncMaxMarksSelect("");
     window.CalcWorkflow.updateNumericAuthoringUi("", qType?.value || "short_text");
@@ -3323,7 +3406,9 @@
       }
       
       if (questionType === "numeric" && window.CalcWorkflow) {
-        insertPayload.calculation_config = window.CalcWorkflow.buildCalculationConfigFromForm("");
+        let calcCfg = window.CalcWorkflow.buildCalculationConfigFromForm("");
+        const eqs = window._calcEquationOptions?.creator || [];
+        insertPayload.calculation_config = window.CalcWorkflow.finalizeCalculationConfigForSave(calcCfg, eqs);
       }
 
       const { data: qResult, error: qErr } = await supabaseClient
@@ -4385,6 +4470,9 @@
         selectedId: calcConfig?.equation_sheet_id || ""
       });
       await CalcWorkflow.refreshEquationSelect(supabaseClient, "edit", eqStep?.answer || "");
+      if (window.CalcWorkflow?.refreshStructuredSubstitutionAdmin) {
+        await window.CalcWorkflow.refreshStructuredSubstitutionAdmin(supabaseClient, "edit");
+      }
       updateEquationAuthoringHints("edit");
       window.CalcWorkflow.updateNumericAuthoringUi("edit", "numeric");
     }
@@ -4574,7 +4662,9 @@
       }
       
       if (q.question_type === "numeric" && window.CalcWorkflow) {
-        const calcCfg = window.CalcWorkflow.buildCalculationConfigFromForm("edit");
+        let calcCfg = window.CalcWorkflow.buildCalculationConfigFromForm("edit");
+        const eqs = window._calcEquationOptions?.edit || [];
+        calcCfg = window.CalcWorkflow.finalizeCalculationConfigForSave(calcCfg, eqs);
         updatePayload.calculation_config = calcCfg;
         updatePayload.max_marks = parseInt(document.getElementById("editMaxMarks")?.value, 10)
           || window.CalcWorkflow.computeMaxMarksFromConfig(calcCfg);
@@ -4806,7 +4896,7 @@
     if (q.question_type === "numeric" && window.CalcWorkflow) {
       CalcWorkflow.wireStudentEquationSelectPreview(() => {
         if (window.MathJax?.typesetPromise) window.MathJax.typesetPromise();
-      });
+      }, q, currentSandboxedEquationSheet);
     }
     // Trigger Math typesetting
     if (window.MathJax && typeof window.MathJax.typesetPromise === "function") {
@@ -4883,7 +4973,7 @@
       const picked = document.querySelector('input[name="sandbox_mcq"]:checked')?.value || "";
       resp = { type: "mcq", answer: picked };
     } else if (currentSandboxedQ.question_type === "numeric") {
-      resp = CalcWorkflow.collectCalculationResponse(currentSandboxedQ, "any_practice");
+      resp = CalcWorkflow.collectCalculationResponse(currentSandboxedQ, "any_practice", currentSandboxedEquationSheet);
       resp.unit = (currentSandboxedKey?.key_payload?.unit) || "";
     } else {
       resp = { type: "short_text", text: document.getElementById("sbTextAns")?.value.trim() };
