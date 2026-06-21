@@ -104,6 +104,102 @@ export function isSimpleNumericMode(q, config = null) {
   return steps.length === 1 && steps[0]?.type === "calculate";
 }
 
+/** Same as isSimpleNumericMode but reads the live admin form. */
+export function isSimpleNumericModeFromForm(prefix = "") {
+  return isSimpleNumericMode(null, buildCalculationConfigFromForm(prefix));
+}
+
+const FEEDBACK_FIELD_BY_TYPE = {
+  equation_select: "CalcEquationFeedback",
+  substitution: "CalcSubstitutionFeedback",
+  conversion: "CalcConversionFeedback",
+  rearrangement: "CalcRearrangeFeedback",
+  calculate: "CalcCalculateFeedback",
+  sig_figs: "CalcSigFigsFeedback"
+};
+
+function readStepFeedback(prefix, fieldSuffix) {
+  const val = document.getElementById(prefix + fieldSuffix)?.value?.trim();
+  return val || undefined;
+}
+
+function writeStepFeedback(prefix, fieldSuffix, value) {
+  const el = document.getElementById(prefix + fieldSuffix);
+  if (el) el.value = value || "";
+}
+
+/** Pull legacy Section 3 mark_points into calculation_config for editing. */
+export function mergeLegacyNumericMarkPoints(config, markPoints) {
+  if (!markPoints?.length) return config;
+  const base = config || { equation_given: true, steps: [{ type: "calculate", required: true }] };
+  const cfg = {
+    ...base,
+    steps: (base.steps || []).map((s) => ({ ...s })),
+    remediation_steps: [...(base.remediation_steps || [])]
+  };
+  const calcTagRe = /^\[calc:(\w+)\]$/;
+
+  for (const mp of markPoints) {
+    const fb = mp.feedback_if_missing?.trim();
+    if (!fb) continue;
+    const match = mp.point_text?.match(calcTagRe);
+    if (match) {
+      const step = cfg.steps.find((s) => s.type === match[1]);
+      if (step && !step.feedback_if_wrong) step.feedback_if_wrong = fb;
+      continue;
+    }
+    if (isSimpleNumericMode(null, cfg)) {
+      const exists = cfg.remediation_steps.some((s) => s.text === fb);
+      if (!exists) {
+        cfg.remediation_steps.push({ ao: mp.ao || "AO2", text: fb });
+      }
+    }
+  }
+  return cfg;
+}
+
+export function buildRemediationStepsFromForm(prefix = "") {
+  const wrap = document.getElementById(`${prefix}CalcRemediationWrapper`);
+  if (!wrap) return [];
+  return Array.from(wrap.querySelectorAll(".calc-rem-row"))
+    .map((row) => ({
+      ao: row.querySelector(".calc-rem-ao")?.value || "AO2",
+      text: row.querySelector(".calc-rem-text")?.value?.trim() || ""
+    }))
+    .filter((s) => s.text);
+}
+
+export function populateRemediationSteps(prefix, steps = []) {
+  const wrap = document.getElementById(`${prefix}CalcRemediationWrapper`);
+  if (!wrap || typeof window.addCalcRemediationRow !== "function") return;
+  wrap.innerHTML = "";
+  if (window.resetCalcRemediationCounter) window.resetCalcRemediationCounter(prefix);
+  for (const step of steps) {
+    window.addCalcRemediationRow(prefix, step.ao || "AO2", step.text || "");
+  }
+}
+
+/** Show/hide numeric-specific authoring panels (Section 3 hidden for numeric). */
+export function updateNumericAuthoringUi(prefix = "", questionType = null) {
+  const type = questionType
+    ?? (prefix === "edit"
+      ? document.getElementById("editQuestionType")?.value
+      : document.getElementById("qType")?.value);
+  const isNumeric = type === "numeric";
+  const simple = isNumeric && isSimpleNumericModeFromForm(prefix);
+
+  const section3 = document.getElementById(prefix === "edit" ? "editMarkpointsBlock" : "creatorSectionMarkpoints");
+  if (section3) section3.classList.toggle("hidden", isNumeric);
+
+  const simplePanel = document.getElementById(`${prefix}CalcSimpleRemediationPanel`);
+  const multiNote = document.getElementById(`${prefix}CalcMultiStepFeedbackNote`);
+  if (simplePanel) simplePanel.classList.toggle("hidden", !simple);
+  if (multiNote) multiNote.classList.toggle("hidden", !isNumeric || simple);
+
+  const calcFeedback = document.getElementById(`${prefix}CalcPanelCalculate`);
+  if (calcFeedback) calcFeedback.classList.toggle("hidden", !isNumeric);
+}
+
 /** Fetch equations array from a shared equation sheet row. */
 export async function loadEquationSheetOptions(supabaseClient, sheetId) {
   if (!sheetId || !supabaseClient) return [];
@@ -803,10 +899,12 @@ function substitutionMatches(studentText, step) {
   return accepted.some((a) => normalizeSubstitution(a) === normalized);
 }
 
-function getStepFeedback(markPoints, stepType, defaultText) {
+function getStepFeedback(step, markPoints, stepType, defaultText) {
+  const inline = step?.feedback_if_wrong?.trim();
+  if (inline) return inline;
   const tag = `[calc:${stepType}]`;
   const mp = markPoints?.find((p) => p.point_text === tag);
-  return mp?.feedback_if_missing || defaultText;
+  return mp?.feedback_if_missing?.trim() || defaultText;
 }
 
 function resolveSimpleNumericMaxAo(max, markPoints) {
@@ -838,22 +936,42 @@ function awardSimpleNumericAo(max, markPoints, stepAo) {
   return ao;
 }
 
-function buildSimpleNumericMissing(markPoints, cleanUrl, key) {
+function buildSimpleNumericMissing(config, markPoints, cleanUrl, key, steps) {
   const ansTarget = parseFloat(key?.key_payload?.answer);
   const unit = key?.key_payload?.unit || "";
-  const pedagogical = (markPoints || []).filter(
-    (mp) => mp.feedback_if_missing?.trim() || mp.point_text === "[numeric_fallback]"
-  );
+  const calcStep = steps?.find((s) => s.type === "calculate");
+
+  const fromConfig = (config?.remediation_steps || [])
+    .filter((s) => s.text?.trim())
+    .map((s) => ({
+      ao: s.ao || "AO2",
+      stepType: "calculate",
+      text: s.text.trim(),
+      url: cleanUrl,
+      image_url: s.image_url || ""
+    }));
+  if (fromConfig.length > 0) return fromConfig;
+
+  const pedagogical = (markPoints || []).filter((mp) => mp.feedback_if_missing?.trim());
   if (pedagogical.length > 0) {
     return pedagogical.map((mp) => ({
       ao: mp.ao || "AO2",
       stepType: "calculate",
-      text: mp.feedback_if_missing?.trim()
-        || `Checkpoint: ${mp.point_text}`,
+      text: mp.feedback_if_missing.trim(),
       url: cleanUrl,
       image_url: mp.image_url || ""
     }));
   }
+
+  if (calcStep?.feedback_if_wrong?.trim()) {
+    return [{
+      ao: calcStep.ao || "AO2",
+      stepType: "calculate",
+      text: calcStep.feedback_if_wrong.trim(),
+      url: cleanUrl
+    }];
+  }
+
   return [{
     ao: "AO2",
     stepType: "calculate",
@@ -898,7 +1016,7 @@ export function markCalculationResponse(q, resp, key, markPoints, cleanUrl, equa
     const isCorrect = studentVal != null && Math.abs(studentVal - ansTarget) <= ansTol;
     const total = isCorrect ? max : 0;
     const ao = isCorrect ? awardSimpleNumericAo(max, markPoints, stepAo) : { AO1: 0, AO2: 0, AO3: 0 };
-    const missing = isCorrect ? [] : buildSimpleNumericMissing(markPoints, cleanUrl, key);
+    const missing = isCorrect ? [] : buildSimpleNumericMissing(config, markPoints, cleanUrl, key, steps);
     stepResults.calculate = {
       earned: total,
       max,
@@ -932,6 +1050,7 @@ export function markCalculationResponse(q, resp, key, markPoints, cleanUrl, equa
           ao: stepAo,
           stepType: step.type,
           text: getStepFeedback(
+            step,
             markPoints,
             "equation_select",
             `Equation incorrect: the correct equation is "${expectedLabel}".`
@@ -948,6 +1067,7 @@ export function markCalculationResponse(q, resp, key, markPoints, cleanUrl, equa
           ao: stepAo,
           stepType: step.type,
           text: getStepFeedback(
+            step,
             markPoints,
             "substitution",
             "Substitution incorrect: check that you have inserted the correct values from the question."
@@ -968,6 +1088,7 @@ export function markCalculationResponse(q, resp, key, markPoints, cleanUrl, equa
           ao: stepAo,
           stepType: step.type,
           text: getStepFeedback(
+            step,
             markPoints,
             "conversion",
             `Unit conversion incorrect: expected ${conversionTarget}${step.label ? ` (${step.label})` : ""}.`
@@ -984,6 +1105,7 @@ export function markCalculationResponse(q, resp, key, markPoints, cleanUrl, equa
           ao: stepAo,
           stepType: step.type,
           text: getStepFeedback(
+            step,
             markPoints,
             "rearrangement",
             `Rearrangement incorrect: the correct form is "${step.answer}".`
@@ -1026,6 +1148,7 @@ export function markCalculationResponse(q, resp, key, markPoints, cleanUrl, equa
           ao: stepAo,
           stepType: step.type,
           text: getStepFeedback(
+            step,
             markPoints,
             "calculate",
             `Final calculation incorrect: expected ${target}${unit ? " " + unit : ""}.`
@@ -1044,6 +1167,7 @@ export function markCalculationResponse(q, resp, key, markPoints, cleanUrl, equa
             ao: stepAo,
             stepType: step.type,
             text: getStepFeedback(
+              step,
               markPoints,
               "sig_figs",
               `Significant figures incorrect: give your answer to ${step.sig_figs} significant figures.`
@@ -1059,6 +1183,7 @@ export function markCalculationResponse(q, resp, key, markPoints, cleanUrl, equa
           ao: stepAo,
           stepType: step.type,
           text: getStepFeedback(
+            step,
             markPoints,
             "sig_figs",
             `Significant figures incorrect: expected ${roundToSigFigs(ansTarget, step.sig_figs)} (${step.sig_figs} s.f.).`
@@ -1288,6 +1413,7 @@ export function renderCalculationStepSummary(stepResults) {
 export function buildCalculationConfigFromForm(prefix = "") {
   const p = (id) => document.getElementById(prefix + id);
   const chk = (id) => !!p(id)?.checked;
+  const fb = (type) => readStepFeedback(prefix, FEEDBACK_FIELD_BY_TYPE[type]);
 
   const equationGiven = chk("CalcEquationGiven");
 
@@ -1303,7 +1429,8 @@ export function buildCalculationConfigFromForm(prefix = "") {
       distractors: (p("CalcEquationDistractors")?.value || "")
         .split(",")
         .map((s) => s.trim())
-        .filter(Boolean)
+        .filter(Boolean),
+      feedback_if_wrong: fb("equation_select")
     });
   }
 
@@ -1317,7 +1444,8 @@ export function buildCalculationConfigFromForm(prefix = "") {
       marks: markForStep("substitution", true),
       ao: "AO2",
       required: true,
-      accepted
+      accepted,
+      feedback_if_wrong: fb("substitution")
     });
   }
 
@@ -1329,7 +1457,8 @@ export function buildCalculationConfigFromForm(prefix = "") {
       required: true,
       label: p("CalcConversionLabel")?.value?.trim() || "",
       answer: parseFloat(p("CalcConversionAnswer")?.value),
-      tolerance: parseFloat(p("CalcConversionTol")?.value) || 0.001
+      tolerance: parseFloat(p("CalcConversionTol")?.value) || 0.001,
+      feedback_if_wrong: fb("conversion")
     });
   }
 
@@ -1344,7 +1473,8 @@ export function buildCalculationConfigFromForm(prefix = "") {
       ao: "AO2",
       required: true,
       answer: p("CalcRearrangeAnswer")?.value?.trim() || "",
-      distractors
+      distractors,
+      feedback_if_wrong: fb("rearrangement")
     });
   }
 
@@ -1352,7 +1482,8 @@ export function buildCalculationConfigFromForm(prefix = "") {
     type: "calculate",
     marks: markForStep("calculate", true),
     ao: "AO2",
-    required: true
+    required: true,
+    feedback_if_wrong: fb("calculate")
   });
 
   if (chk("CalcStepSigFigs")) {
@@ -1363,7 +1494,8 @@ export function buildCalculationConfigFromForm(prefix = "") {
       ao: "AO2",
       required: true,
       sig_figs: n,
-      enforce_on_final: true
+      enforce_on_final: true,
+      feedback_if_wrong: fb("sig_figs")
     });
   }
 
@@ -1373,10 +1505,13 @@ export function buildCalculationConfigFromForm(prefix = "") {
     equation_override_distractors = overrideRaw.split(",").map((s) => s.trim()).filter(Boolean);
   }
 
+  const remediation_steps = buildRemediationStepsFromForm(prefix);
+
   return normalizeCalculationConfig({
     equation_given: equationGiven,
     equation_sheet_id: p("CalcEquationSheet")?.value || null,
     equation_override_distractors,
+    remediation_steps: remediation_steps.length ? remediation_steps : undefined,
     steps
   });
 }
@@ -1411,11 +1546,13 @@ export function populateCalculationForm(prefix, config) {
   if (eqStep && p("CalcEquationDistractors")) {
     p("CalcEquationDistractors").value = (eqStep.distractors || []).join(", ");
   }
+  writeStepFeedback(prefix, FEEDBACK_FIELD_BY_TYPE.equation_select, eqStep?.feedback_if_wrong);
 
   const subStep = steps.find((s) => s.type === "substitution");
   if (subStep && p("CalcSubstitutionAccepted")) {
     p("CalcSubstitutionAccepted").value = (subStep.accepted || []).join("\n");
   }
+  writeStepFeedback(prefix, FEEDBACK_FIELD_BY_TYPE.substitution, subStep?.feedback_if_wrong);
 
   const convStep = steps.find((s) => s.type === "conversion");
   if (convStep) {
@@ -1423,6 +1560,7 @@ export function populateCalculationForm(prefix, config) {
     if (p("CalcConversionAnswer")) p("CalcConversionAnswer").value = convStep.answer ?? "";
     if (p("CalcConversionTol")) p("CalcConversionTol").value = convStep.tolerance ?? 0.001;
   }
+  writeStepFeedback(prefix, FEEDBACK_FIELD_BY_TYPE.conversion, convStep?.feedback_if_wrong);
 
   const rearrStep = steps.find((s) => s.type === "rearrangement");
   if (rearrStep) {
@@ -1431,11 +1569,18 @@ export function populateCalculationForm(prefix, config) {
       p("CalcRearrangeDistractors").value = (rearrStep.distractors || []).join(", ");
     }
   }
+  writeStepFeedback(prefix, FEEDBACK_FIELD_BY_TYPE.rearrangement, rearrStep?.feedback_if_wrong);
+
+  const calcStep = steps.find((s) => s.type === "calculate");
+  writeStepFeedback(prefix, FEEDBACK_FIELD_BY_TYPE.calculate, calcStep?.feedback_if_wrong);
 
   const sigStep = steps.find((s) => s.type === "sig_figs");
   if (sigStep && p("CalcSigFigsCount")) {
     p("CalcSigFigsCount").value = sigStep.sig_figs ?? 2;
   }
+  writeStepFeedback(prefix, FEEDBACK_FIELD_BY_TYPE.sig_figs, sigStep?.feedback_if_wrong);
+
+  populateRemediationSteps(prefix, cfg.remediation_steps || []);
 
   ["CalcStepEquation", "CalcStepSubstitution", "CalcStepConversion", "CalcStepRearrangement", "CalcStepSigFigs"].forEach((chkId) => {
     const panelMap = {
@@ -1450,6 +1595,8 @@ export function populateCalculationForm(prefix, config) {
       panel.classList.toggle("hidden", !p(chkId).checked);
     }
   });
+
+  updateNumericAuthoringUi(prefix);
 }
 
 export function wireCalculationFormToggles(prefix = "", onChange) {
@@ -1462,6 +1609,7 @@ export function wireCalculationFormToggles(prefix = "", onChange) {
   ];
   const notify = () => {
     syncMaxMarksSelect(prefix);
+    updateNumericAuthoringUi(prefix);
     onChange?.(prefix);
   };
 
