@@ -29,12 +29,20 @@ export function findEquationInSheet(equationSheet, equationId) {
   ) || null;
 }
 
-export function resolveEquationIdForSubstitution(config, equationSheet, subStep) {
+export function resolveEquationIdForSubstitution(config, equationSheet, subStep, options = {}) {
   const eqSelectStep = (config?.steps || []).find((s) => s.type === "equation_select");
+  const hasEquationSelect = !!eqSelectStep;
+
+  if (options.fromPayload?.equation_id) {
+    return String(options.fromPayload.equation_id).trim() || null;
+  }
+
   if (typeof document !== "undefined") {
     const selected = document.getElementById("calc_equation_select")?.value?.trim();
     if (selected) return selected;
+    if (hasEquationSelect) return null;
   }
+
   if (eqSelectStep?.answer) return eqSelectStep.answer;
   if (subStep?.equation_id) return subStep.equation_id;
   return null;
@@ -69,11 +77,15 @@ export function isStructuredSubstitutionStep(step) {
   return false;
 }
 
-export function resolveSubstitutionContext(config, equationSheet, subStep) {
+export function resolveSubstitutionContext(config, equationSheet, subStep, options = {}) {
   if (!isStructuredSubstitutionStep(subStep)) {
     return { mode: "free_text", template: null, equationId: null, equation: null };
   }
-  const equationId = resolveEquationIdForSubstitution(config, equationSheet, subStep);
+  const hasEquationSelect = (config?.steps || []).some((s) => s.type === "equation_select");
+  const equationId = resolveEquationIdForSubstitution(config, equationSheet, subStep, options);
+  if (!equationId && hasEquationSelect) {
+    return { mode: "pending", template: null, equationId: null, equation: null };
+  }
   const equation = findEquationInSheet(equationSheet, equationId);
   const template = getSubstitutionTemplate(equation);
   if (!template) {
@@ -123,7 +135,14 @@ export function renderFreeTextSubstitution(inputStyle) {
   return `<input id="calc_substitution" type="text" placeholder="e.g. E_k = 0.5 × 2.0 × 4.0²" style="${inputStyle} width:100%;"/>`;
 }
 
+export function renderPendingEquationSelectSubstitution() {
+  return `<p class="calc-sub-pending" style="font-size:0.85rem;color:#64748b;margin:0;font-style:italic;">Select an equation in the step above first.</p>`;
+}
+
 export function renderSubstitutionStepInner(ctx, inputStyle) {
+  if (ctx.mode === "pending") {
+    return renderPendingEquationSelectSubstitution();
+  }
   if (ctx.mode !== "structured" || !ctx.template) {
     return renderFreeTextSubstitution(inputStyle);
   }
@@ -166,6 +185,9 @@ export function serializeSubstitutionToText(template, slots) {
 
 export function collectSubstitutionPayload(config, equationSheet, subStep) {
   const ctx = resolveSubstitutionContext(config, equationSheet, subStep);
+  if (ctx.mode === "pending") {
+    return { mode: "structured", equation_id: null, slots: {}, text: "" };
+  }
   if (ctx.mode === "structured" && ctx.template) {
     const slots = collectStructuredSubstitution(ctx.template);
     return {
@@ -183,23 +205,41 @@ export function collectSubstitutionPayload(config, equationSheet, subStep) {
 export function substitutionPayloadIsComplete(payload) {
   if (!payload) return false;
   if (payload.mode === "free_text") return !!payload.text;
+  if (!payload.equation_id) return false;
   const slots = payload.slots || {};
   return Object.values(slots).every((v) => String(v ?? "").trim() !== "");
+}
+
+function normalizeAcceptedSlotValues(accepted) {
+  if (Array.isArray(accepted)) return accepted;
+  if (accepted == null || accepted === "") return null;
+  return [String(accepted)];
 }
 
 function slotValueMatches(studentVal, acceptedList) {
   const normalized = normalizeSlotValue(studentVal);
   if (!normalized) return false;
-  return (acceptedList || []).some((a) => normalizeSlotValue(a) === normalized);
+  const list = normalizeAcceptedSlotValues(acceptedList) || [];
+  return list.some((a) => {
+    const na = normalizeSlotValue(a);
+    if (na === normalized) return true;
+    const sNum = parseFloat(normalized);
+    const aNum = parseFloat(na);
+    if (Number.isFinite(sNum) && Number.isFinite(aNum) && Math.abs(sNum - aNum) < 1e-9) {
+      return true;
+    }
+    return false;
+  });
 }
 
 export function substitutionSlotsMatch(payload, subStep, template) {
   if (!payload || payload.mode !== "structured" || !subStep?.slot_answers) return false;
+  if (!payload.equation_id) return false;
   const slotIds = getSlotIdsFromTemplate(template);
   if (!slotIds.length) return false;
   for (const id of slotIds) {
-    const accepted = subStep.slot_answers[id];
-    if (!accepted || !Array.isArray(accepted)) return false;
+    const accepted = normalizeAcceptedSlotValues(subStep.slot_answers[id]);
+    if (!accepted?.length) return false;
     if (!slotValueMatches(payload.slots?.[id], accepted)) return false;
   }
   return true;
@@ -286,7 +326,9 @@ export function buildNumericRearrangementOptions(equation, subStep, rearrStep) {
   const subject = rearrStep?.subject || subStep?.rearrangement_subject || equation?.rearrangement_forms?.default_subject;
   const variant = getRearrangementVariant(equation, subject);
   const slotAnswers = subStep?.slot_answers || {};
-  if (!variant) return { answer: rearrStep?.answer || "", distractors: rearrStep?.distractors || [] };
+  if (!variant) {
+    return { answer: "", distractors: [], subject: rearrStep?.subject || subject };
+  }
 
   const correct = replaceSlotIdsInExpression(variant.correct, slotAnswers);
   const distractors = [];
@@ -300,13 +342,6 @@ export function buildNumericRearrangementOptions(equation, subStep, rearrStep) {
         seen.add(numeric);
         distractors.push(numeric);
       }
-    }
-  }
-
-  for (const manual of rearrStep?.distractors || []) {
-    if (manual && !seen.has(manual)) {
-      seen.add(manual);
-      distractors.push(manual);
     }
   }
 

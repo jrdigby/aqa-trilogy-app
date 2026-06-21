@@ -494,9 +494,13 @@ export function wireStudentEquationSelectPreview(onTypeset, q = null, equationSh
     const rearrStep = steps.find((s) => s.type === "rearrangement");
     if (rearrStep?.mode === "numeric" && subStep?.slot_answers) {
       const eqId = resolveEquationIdForSubstitution(config, equationSheet, subStep);
-      const eq = findEquationInSheet(equationSheet, eqId);
-      const built = buildNumericRearrangementOptions(eq, subStep, rearrStep);
-      refreshRearrangementSelect(rearrStep, built);
+      if (eqId) {
+        const eq = findEquationInSheet(equationSheet, eqId);
+        const built = buildNumericRearrangementOptions(eq, subStep, rearrStep);
+        refreshRearrangementSelect(rearrStep, built);
+      } else {
+        refreshRearrangementSelect(rearrStep, { answer: "", distractors: [] });
+      }
     }
   };
 
@@ -863,6 +867,23 @@ function renderEquationSheetPanel(config, equationSheet, presentation) {
   `;
 }
 
+function resolveExpectedRearrangementAnswer(step, config, steps, resp, equationSheet) {
+  if (step.mode !== "numeric") return step.answer || "";
+  const subStep = steps.find((s) => s.type === "substitution");
+  if (!subStep?.slot_answers || !equationSheet) return step.answer || "";
+  const subPayload = resp?.steps?.substitution;
+  const eqId = (typeof subPayload === "object" && subPayload?.equation_id)
+    || resp?.steps?.equation_select
+    || resolveEquationIdForSubstitution(config, equationSheet, subStep, {
+      fromPayload: typeof subPayload === "object" ? subPayload : null
+    })
+    || subStep.equation_id;
+  const eq = findEquationInSheet(equationSheet, eqId);
+  if (!eq) return step.answer || "";
+  const built = buildNumericRearrangementOptions(eq, subStep, step);
+  return built.answer || step.answer || "";
+}
+
 function getRearrangementChoices(step) {
   const answer = (step.answer || "").trim();
   const distractors = step.distractors || [];
@@ -967,13 +988,16 @@ export function renderCalculationWorkflow(q, currentKey, presentation = "practic
       const subStep = steps.find((s) => s.type === "substitution");
       if (step.mode === "numeric" && subStep?.slot_answers && equationSheet) {
         const eqId = resolveEquationIdForSubstitution(config, equationSheet, subStep);
-        const eq = findEquationInSheet(equationSheet, eqId);
-        const built = buildNumericRearrangementOptions(eq, subStep, step);
-        choices = getRearrangementChoices({
-          ...step,
-          answer: built.answer || step.answer,
-          distractors: built.distractors || step.distractors
-        });
+        if (eqId) {
+          const eq = findEquationInSheet(equationSheet, eqId);
+          const built = buildNumericRearrangementOptions(eq, subStep, step);
+          choices = getRearrangementChoices({
+            answer: built.answer,
+            distractors: built.distractors
+          });
+        } else {
+          choices = [];
+        }
       } else {
         choices = getRearrangementChoices(step);
       }
@@ -1139,7 +1163,10 @@ function substitutionMatches(studentText, step) {
 
 function matchSubstitutionStep(studentVal, step, config, equationSheet) {
   if (typeof studentVal === "object" && studentVal?.mode === "structured") {
-    const ctx = resolveSubstitutionContext(config, equationSheet, step);
+    if (!studentVal.equation_id) return false;
+    const ctx = resolveSubstitutionContext(config, equationSheet, step, {
+      fromPayload: studentVal
+    });
     if (ctx.mode === "structured" && ctx.template) {
       return substitutionSlotsMatch(studentVal, step, ctx.template);
     }
@@ -1347,7 +1374,8 @@ export function markCalculationResponse(q, resp, key, markPoints, cleanUrl, equa
         });
       }
     } else if (step.type === "rearrangement") {
-      if (studentVal === step.answer && step.answer) {
+      const expectedAnswer = resolveExpectedRearrangementAnswer(step, config, steps, resp, equationSheet);
+      if (studentVal === expectedAnswer && expectedAnswer) {
         earned = marks;
         isCorrect = true;
       } else {
@@ -1358,7 +1386,7 @@ export function markCalculationResponse(q, resp, key, markPoints, cleanUrl, equa
             step,
             markPoints,
             "rearrangement",
-            `Rearrangement incorrect: the correct form is "${step.answer}".`
+            `Rearrangement incorrect: the correct form is "${expectedAnswer}".`
           ),
           url: cleanUrl
         });
