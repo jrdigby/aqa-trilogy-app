@@ -399,6 +399,55 @@
       grid-column: 1 / -1;
     }
 
+    .calc-rem-row {
+      display: grid;
+      grid-template-columns: 100px 1fr 40px;
+      gap: 10px;
+      align-items: start;
+      margin-bottom: 12px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .calc-rem-row:last-child {
+      border-bottom: none;
+      margin-bottom: 0;
+      padding-bottom: 0;
+    }
+
+    .calc-rem-row .calc-rem-text {
+      grid-column: 1 / -1;
+    }
+
+    .calc-step-feedback {
+      width: 100%;
+      margin-top: 8px;
+      font-family: inherit;
+      font-size: 0.85rem;
+    }
+
+    .calc-step-panel-title {
+      margin: 0 0 4px;
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: var(--primary-dark);
+    }
+
+    .calc-step-panel-hint {
+      font-size: 0.76rem;
+      margin: 0 0 10px;
+      line-height: 1.45;
+      color: var(--text-muted);
+    }
+
+    #CalcRemediationWrapper,
+    #editCalcRemediationWrapper {
+      padding: 12px;
+      border: 2px dashed #cbd5e1;
+      border-radius: 8px;
+      background: #f8fafc;
+    }
+
     .container {
       max-width: 1200px;
       margin: 32px auto;
@@ -1229,14 +1278,14 @@
               </div>
               <div class="row" style="margin-bottom: 12px;">
                 <div>
-                  <label>Equation sheet (when not given)</label>
-                  <select id="CalcEquationSheet">
+                  <label title="Links the equation sheet shown to students when the equation is not given in the prompt">Equation sheet (when equation not in prompt)</label>
+                  <select id="CalcEquationSheet" title="Choose the reference sheet for equation-select questions">
                     <option value="">— Loading sheets… —</option>
                   </select>
                 </div>
                 <div id="CalcEquationOverrideRow">
-                  <label>Override distractors (optional — comma-separated IDs)</label>
-                  <input type="text" id="CalcEquationOverride" placeholder="kinetic_energy, force, speed" />
+                  <label title="Optional: limit which equations appear as wrong choices in the select step">Extra wrong equations on sheet (optional — comma-separated IDs)</label>
+                  <input type="text" id="CalcEquationOverride" placeholder="e.g. kinetic_energy, force, speed" title="Sheet equation IDs to include as distractors" />
                 </div>
               </div>
               <div style="display:flex;flex-wrap:wrap;gap:12px 20px;margin-bottom:12px;font-size:0.85rem;">
@@ -1247,43 +1296,98 @@
                 <label><input type="checkbox" id="CalcStepSigFigs" /> Significant figures</label>
               </div>
               <div id="CalcPanelEquation" class="hidden" style="border-top:1px solid var(--border);padding-top:10px;margin-bottom:10px;">
+                <h4 class="calc-step-panel-title">Equation select step</h4>
+                <p class="calc-step-panel-hint muted">Student chooses the correct equation from the sheet (or a dropdown). Not marked — informational only.</p>
                 <div class="row">
                   <div>
-                    <label>Correct equation</label>
+                    <label title="The equation the student should select. Pick from the sheet loaded above.">Correct equation (mark scheme)</label>
                     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-                      <select id="CalcEquationAnswer" class="select-fit">
+                      <select id="CalcEquationAnswer" class="select-fit" title="Select the equation students must choose">
                         <option value="">— Select an equation sheet above —</option>
                       </select>
                       <span id="CalcEquationAnswerPreview" class="calc-eq-select-preview" style="display:none;align-items:center;padding:10px 14px;background:#f8fafc;border:2px solid #94a3b8;border-radius:8px;font-size:0.9rem;min-height:42px;"></span>
                     </div>
                   </div>
                   <div id="CalcEquationDistractorsRow">
-                    <label>Fallback distractors (only if no sheet — comma list)</label>
-                    <input type="text" id="CalcEquationDistractors" placeholder="kinetic_energy, force" />
+                    <label title="Only used when no equation sheet is linked. Internal IDs shown as wrong options in the dropdown.">Wrong equation options (comma-separated IDs — no sheet only)</label>
+                    <input type="text" id="CalcEquationDistractors" placeholder="e.g. kinetic_energy, force, weight" title="Equation sheet IDs for incorrect dropdown choices" />
                   </div>
                 </div>
+                <label style="display:block;margin-top:8px;font-size:0.78rem;color:var(--text-muted);">Feedback if wrong (optional)</label>
+                <textarea id="CalcEquationFeedback" class="calc-step-feedback" rows="2" placeholder="e.g. Use kinetic energy — the object is moving, not gravitational potential energy."></textarea>
               </div>
               <div id="CalcPanelSubstitution" class="hidden" style="border-top:1px solid var(--border);padding-top:10px;margin-bottom:10px;">
-                <label>Accepted substitution forms (one per line)</label>
-                <textarea id="CalcSubstitutionAccepted" rows="2" placeholder="E_k = 0.5 × 2.0 × 4.0²"></textarea>
+                <h4 class="calc-step-panel-title">Substitution step</h4>
+                <p class="calc-step-panel-hint muted">Student writes the equation with question values plugged in. Add every acceptable form (one per line) — spacing and × vs * are normalised when marking.</p>
+                <label title="Each line is a valid substitution the student may enter. Include units if your mark scheme expects them.">Accepted substitution lines (one per line)</label>
+                <textarea id="CalcSubstitutionAccepted" rows="3" placeholder="e.g.&#10;E_k = 0.5 × 2.0 × 4.0²&#10;E_k = 0.5 * 2.0 * 4.0^2" title="One accepted substitution per line"></textarea>
+                <label style="display:block;margin-top:8px;font-size:0.78rem;color:var(--text-muted);">Feedback if wrong (optional)</label>
+                <textarea id="CalcSubstitutionFeedback" class="calc-step-feedback" rows="2" placeholder="e.g. Substitute m = 2.0 kg and v = 4.0 m/s into E_k = ½mv²."></textarea>
               </div>
               <div id="CalcPanelConversion" class="hidden" style="border-top:1px solid var(--border);padding-top:10px;margin-bottom:10px;">
+                <h4 class="calc-step-panel-title">Unit conversion step</h4>
+                <p class="calc-step-panel-hint muted">
+                  Example: question gives <strong>1.2 km</strong> — step label <em>“Convert 1.2 km to metres”</em>, correct converted value <strong>1200</strong>, tolerance <strong>0.001</strong> (student enters 1200 ± 0.001).
+                </p>
                 <div class="row">
-                  <div><label>Label</label><input type="text" id="CalcConversionLabel" placeholder="Convert km to m" /></div>
-                  <div><label>Expected value</label><input type="number" id="CalcConversionAnswer" step="any" /></div>
-                  <div><label>Tolerance</label><input type="number" id="CalcConversionTol" value="0.001" step="any" /></div>
+                  <div>
+                    <label title="Short instruction shown on the conversion step. Describe what the student should convert (units only — not the final calculation answer).">Step label</label>
+                    <input type="text" id="CalcConversionLabel" placeholder="e.g. Convert 1.2 km to metres" title="Describe the conversion task, e.g. Convert 45 min to seconds" />
+                  </div>
+                  <div>
+                    <label title="The correct numeric value after converting — what the student should type in this step. If 1.2 km → m, enter 1200 (not 1.2 or 1000).">Correct converted value</label>
+                    <input type="number" id="CalcConversionAnswer" step="any" placeholder="e.g. 1200" title="Numeric result after unit conversion, e.g. 2700 for 45 min → seconds" />
+                  </div>
+                  <div>
+                    <label title="Maximum allowed difference from the correct converted value. Default 0.001 suits exact conversions; use 0.05 or higher if rounding is expected.">Tolerance (±)</label>
+                    <input type="number" id="CalcConversionTol" value="0.001" step="any" placeholder="0.001" title="Student answer is correct if |their value − expected| ≤ tolerance" />
+                  </div>
                 </div>
+                <label style="display:block;margin-top:8px;font-size:0.78rem;color:var(--text-muted);">Feedback if wrong (optional)</label>
+                <textarea id="CalcConversionFeedback" class="calc-step-feedback" rows="2" placeholder="Custom hint when unit conversion is incorrect…"></textarea>
               </div>
               <div id="CalcPanelRearrangement" class="hidden" style="border-top:1px solid var(--border);padding-top:10px;margin-bottom:10px;">
+                <h4 class="calc-step-panel-title">Rearrangement step</h4>
+                <p class="calc-step-panel-hint muted">Student picks the correctly rearranged formula from a dropdown. Enter the exact string they should select.</p>
                 <div class="row">
-                  <div><label>Correct formula</label><input type="text" id="CalcRearrangeAnswer" placeholder="v = s / t" /></div>
-                  <div><label>Distractors (comma list)</label><input type="text" id="CalcRearrangeDistractors" placeholder="v = s / t, v = s * t" /></div>
+                  <div>
+                    <label title="Exact formula string shown as the correct dropdown option, e.g. v = s / t">Correct rearranged formula</label>
+                    <input type="text" id="CalcRearrangeAnswer" placeholder="e.g. v = s / t" title="Must match dropdown option text exactly" />
+                  </div>
+                  <div>
+                    <label title="Incorrect formulas shown alongside the correct one. Comma-separated.">Wrong formula options (comma-separated)</label>
+                    <input type="text" id="CalcRearrangeDistractors" placeholder="e.g. v = s × t, v = t / s" title="Plausible wrong rearrangements for the dropdown" />
+                  </div>
                 </div>
+                <label style="display:block;margin-top:8px;font-size:0.78rem;color:var(--text-muted);">Feedback if wrong (optional)</label>
+                <textarea id="CalcRearrangeFeedback" class="calc-step-feedback" rows="2" placeholder="e.g. Make speed the subject: v = distance ÷ time."></textarea>
               </div>
               <div id="CalcPanelSigFigs" class="hidden" style="border-top:1px solid var(--border);padding-top:10px;">
+                <h4 class="calc-step-panel-title">Significant figures step</h4>
+                <p class="calc-step-panel-hint muted">Final answer must be given to this number of significant figures (checked on the calculate input).</p>
                 <div class="row">
-                  <div><label>Sig figs required</label><input type="number" id="CalcSigFigsCount" value="2" min="1" max="5" /></div>
+                  <div>
+                    <label title="How many significant figures the final numeric answer must use">Significant figures required</label>
+                    <input type="number" id="CalcSigFigsCount" value="2" min="1" max="5" placeholder="2" title="e.g. 2 for an answer like 16 or 3.4 × 10²" />
+                  </div>
                 </div>
+                <label style="display:block;margin-top:8px;font-size:0.78rem;color:var(--text-muted);">Feedback if wrong (optional)</label>
+                <textarea id="CalcSigFigsFeedback" class="calc-step-feedback" rows="2" placeholder="e.g. Give your answer to 2 significant figures — 16 not 16.0."></textarea>
+              </div>
+              <div id="CalcPanelCalculate" class="hidden" style="border-top:1px solid var(--border);padding-top:10px;margin-top:10px;">
+                <h4 class="calc-step-panel-title">Final answer step</h4>
+                <p class="calc-step-panel-hint muted">Correct value and tolerance are set in the answer key fields above. Optional message if the final number is wrong.</p>
+                <label title="Shown when the student's final calculated value is incorrect">Feedback if final answer wrong (optional)</label>
+                <textarea id="CalcCalculateFeedback" class="calc-step-feedback" rows="2" placeholder="e.g. Check your arithmetic: 0.5 × 2.0 × 4.0² = 16 J."></textarea>
+              </div>
+              <div id="CalcSimpleRemediationPanel" class="hidden" style="border-top:1px solid var(--border);padding-top:10px;margin-top:10px;">
+                <h4 style="margin:0 0 6px;font-size:0.88rem;">Wrong answer walkthrough (optional)</h4>
+                <p class="muted" style="font-size:0.76rem;margin:0 0 10px;line-height:1.4;">Shown step-by-step when the final answer is incorrect. Add one row per teaching step.</p>
+                <div id="CalcRemediationWrapper"></div>
+                <button type="button" class="btn btn-secondary" id="btnAddCalcRemediation" style="margin-top:8px;padding:4px 10px;font-size:0.75rem;">+ Add walkthrough step</button>
+              </div>
+              <div id="CalcMultiStepFeedbackNote" class="hidden" style="margin-top:10px;padding:10px;background:#f8fafc;border-radius:8px;font-size:0.78rem;color:#64748b;line-height:1.4;">
+                Optional custom feedback for each step is set under <strong>Feedback if wrong</strong> in the step panels above. Built-in defaults are used if left blank.
               </div>
             </div>
           </div>
@@ -1334,16 +1438,14 @@
         </details>
 
         <!-- SECTION 3: DETAILED STEP-BY-STEP CHECKPOINTS -->
-        <div class="card creator-section-markpoints" style="margin-bottom: 0;">
+        <div id="creatorSectionMarkpoints" class="card creator-section-markpoints" style="margin-bottom: 0;">
           <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:8px; margin-bottom:16px;">
             <h3 style="margin:0; color:var(--primary-dark); font-size:1.1rem;">Section 3: Step-by-Step Mark Checkpoints</h3>
             <button class="btn btn-secondary" id="btnAddMarkPoint" style="padding:4px 10px; font-size:0.75rem;">+ Add Criteria Step</button>
           </div>
           <p style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.4; margin-bottom: 16px;">
-            <strong>Important Tips:</strong><br/>
-            • <strong>Short Answer Questions:</strong> If you input steps here, the student is graded against these checkpoints. Each matched row awards 1 mark (AO-specific).<br/>
-            • <strong>Numeric Questions (final answer only):</strong> Section 3 rows provide remediation walkthrough text shown when the final answer is wrong — they do not add extra input fields. Use <code>[numeric_fallback]</code> as the keyword (multiple rows allowed); one row per mark-scheme step. Marks are awarded all-or-nothing on the final value (<code>max_marks</code>).<br/>
-            • <strong>Numeric Questions (multi-step workflow):</strong> Enable steps in Section 2 above. Use <code>[calc:substitution]</code>, <code>[calc:calculate]</code>, etc. here for per-step custom feedback.
+            <strong>Short Answer Questions:</strong> Each matched row awards 1 mark (AO-specific). If left blank, grading uses the required/optional keywords in Section 2 instead.<br/>
+            <strong>Numeric Questions:</strong> Feedback is configured in Section 2 (calculation workflow panels) — this section is not used.
           </p>
           <div id="markPointsWrapper"></div>
         </div>
@@ -1772,14 +1874,14 @@
             </div>
             <div class="row" style="margin-bottom:8px;">
               <div>
-                <label>Equation sheet</label>
-                <select id="editCalcEquationSheet">
+                <label title="Reference sheet when the equation is not given in the prompt">Equation sheet (when equation not in prompt)</label>
+                <select id="editCalcEquationSheet" title="Choose the equation reference sheet">
                   <option value="">— Loading sheets… —</option>
                 </select>
               </div>
               <div>
-                <label>Override distractors</label>
-                <input type="text" id="editCalcEquationOverride" />
+                <label title="Optional extra wrong equations from the sheet">Extra wrong equations on sheet (optional — comma-separated IDs)</label>
+                <input type="text" id="editCalcEquationOverride" placeholder="e.g. kinetic_energy, force, speed" />
               </div>
             </div>
             <div style="display:flex;flex-wrap:wrap;gap:8px 14px;margin-bottom:8px;">
@@ -1790,43 +1892,98 @@
               <label><input type="checkbox" id="editCalcStepSigFigs" /> Sig figs</label>
             </div>
             <div id="editCalcPanelEquation" class="hidden" style="border-top:1px solid var(--border);padding-top:8px;margin-bottom:8px;">
+              <h4 class="calc-step-panel-title">Equation select step</h4>
+              <p class="calc-step-panel-hint muted">Student chooses the correct equation. Not marked.</p>
               <div class="row">
                 <div>
-                  <label>Correct equation</label>
+                  <label title="The equation the student should select from the sheet">Correct equation (mark scheme)</label>
                   <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-                    <select id="editCalcEquationAnswer" class="select-fit">
+                    <select id="editCalcEquationAnswer" class="select-fit" title="Select the correct equation">
                       <option value="">— Select equation sheet —</option>
                     </select>
                     <span id="editCalcEquationAnswerPreview" class="calc-eq-select-preview" style="display:none;align-items:center;padding:10px 14px;background:#f8fafc;border:2px solid #94a3b8;border-radius:8px;font-size:0.9rem;min-height:42px;"></span>
                   </div>
                 </div>
                 <div id="editCalcEquationDistractorsRow">
-                  <label>Fallback distractors</label>
-                  <input type="text" id="editCalcEquationDistractors" />
+                  <label title="Wrong options when no equation sheet is linked">Wrong equation options (comma-separated IDs — no sheet only)</label>
+                  <input type="text" id="editCalcEquationDistractors" placeholder="e.g. kinetic_energy, force, weight" />
                 </div>
               </div>
+              <label style="display:block;margin-top:8px;font-size:0.78rem;color:var(--text-muted);">Feedback if wrong (optional)</label>
+              <textarea id="editCalcEquationFeedback" class="calc-step-feedback" rows="2" placeholder="e.g. Use kinetic energy — the object is moving."></textarea>
             </div>
             <div id="editCalcPanelSubstitution" class="hidden" style="border-top:1px solid var(--border);padding-top:8px;margin-bottom:8px;">
-              <label>Accepted forms (one per line)</label>
-              <textarea id="editCalcSubstitutionAccepted" rows="2"></textarea>
+              <h4 class="calc-step-panel-title">Substitution step</h4>
+              <p class="calc-step-panel-hint muted">Accepted forms the student may write (one per line). Spacing and × vs * are normalised when marking.</p>
+              <label title="One valid substitution per line">Accepted substitution lines (one per line)</label>
+              <textarea id="editCalcSubstitutionAccepted" rows="3" placeholder="e.g.&#10;E_k = 0.5 × 2.0 × 4.0²"></textarea>
+              <label style="display:block;margin-top:8px;font-size:0.78rem;color:var(--text-muted);">Feedback if wrong (optional)</label>
+              <textarea id="editCalcSubstitutionFeedback" class="calc-step-feedback" rows="2" placeholder="e.g. Substitute m = 2.0 kg and v = 4.0 m/s into the equation."></textarea>
             </div>
             <div id="editCalcPanelConversion" class="hidden" style="border-top:1px solid var(--border);padding-top:8px;margin-bottom:8px;">
+              <h4 class="calc-step-panel-title">Unit conversion step</h4>
+              <p class="calc-step-panel-hint muted">
+                Example: <strong>1.2 km → m</strong> — label <em>“Convert 1.2 km to metres”</em>, correct value <strong>1200</strong>, tolerance <strong>0.001</strong>.
+              </p>
               <div class="row">
-                <div><label>Label</label><input type="text" id="editCalcConversionLabel" /></div>
-                <div><label>Value</label><input type="number" id="editCalcConversionAnswer" step="any" /></div>
-                <div><label>Tol</label><input type="number" id="editCalcConversionTol" step="any" /></div>
+                <div>
+                  <label title="Short instruction shown on the conversion step. Describe what the student should convert.">Step label</label>
+                  <input type="text" id="editCalcConversionLabel" placeholder="e.g. Convert 1.2 km to metres" title="Describe the conversion task, e.g. Convert 45 min to seconds" />
+                </div>
+                <div>
+                  <label title="Correct numeric value after converting — what the student types in this step.">Correct converted value</label>
+                  <input type="number" id="editCalcConversionAnswer" step="any" placeholder="e.g. 1200" title="Numeric result after conversion, e.g. 2700 for 45 min → seconds" />
+                </div>
+                <div>
+                  <label title="Max difference allowed from the correct value. Default 0.001; increase if rounding is expected.">Tolerance (±)</label>
+                  <input type="number" id="editCalcConversionTol" step="any" placeholder="0.001" title="Correct if |student value − expected| ≤ tolerance" />
+                </div>
               </div>
+              <label style="display:block;margin-top:8px;font-size:0.78rem;color:var(--text-muted);">Feedback if wrong (optional)</label>
+              <textarea id="editCalcConversionFeedback" class="calc-step-feedback" rows="2"></textarea>
             </div>
             <div id="editCalcPanelRearrangement" class="hidden" style="border-top:1px solid var(--border);padding-top:8px;margin-bottom:8px;">
+              <h4 class="calc-step-panel-title">Rearrangement step</h4>
+              <p class="calc-step-panel-hint muted">Exact formula string for the correct dropdown option.</p>
               <div class="row">
-                <div><label>Correct</label><input type="text" id="editCalcRearrangeAnswer" /></div>
-                <div><label>Distractors</label><input type="text" id="editCalcRearrangeDistractors" /></div>
+                <div>
+                  <label title="Exact string for the correct dropdown choice">Correct rearranged formula</label>
+                  <input type="text" id="editCalcRearrangeAnswer" placeholder="e.g. v = s / t" />
+                </div>
+                <div>
+                  <label title="Incorrect formulas in the dropdown">Wrong formula options (comma-separated)</label>
+                  <input type="text" id="editCalcRearrangeDistractors" placeholder="e.g. v = s × t, v = t / s" />
+                </div>
               </div>
+              <label style="display:block;margin-top:8px;font-size:0.78rem;color:var(--text-muted);">Feedback if wrong (optional)</label>
+              <textarea id="editCalcRearrangeFeedback" class="calc-step-feedback" rows="2" placeholder="e.g. Make speed the subject: v = distance ÷ time."></textarea>
             </div>
             <div id="editCalcPanelSigFigs" class="hidden" style="border-top:1px solid var(--border);padding-top:8px;">
+              <h4 class="calc-step-panel-title">Significant figures step</h4>
+              <p class="calc-step-panel-hint muted">Final answer checked to this number of significant figures.</p>
               <div class="row">
-                <div><label>Sig figs</label><input type="number" id="editCalcSigFigsCount" min="1" /></div>
+                <div>
+                  <label title="Required significant figures in the final answer">Significant figures required</label>
+                  <input type="number" id="editCalcSigFigsCount" min="1" max="5" placeholder="2" />
+                </div>
               </div>
+              <label style="display:block;margin-top:8px;font-size:0.78rem;color:var(--text-muted);">Feedback if wrong (optional)</label>
+              <textarea id="editCalcSigFigsFeedback" class="calc-step-feedback" rows="2" placeholder="e.g. Give your answer to 2 significant figures."></textarea>
+            </div>
+            <div id="editCalcPanelCalculate" class="hidden" style="border-top:1px solid var(--border);padding-top:8px;margin-top:8px;">
+              <h4 class="calc-step-panel-title">Final answer step</h4>
+              <p class="calc-step-panel-hint muted">Value and tolerance are in the answer key fields above.</p>
+              <label title="Shown when the final calculated value is wrong">Feedback if final answer wrong (optional)</label>
+              <textarea id="editCalcCalculateFeedback" class="calc-step-feedback" rows="2" placeholder="e.g. Check your arithmetic step by step."></textarea>
+            </div>
+            <div id="editCalcSimpleRemediationPanel" class="hidden" style="border-top:1px solid var(--border);padding-top:8px;margin-top:8px;">
+              <h4 style="margin:0 0 6px;font-size:0.88rem;">Wrong answer walkthrough (optional)</h4>
+              <p class="muted" style="font-size:0.76rem;margin:0 0 10px;line-height:1.4;">Shown step-by-step when the final answer is incorrect.</p>
+              <div id="editCalcRemediationWrapper"></div>
+              <button type="button" class="btn btn-secondary" id="btnEditAddCalcRemediation" style="margin-top:8px;padding:4px 10px;font-size:0.75rem;">+ Add walkthrough step</button>
+            </div>
+            <div id="editCalcMultiStepFeedbackNote" class="hidden" style="margin-top:8px;padding:10px;background:#f8fafc;border-radius:8px;font-size:0.78rem;color:#64748b;line-height:1.4;">
+              Optional custom feedback for each step is set under <strong>Feedback if wrong</strong> in the step panels above.
             </div>
           </div>
         </div>
@@ -1872,7 +2029,7 @@
             </div>
           </details>
 
-          <div class="edit-markpoints-block" style="border:1px solid var(--border); border-radius:10px; padding:14px; background:#fafbfc;">
+          <div id="editMarkpointsBlock" class="edit-markpoints-block" style="border:1px solid var(--border); border-radius:10px; padding:14px; background:#fafbfc;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
               <h4 style="margin:0; font-size:0.95rem; color:var(--primary-dark);">Section 3: Mark Checkpoints</h4>
               <button type="button" class="btn btn-secondary" id="btnEditAddMarkPoint" style="padding:3px 8px; font-size:0.75rem;">+ Add Criteria Step</button>
@@ -2006,6 +2163,8 @@
   let auditCourseTrackFilter = "";
   const AUDIT_DEMAND_ORDER = { low: 1, standard: 2, standard_45: 3, standard_67: 4, high_89: 5 };
   let markPointsCounter = 0;
+  let calcRemediationCounter = 0;
+  let editCalcRemediationCounter = 0;
   let editMarkPointsCounter = 0; // Distinct counter for editor window
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   
@@ -2826,6 +2985,7 @@
       }
       if (window.CalcWorkflow) {
         window.CalcWorkflow.syncMaxMarksSelect("");
+        window.CalcWorkflow.updateNumericAuthoringUi("", "numeric");
       } else {
         maxMarks.value = "1";
       }
@@ -2869,6 +3029,9 @@
       setTimeout(() => window.AdminMetadata.syncCreatorMetadataFromForm(), 0);
       window.AdminMetadata.autoSizeAdminSelects(document.getElementById("panelCreator"));
     }
+    if (window.CalcWorkflow) {
+      window.CalcWorkflow.updateNumericAuthoringUi("", type);
+    }
   };
 
   syncCreatorMcqUi(qType?.value || "short_text");
@@ -2886,6 +3049,7 @@
     const pending = select?.dataset?.pendingAnswer || select?.value || "";
     if (select?.dataset?.pendingAnswer) delete select.dataset.pendingAnswer;
     await CalcWorkflow.refreshEquationSelect(supabaseClient, prefix, pending);
+    if (window.CalcWorkflow) window.CalcWorkflow.updateNumericAuthoringUi(prefix);
   }
 
   document.getElementById("CalcEquationSheet")?.addEventListener("change", () => onCalcWorkflowChange(""));
@@ -2927,10 +3091,45 @@
     window.CalcWorkflow.wireCalculationFormToggles("edit", () => onCalcWorkflowChange("edit"));
     window.CalcWorkflow.populateCalculationForm("", null);
     window.CalcWorkflow.syncMaxMarksSelect("");
+    window.CalcWorkflow.updateNumericAuthoringUi("", qType?.value || "short_text");
     updateEquationAuthoringHints("");
     loadSyllabusReferenceSelects();
     refreshCreatorEquationSheetDropdown({ autoLink: true });
   }
+
+  // ====== NUMERIC REMEDIATION ROWS (Section 2 — simple mode walkthrough) ======
+  window.resetCalcRemediationCounter = function(prefix = "") {
+    if (prefix === "edit") editCalcRemediationCounter = 0;
+    else calcRemediationCounter = 0;
+  };
+
+  window.addCalcRemediationRow = function(prefix = "", selectedAo = "AO2", fbText = "") {
+    const isEdit = prefix === "edit";
+    const counter = isEdit ? ++editCalcRemediationCounter : ++calcRemediationCounter;
+    const wrap = document.getElementById(`${prefix}CalcRemediationWrapper`);
+    if (!wrap) return;
+
+    const row = document.createElement("div");
+    row.className = "calc-rem-row";
+    row.id = `${prefix}calc_rem_${counter}`;
+    row.innerHTML = `
+      <select class="calc-rem-ao select-fit">
+        <option value="AO1" ${selectedAo === "AO1" ? "selected" : ""}>AO1</option>
+        <option value="AO2" ${selectedAo === "AO2" ? "selected" : ""}>AO2</option>
+        <option value="AO3" ${selectedAo === "AO3" ? "selected" : ""}>AO3</option>
+      </select>
+      <button type="button" onclick="removeCalcRemediationRow('${prefix}', ${counter})" style="background:var(--error); color:white; border:none; border-radius:6px; cursor:pointer; height:38px; font-weight:bold; width:100%;">&times;</button>
+      <textarea class="calc-rem-text" rows="2" placeholder="Walkthrough step shown when the final answer is wrong…">${escapeHtml(fbText)}</textarea>
+    `;
+    wrap.appendChild(row);
+  };
+
+  window.removeCalcRemediationRow = function(prefix, id) {
+    document.getElementById(`${prefix}calc_rem_${id}`)?.remove();
+  };
+
+  document.getElementById("btnAddCalcRemediation")?.addEventListener("click", () => window.addCalcRemediationRow("", "AO2", ""));
+  document.getElementById("btnEditAddCalcRemediation")?.addEventListener("click", () => window.addCalcRemediationRow("edit", "AO2", ""));
 
   // ====== SECTION 3: MARK POINTS DYNAMIC LIST (CREATOR) ======
   window.addMarkPointRow = function(ptText = "", selectedAo = "AO1", fbText = "") {
@@ -3189,9 +3388,9 @@
         
       if (kErr) throw kErr;
       
-      // Save Section 3 detailed Mark Points
+      // Save Section 3 detailed Mark Points (short answer only — numeric uses Section 2 feedback)
       const rows = Array.from(document.querySelectorAll("#markPointsWrapper .mark-point-row"));
-      if (rows.length > 0) {
+      if (rows.length > 0 && questionType !== "numeric") {
         const markPayloads = rows.map(r => ({
           question_id: qResult.id,
           ao: r.querySelector(".mp-ao").value,
@@ -3240,6 +3439,8 @@
       const preset = document.getElementById("CalcPreset");
       if (preset) preset.value = "given_equation";
       window.CalcWorkflow.applyCalculationPreset("", "given_equation", "standard");
+      document.getElementById("CalcRemediationWrapper").innerHTML = "";
+      calcRemediationCounter = 0;
     }
     
     document.getElementById("guidelines").value = "";
@@ -4119,18 +4320,6 @@
         document.getElementById("editNumAns").value = keyData?.key_payload?.answer || "";
         document.getElementById("editNumTol").value = keyData?.key_payload?.tolerance || 0;
         document.getElementById("editNumUnit").value = keyData?.key_payload?.unit || "";
-
-        if (window.CalcWorkflow) {
-          window.CalcWorkflow.populateCalculationForm("edit", q.calculation_config || null);
-          window.CalcWorkflow.syncMaxMarksSelect("edit");
-          const eqStep = (q.calculation_config?.steps || []).find((s) => s.type === "equation_select");
-          await refreshEditEquationSheetDropdown({
-            autoLink: false,
-            selectedId: q.calculation_config?.equation_sheet_id || ""
-          });
-          await CalcWorkflow.refreshEquationSelect(supabaseClient, "edit", eqStep?.answer || "");
-          updateEquationAuthoringHints("edit");
-        }
       } 
       else if (q.question_type === "short_text") {
         document.getElementById("editShortTextPanel").classList.remove("hidden");
@@ -4168,14 +4357,36 @@
         
       if (!mpsErr && dbMps) {
         mps = dbMps;
-        mps.forEach(mp => {
-          addEditMarkPointRow(mp.point_text, mp.ao, mp.feedback_if_missing);
-        });
+        if (q.question_type !== "numeric") {
+          mps.forEach(mp => {
+            addEditMarkPointRow(mp.point_text, mp.ao, mp.feedback_if_missing);
+          });
+        }
       } else if (mpsErr) {
         console.error("Supabase Error loading checkpoints:", mpsErr);
       }
     } catch(err) {
       console.error("Failed to query mark points for edit panel:", err);
+    }
+
+    if (q.question_type === "numeric" && window.CalcWorkflow) {
+      let calcConfig = q.calculation_config || null;
+      if (mps.length) {
+        calcConfig = CalcWorkflow.mergeLegacyNumericMarkPoints(
+          calcConfig || CalcWorkflow.getCalculationConfig(q),
+          mps
+        );
+      }
+      window.CalcWorkflow.populateCalculationForm("edit", calcConfig);
+      window.CalcWorkflow.syncMaxMarksSelect("edit");
+      const eqStep = (calcConfig?.steps || []).find((s) => s.type === "equation_select");
+      await refreshEditEquationSheetDropdown({
+        autoLink: false,
+        selectedId: calcConfig?.equation_sheet_id || ""
+      });
+      await CalcWorkflow.refreshEquationSelect(supabaseClient, "edit", eqStep?.answer || "");
+      updateEquationAuthoringHints("edit");
+      window.CalcWorkflow.updateNumericAuthoringUi("edit", "numeric");
     }
 
     // Dynamic Grading Mode Status Indicator Layout Config
@@ -4203,11 +4414,11 @@
         const simpleNumeric = window.CalcWorkflow?.isSimpleNumericMode?.(q);
         let numericHtml = simpleNumeric
           ? `📐 <strong>Active Grading Mode: Simple Numeric (final answer only)</strong><br/>
-            All <strong>${q.max_marks || 1}</strong> mark(s) awarded on the correct final value. Section 3 rows below supply remediation text when the answer is wrong.`
+            All <strong>${q.max_marks || 1}</strong> mark(s) awarded on the correct final value. Optional walkthrough feedback is set in Section 2 below.`
           : `📐 <strong>Active Grading Mode: Multi-Step Calculation Workflow</strong><br/>
-            Marks are awarded per enabled step in Section 2 (substitution, conversion, etc.). Use <code>[calc:…]</code> tags in Section 3 for per-step custom feedback.`;
-        if (simpleNumeric && mps?.length > 0 && Number(q.max_marks) !== mps.length) {
-          numericHtml += `<br/><span style="color:#b45309;">⚠️ <strong>${mps.length}</strong> Section 3 remediation row(s) but <strong>${q.max_marks}</strong> max marks — consider aligning these.</span>`;
+            Marks are awarded per enabled step in Section 2. Optional per-step feedback is set under <strong>Feedback if wrong</strong> in each step panel.`;
+        if (mps?.length > 0) {
+          numericHtml += `<br/><span style="color:#b45309;">⚠️ This question still has legacy Section 3 data — it was imported into Section 2 for editing. Save to migrate it.</span>`;
         }
         indicator.innerHTML = numericHtml;
       } else if (q.question_type === "mcq") {
@@ -4421,21 +4632,23 @@
 
       if (keyErr) throw keyErr;
 
-      // Sync edit mark points by dropping old references and writing updated nodes
+      // Sync edit mark points (short answer only — numeric feedback lives in calculation_config)
       await supabaseClient.from("mark_points").delete().eq("question_id", qId);
 
-      const editRows = Array.from(document.querySelectorAll("#editMarkPointsWrapper .edit-mp-row, #editMarkPointsWrapper .mark-point-row"));
-      if (editRows.length > 0) {
-        const markPayloads = editRows.map(r => ({
-          question_id: qId,
-          ao: r.querySelector(".edit-mp-ao").value,
-          point_text: r.querySelector(".edit-mp-text").value.trim(),
-          feedback_if_missing: r.querySelector(".edit-mp-feedback").value.trim(),
-          max_marks: 1
-        }));
-        
-        const { error: mpErr } = await supabaseClient.from("mark_points").insert(markPayloads);
-        if (mpErr) throw mpErr;
+      if (q.question_type !== "numeric") {
+        const editRows = Array.from(document.querySelectorAll("#editMarkPointsWrapper .edit-mp-row, #editMarkPointsWrapper .mark-point-row"));
+        if (editRows.length > 0) {
+          const markPayloads = editRows.map(r => ({
+            question_id: qId,
+            ao: r.querySelector(".edit-mp-ao").value,
+            point_text: r.querySelector(".edit-mp-text").value.trim(),
+            feedback_if_missing: r.querySelector(".edit-mp-feedback").value.trim(),
+            max_marks: 1
+          }));
+
+          const { error: mpErr } = await supabaseClient.from("mark_points").insert(markPayloads);
+          if (mpErr) throw mpErr;
+        }
       }
 
       if (window.AdminSkills) {
