@@ -86,48 +86,71 @@ function metaIds(mode = "creator") {
   return METADATA_FIELD_IDS[mode] || METADATA_FIELD_IDS.creator;
 }
 
-function syncMcqAoFields(mode = "creator") {
+function syncMcqAoFields(mode = "creator", { onlyIfEmpty = false } = {}) {
   const ids = metaIds(mode);
   const ao1 = document.getElementById(ids.ao1);
   const ao2 = document.getElementById(ids.ao2);
   const ao3 = document.getElementById(ids.ao3);
+  const allEmpty = !ao1?.value && !ao2?.value && !ao3?.value;
+  if (onlyIfEmpty && !allEmpty) return;
   if (ao1) ao1.value = "1";
   if (ao2) ao2.value = "0";
   if (ao3) ao3.value = "0";
+  updateAoValidationLabel(mode, 1);
 }
 
 function mcqAoDefaults() {
   return { ao1_marks: 1, ao2_marks: 0, ao3_marks: 0 };
 }
 
+function readAoFieldsFromForm(mode) {
+  const ids = metaIds(mode);
+  const ao1Raw = document.getElementById(ids.ao1)?.value ?? "";
+  const ao2Raw = document.getElementById(ids.ao2)?.value ?? "";
+  const ao3Raw = document.getElementById(ids.ao3)?.value ?? "";
+  const allEmpty = ao1Raw === "" && ao2Raw === "" && ao3Raw === "";
+  return {
+    allEmpty,
+    ao1_marks: allEmpty ? 0 : (parseInt(ao1Raw, 10) || 0),
+    ao2_marks: allEmpty ? 0 : (parseInt(ao2Raw, 10) || 0),
+    ao3_marks: allEmpty ? 0 : (parseInt(ao3Raw, 10) || 0)
+  };
+}
+
 export function buildMetadataPayload(mode = "creator") {
   const ids = metaIds(mode);
-  const qType = mode === "creator" ? document.getElementById("qType")?.value : null;
-  if (qType === "mcq") {
-    syncMcqAoFields(mode);
-    return {
-      command_word: document.getElementById(ids.commandWord)?.value || "",
-      demand_level: document.getElementById(ids.demandLevel)?.value || "",
-      ...mcqAoDefaults(),
-      is_maths_skill: document.getElementById(ids.maths)?.checked || false,
-      is_required_practical: document.getElementById(ids.rp)?.checked || false,
-      required_practical_id: document.getElementById(ids.rpSelect)?.value || null
-    };
-  }
-  const ao1 = parseInt(document.getElementById(ids.ao1)?.value, 10) || 0;
-  const ao2 = parseInt(document.getElementById(ids.ao2)?.value, 10) || 0;
-  const ao3 = parseInt(document.getElementById(ids.ao3)?.value, 10) || 0;
+  const qType = mode === "creator"
+    ? document.getElementById("qType")?.value
+    : document.getElementById("editQuestionType")?.value;
   const commandWord = document.getElementById(ids.commandWord)?.value || "";
   const demandLevel = document.getElementById(ids.demandLevel)?.value || "";
   const isMaths = document.getElementById(ids.maths)?.checked || false;
   const isRp = document.getElementById(ids.rp)?.checked || false;
   const rpId = document.getElementById(ids.rpSelect)?.value || null;
+  const aoFields = readAoFieldsFromForm(mode);
+
+  if (qType === "mcq") {
+    const aoMarks = aoFields.allEmpty ? mcqAoDefaults() : {
+      ao1_marks: aoFields.ao1_marks,
+      ao2_marks: aoFields.ao2_marks,
+      ao3_marks: aoFields.ao3_marks
+    };
+    return {
+      command_word: commandWord || null,
+      demand_level: demandLevel || null,
+      ...aoMarks,
+      is_maths_skill: isMaths,
+      is_required_practical: isRp,
+      required_practical_id: isRp && rpId ? rpId : null
+    };
+  }
+
   return {
     command_word: commandWord || null,
     demand_level: demandLevel || null,
-    ao1_marks: ao1,
-    ao2_marks: ao2,
-    ao3_marks: ao3,
+    ao1_marks: aoFields.ao1_marks,
+    ao2_marks: aoFields.ao2_marks,
+    ao3_marks: aoFields.ao3_marks,
     is_maths_skill: isMaths,
     is_required_practical: isRp,
     required_practical_id: isRp && rpId ? rpId : null
@@ -161,12 +184,12 @@ export function readEditDraftForDifficulty() {
   };
 }
 
-export function syncCreatorMcqAoFields() {
-  syncMcqAoFields("creator");
+export function syncCreatorMcqAoFields(onlyIfEmpty = false) {
+  syncMcqAoFields("creator", { onlyIfEmpty });
 }
 
-export function syncEditMcqAoFields() {
-  syncMcqAoFields("edit");
+export function syncEditMcqAoFields(onlyIfEmpty = false) {
+  syncMcqAoFields("edit", { onlyIfEmpty });
 }
 
 function populateCommandWordSelect(selectEl, selected = "") {
@@ -212,6 +235,7 @@ export function syncCreatorMetadataFromForm({ autoDemand = false } = {}) {
   const prompt = document.getElementById("qPrompt")?.value || "";
   const cmdSel = document.getElementById("commandWordSelect");
   const demandSel = document.getElementById("demandLevelSelect");
+  const qType = document.getElementById("qType")?.value;
 
   populateDemandSelect(demandSel, tier, demandSel?.value);
 
@@ -219,7 +243,9 @@ export function syncCreatorMetadataFromForm({ autoDemand = false } = {}) {
     demandSel.value = suggestDemandLevel(cmdSel.value, tier);
   }
 
-  const maxMarks = parseInt(document.getElementById("maxMarks")?.value, 10) || 1;
+  const maxMarks = qType === "mcq"
+    ? 1
+    : (parseInt(document.getElementById("maxMarks")?.value, 10) || 1);
   updateAoValidationLabel("creator", maxMarks);
   refreshCreatorDifficultyBadge();
   autoSizeAdminSelects(document.getElementById("panelCreator"));
@@ -252,10 +278,6 @@ export function validateCreatorMetadata({ block = true } = {}) {
   const maxMarks = qType === "mcq" ? 1 : (parseInt(document.getElementById("maxMarks")?.value, 10) || 1);
   const meta = buildMetadataPayload("creator");
   const warnings = [];
-
-  if (qType === "mcq") {
-    Object.assign(meta, mcqAoDefaults());
-  }
 
   const { valid, sum } = validateAoMarksSum(meta.ao1_marks, meta.ao2_marks, meta.ao3_marks, maxMarks);
   if (!valid) {
@@ -393,7 +415,14 @@ export function initEditMetadataListeners() {
   document.getElementById("editDemandLevelSelect")?.addEventListener("change", refreshEditDifficultyBadge);
 
   ["editAo1Marks", "editAo2Marks", "editAo3Marks"].forEach((id) => {
-    document.getElementById(id)?.addEventListener("input", refreshEditDifficultyBadge);
+    document.getElementById(id)?.addEventListener("input", () => {
+      const qType = document.getElementById("editQuestionType")?.value;
+      const maxMarks = qType === "mcq"
+        ? 1
+        : (parseInt(document.getElementById("editMaxMarks")?.value, 10) || 1);
+      updateAoValidationLabel("edit", maxMarks);
+      refreshEditDifficultyBadge();
+    });
   });
 
   document.getElementById("editCommandWordSelect")?.addEventListener("change", refreshEditDifficultyBadge);

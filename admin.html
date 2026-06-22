@@ -984,6 +984,40 @@
       cursor: pointer;
     }
 
+    .mcq-option-block {
+      margin-bottom: 14px;
+    }
+
+    .mcq-option-block label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 4px;
+      font-size: 0.85rem;
+    }
+
+    .mcq-option-feedback-wrap {
+      margin-top: 6px;
+    }
+
+    .mcq-option-feedback-wrap.hidden {
+      display: none;
+    }
+
+    .mcq-option-feedback-wrap textarea {
+      width: 100%;
+      min-height: 52px;
+      font-size: 0.85rem;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      resize: vertical;
+    }
+
+    .mark-point-row.mcq-mode .mp-text-wrap,
+    .mark-point-row.mcq-mode .edit-mp-text-wrap {
+      display: none;
+    }
+
     /* Status Notifications banner */
     #toastBanner {
       position: fixed;
@@ -1207,24 +1241,36 @@
 
           <!-- Sub Panel: MCQ Answers -->
           <div id="mcqPanel" class="hidden" style="margin-top: 16px;">
-            <div class="row">
-              <div>
-                <label>Option A (Raw choice text):</label>
-                <input type="text" id="mcqOptA" />
-              </div>
-              <div>
-                <label>Option B (Raw choice text):</label>
-                <input type="text" id="mcqOptB" />
+            <div class="mcq-option-block">
+              <label for="mcqOptA">Option A (Raw choice text):</label>
+              <input type="text" id="mcqOptA" />
+              <div class="mcq-option-feedback-wrap" id="mcqFbWrapA">
+                <label for="mcqFbA" style="font-weight:500; font-size:0.8rem; color:var(--text-muted);">Feedback if this option is chosen (optional)</label>
+                <textarea id="mcqFbA" rows="2" placeholder="Explain why this distractor is wrong…"></textarea>
               </div>
             </div>
-            <div class="row">
-              <div>
-                <label>Option C (Raw choice text):</label>
-                <input type="text" id="mcqOptC" />
+            <div class="mcq-option-block">
+              <label for="mcqOptB">Option B (Raw choice text):</label>
+              <input type="text" id="mcqOptB" />
+              <div class="mcq-option-feedback-wrap" id="mcqFbWrapB">
+                <label for="mcqFbB" style="font-weight:500; font-size:0.8rem; color:var(--text-muted);">Feedback if this option is chosen (optional)</label>
+                <textarea id="mcqFbB" rows="2" placeholder="Explain why this distractor is wrong…"></textarea>
               </div>
-              <div>
-                <label>Option D (Raw choice text):</label>
-                <input type="text" id="mcqOptD" />
+            </div>
+            <div class="mcq-option-block">
+              <label for="mcqOptC">Option C (Raw choice text):</label>
+              <input type="text" id="mcqOptC" />
+              <div class="mcq-option-feedback-wrap" id="mcqFbWrapC">
+                <label for="mcqFbC" style="font-weight:500; font-size:0.8rem; color:var(--text-muted);">Feedback if this option is chosen (optional)</label>
+                <textarea id="mcqFbC" rows="2" placeholder="Explain why this distractor is wrong…"></textarea>
+              </div>
+            </div>
+            <div class="mcq-option-block">
+              <label for="mcqOptD">Option D (Raw choice text):</label>
+              <input type="text" id="mcqOptD" />
+              <div class="mcq-option-feedback-wrap" id="mcqFbWrapD">
+                <label for="mcqFbD" style="font-weight:500; font-size:0.8rem; color:var(--text-muted);">Feedback if this option is chosen (optional)</label>
+                <textarea id="mcqFbD" rows="2" placeholder="Explain why this distractor is wrong…"></textarea>
               </div>
             </div>
             <div style="margin-top: 12px; max-width: 400px;">
@@ -1481,9 +1527,10 @@
             <h3 style="margin:0; color:var(--primary-dark); font-size:1.1rem;">Section 3: Step-by-Step Mark Checkpoints</h3>
             <button class="btn btn-secondary" id="btnAddMarkPoint" style="padding:4px 10px; font-size:0.75rem;">+ Add Criteria Step</button>
           </div>
-          <p style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.4; margin-bottom: 16px;">
+          <p id="section3Help" style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.4; margin-bottom: 16px;">
             <strong>Short Answer Questions:</strong> Each matched row awards 1 mark (AO-specific). If left blank, grading uses the required/optional keywords in Section 2 instead.<br/>
-            <strong>Numeric Questions:</strong> Feedback is configured in Section 2 (calculation workflow panels) — this section is not used.
+            <strong>Numeric Questions:</strong> Feedback is configured in Section 2 (calculation workflow panels) — this section is not used.<br/>
+            <strong>MCQ:</strong> Add one generic remediation row (feedback field only). Shown below any per-option feedback from Section 2 when a student picks a wrong answer.
           </p>
           <div id="markPointsWrapper"></div>
         </div>
@@ -1518,7 +1565,7 @@
                 </div>
               </div>
               <p id="mcqAoAutoNote" class="hidden metadata-span-full" style="margin:0;font-size:0.82rem;color:var(--text-muted);">
-                MCQ questions are always 1 mark on AO1 (0 on AO2/AO3) — set automatically.
+                MCQ questions are always 1 mark total. Default is AO1 — set AO2 for calculation MCQs, or AO3 if appropriate.
               </p>
               <div class="flag-row metadata-span-full">
                 <label><input type="checkbox" id="chkMathsSkill" /> Maths skill question</label>
@@ -1852,24 +1899,36 @@
             <div class="section-answers-body" style="padding-top: 8px;">
         <!-- Section 2 Keywords Edit Panel -->
         <div id="editMcqPanel" class="hidden">
-          <div class="row">
-            <div>
-              <label>Choice A:</label>
-              <input type="text" id="editOpt1"/>
-            </div>
-            <div>
-              <label>Choice B:</label>
-              <input type="text" id="editOpt2"/>
+          <div class="mcq-option-block">
+            <label for="editOpt1">Choice A:</label>
+            <input type="text" id="editOpt1"/>
+            <div class="mcq-option-feedback-wrap" id="editFbWrap1">
+              <label for="editFb1" style="font-weight:500; font-size:0.8rem; color:var(--text-muted);">Feedback if this option is chosen (optional)</label>
+              <textarea id="editFb1" rows="2" placeholder="Explain why this distractor is wrong…"></textarea>
             </div>
           </div>
-          <div class="row">
-            <div>
-              <label>Choice C:</label>
-              <input type="text" id="editOpt3"/>
+          <div class="mcq-option-block">
+            <label for="editOpt2">Choice B:</label>
+            <input type="text" id="editOpt2"/>
+            <div class="mcq-option-feedback-wrap" id="editFbWrap2">
+              <label for="editFb2" style="font-weight:500; font-size:0.8rem; color:var(--text-muted);">Feedback if this option is chosen (optional)</label>
+              <textarea id="editFb2" rows="2" placeholder="Explain why this distractor is wrong…"></textarea>
             </div>
-            <div>
-              <label>Choice D:</label>
-              <input type="text" id="editOpt4"/>
+          </div>
+          <div class="mcq-option-block">
+            <label for="editOpt3">Choice C:</label>
+            <input type="text" id="editOpt3"/>
+            <div class="mcq-option-feedback-wrap" id="editFbWrap3">
+              <label for="editFb3" style="font-weight:500; font-size:0.8rem; color:var(--text-muted);">Feedback if this option is chosen (optional)</label>
+              <textarea id="editFb3" rows="2" placeholder="Explain why this distractor is wrong…"></textarea>
+            </div>
+          </div>
+          <div class="mcq-option-block">
+            <label for="editOpt4">Choice D:</label>
+            <input type="text" id="editOpt4"/>
+            <div class="mcq-option-feedback-wrap" id="editFbWrap4">
+              <label for="editFb4" style="font-weight:500; font-size:0.8rem; color:var(--text-muted);">Feedback if this option is chosen (optional)</label>
+              <textarea id="editFb4" rows="2" placeholder="Explain why this distractor is wrong…"></textarea>
             </div>
           </div>
           <div style="margin-top:8px;">
@@ -2105,11 +2164,14 @@
             </div>
           </details>
 
-          <div id="editMarkpointsBlock" class="edit-markpoints-block" style="border:1px solid var(--border); border-radius:10px; padding:14px; background:#fafbfc;">
+            <div id="editMarkpointsBlock" class="edit-markpoints-block" style="border:1px solid var(--border); border-radius:10px; padding:14px; background:#fafbfc;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
               <h4 style="margin:0; font-size:0.95rem; color:var(--primary-dark);">Section 3: Mark Checkpoints</h4>
               <button type="button" class="btn btn-secondary" id="btnEditAddMarkPoint" style="padding:3px 8px; font-size:0.75rem;">+ Add Criteria Step</button>
             </div>
+            <p id="editSection3Help" class="hidden" style="font-size: 0.78rem; color: var(--text-muted); line-height: 1.4; margin: 0 0 12px;">
+              <strong>MCQ:</strong> One generic remediation row (feedback only). Shown below per-option feedback from Section 2.
+            </p>
             <div id="editMarkPointsWrapper"></div>
           </div>
         </div>
@@ -2150,6 +2212,9 @@
                 <span id="editAoMarksValidation" class="ao-validation"></span>
               </div>
             </div>
+            <p id="editMcqAoNote" class="hidden metadata-span-full" style="margin:0 0 10px;font-size:0.82rem;color:var(--text-muted);">
+              MCQ questions are always 1 mark total. Default is AO1 — set AO2 for calculation MCQs, or AO3 if appropriate.
+            </p>
             <div class="flag-row metadata-span-full">
               <label><input type="checkbox" id="editChkMathsSkill" /> Maths skill</label>
               <label><input type="checkbox" id="editChkRequiredPractical" /> Required practical</label>
@@ -2227,9 +2292,12 @@
 <script type="module">
   import { supabaseClient } from "./src/dbClient.js";
   import * as CalcWorkflow from "./src/calculationWorkflow.js";
+  import { resolveMcqWrongFeedback, MCQ_FLASHCARD_ADDED_MSG } from "./src/evalEngine.js";
 
   window.CalcWorkflow = CalcWorkflow;
   window.supabaseClient = supabaseClient;
+  window.resolveMcqWrongFeedback = resolveMcqWrongFeedback;
+  window.MCQ_FLASHCARD_ADDED_MSG = MCQ_FLASHCARD_ADDED_MSG;
 
   let currentAuthSessionUser = null;
   let loadedQuestionsCache = [];
@@ -2983,6 +3051,98 @@
   // ====== MCQ CHOOSE DROPDOWN LOADER ======
   const mcqCorrectSelect = document.getElementById("mcqCorrect");
   const optionsArr = ["mcqOptA", "mcqOptB", "mcqOptC", "mcqOptD"];
+  const mcqFeedbackArr = ["mcqFbA", "mcqFbB", "mcqFbC", "mcqFbD"];
+  const mcqFeedbackWrapArr = ["mcqFbWrapA", "mcqFbWrapB", "mcqFbWrapC", "mcqFbWrapD"];
+  const editOptionsArr = ["editOpt1", "editOpt2", "editOpt3", "editOpt4"];
+  const editFeedbackArr = ["editFb1", "editFb2", "editFb3", "editFb4"];
+  const editFeedbackWrapArr = ["editFbWrap1", "editFbWrap2", "editFbWrap3", "editFbWrap4"];
+
+  function buildMcqOptionFeedbackFromForm(optIds, fbIds) {
+    const optionFeedback = {};
+    optIds.forEach((optId, i) => {
+      const optText = document.getElementById(optIds[i])?.value.trim();
+      const fbText = document.getElementById(fbIds[i])?.value.trim();
+      if (optText && fbText) optionFeedback[optText] = fbText;
+    });
+    return Object.keys(optionFeedback).length ? optionFeedback : undefined;
+  }
+
+  function loadMcqOptionFeedbackIntoForm(optionFeedback, optIds, fbIds) {
+    fbIds.forEach((fbId) => {
+      const el = document.getElementById(fbId);
+      if (el) el.value = "";
+    });
+    if (!optionFeedback || typeof optionFeedback !== "object") return;
+    optIds.forEach((optId, i) => {
+      const optText = document.getElementById(optIds[i])?.value.trim();
+      const fbEl = document.getElementById(fbIds[i]);
+      if (optText && fbEl && optionFeedback[optText]) {
+        fbEl.value = optionFeedback[optText];
+      }
+    });
+  }
+
+  function syncMcqOptionFeedbackVisibility(mode = "creator") {
+    const isEdit = mode === "edit";
+    const optIds = isEdit ? editOptionsArr : optionsArr;
+    const fbWrapIds = isEdit ? editFeedbackWrapArr : mcqFeedbackWrapArr;
+    const correctVal = isEdit
+      ? document.getElementById("editOptCorrect")?.value || ""
+      : mcqCorrectSelect?.value || "";
+
+    optIds.forEach((optId, i) => {
+      const optText = document.getElementById(optId)?.value.trim();
+      const wrap = document.getElementById(fbWrapIds[i]);
+      if (!wrap) return;
+      const isCorrect = optText && optText === correctVal;
+      wrap.classList.toggle("hidden", !!isCorrect);
+    });
+  }
+
+  function syncSection3McqMode(questionType, mode = "creator") {
+    const isMcq = questionType === "mcq";
+    const wrapId = mode === "edit" ? "editMarkPointsWrapper" : "markPointsWrapper";
+    const helpId = mode === "edit" ? "editSection3Help" : "section3Help";
+    const helpEl = document.getElementById(helpId);
+    if (helpEl) helpEl.classList.toggle("hidden", !isMcq);
+
+    document.querySelectorAll(`#${wrapId} .mark-point-row`).forEach((row) => {
+      row.classList.toggle("mcq-mode", isMcq);
+    });
+
+    if (isMcq) {
+      ensureMcqGenericMarkPoint(mode);
+    }
+  }
+
+  function ensureMcqGenericMarkPoint(mode = "creator") {
+    const wrapId = mode === "edit" ? "editMarkPointsWrapper" : "markPointsWrapper";
+    const wrap = document.getElementById(wrapId);
+    if (!wrap || wrap.querySelector(".mark-point-row")) return;
+    if (mode === "edit") window.addEditMarkPointRow("", "AO1", "");
+    else window.addMarkPointRow("", "AO1", "");
+  }
+
+  function updateEditMcqCorrectSelector() {
+    const correctSelect = document.getElementById("editOptCorrect");
+    if (!correctSelect) return;
+    const prev = correctSelect.value;
+    correctSelect.innerHTML = "<option value=''>-- Choose correct choice --</option>";
+    editOptionsArr.forEach((id, i) => {
+      const optText = document.getElementById(id)?.value.trim();
+      if (optText) {
+        const letter = String.fromCharCode(65 + i);
+        const choice = document.createElement("option");
+        choice.value = optText;
+        choice.textContent = `Option ${letter}: "${optText}"`;
+        correctSelect.appendChild(choice);
+      }
+    });
+    if (prev && [...correctSelect.options].some((o) => o.value === prev)) {
+      correctSelect.value = prev;
+    }
+    syncMcqOptionFeedbackVisibility("edit");
+  }
   
   function updateMcqCorrectSelector() {
     mcqCorrectSelect.innerHTML = "<option value=''>-- Choose Correct Selection --</option>";
@@ -2996,10 +3156,18 @@
         mcqCorrectSelect.appendChild(val);
       }
     });
+    syncMcqOptionFeedbackVisibility("creator");
   }
   optionsArr.forEach(id => {
-    document.getElementById(id).oninput = updateMcqCorrectSelector;
+    document.getElementById(id).oninput = () => {
+      updateMcqCorrectSelector();
+    };
   });
+  mcqCorrectSelect?.addEventListener("change", () => syncMcqOptionFeedbackVisibility("creator"));
+  editOptionsArr.forEach((id) => {
+    document.getElementById(id)?.addEventListener("input", updateEditMcqCorrectSelector);
+  });
+  document.getElementById("editOptCorrect")?.addEventListener("change", () => syncMcqOptionFeedbackVisibility("edit"));
 
   // ====== DYNAMIC QUESTION PANEL TOGGLING ======
   const qType = document.getElementById("qType");
@@ -3010,23 +3178,20 @@
   function syncCreatorMcqUi(type) {
     const isMcq = type === "mcq";
     if (maxMarksRow) maxMarksRow.classList.toggle("hidden", isMcq);
-    if (creatorAoToolsRow) creatorAoToolsRow.classList.toggle("hidden", isMcq);
+    if (creatorAoToolsRow) creatorAoToolsRow.classList.remove("hidden");
     if (isMcq && maxMarks) {
       maxMarks.innerHTML = "<option value=\"1\">1 mark</option>";
       maxMarks.value = "1";
       if (window.AdminMetadata?.syncCreatorMcqAoFields) {
-        window.AdminMetadata.syncCreatorMcqAoFields();
-      } else {
-        const ao1 = document.getElementById("ao1Marks");
-        const ao2 = document.getElementById("ao2Marks");
-        const ao3 = document.getElementById("ao3Marks");
-        if (ao1) ao1.value = "1";
-        if (ao2) ao2.value = "0";
-        if (ao3) ao3.value = "0";
+        window.AdminMetadata.syncCreatorMcqAoFields(true);
       }
     }
     const mcqAoNote = document.getElementById("mcqAoAutoNote");
     if (mcqAoNote) mcqAoNote.classList.toggle("hidden", !isMcq);
+    if (window.AdminMetadata) {
+      window.AdminMetadata.updateAoValidationLabel("creator", isMcq ? 1 : (parseInt(maxMarks?.value, 10) || 1));
+    }
+    syncSection3McqMode(type, "creator");
   }
   
   qType.onchange = function() {
@@ -3047,6 +3212,7 @@
     if (type === "mcq") {
       document.getElementById("mcqPanel").classList.remove("hidden");
       syncCreatorMcqUi("mcq");
+      ensureMcqGenericMarkPoint("creator");
     } 
     else if (type === "numeric") {
       document.getElementById("numericPanel").classList.remove("hidden");
@@ -3229,11 +3395,12 @@
         <option value="AO2" ${selectedAo === "AO2" ? "selected" : ""}>AO2</option>
         <option value="AO3" ${selectedAo === "AO3" ? "selected" : ""}>AO3</option>
       </select>
-      <input class="mp-text" type="text" placeholder="Point target keyword (e.g. gravity|gravitational)" value="${escapeHtml(ptText)}"/>
+      <span class="mp-text-wrap"><input class="mp-text" type="text" placeholder="Point target keyword (e.g. gravity|gravitational)" value="${escapeHtml(ptText)}"/></span>
       <textarea class="mp-feedback" rows="2" placeholder="Remediation tips...">${escapeHtml(fbText)}</textarea>
       <button onclick="removeMarkPointRow(${markPointsCounter})" style="background:var(--error); color:white; border:none; border-radius:6px; cursor:pointer; height:38px; font-weight:bold; width: 100%;">&times;</button>
     `;
     wrap.appendChild(row);
+    if (document.getElementById("qType")?.value === "mcq") row.classList.add("mcq-mode");
     if (window.AdminMetadata) window.AdminMetadata.autoSizeAdminSelects(wrap);
   };
   
@@ -3259,11 +3426,12 @@
         <option value="AO2" ${selectedAo === "AO2" ? "selected" : ""}>AO2</option>
         <option value="AO3" ${selectedAo === "AO3" ? "selected" : ""}>AO3</option>
       </select>
-      <input class="edit-mp-text" type="text" placeholder="Point target keyword (e.g. gravity|gravitational)" value="${escapeHtml(ptText)}"/>
+      <span class="edit-mp-text-wrap"><input class="edit-mp-text" type="text" placeholder="Point target keyword (e.g. gravity|gravitational)" value="${escapeHtml(ptText)}"/></span>
       <textarea class="edit-mp-feedback" rows="2" placeholder="Remediation tips...">${escapeHtml(fbText)}</textarea>
       <button type="button" onclick="removeEditMarkPointRow(${editMarkPointsCounter})" style="background:var(--error); color:white; border:none; border-radius:6px; cursor:pointer; height:38px; font-weight:bold; width: 100%;">&times;</button>
     `;
     wrap.appendChild(row);
+    if (document.getElementById("editQuestionType")?.value === "mcq") row.classList.add("mcq-mode");
   };
 
   document.getElementById("btnEditAddMarkPoint").onclick = () => window.addEditMarkPointRow();
@@ -3309,7 +3477,9 @@
     }
 
     if (window.AdminMetadata) {
-      if (questionType === "mcq") syncCreatorMcqUi("mcq");
+      if (questionType === "mcq") {
+        window.AdminMetadata.updateAoValidationLabel("creator", 1);
+      }
       const metaCheck = window.AdminMetadata.validateCreatorMetadata({ block: true });
       if (!metaCheck.ok) {
         showAdminToast(metaCheck.error, true);
@@ -3426,9 +3596,10 @@
       if (questionType === "mcq") {
         keyType = "mcq";
         keyPayload = {
-          correct: mcqCorrectSelect.value,
-          feedback: "Check your textbook or video review guide for this concept."
+          correct: mcqCorrectSelect.value
         };
+        const optionFeedback = buildMcqOptionFeedbackFromForm(optionsArr, mcqFeedbackArr);
+        if (optionFeedback) keyPayload.option_feedback = optionFeedback;
       } 
       else if (questionType === "numeric") {
         keyType = "numeric";
@@ -3510,6 +3681,10 @@
     document.getElementById("mcqOptB").value = "";
     document.getElementById("mcqOptC").value = "";
     document.getElementById("mcqOptD").value = "";
+    mcqFeedbackArr.forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.value = "";
+    });
     mcqCorrectSelect.innerHTML = "<option value=''>-- Choose Correct Option --</option>";
     
     document.getElementById("shortReqKeywords").value = "";
@@ -4261,24 +4436,20 @@
     const maxRow = document.getElementById("editMaxMarksRow");
     const aoRow = document.getElementById("editAoToolsRow");
     if (maxRow) maxRow.classList.toggle("hidden", isMcq);
-    if (aoRow) aoRow.classList.toggle("hidden", isMcq);
+    if (aoRow) aoRow.classList.remove("hidden");
     if (isMcq) {
       const editMaxMarks = document.getElementById("editMaxMarks");
       if (editMaxMarks) {
         editMaxMarks.innerHTML = "<option value=\"1\">1 mark</option>";
         editMaxMarks.value = "1";
       }
-      if (window.AdminMetadata?.syncEditMcqAoFields) {
-        window.AdminMetadata.syncEditMcqAoFields();
-      } else {
-        const ao1 = document.getElementById("editAo1Marks");
-        const ao2 = document.getElementById("editAo2Marks");
-        const ao3 = document.getElementById("editAo3Marks");
-        if (ao1) ao1.value = "1";
-        if (ao2) ao2.value = "0";
-        if (ao3) ao3.value = "0";
-      }
     }
+    const editMcqAoNote = document.getElementById("editMcqAoNote");
+    if (editMcqAoNote) editMcqAoNote.classList.toggle("hidden", !isMcq);
+    if (window.AdminMetadata) {
+      window.AdminMetadata.updateAoValidationLabel("edit", isMcq ? 1 : (parseInt(document.getElementById("editMaxMarks")?.value, 10) || 1));
+    }
+    syncSection3McqMode(questionType, "edit");
   }
 
   window.requestInteractiveEdit = async function(id) {
@@ -4399,6 +4570,8 @@
           }
         });
         correctSelect.value = keyData?.key_payload?.correct || "";
+        loadMcqOptionFeedbackIntoForm(keyData?.key_payload?.option_feedback, editOptionsArr, editFeedbackArr);
+        syncMcqOptionFeedbackVisibility("edit");
       } 
       else if (q.question_type === "numeric") {
         document.getElementById("editNumericPanel").classList.remove("hidden");
@@ -4443,9 +4616,16 @@
       if (!mpsErr && dbMps) {
         mps = dbMps;
         if (q.question_type !== "numeric") {
-          mps.forEach(mp => {
-            addEditMarkPointRow(mp.point_text, mp.ao, mp.feedback_if_missing);
-          });
+          const legacyMcqFeedback = (q.question_type === "mcq" && keyData?.key_payload?.feedback)
+            ? String(keyData.key_payload.feedback).trim()
+            : "";
+          if (q.question_type === "mcq" && !mps.length && legacyMcqFeedback) {
+            addEditMarkPointRow("", "AO1", legacyMcqFeedback);
+          } else {
+            mps.forEach(mp => {
+              addEditMarkPointRow(mp.point_text, mp.ao, mp.feedback_if_missing);
+            });
+          }
         }
       } else if (mpsErr) {
         console.error("Supabase Error loading checkpoints:", mpsErr);
@@ -4514,7 +4694,7 @@
         indicator.style.color = "#475569";
         indicator.style.borderColor = "#e2e8f0";
         indicator.innerHTML = `🔘 <strong>Active Grading Mode: Multiple Choice Question (MCQ)</strong><br/>
-          Awarded if student selection matches the designated correct option value.`;
+          Awarded if student selection matches the designated correct option. Per-option feedback in Section 2; generic remediation in Section 3.`;
       } else {
         indicator.style.display = "none";
       }
@@ -4581,18 +4761,13 @@
       if (window.AdminMetadata) {
         editMeta = window.AdminMetadata.buildEditMetadataPayload();
 
-        if (q.question_type === "mcq") {
-          window.AdminMetadata.syncEditMcqAoFields();
-          Object.assign(editMeta, { ao1_marks: 1, ao2_marks: 0, ao3_marks: 0 });
-        }
-
         const ao1Raw = document.getElementById("editAo1Marks")?.value ?? "";
         const ao2Raw = document.getElementById("editAo2Marks")?.value ?? "";
         const ao3Raw = document.getElementById("editAo3Marks")?.value ?? "";
         const aoFieldsEmpty = ao1Raw === "" && ao2Raw === "" && ao3Raw === "";
         const aoLegacyIncomplete = q.ao1_marks == null || q.ao2_marks == null || q.ao3_marks == null;
 
-        if (aoFieldsEmpty && !aoLegacyIncomplete && q.question_type !== "mcq") {
+        if (aoFieldsEmpty && !aoLegacyIncomplete) {
           editMeta.ao1_marks = Number(q.ao1_marks) || 0;
           editMeta.ao2_marks = Number(q.ao2_marks) || 0;
           editMeta.ao3_marks = Number(q.ao3_marks) || 0;
@@ -4610,7 +4785,7 @@
           return;
         }
 
-        if (!valid && aoFieldsEmpty && aoLegacyIncomplete && q.question_type !== "mcq") {
+        if (!valid && aoFieldsEmpty && aoLegacyIncomplete) {
           editMeta.ao1_marks = q.ao1_marks;
           editMeta.ao2_marks = q.ao2_marks;
           editMeta.ao3_marks = q.ao3_marks;
@@ -4685,9 +4860,10 @@
       let updatedPayload = {};
       if (q.question_type === "mcq") {
         updatedPayload = {
-          correct: document.getElementById("editOptCorrect").value,
-          feedback: "Check your syllabus specifications for this concept."
+          correct: document.getElementById("editOptCorrect").value
         };
+        const optionFeedback = buildMcqOptionFeedbackFromForm(editOptionsArr, editFeedbackArr);
+        if (optionFeedback) updatedPayload.option_feedback = optionFeedback;
       } else if (q.question_type === "numeric") {
         updatedPayload = {
           answer: parseFloat(document.getElementById("editNumAns").value),
@@ -5046,16 +5222,34 @@
       const correct = currentSandboxedKey.key_payload.correct || "";
       const isCorrect = resp.answer === correct;
       score = isCorrect ? max : 0;
-      
-      let missingFeedback = currentSandboxedMarkPoints?.[0]?.feedback_if_missing
-        ? currentSandboxedMarkPoints[0].feedback_if_missing
-        : `Check your textbook or video review guide for this concept.`;
+
+      const feedbackBlocks = !isCorrect
+        ? resolveMcqWrongFeedback(
+            resp.answer,
+            currentSandboxedKey,
+            currentSandboxedMarkPoints,
+            correct
+          )
+        : [];
+
+      const feedbackHtml = feedbackBlocks.map((block, index) => {
+        const label = index === 0 && feedbackBlocks.length > 1
+          ? "💡 Specific feedback"
+          : index === 1
+            ? "💡 General remediation"
+            : "💡 Remedial feedback";
+        const displayText = block.text.replace(
+          new RegExp(`\\s*${MCQ_FLASHCARD_ADDED_MSG.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*$`),
+          ""
+        ).trim();
+        return `<div style="margin-top:${index ? "8" : "10"}px; padding:10px; background:#fff5f5; border-left:3px solid var(--error); font-size:0.85rem; color:#991b1b;"><strong>${label}:</strong> ${escapeHtml(displayText)}</div>`;
+      }).join("");
 
       detailsHtml = `
         <div style="font-weight:bold; margin-bottom:8px;">MCQ Result: <span style="color:${isCorrect ? "var(--success)" : "var(--error)"}">${isCorrect ? "CORRECT" : "INCORRECT"}</span></div>
         <div>Selected Option: <code>"${escapeHtml(resp.answer)}"</code></div>
         <div>Expected Target Option: <code>"${escapeHtml(correct)}"</code></div>
-        ${!isCorrect ? `<div style="margin-top:10px; padding:10px; background:#fff5f5; border-left:3px solid var(--error); font-size:0.85rem; color:#991b1b;"><strong>💡 Remedial Checkpoint Step:</strong> ${escapeHtml(missingFeedback)}</div>` : ''}
+        ${feedbackHtml}
       `;
     } 
     else if (currentSandboxedKey.key_type === "numeric") {

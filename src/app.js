@@ -869,7 +869,9 @@ function extractFlashcardInsights(att) {
   }
 
   if (Array.isArray(payload?.missing)) {
-    return payload.missing.map((m) =>
+    const withFlashcardText = payload.missing.filter((m) => m.flashcard_text);
+    const source = withFlashcardText.length > 0 ? withFlashcardText : payload.missing;
+    return source.map((m) =>
       asInsight(flashcardInsightFromMissing(m), m.image_url || "")
     );
   }

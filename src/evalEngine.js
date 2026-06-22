@@ -14,6 +14,61 @@ export function flashcardInsightFromMissing(m) {
   return text.trim();
 }
 
+function cleanMcqFeedbackText(text) {
+  return String(text || "").replace(LEGACY_FLASHCARD_REVIEW_SUFFIX, "").trim();
+}
+
+/** Which AO earns the single MCQ mark — question metadata takes precedence over Section 3 mark points. */
+export function getMcqTargetAo(q, markPoints) {
+  const ao2 = Number(q?.ao2_marks) || 0;
+  const ao3 = Number(q?.ao3_marks) || 0;
+  const ao1 = Number(q?.ao1_marks) || 0;
+  if (ao2 > 0) return "AO2";
+  if (ao3 > 0) return "AO3";
+  if (ao1 > 0) return "AO1";
+  if (markPoints?.[0]?.ao) return markPoints[0].ao;
+  return "AO1";
+}
+
+function applyMcqMaxAoFromQuestion(q, max, maxAo) {
+  const hasStored = q.ao1_marks != null || q.ao2_marks != null || q.ao3_marks != null;
+  if (hasStored) {
+    maxAo.AO1 = Number(q.ao1_marks) || 0;
+    maxAo.AO2 = Number(q.ao2_marks) || 0;
+    maxAo.AO3 = Number(q.ao3_marks) || 0;
+    return;
+  }
+  maxAo.AO1 = max;
+}
+
+/**
+ * Build remediation blocks for a wrong MCQ answer.
+ * Per-option feedback first, then generic Section 3 feedback; combined flashcard on first block only.
+ */
+export function resolveMcqWrongFeedback(selectedAnswer, key, markPoints, targetCorrect, cleanUrl = null, targetAo = "AO1") {
+  const optionFeedback = key?.key_payload?.option_feedback || {};
+  const specificText = cleanMcqFeedbackText(optionFeedback[selectedAnswer]);
+  const genericText = cleanMcqFeedbackText(markPoints?.[0]?.feedback_if_missing);
+  const fallbackText = `The correct answer is "${targetCorrect}".`;
+  const imageUrl = markPoints?.[0]?.image_url || "";
+
+  const contentBlocks = [];
+  if (specificText) contentBlocks.push(specificText);
+  if (genericText) contentBlocks.push(genericText);
+  if (!contentBlocks.length) contentBlocks.push(fallbackText);
+
+  const combinedFlashcard = contentBlocks.join("\n\n");
+  const missing = contentBlocks.map((blockText, index) => ({
+    ao: targetAo,
+    text: index === 0 ? `${blockText} ${MCQ_FLASHCARD_ADDED_MSG}` : blockText,
+    flashcard_text: index === 0 ? combinedFlashcard : undefined,
+    url: cleanUrl,
+    image_url: index === 0 ? imageUrl : ""
+  }));
+
+  return missing;
+}
+
 // ====== 🧠 FUZZY STRING MATCHING ENGINE (LEVENSHTEIN DISTANCE) ======
 export function getLevenshteinDistance(s1, s2) {
   const track = Array(s2.length + 1).fill(null).map(() => Array(s1.length + 1).fill(null));
@@ -329,14 +384,14 @@ export function markResponse(q, resp, key, markPoints) {
     ? q.resource_links.trim() 
     : null;
 
-  if (markPoints && markPoints.length > 0) {
+  if (q.question_type === "mcq") {
+    applyMcqMaxAoFromQuestion(q, max, maxAo);
+  } else if (markPoints && markPoints.length > 0) {
     markPoints.forEach(mp => {
       maxAo[mp.ao] = (maxAo[mp.ao] || 0) + (mp.max_marks || 1);
     });
   } else {
-    if (q.question_type === "mcq") {
-      maxAo.AO1 = max;
-    } else if (q.question_type === "numeric") {
+    if (q.question_type === "numeric") {
       maxAo.AO2 = max;
     } else if (q.question_type === "extended_response") {
       maxAo.AO1 = Math.ceil(max / 3);
@@ -351,23 +406,14 @@ export function markResponse(q, resp, key, markPoints) {
     const targetCorrect = key.key_payload?.correct || key.key_payload?.answer || "";
     total = resp.answer === targetCorrect ? max : 0;
     quality = total ? 5 : 1;
-    const targetAo = markPoints?.[0]?.ao || "AO1";
+    const targetAo = getMcqTargetAo(q, markPoints);
     
     if (total > 0) {
       ao[targetAo] = max;
     } else {
-      let flashcardText = markPoints?.[0]?.feedback_if_missing
-        ? markPoints[0].feedback_if_missing.replace(LEGACY_FLASHCARD_REVIEW_SUFFIX, "").trim()
-        : `The correct answer is "${targetCorrect}".`;
-      const feedbackText = `${flashcardText} ${MCQ_FLASHCARD_ADDED_MSG}`;
-
-      missing.push({
-        ao: targetAo,
-        text: feedbackText,
-        flashcard_text: flashcardText,
-        url: cleanUrl,
-        image_url: markPoints?.[0]?.image_url || ""
-      });
+      missing.push(
+        ...resolveMcqWrongFeedback(resp.answer, key, markPoints, targetCorrect, cleanUrl, targetAo)
+      );
     }
   }
   else if (key.key_type === "numeric") {
@@ -492,6 +538,11 @@ export function computeQuestionAOMaxCaps(q, markPoints = []) {
     }
   }
 
+  if (q.question_type === "mcq") {
+    applyMcqMaxAoFromQuestion(q, max, maxAo);
+    return maxAo;
+  }
+
   if (markPoints.length > 0) {
     for (const mp of markPoints) {
       if (mp.ao && maxAo[mp.ao] !== undefined) {
@@ -501,9 +552,7 @@ export function computeQuestionAOMaxCaps(q, markPoints = []) {
     return maxAo;
   }
 
-  if (q.question_type === "mcq") {
-    maxAo.AO1 = max;
-  } else if (q.question_type === "numeric") {
+  if (q.question_type === "numeric") {
     maxAo.AO2 = max;
   } else if (q.question_type === "extended_response") {
     maxAo.AO1 = Math.ceil(max / 3);
