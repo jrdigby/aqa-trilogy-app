@@ -47,9 +47,9 @@
         "tokens": [
           { "kind": "slot", "id": "P", "label": "P" },
           { "kind": "op", "text": "=" },
-          { "kind": "slot", "id": "V", "label": "V" },
+          { "kind": "slot", "id": "I", "label": "I" },
           { "kind": "op", "text": "×" },
-          { "kind": "slot", "id": "I", "label": "I" }
+          { "kind": "slot", "id": "V", "label": "V" }
         ]
       },
       "rearrangement_forms": {

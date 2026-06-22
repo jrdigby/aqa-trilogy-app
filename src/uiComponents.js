@@ -215,6 +215,10 @@ export function renderFeedback(marking, currentQ, currentKey, currentMarkPoints)
       const badgeColor = isEcf ? "#166534" : "white";
       const badgeLabel = isEcf ? "ECF" : m.ao;
 
+      const feedbackContent = (m.stepType === "equation_select" && m.html)
+        ? `The correct equation is: ${m.html}`
+        : `${escapeHtml(m.text)}${m.html || ""}`;
+
       return `
         <div class="item" style="margin: 5px 0; padding: 12px; background: ${containerBg}; border-left: 4px solid ${borderCol}; border-radius: 0 6px 6px 0; color: ${textCol};">
           <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px;">
@@ -222,7 +226,7 @@ export function renderFeedback(marking, currentQ, currentKey, currentMarkPoints)
               <span class="chip" style="background:${badgeBg}; color:${badgeColor}; padding:2px 6px; border-radius:4px; font-size:0.8rem; margin-right: 5px; font-weight: bold; text-transform: uppercase;">
                 ${badgeLabel}
               </span> 
-              ${escapeHtml(m.text)}
+              ${feedbackContent}
               ${feedbackImgHtml}
             </div>
             ${m.url ? `
@@ -846,7 +850,12 @@ export function renderExamPaperFeedbackSummary(attemptLog) {
     const stepSummary = m.stepResults ? renderCalculationStepSummary(m.stepResults) : "";
     const gaps = (m.missing || [])
       .filter((g) => !g.isEcf)
-      .map((g) => `<li style="margin-bottom:6px;">${escapeHtml(g.text)}</li>`)
+      .map((g) => {
+        const body = (g.stepType === "equation_select" && g.html)
+          ? `The correct equation is: ${g.html}`
+          : `${escapeHtml(g.text)}${g.html || ""}`;
+        return `<li style="margin-bottom:6px;">${body}</li>`;
+      })
       .join("");
     const ecf = (m.missing || [])
       .filter((g) => g.isEcf)
