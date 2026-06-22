@@ -244,6 +244,12 @@ function renderSubstitutionSlotRows(prefix, template, slotAnswers = {}) {
     return;
   }
   const slotIds = getSlotIdsFromTemplate(template);
+  const active = document.activeElement;
+  const focusedRow = active?.closest?.(`[data-slot-id]`);
+  const focusedSlotId = focusedRow?.closest?.(`#${prefix}CalcSubstitutionSlots`) ? focusedRow.dataset.slotId : null;
+  const selectionStart = active?.selectionStart;
+  const selectionEnd = active?.selectionEnd;
+
   wrap.innerHTML = slotIds.map((id) => {
     const vals = slotAnswers[id];
     const value = Array.isArray(vals) ? vals.join(" | ") : (vals || "");
@@ -253,6 +259,18 @@ function renderSubstitutionSlotRows(prefix, template, slotAnswers = {}) {
         <input type="text" value="${escapeHtml(value)}" placeholder="e.g. 400 or I | i" title="Use | for accepted alternates" style="flex:1;padding:6px;border:1px solid #cbd5e1;border-radius:4px;"/>
       </div>`;
   }).join("");
+
+  if (focusedSlotId) {
+    const input = wrap.querySelector(`[data-slot-id="${CSS.escape(focusedSlotId)}"] input`);
+    if (input) {
+      input.focus();
+      if (typeof selectionStart === "number" && typeof selectionEnd === "number") {
+        try {
+          input.setSelectionRange(selectionStart, selectionEnd);
+        } catch (_) { /* ignore */ }
+      }
+    }
+  }
 }
 
 function renderStructuredSubstitutionPreview(prefix, template, slotAnswers) {
@@ -352,6 +370,58 @@ export async function refreshStructuredSubstitutionAdmin(supabaseClient, prefix 
   updateRearrangementNumericPreview(prefix, equation, subStep, rearrStep);
 }
 
+function getCachedEquationSheetOptions(prefix = "") {
+  if (typeof window === "undefined") return [];
+  const cacheKey = prefix || "creator";
+  const cached = window._calcEquationOptions?.[cacheKey];
+  return Array.isArray(cached) ? cached : [];
+}
+
+/** Live-update rearrangement preview while typing slot answers — does not rebuild slot inputs. */
+function updateStructuredSubstitutionDerivedUi(prefix = "", supabaseClient = null) {
+  const p = (id) => document.getElementById(prefix + id);
+  const mode = p("CalcSubstitutionMode")?.value || "free_text";
+  if (mode !== "structured") return;
+
+  const eqId = p("CalcSubstitutionEquation")?.value || p("CalcEquationAnswer")?.value || "";
+  if (!eqId) return;
+
+  let equations = getCachedEquationSheetOptions(prefix);
+  if (!equations.length && supabaseClient) {
+    const sheetId = p("CalcEquationSheet")?.value || "";
+    if (!sheetId) return;
+    loadEquationSheetOptions(supabaseClient, sheetId).then((loaded) => {
+      const equation = loaded.find((e) => e.id === eqId || e.label === eqId) || null;
+      if (!equation) return;
+      const slotAnswers = readSlotAnswersFromForm(prefix);
+      const subStep = {
+        slot_answers: slotAnswers,
+        rearrangement_subject: p("CalcRearrangementSubject")?.value
+      };
+      const rearrStep = {
+        mode: p("CalcRearrangementMode")?.value || "numeric",
+        subject: p("CalcRearrangementSubject")?.value
+      };
+      updateRearrangementNumericPreview(prefix, equation, subStep, rearrStep);
+    }).catch(() => {});
+    return;
+  }
+
+  const equation = equations.find((e) => e.id === eqId || e.label === eqId) || null;
+  if (!equation) return;
+
+  const slotAnswers = readSlotAnswersFromForm(prefix);
+  const subStep = {
+    slot_answers: slotAnswers,
+    rearrangement_subject: p("CalcRearrangementSubject")?.value
+  };
+  const rearrStep = {
+    mode: p("CalcRearrangementMode")?.value || "numeric",
+    subject: p("CalcRearrangementSubject")?.value
+  };
+  updateRearrangementNumericPreview(prefix, equation, subStep, rearrStep);
+}
+
 export function wireStructuredSubstitutionAuthoring(prefix = "", supabaseClient, onChange) {
   const ids = [
     "CalcSubstitutionMode",
@@ -367,9 +437,8 @@ export function wireStructuredSubstitutionAuthoring(prefix = "", supabaseClient,
     });
   }
   const slotsWrap = document.getElementById(`${prefix}CalcSubstitutionSlots`);
-  slotsWrap?.addEventListener("input", async () => {
-    await refreshStructuredSubstitutionAdmin(supabaseClient, prefix);
-    onChange?.(prefix);
+  slotsWrap?.addEventListener("input", () => {
+    updateStructuredSubstitutionDerivedUi(prefix, supabaseClient);
   });
 }
 
