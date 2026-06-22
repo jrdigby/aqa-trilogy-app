@@ -550,8 +550,8 @@
           },
           {
             "kind": "slot",
-            "id": "V",
-            "label": "V"
+            "id": "I",
+            "label": "I"
           },
           {
             "kind": "op",
@@ -559,8 +559,8 @@
           },
           {
             "kind": "slot",
-            "id": "I",
-            "label": "I"
+            "id": "V",
+            "label": "V"
           }
         ]
       },
