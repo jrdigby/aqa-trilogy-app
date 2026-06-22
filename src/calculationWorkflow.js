@@ -149,10 +149,124 @@ function writeStepFeedback(prefix, fieldSuffix, value) {
   if (el) el.value = value || "";
 }
 
+export function cloneCalculationConfig(config) {
+  if (!config) return null;
+  return JSON.parse(JSON.stringify(config));
+}
+
+const authoringContexts = {
+  creator: { questionId: null, pendingSlotAnswers: undefined },
+  edit: { questionId: null, pendingSlotAnswers: undefined }
+};
+
+function authoringContextKey(prefix = "") {
+  return prefix || "creator";
+}
+
+function clearAuthoringContext(prefix = "") {
+  authoringContexts[authoringContextKey(prefix)] = {
+    questionId: null,
+    pendingSlotAnswers: undefined
+  };
+}
+
+function setAuthoringContext(prefix, questionId, slotAnswers) {
+  authoringContexts[authoringContextKey(prefix)] = {
+    questionId: questionId ?? null,
+    pendingSlotAnswers: slotAnswers === undefined
+      ? undefined
+      : cloneCalculationConfig(slotAnswers) || {}
+  };
+}
+
+function consumePendingSlotAnswers(prefix) {
+  const ctx = authoringContexts[authoringContextKey(prefix)];
+  if (!ctx || ctx.pendingSlotAnswers === undefined) return null;
+  const answers = ctx.pendingSlotAnswers;
+  ctx.pendingSlotAnswers = undefined;
+  return answers;
+}
+
+/** Clear calculation workflow fields so values never leak between questions. */
+function resetCalculationFormFields(prefix = "") {
+  const p = (id) => document.getElementById(prefix + id);
+
+  clearAuthoringContext(prefix);
+
+  for (const fieldSuffix of Object.values(FEEDBACK_FIELD_BY_TYPE)) {
+    writeStepFeedback(prefix, fieldSuffix, "");
+  }
+
+  if (p("CalcEquationSheet")) p("CalcEquationSheet").value = "";
+  if (p("CalcEquationOverride")) p("CalcEquationOverride").value = "";
+  if (p("CalcEquationAnswer")) {
+    p("CalcEquationAnswer").value = "";
+    delete p("CalcEquationAnswer").dataset.pendingAnswer;
+  }
+  if (p("CalcEquationDistractors")) p("CalcEquationDistractors").value = "";
+
+  if (p("CalcSubstitutionMode")) p("CalcSubstitutionMode").value = "free_text";
+  if (p("CalcSubstitutionEquation")) {
+    p("CalcSubstitutionEquation").value = "";
+    delete p("CalcSubstitutionEquation").dataset.pendingEquation;
+  }
+  if (p("CalcSubstitutionSlots")) {
+    p("CalcSubstitutionSlots").innerHTML = "";
+    delete p("CalcSubstitutionSlots").dataset.pendingAnswers;
+  }
+  if (p("CalcSubstitutionAccepted")) p("CalcSubstitutionAccepted").value = "";
+  if (p("CalcSubstitutionPreview")) p("CalcSubstitutionPreview").innerHTML = "";
+
+  if (p("CalcConversionLabel")) p("CalcConversionLabel").value = "";
+  if (p("CalcConversionAnswer")) p("CalcConversionAnswer").value = "";
+  if (p("CalcConversionTol")) p("CalcConversionTol").value = "0.001";
+
+  if (p("CalcRearrangeAnswer")) p("CalcRearrangeAnswer").value = "";
+  if (p("CalcRearrangeDistractors")) p("CalcRearrangeDistractors").value = "";
+  if (p("CalcRearrangementMode")) p("CalcRearrangementMode").value = "numeric";
+  if (p("CalcRearrangementSubject")) p("CalcRearrangementSubject").innerHTML = "";
+  if (p("CalcRearrangementNumericPreview")) p("CalcRearrangementNumericPreview").textContent = "";
+
+  if (p("CalcSigFigsCount")) p("CalcSigFigsCount").value = "2";
+
+  populateRemediationSteps(prefix, []);
+}
+
+/** Reset numeric workflow authoring UI (e.g. when closing the edit modal). */
+export function resetCalculationAuthoringForm(prefix = "") {
+  resetCalculationFormFields(prefix);
+  updateNumericAuthoringUi(prefix);
+}
+
+function buildEmptyConfigForPreset(preset) {
+  if (preset === "given_equation") {
+    return {
+      equation_given: true,
+      equation_sheet_id: null,
+      steps: [
+        { type: "substitution", required: true, mode: "free_text" },
+        { type: "calculate", required: true }
+      ]
+    };
+  }
+  if (preset === "equation_sheet") {
+    return {
+      equation_given: false,
+      steps: [
+        { type: "equation_select", required: true, answer: "", distractors: [] },
+        { type: "substitution", required: true, mode: "structured" },
+        { type: "rearrangement", required: true, mode: "numeric" },
+        { type: "calculate", required: true }
+      ]
+    };
+  }
+  return { equation_given: true, steps: [{ type: "calculate", required: true }] };
+}
+
 /** Pull legacy Section 3 mark_points into calculation_config for editing. */
 export function mergeLegacyNumericMarkPoints(config, markPoints) {
   if (!markPoints?.length) return config;
-  const base = config || { equation_given: true, steps: [{ type: "calculate", required: true }] };
+  const base = cloneCalculationConfig(config) || { equation_given: true, steps: [{ type: "calculate", required: true }] };
   const cfg = {
     ...base,
     steps: (base.steps || []).map((s) => ({ ...s })),
@@ -350,12 +464,9 @@ export async function refreshStructuredSubstitutionAdmin(supabaseClient, prefix 
   const eqId = eqSelect.value || p("CalcEquationAnswer")?.value || "";
   const equation = equations.find((e) => e.id === eqId || e.label === eqId) || null;
   const template = getSubstitutionTemplate(equation);
-  const slotAnswers = readSlotAnswersFromForm(prefix);
-  if (!Object.keys(slotAnswers).length && p("CalcSubstitutionSlots")?.dataset.pendingAnswers) {
-    try {
-      Object.assign(slotAnswers, JSON.parse(p("CalcSubstitutionSlots").dataset.pendingAnswers));
-    } catch (_) { /* ignore */ }
-    delete p("CalcSubstitutionSlots").dataset.pendingAnswers;
+  let slotAnswers = consumePendingSlotAnswers(prefix);
+  if (slotAnswers === null) {
+    slotAnswers = readSlotAnswersFromForm(prefix);
   }
   renderSubstitutionSlotRows(prefix, template, slotAnswers);
   renderStructuredSubstitutionPreview(prefix, template, slotAnswers);
@@ -433,7 +544,6 @@ export function wireStructuredSubstitutionAuthoring(prefix = "", supabaseClient,
     const el = document.getElementById(prefix + id);
     el?.addEventListener("change", async () => {
       await refreshStructuredSubstitutionAdmin(supabaseClient, prefix);
-      onChange?.(prefix);
     });
   }
   const slotsWrap = document.getElementById(`${prefix}CalcSubstitutionSlots`);
@@ -1927,6 +2037,7 @@ export function renderCalculationStepSummary(stepResults) {
 }
 
 export function buildCalculationConfigFromForm(prefix = "") {
+  assertEditAuthoringScope(prefix);
   const p = (id) => document.getElementById(prefix + id);
   const chk = (id) => !!p(id)?.checked;
   const fb = (type) => readStepFeedback(prefix, FEEDBACK_FIELD_BY_TYPE[type]);
@@ -2051,6 +2162,15 @@ export function buildCalculationConfigFromForm(prefix = "") {
   });
 }
 
+function assertEditAuthoringScope(prefix) {
+  if (prefix !== "edit") return;
+  const formQuestionId = document.getElementById("editQuestionId")?.value || null;
+  const ctxQuestionId = authoringContexts.edit?.questionId;
+  if (formQuestionId && ctxQuestionId && formQuestionId !== ctxQuestionId) {
+    throw new Error("Calculation form is out of sync with the open question. Close and reopen the edit panel.");
+  }
+}
+
 /** Auto-fill numeric rearrangement answer/distractors from slot answers + equation template at save time. */
 export function finalizeCalculationConfigForSave(config, equations = []) {
   if (!config?.steps?.length || !equations?.length) return config;
@@ -2078,11 +2198,13 @@ export function finalizeCalculationConfigForSave(config, equations = []) {
   return { ...config, steps };
 }
 
-export function populateCalculationForm(prefix, config) {
+export function populateCalculationForm(prefix, config, questionId = null) {
   const p = (id) => document.getElementById(prefix + id);
   const setChk = (id, val) => { if (p(id)) p(id).checked = !!val; };
 
-  const cfg = config || { equation_given: true, steps: [{ type: "calculate", required: true }] };
+  resetCalculationFormFields(prefix);
+
+  const cfg = cloneCalculationConfig(config) || { equation_given: true, steps: [{ type: "calculate", required: true }] };
   const steps = cfg.steps || [];
 
   setChk("CalcEquationGiven", cfg.equation_given !== false);
@@ -2117,15 +2239,19 @@ export function populateCalculationForm(prefix, config) {
     if (subStep.equation_id && p("CalcSubstitutionEquation")) {
       p("CalcSubstitutionEquation").dataset.pendingEquation = subStep.equation_id;
     }
-    if (subStep.slot_answers && p("CalcSubstitutionSlots")) {
-      p("CalcSubstitutionSlots").dataset.pendingAnswers = JSON.stringify(subStep.slot_answers);
+    if (mode === "structured") {
+      setAuthoringContext(prefix, questionId, subStep.slot_answers || {});
+    } else {
+      setAuthoringContext(prefix, questionId, undefined);
     }
-    if (subStep.accepted && p("CalcSubstitutionAccepted")) {
+    if (mode === "free_text" && p("CalcSubstitutionAccepted")) {
       p("CalcSubstitutionAccepted").value = (subStep.accepted || []).join("\n");
     }
     if (subStep.rearrangement_subject && p("CalcRearrangementSubject")) {
       p("CalcRearrangementSubject").value = subStep.rearrangement_subject;
     }
+  } else {
+    setAuthoringContext(prefix, questionId, undefined);
   }
   writeStepFeedback(prefix, FEEDBACK_FIELD_BY_TYPE.substitution, subStep?.feedback_if_wrong);
 
@@ -2213,30 +2339,18 @@ export function wireCalculationFormToggles(prefix = "", onChange) {
 }
 
 export function applyCalculationPreset(prefix, preset, demandLevel) {
-  const p = (id) => document.getElementById(prefix + id);
-  const setChk = (id, val) => { if (p(id)) p(id).checked = !!val; };
-
   const effective = preset === "auto"
     ? inferCalculationPreset(demandLevel)
     : preset;
 
   if (effective === "given_equation") {
-    setChk("CalcEquationGiven", true);
-    setChk("CalcStepEquation", false);
-    setChk("CalcStepSubstitution", true);
-    setChk("CalcStepConversion", false);
-    setChk("CalcStepRearrangement", false);
-    setChk("CalcStepSigFigs", false);
+    populateCalculationForm(prefix, buildEmptyConfigForPreset("given_equation"));
   } else if (effective === "equation_sheet") {
-    setChk("CalcEquationGiven", false);
-    setChk("CalcStepEquation", true);
-    setChk("CalcStepSubstitution", true);
-    setChk("CalcStepRearrangement", true);
-    setChk("CalcStepConversion", false);
-    setChk("CalcStepSigFigs", false);
+    populateCalculationForm(prefix, buildEmptyConfigForPreset("equation_sheet"));
     applyAutoEquationSheet(prefix);
+  } else {
+    const preserved = buildCalculationConfigFromForm(prefix);
+    populateCalculationForm(prefix, preserved);
   }
-
-  populateCalculationForm(prefix, buildCalculationConfigFromForm(prefix));
   syncMaxMarksSelect(prefix);
 }

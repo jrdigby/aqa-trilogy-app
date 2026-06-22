@@ -2974,14 +2974,14 @@
     await onCalcWorkflowChange("");
   }
 
-  async function refreshEditEquationSheetDropdown({ autoLink = false, selectedId = "" } = {}) {
+  async function refreshEditEquationSheetDropdown({ autoLink = false, selectedId = "", refreshWorkflow = true } = {}) {
     const subject = document.getElementById("editEqSheetSubject")?.value || "physics";
     const courseTrack = document.getElementById("editEqSheetCourseTrack")?.value || "combined";
     const current = selectedId || document.getElementById("editCalcEquationSheet")?.value || "";
     const sheets = await CalcWorkflow.loadEquationSheetCatalog(supabaseClient, subject, courseTrack);
     CalcWorkflow.fillEquationSheetSelect(document.getElementById("editCalcEquationSheet"), sheets, current);
     if (autoLink) CalcWorkflow.applyAutoEquationSheet("edit");
-    await onCalcWorkflowChange("edit");
+    if (refreshWorkflow) await onCalcWorkflowChange("edit");
   }
 
   async function onAuthoringMetadataChange() {
@@ -4635,19 +4635,20 @@
     }
 
     if (q.question_type === "numeric" && window.CalcWorkflow) {
-      let calcConfig = q.calculation_config || null;
+      let calcConfig = window.CalcWorkflow.cloneCalculationConfig(q.calculation_config);
       if (mps.length) {
         calcConfig = CalcWorkflow.mergeLegacyNumericMarkPoints(
           calcConfig || CalcWorkflow.getCalculationConfig(q),
           mps
         );
       }
-      window.CalcWorkflow.populateCalculationForm("edit", calcConfig);
+      window.CalcWorkflow.populateCalculationForm("edit", calcConfig, q.id);
       window.CalcWorkflow.syncMaxMarksSelect("edit");
       const eqStep = (calcConfig?.steps || []).find((s) => s.type === "equation_select");
       await refreshEditEquationSheetDropdown({
         autoLink: false,
-        selectedId: calcConfig?.equation_sheet_id || ""
+        selectedId: calcConfig?.equation_sheet_id || "",
+        refreshWorkflow: false
       });
       await CalcWorkflow.refreshEquationSelect(supabaseClient, "edit", eqStep?.answer || "");
       if (window.CalcWorkflow?.refreshStructuredSubstitutionAdmin) {
@@ -4715,6 +4716,9 @@
 
   window.closeEditModal = function() {
     clearEditSaveError();
+    if (window.CalcWorkflow?.resetCalculationAuthoringForm) {
+      window.CalcWorkflow.resetCalculationAuthoringForm("edit");
+    }
     document.getElementById("editModalOverlay").classList.add("hidden");
   };
 
@@ -4855,6 +4859,10 @@
         .eq("id", qId);
 
       if (uErr) throw uErr;
+
+      if (q.question_type === "numeric" && updatePayload.calculation_config) {
+        q.calculation_config = JSON.parse(JSON.stringify(updatePayload.calculation_config));
+      }
 
       // Update associated keys structure
       let updatedPayload = {};
