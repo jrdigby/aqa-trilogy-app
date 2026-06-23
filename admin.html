@@ -120,6 +120,124 @@
       text-align: center;
     }
 
+    .batch-slot-edits {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 12px;
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px dashed #e2e8f0;
+    }
+
+    .batch-slot-field {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.75rem;
+    }
+
+    .batch-slot-field label {
+      font-weight: 600;
+      color: #475569;
+      margin: 0;
+    }
+
+    .batch-slot-field input[type="number"],
+    .batch-slot-field select {
+      min-height: 36px;
+      padding: 6px 10px;
+      font-size: 0.85rem;
+      border: 2px solid var(--field-border, #94a3b8);
+      background-color: var(--field-bg, #f8fafc);
+      box-shadow: var(--field-shadow, 0 1px 2px rgba(15, 23, 42, 0.06));
+    }
+
+    .batch-slot-field input[type="number"] {
+      width: 5rem;
+    }
+
+    .batch-slot-field select {
+      max-width: 6.5rem;
+    }
+
+    .batch-slot-unit-readonly {
+      font-size: 0.72rem;
+      color: #64748b;
+    }
+
+    /* Batch numeric generator — tight form density */
+    #panelBatchNumeric .card {
+      margin-bottom: 12px;
+      padding: 10px 12px !important;
+    }
+
+    #panelBatchNumeric .row.row-compact {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      gap: 2px 10px;
+      margin-bottom: 2px;
+    }
+
+    #panelBatchNumeric label {
+      margin-bottom: 1px;
+      font-size: 0.76rem;
+      line-height: 1.2;
+    }
+
+    #panelBatchNumeric .input-compact {
+      width: 3.5rem !important;
+    }
+
+    #panelBatchNumeric .batch-prompt-edit {
+      min-height: 52px;
+      font-size: 0.88rem;
+    }
+
+    #panelBatchNumeric .spec-link-panel {
+      margin-top: 4px !important;
+    }
+
+    #panelBatchNumeric .spec-link-status {
+      margin: 0 0 3px !important;
+      line-height: 1.3;
+    }
+
+    #panelBatchNumeric .batch-form-section {
+      margin-top: 4px;
+    }
+
+    #panelBatchNumeric .batch-actions {
+      margin-top: 8px;
+      gap: 6px;
+    }
+
+    #panelBatchNumeric #batchStatus {
+      margin-top: 6px !important;
+    }
+
+    #panelBatchNumeric details {
+      margin-top: 4px;
+    }
+
+    #panelBatchNumeric .field-fit {
+      margin: 0;
+    }
+
+    #panelBatchNumeric #batchSpecPointSelect {
+      width: auto;
+      max-width: min(100%, 26rem);
+    }
+
+    #panelBatchNumeric #batchLinkedSpecDisplay {
+      width: auto;
+      max-width: min(100%, 18rem);
+    }
+
+    #panelBatchNumeric .spec-link-panel .field-fit {
+      flex: 0 1 auto;
+    }
+
     .admin-select-measurer {
       position: absolute;
       visibility: hidden;
@@ -638,9 +756,11 @@
       border-color: var(--primary);
     }
 
-    /* Create & modify question — high-contrast editable fields */
+    /* Create, batch & audit — high-contrast editable fields (match creator) */
     #panelCreator,
-    #editForm {
+    #editForm,
+    #panelBatchNumeric,
+    #panelAudit {
       --field-border: #94a3b8;
       --field-border-hover: #64748b;
       --field-bg: #f8fafc;
@@ -658,7 +778,15 @@
     #editForm input[type="number"],
     #editForm input[type="file"],
     #editForm select,
-    #editForm textarea {
+    #editForm textarea,
+    #panelBatchNumeric input[type="text"],
+    #panelBatchNumeric input[type="number"],
+    #panelBatchNumeric select,
+    #panelBatchNumeric textarea,
+    #panelAudit input[type="text"],
+    #panelAudit input[type="number"],
+    #panelAudit select,
+    #panelAudit textarea {
       border: 2px solid var(--field-border);
       background-color: var(--field-bg);
       box-shadow: var(--field-shadow);
@@ -669,13 +797,17 @@
     }
 
     #panelCreator textarea,
-    #editForm textarea {
+    #editForm textarea,
+    #panelBatchNumeric textarea,
+    #panelAudit textarea {
       min-height: 80px;
       resize: vertical;
     }
 
     #panelCreator select,
-    #editForm select {
+    #editForm select,
+    #panelBatchNumeric select,
+    #panelAudit select {
       cursor: pointer;
       appearance: none;
       -webkit-appearance: none;
@@ -698,7 +830,13 @@
     #panelCreator textarea:hover,
     #editForm input:hover,
     #editForm select:hover,
-    #editForm textarea:hover {
+    #editForm textarea:hover,
+    #panelBatchNumeric input:hover,
+    #panelBatchNumeric select:hover,
+    #panelBatchNumeric textarea:hover,
+    #panelAudit input:hover,
+    #panelAudit select:hover,
+    #panelAudit textarea:hover {
       border-color: var(--field-border-hover);
     }
 
@@ -707,12 +845,20 @@
     #panelCreator textarea:hover,
     #editForm input[type="text"]:hover,
     #editForm input[type="number"]:hover,
-    #editForm textarea:hover {
+    #editForm textarea:hover,
+    #panelBatchNumeric input[type="text"]:hover,
+    #panelBatchNumeric input[type="number"]:hover,
+    #panelBatchNumeric textarea:hover,
+    #panelAudit input[type="text"]:hover,
+    #panelAudit input[type="number"]:hover,
+    #panelAudit textarea:hover {
       background-color: #f1f5f9;
     }
 
     #panelCreator select:hover,
-    #editForm select:hover {
+    #editForm select:hover,
+    #panelBatchNumeric select:hover,
+    #panelAudit select:hover {
       background-color: #f1f5f9;
       background-image: var(--select-chevron);
     }
@@ -722,27 +868,40 @@
     #panelCreator textarea:focus,
     #editForm input:focus,
     #editForm select:focus,
-    #editForm textarea:focus {
+    #editForm textarea:focus,
+    #panelBatchNumeric input:focus,
+    #panelBatchNumeric select:focus,
+    #panelBatchNumeric textarea:focus,
+    #panelAudit input:focus,
+    #panelAudit select:focus,
+    #panelAudit textarea:focus {
       border-color: var(--primary);
       background-color: var(--field-bg-focus);
       box-shadow: var(--field-focus-ring);
     }
 
     #panelCreator select:focus,
-    #editForm select:focus {
+    #editForm select:focus,
+    #panelBatchNumeric select:focus,
+    #panelAudit select:focus {
       background-image: var(--select-chevron);
     }
 
     #panelCreator input::placeholder,
     #panelCreator textarea::placeholder,
     #editForm input::placeholder,
-    #editForm textarea::placeholder {
+    #editForm textarea::placeholder,
+    #panelBatchNumeric input::placeholder,
+    #panelBatchNumeric textarea::placeholder,
+    #panelAudit input::placeholder,
+    #panelAudit textarea::placeholder {
       color: #94a3b8;
       opacity: 1;
     }
 
     #panelCreator .input-compact,
-    #editForm .input-compact {
+    #editForm .input-compact,
+    #panelBatchNumeric .input-compact {
       min-height: 38px;
       padding: 8px 10px !important;
       font-size: 0.9rem !important;
@@ -753,9 +912,49 @@
     }
 
     #panelCreator .input-compact:focus,
-    #editForm .input-compact:focus {
+    #editForm .input-compact:focus,
+    #panelBatchNumeric .input-compact:focus {
       background-color: #fff;
       border-color: var(--primary);
+    }
+
+    #panelCreator label,
+    #editForm label,
+    #panelBatchNumeric label,
+    #panelAudit label {
+      color: #1e293b;
+    }
+
+    #panelAudit .row.audit-filters {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      gap: 6px 14px;
+      margin-bottom: 10px;
+    }
+
+    #panelAudit .row.audit-filters > div {
+      width: fit-content;
+      max-width: 100%;
+    }
+
+    #panelAudit .row.audit-filters label {
+      margin-bottom: 4px;
+      font-size: 0.8rem;
+    }
+
+    #panelAudit .row.audit-filters select,
+    #panelAudit .row.audit-filters input[type="text"] {
+      width: auto;
+      min-width: 9rem;
+    }
+
+    #panelAudit #auditSearchQuery {
+      min-width: 14rem;
+    }
+
+    #panelAudit #auditTopicFilter {
+      min-width: 12rem;
     }
 
     #panelCreator .hints-author-panel .hint-row,
@@ -801,11 +1000,6 @@
       min-height: unset;
       accent-color: var(--primary);
       cursor: pointer;
-    }
-
-    #panelCreator label,
-    #editForm label {
-      color: #1e293b;
     }
 
     #panelCreator .mp-text,
@@ -1093,6 +1287,7 @@
       <div class="tab-nav">
         <button class="tab-btn active" onclick="switchPanel('creator')">✏️ Create Question</button>
         <button class="tab-btn" onclick="switchPanel('csv')">📂 Packaged CSV Importer</button>
+        <button class="tab-btn" data-panel="batchNumeric" onclick="switchPanel('batchNumeric')">🔢 Batch Numeric Generator</button>
         <button class="tab-btn" onclick="switchPanel('audit')">🔍 Database Audit &amp; Review</button>
         <button class="tab-btn" onclick="switchPanel('pilot')">🎫 Pilot Pro Access</button>
       </div>
@@ -1302,8 +1497,8 @@
             <div class="calc-workflow-panel" style="margin-top: 15px;">
               <h4 style="margin-top: 0; margin-bottom: 8px; color: #1e293b; font-size: 0.9rem;">Calculation workflow</h4>
               <p class="muted" style="font-size: 0.78rem; margin: 0 0 12px; line-height: 1.4;">
-                <strong>Marks:</strong> Equation given → 1 substitution + 1 answer (+1 each for conversion, rearrangement, or sig figs if ticked).
-                From equation sheet → 1 substitution + 1 rearrangement + 1 answer (+1 conversion or sig figs if ticked). Equation choice is not marked.
+                <strong>Base path:</strong> equation given in the prompt (substitute) <em>or</em> recall from equation sheet.
+                <strong>Optional steps</strong> (each +1 mark when ticked): rearrangement, unit conversion, significant figures.
               </p>
               <div class="row" style="margin-bottom: 12px;">
                 <div>
@@ -1416,7 +1611,11 @@
               </div>
               <div id="CalcPanelRearrangement" class="hidden" style="border-top:1px solid var(--border);padding-top:10px;margin-bottom:10px;">
                 <h4 class="calc-step-panel-title">Rearrangement step</h4>
-                <p class="calc-step-panel-hint muted">Student picks the correctly rearranged formula from a dropdown. Numeric mode auto-generates options with question values when structured substitution is enabled.</p>
+                <p class="calc-step-panel-hint muted">Student picks the correctly rearranged formula (or numeric rearrangement with values). Can be added to <em>either</em> equation-given or equation-recall questions.</p>
+                <div id="CalcRearrangementSubjectRow" class="hidden" style="margin-bottom:8px;">
+                  <label title="Which variable the student must make the subject of the formula">Unknown (solve for)</label>
+                  <select id="CalcRearrangementSubject" class="select-fit" style="min-width:10rem;"></select>
+                </div>
                 <div id="CalcRearrangementStructuredExtras" class="hidden" style="margin-bottom:8px;">
                   <div class="row">
                     <div>
@@ -1426,14 +1625,10 @@
                         <option value="symbolic">Symbolic (manual strings)</option>
                       </select>
                     </div>
-                    <div>
-                      <label title="Which unknown the student is solving for">Unknown (subject)</label>
-                      <select id="CalcRearrangementSubject" class="select-fit"></select>
-                    </div>
                   </div>
                   <div id="CalcRearrangementNumericPreview" style="font-size:0.78rem;color:#64748b;margin-top:6px;line-height:1.4;"></div>
                 </div>
-                <div class="row">
+                <div id="CalcRearrangementSymbolicRow" class="row">
                   <div>
                     <label title="Exact formula string shown as the correct dropdown option, e.g. v = s / t">Correct rearranged formula</label>
                     <input type="text" id="CalcRearrangeAnswer" placeholder="e.g. v = s / t" title="Must match dropdown option text exactly" />
@@ -1656,6 +1851,194 @@
         </div>
       </div>
 
+      <!-- TAB: BATCH NUMERIC GENERATOR -->
+      <div id="panelBatchNumeric" class="panel">
+        <div class="card">
+          <h3 style="margin:0 0 4px; color:var(--primary-dark); font-size:1.02rem;">Batch Numeric Question Generator</h3>
+          <p style="color:var(--text-muted); font-size:0.78rem; line-height:1.3; margin:0 0 6px;">
+            Generate numeric questions from an equation sheet. Edit values and prompts before commit.
+          </p>
+
+          <div class="row row-compact">
+            <div class="field-fit">
+              <label>Subject</label>
+              <select id="batchSubject" class="select-fit">
+                <option value="physics">Physics</option>
+              </select>
+            </div>
+            <div class="field-fit">
+              <label>Paper</label>
+              <select id="batchPaper" class="select-fit">
+                <option value="paper1">Paper 1</option>
+                <option value="paper2">Paper 2</option>
+              </select>
+            </div>
+            <div class="field-fit">
+              <label>Tier</label>
+              <select id="batchTier" class="select-fit">
+                <option value="both">Both</option>
+                <option value="foundation">Foundation</option>
+                <option value="higher">Higher</option>
+              </select>
+            </div>
+            <div class="field-fit">
+              <label>Course track</label>
+              <select id="batchCourseTrack" class="select-fit">
+                <option value="combined">Combined (8464)</option>
+                <option value="triple">Triple (8463)</option>
+              </select>
+            </div>
+            <div class="field-fit">
+              <label>Audience</label>
+              <select id="batchAudience" class="select-fit">
+                <option value="both">Both tracks</option>
+                <option value="triple_only">Triple only</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="spec-link-panel batch-form-section" id="batchSpecLinkPanel">
+            <p class="spec-link-status" id="batchSpecLinkStatus" style="font-size:0.75rem;color:var(--text-muted);">
+              Select the primary spec point for your course track. When audience is Both, the linked equivalent is filled automatically at commit.
+            </p>
+            <div class="row row-compact">
+              <div class="field-fit">
+                <label id="batchPrimarySpecLabel">Combined spec point (Trilogy 8464):</label>
+                <select id="batchSpecPointSelect">
+                  <option value="">Select subject and paper…</option>
+                </select>
+              </div>
+              <div class="field-fit hidden" id="batchSpecLinkLinkedRow">
+                <label id="batchLinkedSpecLabel">Linked triple spec point:</label>
+                <input type="text" id="batchLinkedSpecDisplay" readonly placeholder="— Auto-matched —" style="background:#f1f5f9;cursor:default;" />
+              </div>
+            </div>
+          </div>
+
+          <div class="row row-compact batch-form-section">
+            <div class="field-fit">
+              <label>Equation</label>
+              <select id="batchEquation" class="select-fit" style="min-width:11rem;">
+                <option value="">Loading…</option>
+              </select>
+            </div>
+            <div class="field-fit">
+              <label title="Unknown to solve for in rearrangement questions">Rearr. unknown</label>
+              <select id="batchRearrangementSubject" class="select-fit">
+                <option value="">Auto (mix)</option>
+              </select>
+            </div>
+            <div class="field-fit">
+              <label>Sig figs (n)</label>
+              <input type="number" id="batchSigFigsN" class="input-compact" min="1" max="5" value="2" />
+            </div>
+            <div class="field-fit">
+              <label>Seed</label>
+              <input type="number" id="batchSeed" class="input-compact" placeholder="auto" />
+            </div>
+          </div>
+
+          <div class="batch-form-section" style="margin-top:4px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;">
+              <label style="margin:0;font-weight:600;font-size:0.8rem;">Question recipes</label>
+              <button type="button" class="btn btn-secondary btn-compact" id="btnBatchAddRecipe" style="padding:2px 8px;font-size:0.72rem;">+ Add recipe</button>
+            </div>
+            <p class="muted" style="font-size:0.72rem;margin:0 0 8px;">Each row is a group — e.g. substitute+rearrange ×2, substitute+convert+sig figs ×1. Optional steps apply only to that row.</p>
+            <table id="batchVariantRecipes" style="width:100%;font-size:0.76rem;border-collapse:collapse;">
+              <thead>
+                <tr style="text-align:left;color:var(--text-muted);">
+                  <th style="padding:4px 6px;">Base</th>
+                  <th style="padding:4px 6px;text-align:center;">Rearr.</th>
+                  <th style="padding:4px 6px;text-align:center;">Convert</th>
+                  <th style="padding:4px 6px;text-align:center;">Sig figs</th>
+                  <th style="padding:4px 6px;">Count</th>
+                  <th style="padding:4px 6px;"></th>
+                </tr>
+              </thead>
+              <tbody id="batchVariantRecipesBody"></tbody>
+            </table>
+          </div>
+
+          <div class="row row-compact batch-form-section hidden">
+            <div class="field-fit">
+              <label title="Equation given in prompt — substitute values">Substitute</label>
+              <input type="number" id="batchCountSubstitution" class="input-compact" min="0" value="3" />
+            </div>
+            <div class="field-fit">
+              <label title="Recall equation from sheet first">Recall eq.</label>
+              <input type="number" id="batchCountRecall" class="input-compact" min="0" value="0" />
+            </div>
+            <div class="field-fit" style="display:flex;align-items:flex-end;padding-bottom:6px;">
+              <label style="display:flex;align-items:center;gap:4px;margin:0;cursor:pointer;font-size:0.76rem;">
+                <input type="checkbox" id="batchOptRearrangement" /> Rearrange
+              </label>
+            </div>
+            <div class="field-fit" style="display:flex;align-items:flex-end;padding-bottom:6px;">
+              <label style="display:flex;align-items:center;gap:4px;margin:0;cursor:pointer;font-size:0.76rem;">
+                <input type="checkbox" id="batchOptConversion" /> Conversion
+              </label>
+            </div>
+            <div class="field-fit" style="display:flex;align-items:flex-end;padding-bottom:6px;">
+              <label style="display:flex;align-items:center;gap:4px;margin:0;cursor:pointer;font-size:0.76rem;">
+                <input type="checkbox" id="batchOptSigFigs" /> Sig figs
+              </label>
+            </div>
+          </div>
+
+          <div class="row row-compact batch-form-section">
+            <div class="field-fit">
+              <label>Extra MS codes</label>
+              <input type="text" id="batchMsSkills" placeholder="e.g. MS2h" style="width:7rem;" />
+            </div>
+            <div class="field-fit">
+              <label>Extra WS codes</label>
+              <input type="text" id="batchWsSkills" placeholder="e.g. WS4.5" style="width:7rem;" />
+            </div>
+          </div>
+
+          <details>
+            <summary style="cursor:pointer;color:var(--text-muted);font-size:0.75rem;">Optional value ranges (JSON)</summary>
+            <textarea id="batchRangesJson" rows="2" placeholder='{"m":{"min":1,"max":8,"step":0.5}}' style="width:100%;font-family:monospace;font-size:0.76rem;margin-top:4px;padding:4px 8px;"></textarea>
+          </details>
+
+          <div class="batch-actions" style="display:flex;flex-wrap:wrap;">
+            <button type="button" class="btn btn-secondary btn-compact" id="btnBatchLoadEquations">Reload equations</button>
+            <button type="button" class="btn btn-primary btn-compact" id="btnBatchPreview">Generate preview</button>
+            <button type="button" class="btn btn-primary btn-compact" id="btnBatchCommit" disabled>Commit all</button>
+            <button type="button" class="btn btn-secondary btn-compact" id="btnBatchExport">Export JSON</button>
+          </div>
+          <p id="batchStatus" class="muted" style="font-size:0.76rem;"></p>
+        </div>
+
+        <div class="card" style="padding:0; overflow-x:auto;">
+          <div style="padding:12px 16px 0;">
+            <h4 style="margin:0;">Preview — edit prompts before commit</h4>
+            <p id="batchPreviewCount" class="muted" style="font-size:0.82rem;margin:8px 0 0;"></p>
+          </div>
+          <table style="margin:0;min-width:1100px;font-size:0.8rem;">
+            <thead>
+              <tr>
+                <th style="width:40px;">#</th>
+                <th style="width:100px;">Variant</th>
+                <th>Prompt &amp; values</th>
+                <th style="width:56px;">Marks</th>
+                <th style="width:72px;">Cmd</th>
+                <th style="width:80px;">Demand</th>
+                <th style="width:48px;">Diff</th>
+                <th style="width:64px;">AO</th>
+                <th style="width:88px;">MS/WS</th>
+                <th style="width:72px;">Answer</th>
+                <th style="width:200px;text-align:right;">Operations</th>
+              </tr>
+            </thead>
+            <tbody id="batchPreviewBody">
+              <tr><td colspan="11" style="padding:24px;text-align:center;color:var(--text-muted);">Generate preview to see drafts.</td></tr>
+            </tbody>
+          </table>
+          <pre id="batchLog" class="hidden" style="background:#1e293b;color:#38bdf8;padding:12px;border-radius:8px;font-size:0.75rem;max-height:200px;overflow-y:auto;margin:12px 16px 16px;"></pre>
+        </div>
+      </div>
+
       <!-- TAB 3: AUDIT & REVIEW LIST -->
       <div id="panelAudit" class="panel">
         <div class="card">
@@ -1664,7 +2047,7 @@
             Filter and query questions inside Supabase. View error badges for missing data or test grading mechanics in the sandbox area before deployment. Click any column header to sort the results.
           </p>
 
-          <div class="row" style="margin-top: 16px;">
+          <div class="row row-compact audit-filters">
             <div>
               <label>Filter Subject:</label>
               <select id="auditSubject">
@@ -2063,7 +2446,11 @@
             </div>
             <div id="editCalcPanelRearrangement" class="hidden" style="border-top:1px solid var(--border);padding-top:8px;margin-bottom:8px;">
               <h4 class="calc-step-panel-title">Rearrangement step</h4>
-              <p class="calc-step-panel-hint muted">Exact formula string for the correct dropdown option. Numeric mode auto-generates when structured substitution is enabled.</p>
+              <p class="calc-step-panel-hint muted">Optional on equation-given or equation-recall questions. Pick which variable is the subject.</p>
+              <div id="editCalcRearrangementSubjectRow" class="hidden" style="margin-bottom:8px;">
+                <label>Unknown (solve for)</label>
+                <select id="editCalcRearrangementSubject" class="select-fit" style="min-width:10rem;"></select>
+              </div>
               <div id="editCalcRearrangementStructuredExtras" class="hidden" style="margin-bottom:8px;">
                 <div class="row">
                   <div>
@@ -2073,14 +2460,10 @@
                       <option value="symbolic">Symbolic (manual strings)</option>
                     </select>
                   </div>
-                  <div>
-                    <label>Unknown (subject)</label>
-                    <select id="editCalcRearrangementSubject" class="select-fit"></select>
-                  </div>
                 </div>
                 <div id="editCalcRearrangementNumericPreview" style="font-size:0.78rem;color:#64748b;margin-top:6px;line-height:1.4;"></div>
               </div>
-              <div class="row">
+              <div id="editCalcRearrangementSymbolicRow" class="row">
                 <div>
                   <label title="Exact string for the correct dropdown choice">Correct rearranged formula</label>
                   <input type="text" id="editCalcRearrangeAnswer" placeholder="e.g. v = s / t" />
@@ -2292,9 +2675,11 @@
 <script type="module">
   import { supabaseClient } from "./src/dbClient.js";
   import * as CalcWorkflow from "./src/calculationWorkflow.js";
-  import { resolveMcqWrongFeedback, MCQ_FLASHCARD_ADDED_MSG } from "./src/evalEngine.js";
+  import * as NumericGen from "./src/numericQuestionGenerator.js";
+  import { resolveMcqWrongFeedback, MCQ_FLASHCARD_ADDED_MSG, highlightCommandWordsInPrompt } from "./src/evalEngine.js";
 
   window.CalcWorkflow = CalcWorkflow;
+  window.NumericGen = NumericGen;
   window.supabaseClient = supabaseClient;
   window.resolveMcqWrongFeedback = resolveMcqWrongFeedback;
   window.MCQ_FLASHCARD_ADDED_MSG = MCQ_FLASHCARD_ADDED_MSG;
@@ -2551,13 +2936,26 @@
     document.querySelectorAll(".tab-btn").forEach(btn => btn.classList.remove("active"));
     document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
     
-    // Find active button click
-    const activeBtn = Array.from(document.querySelectorAll(".tab-btn")).find(btn => btn.textContent.toLowerCase().includes(panelId));
+    const activeBtn = document.querySelector(`.tab-btn[data-panel="${panelId}"]`)
+      || Array.from(document.querySelectorAll(".tab-btn")).find(btn => btn.textContent.toLowerCase().includes(String(panelId).toLowerCase()));
     if (activeBtn) activeBtn.classList.add("active");
     
-    const panelName = "panel" + panelId.charAt(0).toUpperCase() + panelId.slice(1);
+    const panelMap = {
+      creator: "panelCreator",
+      csv: "panelCsv",
+      batchNumeric: "panelBatchNumeric",
+      audit: "panelAudit",
+      pilot: "panelPilot"
+    };
+    const panelName = panelMap[panelId] || ("panel" + panelId.charAt(0).toUpperCase() + panelId.slice(1));
     const activePanel = document.getElementById(panelName);
     if (activePanel) activePanel.classList.add("active");
+
+    if (panelId === "batchNumeric") {
+      initBatchVariantRecipes();
+      refreshBatchEquationSelect().catch(() => {});
+      loadBatchSpecPointSelect().catch(() => {});
+    }
   };
 
   // ====== SYLLABUS LOADER ======
@@ -3334,8 +3732,8 @@
   });
 
   if (window.CalcWorkflow) {
-    window.CalcWorkflow.wireCalculationFormToggles("", () => onCalcWorkflowChange(""));
-    window.CalcWorkflow.wireCalculationFormToggles("edit", () => onCalcWorkflowChange("edit"));
+    window.CalcWorkflow.wireCalculationFormToggles("", () => onCalcWorkflowChange(""), supabaseClient);
+    window.CalcWorkflow.wireCalculationFormToggles("edit", () => onCalcWorkflowChange("edit"), supabaseClient);
     window.CalcWorkflow.wireStructuredSubstitutionAuthoring("", supabaseClient, () => onCalcWorkflowChange(""));
     window.CalcWorkflow.wireStructuredSubstitutionAuthoring("edit", supabaseClient, () => onCalcWorkflowChange("edit"));
     window.CalcWorkflow.populateCalculationForm("", null);
@@ -3959,6 +4357,735 @@
     
     reader.readAsText(file);
   };
+
+  // ====== BATCH NUMERIC GENERATOR ======
+  let batchPreviewDrafts = [];
+  let batchLoadedSheet = null;
+
+  function readBatchVariantRecipes() {
+    const rows = document.querySelectorAll("#batchVariantRecipesBody tr[data-recipe-row]");
+    const recipes = [];
+    rows.forEach((row) => {
+      const count = parseInt(row.querySelector(".batch-recipe-count")?.value, 10) || 0;
+      if (count <= 0) return;
+      recipes.push({
+        base: row.querySelector(".batch-recipe-base")?.value || "substitute",
+        rearrangement: !!row.querySelector(".batch-recipe-rearr")?.checked,
+        unitConversion: !!row.querySelector(".batch-recipe-convert")?.checked,
+        sigFigs: !!row.querySelector(".batch-recipe-sf")?.checked,
+        count
+      });
+    });
+    return recipes;
+  }
+
+  function addBatchVariantRecipeRow(recipe = {}) {
+    const tbody = document.getElementById("batchVariantRecipesBody");
+    if (!tbody) return;
+    const tr = document.createElement("tr");
+    tr.dataset.recipeRow = "1";
+    tr.innerHTML = `
+      <td style="padding:4px 6px;">
+        <select class="batch-recipe-base select-fit" style="min-width:7rem;">
+          <option value="substitute"${recipe.base !== "recall" ? " selected" : ""}>Substitute</option>
+          <option value="recall"${recipe.base === "recall" ? " selected" : ""}>Recall eq.</option>
+        </select>
+      </td>
+      <td style="padding:4px 6px;text-align:center;">
+        <input type="checkbox" class="batch-recipe-rearr"${recipe.rearrangement ? " checked" : ""} title="Add rearrangement step (+1 mark)" />
+      </td>
+      <td style="padding:4px 6px;text-align:center;">
+        <input type="checkbox" class="batch-recipe-convert"${recipe.unitConversion ? " checked" : ""} title="Add unit conversion step (+1 mark)" />
+      </td>
+      <td style="padding:4px 6px;text-align:center;">
+        <input type="checkbox" class="batch-recipe-sf"${recipe.sigFigs ? " checked" : ""} title="Require sig figs on final answer (+1 mark)" />
+      </td>
+      <td style="padding:4px 6px;">
+        <input type="number" class="batch-recipe-count input-compact" min="0" value="${recipe.count ?? 1}" style="width:3.5rem;" />
+      </td>
+      <td style="padding:4px 6px;">
+        <button type="button" class="btn btn-danger batch-recipe-remove" style="padding:2px 6px;font-size:0.7rem;">×</button>
+      </td>`;
+    tr.querySelector(".batch-recipe-remove")?.addEventListener("click", () => {
+      tr.remove();
+      if (!tbody.querySelector("tr[data-recipe-row]")) {
+        addBatchVariantRecipeRow({ base: "substitute", count: 1 });
+      }
+    });
+    tbody.appendChild(tr);
+  }
+
+  function initBatchVariantRecipes() {
+    const tbody = document.getElementById("batchVariantRecipesBody");
+    if (!tbody || tbody.dataset.wired) return;
+    tbody.dataset.wired = "1";
+    tbody.innerHTML = "";
+    addBatchVariantRecipeRow({ base: "substitute", count: 3 });
+    document.getElementById("btnBatchAddRecipe")?.addEventListener("click", () => {
+      addBatchVariantRecipeRow({ base: "substitute", count: 1 });
+    });
+  }
+
+  function buildBatchSpecFromForm() {
+    let ranges = {};
+    const rangesRaw = document.getElementById("batchRangesJson")?.value?.trim();
+    if (rangesRaw) {
+      try {
+        ranges = JSON.parse(rangesRaw);
+      } catch (_) {
+        throw new Error("Invalid value ranges JSON");
+      }
+    }
+    const seedRaw = document.getElementById("batchSeed")?.value;
+    const seed = seedRaw !== "" && seedRaw != null ? parseInt(seedRaw, 10) : Date.now();
+    const rearrSubj = document.getElementById("batchRearrangementSubject")?.value?.trim() || null;
+    return {
+      equation: document.getElementById("batchEquation")?.value || null,
+      subject: document.getElementById("batchSubject")?.value || "physics",
+      paper: document.getElementById("batchPaper")?.value || "paper1",
+      tier: document.getElementById("batchTier")?.value || "both",
+      courseTrack: document.getElementById("batchCourseTrack")?.value || "combined",
+      audience: document.getElementById("batchAudience")?.value || "both",
+      rearrangement_subject: rearrSubj,
+      ws_skills: (document.getElementById("batchWsSkills")?.value || "").split(/[,;|]/).map((s) => s.trim()).filter(Boolean),
+      ms_skills: (document.getElementById("batchMsSkills")?.value || "").split(/[,;|]/).map((s) => s.trim()).filter(Boolean),
+      sig_figs_count: parseInt(document.getElementById("batchSigFigsN")?.value, 10) || 2,
+      seed,
+      ranges,
+      variants: {
+        recipes: readBatchVariantRecipes()
+      }
+    };
+  }
+
+  function batchVariantLabel(v) {
+    if (!v) return "";
+    const base = v.base === "recall" || v.base === "equation_recall" ? "recall" : "substitute";
+    const parts = [base];
+    if (v.rearrangement || v.base === "rearrangement") parts.push("+rearrange");
+    if (v.unitConversion) parts.push("+conversion");
+    if (v.sigFigs) parts.push("+sig_figs");
+    return parts.join(" ");
+  }
+
+  function syncBatchSpecLinkUi() {
+    const audience = document.getElementById("batchAudience")?.value || "both";
+    const track = document.getElementById("batchCourseTrack")?.value || "combined";
+    const linkedRow = document.getElementById("batchSpecLinkLinkedRow");
+    const primaryLabel = document.getElementById("batchPrimarySpecLabel");
+    const linkedLabel = document.getElementById("batchLinkedSpecLabel");
+    const status = document.getElementById("batchSpecLinkStatus");
+
+    if (linkedRow) linkedRow.classList.toggle("hidden", audience !== "both");
+
+    if (track === "triple") {
+      if (primaryLabel) primaryLabel.textContent = "Triple spec point (Separate sciences):";
+      if (linkedLabel) linkedLabel.textContent = "Linked combined spec point (auto-matched):";
+      if (status) {
+        status.textContent = audience === "both"
+          ? "Select the triple spec point. The combined Trilogy equivalent is resolved at commit."
+          : "Select the triple spec point for triple-only questions.";
+      }
+    } else {
+      if (primaryLabel) primaryLabel.textContent = "Combined spec point (Trilogy 8464):";
+      if (linkedLabel) linkedLabel.textContent = "Linked triple spec point (auto-matched):";
+      if (status) {
+        status.textContent = audience === "both"
+          ? "Select the combined spec point. The triple equivalent is resolved at commit."
+          : "Select the combined spec point for this question.";
+      }
+    }
+  }
+
+  async function loadBatchSpecPointSelect() {
+    const subject = document.getElementById("batchSubject")?.value || "physics";
+    const paper = document.getElementById("batchPaper")?.value || "paper1";
+    const courseTrack = document.getElementById("batchCourseTrack")?.value || "combined";
+    const select = document.getElementById("batchSpecPointSelect");
+    if (!select) return;
+
+    select.innerHTML = "<option value=\"\">Loading references…</option>";
+    try {
+      const { data, error } = await supabaseClient
+        .from("spec_points")
+        .select("id, spec_ref, topic_name, spec_text")
+        .eq("subject", subject)
+        .eq("paper", paper)
+        .eq("course_track", courseTrack)
+        .order("spec_ref", { ascending: true });
+      if (error) throw error;
+      select.innerHTML = (data || []).map((row) =>
+        `<option value="${row.id}">${row.spec_ref} - [${row.topic_name}] ${(row.spec_text || "").slice(0, 75)}…</option>`
+      ).join("");
+    } catch (err) {
+      select.innerHTML = "<option value=\"\">Error loading spec points</option>";
+      console.warn(err);
+    }
+    syncBatchSpecLinkUi();
+    const primaryId = select.value;
+    if (primaryId) await autoFillBatchLinkedSpec(primaryId);
+  }
+
+  async function autoFillBatchLinkedSpec(primarySpecPointId) {
+    const audience = document.getElementById("batchAudience")?.value || "both";
+    const display = document.getElementById("batchLinkedSpecDisplay");
+    if (!display) return;
+    if (!primarySpecPointId || audience !== "both") {
+      display.value = "";
+      return;
+    }
+    const track = document.getElementById("batchCourseTrack")?.value || "combined";
+    const equiv = await lookupEquivalence(primarySpecPointId, track);
+    const linkedId = track === "triple" ? equiv?.combined : equiv?.triple;
+    if (!linkedId) {
+      display.value = "";
+      return;
+    }
+    display.value = await formatSpecPointLabel(linkedId);
+  }
+
+  async function resolveBatchSpecIdsForCommit() {
+    const audience = document.getElementById("batchAudience")?.value || "both";
+    const track = document.getElementById("batchCourseTrack")?.value || "combined";
+    const primaryId = document.getElementById("batchSpecPointSelect")?.value || "";
+
+    if (!primaryId) {
+      return { spec_point_id: null, triple_spec_point_id: null, ok: false };
+    }
+
+    if (audience === "triple_only") {
+      return { spec_point_id: primaryId, triple_spec_point_id: null, ok: true };
+    }
+
+    const equiv = await lookupEquivalence(primaryId, track);
+    if (!equiv?.combined || !equiv?.triple) {
+      return { spec_point_id: null, triple_spec_point_id: null, ok: false };
+    }
+
+    return {
+      spec_point_id: equiv.combined,
+      triple_spec_point_id: equiv.triple,
+      ok: true
+    };
+  }
+
+  function refreshBatchRearrangementSubjects() {
+    const select = document.getElementById("batchRearrangementSubject");
+    const eqId = document.getElementById("batchEquation")?.value;
+    if (!select || !batchLoadedSheet || !eqId) {
+      if (select) select.innerHTML = '<option value="">Auto (mix)</option>';
+      return;
+    }
+    const eq = batchLoadedSheet.equations.find((e) => e.id === eqId);
+    const subjects = eq ? NumericGen.listRearrangementSubjects(eq) : [];
+    const current = select.value;
+    select.innerHTML = '<option value="">Auto (mix)</option>'
+      + subjects.map((s) => {
+        const label = NumericGen.getSlotPromptLabel(s, eq);
+        const sel = s === current ? " selected" : "";
+        return `<option value="${escapeHtml(s)}"${sel}>${escapeHtml(label)} (${escapeHtml(s)})</option>`;
+      }).join("");
+  }
+
+  async function refreshBatchEquationSelect() {
+    const select = document.getElementById("batchEquation");
+    const status = document.getElementById("batchStatus");
+    if (!select) return;
+
+    try {
+      const spec = buildBatchSpecFromForm();
+      const sheetId = CalcWorkflow.resolveEquationSheetId({
+        subject: spec.subject,
+        paper: spec.paper,
+        tier: spec.tier,
+        courseTrack: spec.courseTrack
+      });
+      if (!sheetId) {
+        select.innerHTML = '<option value="">— Physics paper/tier required —</option>';
+        return;
+      }
+      batchLoadedSheet = await NumericGen.loadEquationSheet(sheetId);
+      const current = select.value;
+      const withTemplate = (batchLoadedSheet.equations || []).filter(
+        (eq) => eq.substitution_template
+      );
+      select.innerHTML = '<option value="">— Select equation —</option>'
+        + withTemplate.map((eq) => {
+          const sel = eq.id === current ? " selected" : "";
+          return `<option value="${eq.id}"${sel}>${eq.label || eq.id}</option>`;
+        }).join("");
+      refreshBatchRearrangementSubjects();
+      if (status) status.textContent = `Loaded ${withTemplate.length} equations from ${sheetId}.`;
+    } catch (err) {
+      if (status) status.textContent = `Could not load equation sheet: ${err.message}`;
+      select.innerHTML = '<option value="">— Load failed —</option>';
+    }
+  }
+
+  function batchDraftSkillsBadge(draft) {
+    const ms = (draft.skill_codes?.ms || []).join(", ");
+    const ws = (draft.skill_codes?.ws || []).join(", ");
+    const parts = [];
+    if (ms) parts.push(ms);
+    if (ws) parts.push(ws);
+    return parts.join(" | ") || "—";
+  }
+
+  function batchDraftAoSplit(q) {
+    const a1 = q.ao1_marks ?? 0;
+    const a2 = q.ao2_marks ?? 0;
+    const a3 = q.ao3_marks ?? 0;
+    return `A1:${a1} A2:${a2} A3:${a3}`;
+  }
+
+  function renderBatchSlotEditors(draft, draftIdx) {
+    const eq = batchLoadedSheet?.equations?.find((e) => e.id === draft.equation_id);
+    if (!draft.slot_edits || !eq) return "";
+
+    return Object.entries(draft.slot_edits).map(([slotId, edit]) => {
+      const label = NumericGen.getSlotPromptLabel(slotId, eq);
+      const convHint = edit.isConversionSlot ? " ↻" : "";
+      const unitControl = edit.convertible
+        ? `<select class="batch-slot-unit" data-batch-idx="${draftIdx}" data-slot-id="${escapeHtml(slotId)}" title="Display unit in prompt${edit.isConversionSlot ? " (conversion step)" : ""}">${(edit.unitOptions || []).map((o) =>
+            `<option value="${escapeHtml(o.fromUnit)}"${o.fromUnit === edit.unit ? " selected" : ""}>${escapeHtml(o.fromUnit)}</option>`
+          ).join("")}</select>`
+        : `<span class="batch-slot-unit-readonly">${escapeHtml(edit.unit || "")}</span>`;
+
+      return `<span class="batch-slot-field">
+        <label>${escapeHtml(label)}${convHint}</label>
+        <input type="text" class="batch-slot-value" data-batch-idx="${draftIdx}" data-slot-id="${escapeHtml(slotId)}" value="${escapeHtml(edit.display)}" placeholder="e.g. 0.5 cm" title="Number or value+unit e.g. 12 kJ" />
+        ${unitControl}
+      </span>`;
+    }).join("");
+  }
+
+  function applyBatchSlotEdit(draftIdx, slotId, updates) {
+    const draft = batchPreviewDrafts[draftIdx];
+    if (!draft?.slot_edits?.[slotId]) return;
+
+    const edit = draft.slot_edits[slotId];
+    if (updates.display != null) {
+      const parsed = NumericGen.parseSlotDisplayInput(updates.display, slotId, edit);
+      if (parsed) {
+        edit.display = parsed.display;
+        edit.unit = parsed.unit ?? edit.unit;
+        edit.factor = parsed.factor ?? edit.factor ?? 1;
+        edit.toUnit = parsed.toUnit ?? edit.toUnit;
+      } else {
+        edit.display = String(updates.display);
+      }
+      if (draft.variant?.unitConversion && edit.factor !== 1) {
+        draft._conversionMeta = {
+          slotId,
+          fromUnit: edit.unit,
+          toUnit: edit.toUnit,
+          factor: edit.factor
+        };
+        for (const [id, e] of Object.entries(draft.slot_edits)) {
+          e.isConversionSlot = id === slotId;
+        }
+      }
+    }
+    if (updates.unit != null) {
+      NumericGen.applySlotUnitChange(edit, updates.unit);
+      if (draft.variant?.unitConversion) {
+        if (edit.factor !== 1) {
+          draft._conversionMeta = {
+            slotId,
+            fromUnit: edit.unit,
+            toUnit: edit.toUnit,
+            factor: edit.factor
+          };
+          for (const [id, e] of Object.entries(draft.slot_edits)) {
+            e.isConversionSlot = id === slotId;
+          }
+        } else if (draft._conversionMeta?.slotId === slotId) {
+          draft._conversionMeta = null;
+          edit.isConversionSlot = false;
+        }
+      } else if (draft._conversionMeta?.slotId === slotId) {
+        draft._conversionMeta = {
+          ...draft._conversionMeta,
+          fromUnit: edit.unit,
+          toUnit: edit.toUnit,
+          factor: edit.factor
+        };
+      }
+    }
+
+    const eq = batchLoadedSheet?.equations?.find((e) => e.id === draft.equation_id);
+    if (!eq) return;
+
+    NumericGen.recomputeBatchDraft(draft, eq, batchLoadedSheet);
+    if (window.AdminMetadata) {
+      draft.question.difficulty = window.AdminMetadata.computeQuestionDifficulty(draft.question);
+    }
+    updateBatchDraftRowDom(draftIdx);
+  }
+
+  function updateBatchDraftRowDom(draftIdx) {
+    const draft = batchPreviewDrafts[draftIdx];
+    if (!draft) return;
+
+    const row = document.querySelector(`tr[data-batch-idx="${draftIdx}"]`);
+    if (!row) return;
+
+    const q = draft.question;
+    const ans = draft.answer_key?.key_payload?.answer;
+    const unit = draft.answer_key?.key_payload?.unit || "";
+    const diff = window.AdminMetadata
+      ? window.AdminMetadata.computeQuestionDifficulty(q)
+      : (q.difficulty ?? 2);
+
+    const promptTa = row.querySelector(".batch-prompt-edit");
+    if (promptTa && !draft._promptManuallyEdited) promptTa.value = q.prompt || "";
+
+    if (draft.slot_edits) {
+      for (const [slotId, edit] of Object.entries(draft.slot_edits)) {
+        const valInp = row.querySelector(`.batch-slot-value[data-slot-id="${slotId}"]`);
+        if (valInp && document.activeElement !== valInp) {
+          valInp.value = edit.display ?? "";
+        }
+        const unitSel = row.querySelector(`.batch-slot-unit[data-slot-id="${slotId}"]`);
+        if (unitSel && document.activeElement !== unitSel) {
+          unitSel.value = edit.unit || "";
+        }
+      }
+    }
+
+    const marksCell = row.querySelector("[data-batch-marks]");
+    if (marksCell) marksCell.textContent = q.max_marks;
+
+    const ansCell = row.querySelector("[data-batch-answer]");
+    if (ansCell) ansCell.textContent = `${ans}${unit ? ` ${unit}` : ""}`;
+
+    const diffCell = row.querySelector("[data-batch-diff] .difficulty-badge")
+      || row.querySelector("[data-batch-diff]");
+    if (diffCell) diffCell.textContent = diff;
+
+    const skillsCell = row.querySelector("[data-batch-skills]");
+    if (skillsCell) {
+      const badge = batchDraftSkillsBadge(draft);
+      skillsCell.textContent = badge;
+      skillsCell.title = badge;
+    }
+
+    const stepsRow = document.querySelector(`tr[data-batch-steps="${draftIdx}"]`);
+    if (stepsRow) {
+      const stepsText = NumericGen.summarizeDraftSteps(draft);
+      const rearr = draft.rearrangement_subject
+        ? ` · Solving for: ${draft.rearrangement_subject}`
+        : "";
+      stepsRow.querySelector("[data-batch-steps-text]").textContent = `Steps: ${stepsText}${rearr}`;
+    }
+  }
+
+  function wireBatchPreviewEditors() {
+    document.querySelectorAll(".batch-prompt-edit").forEach((ta) => {
+      ta.addEventListener("input", () => {
+        const idx = parseInt(ta.dataset.batchIdx, 10);
+        const draft = batchPreviewDrafts[idx];
+        if (!draft) return;
+        draft.question.prompt = ta.value;
+        draft._promptManuallyEdited = ta.value !== (draft._autoPrompt || "");
+      });
+    });
+
+    document.querySelectorAll(".batch-slot-value").forEach((inp) => {
+      const onSlotValueChange = () => {
+        const idx = parseInt(inp.dataset.batchIdx, 10);
+        const slotId = inp.dataset.slotId;
+        applyBatchSlotEdit(idx, slotId, { display: inp.value });
+      };
+      inp.addEventListener("input", onSlotValueChange);
+      inp.addEventListener("change", onSlotValueChange);
+    });
+
+    document.querySelectorAll(".batch-slot-unit").forEach((sel) => {
+      sel.addEventListener("change", () => {
+        const idx = parseInt(sel.dataset.batchIdx, 10);
+        const slotId = sel.dataset.slotId;
+        applyBatchSlotEdit(idx, slotId, { unit: sel.value });
+      });
+    });
+  }
+
+  function renderBatchPreviewTable(drafts, errors) {
+    const tbody = document.getElementById("batchPreviewBody");
+    const logEl = document.getElementById("batchLog");
+    const countEl = document.getElementById("batchPreviewCount");
+    if (!tbody) return;
+
+    if (!drafts.length && !errors.length) {
+      tbody.innerHTML = '<tr><td colspan="11" style="padding:24px;text-align:center;color:var(--text-muted);">No drafts generated.</td></tr>';
+      if (countEl) countEl.textContent = "";
+      return;
+    }
+
+    tbody.innerHTML = drafts.map((d, i) => {
+      const q = d.question;
+      const ans = d.answer_key?.key_payload?.answer;
+      const unit = d.answer_key?.key_payload?.unit || "";
+      const cmd = q.command_word || "calculate";
+      const demand = q.demand_level || "—";
+      const diff = window.AdminMetadata
+        ? window.AdminMetadata.computeQuestionDifficulty(q)
+        : (q.difficulty ?? 2);
+      const skillsBadge = batchDraftSkillsBadge(d);
+      const promptEsc = escapeHtml(q.prompt || "");
+      const slotEditors = renderBatchSlotEditors(d, i);
+      return `
+        <tr style="border-top:1px solid var(--border);" data-batch-idx="${i}">
+          <td style="padding:10px 12px;font-weight:700;">${i + 1}</td>
+          <td style="padding:10px 12px;font-size:0.76rem;">${escapeHtml(batchVariantLabel(d.variant))}</td>
+          <td style="padding:10px 12px;min-width:300px;">
+            <textarea class="batch-prompt-edit" data-batch-idx="${i}" rows="2" style="width:100%;font-size:0.8rem;font-family:inherit;padding:6px;border:1px solid #cbd5e1;border-radius:4px;">${promptEsc}</textarea>
+            ${slotEditors ? `<div class="batch-slot-edits">${slotEditors}</div>` : ""}
+          </td>
+          <td style="padding:10px 12px;font-weight:700;" data-batch-marks>${q.max_marks}</td>
+          <td style="padding:10px 12px;">${escapeHtml(cmd)}</td>
+          <td style="padding:10px 12px;font-size:0.76rem;">${escapeHtml(demand)}</td>
+          <td style="padding:10px 12px;text-align:center;" data-batch-diff><span class="difficulty-badge difficulty-badge--compact">${diff}</span></td>
+          <td style="padding:10px 12px;font-size:0.72rem;font-family:monospace;">${escapeHtml(batchDraftAoSplit(q))}</td>
+          <td style="padding:10px 12px;font-size:0.7rem;font-family:monospace;max-width:100px;overflow:hidden;text-overflow:ellipsis;" data-batch-skills title="${escapeHtml(skillsBadge)}">${escapeHtml(skillsBadge)}</td>
+          <td style="padding:10px 12px;font-size:0.76rem;" data-batch-answer>${ans}${unit ? ` ${escapeHtml(unit)}` : ""}</td>
+          <td style="padding:10px 12px;text-align:right;white-space:nowrap;">
+            <button type="button" class="btn btn-secondary" onclick="launchBatchSandboxPreview(${i})" style="padding:4px 8px;font-size:0.72rem;background:#3b82f6;color:#fff;">Test</button>
+            <button type="button" class="btn btn-danger" onclick="removeBatchDraft(${i})" style="padding:4px 8px;font-size:0.72rem;">Remove</button>
+          </td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border);" data-batch-steps="${i}">
+          <td colspan="11" style="padding:4px 12px 10px;font-size:0.72rem;color:#64748b;">
+            <span data-batch-steps-text>Steps: ${escapeHtml(NumericGen.summarizeDraftSteps(d))}${d.rearrangement_subject ? ` · Solving for: ${escapeHtml(d.rearrangement_subject)}` : ""}</span>
+          </td>
+        </tr>`;
+    }).join("");
+
+    if (countEl) {
+      countEl.textContent = `${drafts.length} draft(s) ready${errors.length ? ` · ${errors.length} variant(s) failed` : ""}`;
+    }
+
+    wireBatchPreviewEditors();
+
+    if (errors.length && logEl) {
+      logEl.classList.remove("hidden");
+      logEl.textContent = errors.map((e) => `⚠ ${batchVariantLabel(e.variant)}: ${e.message}`).join("\n");
+    } else if (logEl) {
+      logEl.classList.add("hidden");
+      logEl.textContent = "";
+    }
+  }
+
+  window.removeBatchDraft = function(index) {
+    batchPreviewDrafts.splice(index, 1);
+    renderBatchPreviewTable(batchPreviewDrafts, []);
+    const commitBtn = document.getElementById("btnBatchCommit");
+    if (commitBtn) commitBtn.disabled = batchPreviewDrafts.length === 0;
+    document.getElementById("batchStatus").textContent = `${batchPreviewDrafts.length} draft(s) in preview.`;
+  };
+
+  window.launchBatchSandboxPreview = async function(index) {
+    const draft = batchPreviewDrafts[index];
+    if (!draft) return;
+
+    currentSandboxedQ = { ...draft.question, id: `batch-preview-${index}` };
+    currentSandboxedKey = draft.answer_key;
+    currentSandboxedMarkPoints = [];
+    currentSandboxedEquationSheet = batchLoadedSheet;
+
+    const stage = document.getElementById("sandboxStage");
+    const feedbackCard = document.getElementById("sandboxFeedbackCard");
+    const btnSubmitSandbox = document.getElementById("btnSandboxSubmit");
+
+    stage.innerHTML = "Loading preview…";
+    feedbackCard.classList.add("hidden");
+    btnSubmitSandbox.disabled = false;
+    document.getElementById("sandboxModalOverlay").classList.remove("hidden");
+
+    renderSandboxQuestion(currentSandboxedQ);
+    if (window.MathJax?.typesetPromise) {
+      window.MathJax.typesetPromise().catch(() => {});
+    }
+  };
+
+  document.getElementById("btnBatchLoadEquations")?.addEventListener("click", () => {
+    refreshBatchEquationSelect().catch((err) => showAdminToast(err.message, true));
+  });
+
+  ["batchSubject", "batchPaper", "batchTier", "batchCourseTrack"].forEach((id) => {
+    document.getElementById(id)?.addEventListener("change", () => {
+      loadBatchSpecPointSelect().catch(() => {});
+      refreshBatchEquationSelect().catch(() => {});
+    });
+  });
+
+  document.getElementById("batchAudience")?.addEventListener("change", () => {
+    syncBatchSpecLinkUi();
+    const specId = document.getElementById("batchSpecPointSelect")?.value;
+    if (specId) void autoFillBatchLinkedSpec(specId);
+  });
+
+  document.getElementById("batchCourseTrack")?.addEventListener("change", syncBatchSpecLinkUi);
+
+  document.getElementById("batchSpecPointSelect")?.addEventListener("change", async () => {
+    const specId = document.getElementById("batchSpecPointSelect")?.value;
+    if (specId) await autoFillBatchLinkedSpec(specId);
+  });
+
+  document.getElementById("batchEquation")?.addEventListener("change", refreshBatchRearrangementSubjects);
+
+  document.getElementById("btnBatchPreview")?.addEventListener("click", async () => {
+    const status = document.getElementById("batchStatus");
+    const commitBtn = document.getElementById("btnBatchCommit");
+    try {
+      const spec = buildBatchSpecFromForm();
+      if (!spec.equation) {
+        throw new Error("Select an equation");
+      }
+      if (!spec.variants?.recipes?.length) {
+        throw new Error("Add at least one recipe row with count greater than 0");
+      }
+      if (!document.getElementById("batchSpecPointSelect")?.value) {
+        throw new Error("Select a spec point from the dropdown");
+      }
+      if (!batchLoadedSheet) {
+        await refreshBatchEquationSelect();
+      }
+      const { drafts, errors, seed } = NumericGen.generateBatch(spec, batchLoadedSheet);
+      batchPreviewDrafts = drafts.map((d, i) => ({
+        ...d,
+        _batchIdx: i,
+        question: {
+          ...d.question,
+          difficulty: window.AdminMetadata
+            ? window.AdminMetadata.computeQuestionDifficulty(d.question)
+            : 2
+        }
+      }));
+      renderBatchPreviewTable(batchPreviewDrafts, errors);
+      if (commitBtn) commitBtn.disabled = batchPreviewDrafts.length === 0;
+      if (status) {
+        status.textContent = `Preview: ${drafts.length} draft(s), ${errors.length} error(s). Seed: ${seed}. Edit prompts in the table before committing.`;
+      }
+      if (errors.length) showAdminToast(`${errors.length} variant(s) failed — see log below table.`, true);
+    } catch (err) {
+      showAdminToast(err.message, true);
+      if (status) status.textContent = err.message;
+    }
+  });
+
+  document.getElementById("btnBatchExport")?.addEventListener("click", () => {
+    if (!batchPreviewDrafts.length) {
+      showAdminToast("Generate a preview first.", true);
+      return;
+    }
+    const blob = new Blob([JSON.stringify(batchPreviewDrafts, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `numeric_batch_${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+
+  document.getElementById("btnBatchCommit")?.addEventListener("click", async () => {
+    if (!batchPreviewDrafts.length) {
+      showAdminToast("Nothing to commit — generate preview first.", true);
+      return;
+    }
+
+    const status = document.getElementById("batchStatus");
+    const logEl = document.getElementById("batchLog");
+    const commitBtn = document.getElementById("btnBatchCommit");
+    if (commitBtn) commitBtn.disabled = true;
+
+    let ok = 0;
+    let fail = 0;
+    const logLines = [];
+
+    try {
+      const specIds = await resolveBatchSpecIdsForCommit();
+      if (!specIds.ok) {
+        throw new Error("Could not resolve spec point equivalences — check audience and course track.");
+      }
+      const audience = document.getElementById("batchAudience")?.value || "both";
+
+      if (window.AdminSkills?.assertDeveloperForSkillSave) {
+        await window.AdminSkills.assertDeveloperForSkillSave(supabaseClient);
+      }
+      await window.AdminSkills?.ensureSkillCatalogLoaded?.(supabaseClient);
+
+      for (const draft of batchPreviewDrafts) {
+        try {
+          const insertPayload = {
+            ...draft.question,
+            spec_point_id: specIds.spec_point_id,
+            triple_spec_point_id: audience === "both" ? specIds.triple_spec_point_id : null,
+            audience,
+            difficulty: window.AdminMetadata
+              ? window.AdminMetadata.computeQuestionDifficulty(draft.question)
+              : (draft.question.difficulty ?? 2)
+          };
+
+          const { data: qResult, error: qErr } = await supabaseClient
+            .from("questions")
+            .insert(insertPayload)
+            .select()
+            .single();
+          if (qErr) throw qErr;
+
+          const { error: kErr } = await supabaseClient
+            .from("answer_keys")
+            .insert({
+              question_id: qResult.id,
+              key_type: draft.answer_key.key_type,
+              key_payload: draft.answer_key.key_payload
+            });
+          if (kErr) throw kErr;
+
+          const msCodes = (draft.skill_codes?.ms || []).join(",");
+          const wsCodes = (draft.skill_codes?.ws || []).join(",");
+          const extraMs = (document.getElementById("batchMsSkills")?.value || "").trim();
+          const extraWs = (document.getElementById("batchWsSkills")?.value || "").trim();
+          if (window.AdminSkills) {
+            const skillIds = window.AdminSkills.resolveSkillIdsFromCodeStrings(
+              [msCodes, extraMs].filter(Boolean).join(","),
+              [wsCodes, extraWs].filter(Boolean).join(",")
+            );
+            if (skillIds.length) {
+              await window.AdminSkills.saveQuestionSkills(supabaseClient, qResult.id, skillIds);
+            }
+          }
+
+          ok++;
+          logLines.push(`✓ ${qResult.id} — ${batchVariantLabel(draft.variant)}`);
+        } catch (err) {
+          fail++;
+          logLines.push(`✗ ${batchVariantLabel(draft.variant)}: ${err.message}`);
+        }
+      }
+
+      if (logEl) {
+        logEl.classList.remove("hidden");
+        logEl.textContent = logLines.join("\n");
+      }
+      if (status) status.textContent = `Committed ${ok} question(s), ${fail} failed.`;
+      showAdminToast(fail ? `Batch done with ${fail} failure(s).` : `Successfully committed ${ok} question(s).`, fail > 0);
+      if (ok > 0) {
+        batchPreviewDrafts = [];
+        renderBatchPreviewTable([], []);
+      }
+    } catch (err) {
+      showAdminToast(err.message, true);
+      if (status) status.textContent = err.message;
+    } finally {
+      if (commitBtn) commitBtn.disabled = batchPreviewDrafts.length === 0;
+    }
+  });
+
+  syncBatchSpecLinkUi();
+  initBatchVariantRecipes();
+  loadBatchSpecPointSelect().catch(() => {});
+  refreshBatchEquationSelect().catch(() => {});
 
   // ====== TAB 3: AUDIT CHECKLISTS & ACTIONS ======
   const btnQueryQuestions = document.getElementById("btnQueryQuestions");
@@ -5038,7 +6165,7 @@
     let html = `
       <div style="margin-bottom:12px;">
         <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
-          <strong style="font-size:1.05rem;">${escapeHtml(q.prompt)}</strong>
+          <strong style="font-size:1.05rem;">${highlightCommandWordsInPrompt(q.prompt)}</strong>
           <span style="background:#e2e8f0; padding:2px 8px; border-radius:4px; font-weight:bold; font-size:0.75rem;">${q.max_marks} marks</span>
         </div>
         ${imgHtml}

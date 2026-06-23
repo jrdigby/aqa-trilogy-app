@@ -159,3 +159,287 @@ test("correct equation: rearrangement spacing variant marks correct", () => {
   assert.equal(result.stepResults.rearrangement.correct, true);
   assert.equal(result.stepResults.substitution.correct, true);
 });
+
+test("sig figs: exact calculate mark + separate sig figs mark", () => {
+  const q = {
+    max_marks: 2,
+    calculation_config: {
+      equation_given: true,
+      steps: [
+        { type: "substitution", required: true, mode: "structured", equation_id: "speed", marks: 1 },
+        { type: "calculate", required: true, marks: 1 },
+        { type: "sig_figs", required: true, sig_figs: 2, enforce_on_final: true, marks: 1 }
+      ]
+    }
+  };
+  const resp = { steps: { calculate: 27.15695 } };
+  const key = {
+    key_payload: {
+      answer: 27.15695,
+      exact_answer: 27.15695,
+      tolerance: 0.01,
+      unit: "m/s"
+    }
+  };
+  const result = markCalculationResponse(q, resp, key, [], null, null);
+  assert.equal(result.stepResults.calculate.earned, 1);
+  assert.equal(result.stepResults.calculate.correct, true);
+  assert.equal(result.stepResults.sig_figs.earned, 0);
+  assert.equal(result.stepResults.sig_figs.correct, false);
+  assert.ok(result.missing.some((m) => m.stepType === "sig_figs"));
+  assert.ok(!result.missing.some((m) => m.stepType === "calculate"));
+});
+
+test("sig figs: 5 s.f. calculate answer loses sig figs mark when 2 s.f. required", () => {
+  const q = {
+    max_marks: 2,
+    calculation_config: {
+      equation_given: true,
+      steps: [
+        { type: "substitution", required: true, mode: "structured", equation_id: "speed", marks: 1 },
+        { type: "calculate", required: true, marks: 1 },
+        { type: "sig_figs", required: true, sig_figs: 2, enforce_on_final: true, marks: 1 }
+      ]
+    }
+  };
+  const resp = { steps: { calculate: 0.58554 } };
+  const key = {
+    key_payload: {
+      answer: 0.5855400437691199,
+      exact_answer: 0.5855400437691199,
+      tolerance: 0.001,
+      unit: "m/s"
+    }
+  };
+  const result = markCalculationResponse(q, resp, key, [], null, null);
+  assert.equal(result.stepResults.calculate.earned, 1);
+  assert.equal(result.stepResults.calculate.correct, true);
+  assert.equal(result.stepResults.sig_figs.earned, 0);
+  assert.equal(result.stepResults.sig_figs.correct, false);
+  assert.ok(result.missing.some((m) => m.stepType === "sig_figs"));
+});
+
+test("ECF: wrong unit conversion carries forward without losing later marks", async () => {
+  const fs = await import("fs");
+  const path = await import("path");
+  const { fileURLToPath } = await import("url");
+  const __dirname = path.dirname(fileURLToPath(import.meta.url));
+  const sheetP1 = JSON.parse(
+    fs.readFileSync(path.join(__dirname, "..", "data", "equation_sheets", "physics_p1_ht.json"), "utf8")
+  );
+  const { generateBatch } = await import("../src/numericQuestionGenerator.js");
+  const {
+    buildSiSlotAnswersForRearrangement,
+    buildNumericRearrangementOptions,
+    findEquationInSheet
+  } = await import("../src/substitutionTemplate.js");
+  const { resolveConversionEcfState, resolveWorkflowDerivedAnswer } = await import(
+    "../src/calculationWorkflow.js"
+  );
+
+  const { drafts } = generateBatch(
+    {
+      equation: "kinetic_energy",
+      sheet: "physics_p1_ht",
+      rearrangement_subject: "m",
+      variants: {
+        recipes: [{ base: "substitute", rearrangement: true, unitConversion: true, count: 1 }]
+      },
+      seed: 101
+    },
+    sheetP1
+  );
+  const draft = drafts[0];
+  const cfg = draft.question.calculation_config;
+  const convStep = cfg.steps.find((s) => s.type === "conversion");
+  const subStep = cfg.steps.find((s) => s.type === "substitution");
+  const rearrStep = cfg.steps.find((s) => s.type === "rearrangement");
+  const convSlot = convStep.slot_id;
+  const correctConv = convStep.answer;
+  const wrongConv = correctConv / 1000;
+
+  const slots = {};
+  for (const [id, vals] of Object.entries(subStep.slot_answers || {})) {
+    const v = Array.isArray(vals) ? vals[0] : vals;
+    slots[id] = id === convSlot ? String(wrongConv) : String(v);
+  }
+
+  const eq = findEquationInSheet(sheetP1, subStep.equation_id);
+  const conversionEcf = {
+    ratio: wrongConv / correctConv,
+    studentVal: wrongConv,
+    target: correctConv,
+    slotId: convSlot,
+    tol: convStep.tolerance ?? 0.001
+  };
+  const siSlots = buildSiSlotAnswersForRearrangement(
+    subStep,
+    convStep,
+    { steps: { conversion: wrongConv } },
+    slots,
+    conversionEcf
+  );
+  const built = buildNumericRearrangementOptions(eq, subStep, rearrStep, { siSlotAnswers: siSlots });
+  const conversionEcfState = resolveConversionEcfState(cfg.steps, {
+    steps: { conversion: wrongConv }
+  });
+  const ecfAnswer = resolveWorkflowDerivedAnswer(
+    cfg,
+    cfg.steps,
+    { steps: { conversion: wrongConv, substitution: { mode: "structured", equation_id: subStep.equation_id, slots } } },
+    sheetP1,
+    conversionEcfState
+  );
+  assert.ok(Number.isFinite(ecfAnswer), "expected workflow-derived ECF answer");
+
+  const resp = {
+    steps: {
+      conversion: wrongConv,
+      substitution: {
+        mode: "structured",
+        equation_id: subStep.equation_id,
+        slots
+      },
+      rearrangement: built.answer,
+      calculate: ecfAnswer
+    }
+  };
+
+  assert.ok(resolveConversionEcfState(cfg.steps, resp), "expected conversion ECF state");
+
+  const result = markCalculationResponse(
+    draft.question,
+    resp,
+    draft.answer_key,
+    [],
+    null,
+    sheetP1
+  );
+
+  assert.equal(result.stepResults.conversion.correct, false);
+  assert.equal(result.stepResults.conversion.earned, 0);
+  assert.equal(result.stepResults.substitution.correct, true);
+  assert.equal(result.stepResults.substitution.ecf, true);
+  assert.equal(result.stepResults.rearrangement.correct, true);
+  assert.equal(result.stepResults.rearrangement.ecf, true);
+  assert.equal(result.stepResults.calculate.correct, true);
+  assert.equal(result.stepResults.calculate.ecf, true);
+  assert.ok(result.missing.some((m) => m.isEcf));
+  assert.ok(result.total > result.stepResults.conversion.max);
+});
+
+test("ECF: spring constant k re-evaluates with e² not linear ratio", async () => {
+  const fs = await import("fs");
+  const path = await import("path");
+  const { fileURLToPath } = await import("url");
+  const __dirname = path.dirname(fileURLToPath(import.meta.url));
+  const sheetP1 = JSON.parse(
+    fs.readFileSync(path.join(__dirname, "..", "data", "equation_sheets", "physics_p1_ht.json"), "utf8")
+  );
+  const {
+    buildSiSlotAnswersForRearrangement,
+    buildNumericRearrangementOptions,
+    findEquationInSheet
+  } = await import("../src/substitutionTemplate.js");
+  const { markCalculationResponse, resolveWorkflowDerivedAnswer } = await import(
+    "../src/calculationWorkflow.js"
+  );
+
+  const cfg = {
+    equation_given: true,
+    steps: [
+      {
+        type: "conversion",
+        required: true,
+        answer: 0.09,
+        tolerance: 0.001,
+        slot_id: "e",
+        marks: 1
+      },
+      {
+        type: "substitution",
+        required: true,
+        mode: "structured",
+        equation_id: "elastic_potential_energy",
+        slot_answers: { E_e: ["285"], e: ["0.09"] },
+        rearrangement_subject: "k",
+        marks: 1
+      },
+      { type: "rearrangement", required: true, mode: "numeric", subject: "k", marks: 1 },
+      { type: "calculate", required: true, marks: 1 },
+      { type: "sig_figs", required: true, sig_figs: 2, enforce_on_final: true, marks: 1 }
+    ]
+  };
+
+  const wrongConv = 0.9;
+  const slots = { E_e: "285", e: "0.9" };
+  const convStep = cfg.steps[0];
+  const subStep = cfg.steps[1];
+  const rearrStep = cfg.steps[2];
+  const eq = findEquationInSheet(sheetP1, "elastic_potential_energy");
+  const conversionEcf = {
+    ratio: wrongConv / 0.09,
+    studentVal: wrongConv,
+    target: 0.09,
+    slotId: "e",
+    tol: 0.001
+  };
+  const siSlots = buildSiSlotAnswersForRearrangement(
+    subStep,
+    convStep,
+    { steps: { conversion: wrongConv } },
+    slots,
+    conversionEcf
+  );
+  const built = buildNumericRearrangementOptions(eq, subStep, rearrStep, { siSlotAnswers: siSlots });
+  const ecfK = (2 * 285) / (0.9 * 0.9);
+
+  const resp = {
+    steps: {
+      conversion: wrongConv,
+      substitution: {
+        mode: "structured",
+        equation_id: "elastic_potential_energy",
+        slots
+      },
+      rearrangement: built.answer,
+      calculate: ecfK
+    }
+  };
+
+  const workflowAnswer = resolveWorkflowDerivedAnswer(cfg, cfg.steps, resp, sheetP1, conversionEcf);
+  assert.ok(Math.abs(workflowAnswer - ecfK) < 0.01, `expected ~${ecfK}, got ${workflowAnswer}`);
+
+  const markSchemeK = (2 * 285) / (0.09 * 0.09);
+  const key = {
+    key_payload: {
+      answer: markSchemeK,
+      exact_answer: markSchemeK,
+      tolerance: 50,
+      unit: "N/m"
+    }
+  };
+
+  const result = markCalculationResponse(
+    { calculation_config: cfg, max_marks: 5 },
+    resp,
+    key,
+    [],
+    null,
+    sheetP1
+  );
+  assert.equal(result.stepResults.calculate.correct, true);
+  assert.equal(result.stepResults.calculate.ecf, true);
+
+  const failResult = markCalculationResponse(
+    { calculation_config: cfg, max_marks: 5 },
+    { ...resp, steps: { ...resp.steps, calculate: 0 } },
+    key,
+    [],
+    null,
+    sheetP1
+  );
+  const calcFb = failResult.missing.find((m) => m.stepType === "calculate");
+  assert.ok(calcFb?.text.includes("703"), `feedback should show ECF target: ${calcFb?.text}`);
+  assert.ok(calcFb?.text.includes("substituted values"));
+});

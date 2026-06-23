@@ -44,19 +44,27 @@ export function roundToSigFigs(value, n) {
 
 /**
  * True if student value matches expected when rounded to n sig figs (within tolerance).
+ * When requireSigFigCount is true, the student's answer must use exactly n significant figures
+ * (used for the separate sig figs mark on the final answer).
  */
-export function matchesSigFigs(studentValue, expectedValue, n, tolerance = 0) {
+export function matchesSigFigs(studentValue, expectedValue, n, tolerance = 0, options = {}) {
+  const requireSigFigCount = !!options.requireSigFigCount;
   const student = Number(studentValue);
   const expected = Number(expectedValue);
   if (!Number.isFinite(student) || !Number.isFinite(expected)) return false;
 
   const roundedExpected = roundToSigFigs(expected, n);
   const tol = Math.max(Math.abs(tolerance), Math.abs(roundedExpected) * 1e-9, 1e-9);
-
-  if (Math.abs(student - roundedExpected) <= tol) return true;
-
   const studentSf = countSigFigs(String(studentValue));
-  if (studentSf !== n) return false;
+
+  if (Math.abs(student - roundedExpected) <= tol) {
+    if (!requireSigFigCount || studentSf === n) return true;
+    // GCSE: 700 is acceptable as the 2 s.f. rounded value even without a decimal point
+    if (student === roundedExpected) return true;
+    return false;
+  }
+
+  if (requireSigFigCount && studentSf !== n) return false;
 
   return Math.abs(student - roundedExpected) <= tol * 10;
 }

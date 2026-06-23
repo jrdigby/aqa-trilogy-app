@@ -1,20 +1,24 @@
 // Physics calculation workflow — render, collect, validate, and mark step-by-step numeric questions
 import { escapeHtml } from "./utils.js";
 import { matchesSigFigs, roundToSigFigs } from "./sigFigs.js";
+import { evaluateEquation, solveForSubject } from "./numericQuestionGenerator.js";
 import { normalizeTier, courseTrackForProfile, resolveQuestionSpecMeta } from "./sciencePath.js";
 import {
   buildNumericRearrangementOptions,
+  buildSiSlotAnswersForRearrangement,
   collectStructuredSubstitution,
   collectSubstitutionPayload,
   enrichCalculationConfigFromEquationSheet,
   findEquationInSheet,
   getSlotIdsFromTemplate,
   getSubstitutionTemplate,
+  listRearrangementSubjectIds,
   isStructuredSubstitutionStep,
   rearrangementStructurallyMatches,
   refreshRearrangementFromStudentSlots,
   refreshRearrangementSelect,
   refreshSubstitutionStepDom,
+  isRearrangementInputReady,
   renderSubstitutionStepInner,
   resolveCalculationWorkflowRoot,
   resolveEquationIdForSubstitution,
@@ -26,8 +30,8 @@ import {
 
 const STEP_ORDER = [
   "equation_select",
-  "substitution",
   "conversion",
+  "substitution",
   "rearrangement",
   "calculate",
   "sig_figs"
@@ -61,8 +65,8 @@ const DEFAULT_CALCULATE_STEP = {
 
 /**
  * GCSE mark scheme:
- * - Equation given: 1 substitution + 1 answer; +1 each for conversion, rearrangement, sig figs if needed
- * - From equation sheet: 0 equation select + 1 substitution + 1 rearrangement + 1 answer; +1 conversion/sig figs if needed
+ * - Substitute (equation given): substitution + answer; +1 each optional rearrangement, conversion, sig figs
+ * - Recall (equation sheet): equation select (unmarked) + substitution + answer; same optional steps
  */
 export function markForStep(type, enabled = true) {
   if (!enabled && type !== "calculate") return 0;
@@ -255,7 +259,6 @@ function buildEmptyConfigForPreset(preset) {
       steps: [
         { type: "equation_select", required: true, answer: "", distractors: [] },
         { type: "substitution", required: true, mode: "structured" },
-        { type: "rearrangement", required: true, mode: "numeric" },
         { type: "calculate", required: true }
       ]
     };
@@ -400,14 +403,60 @@ function renderStructuredSubstitutionPreview(prefix, template, slotAnswers) {
   );
 }
 
-function populateRearrangementSubjectSelect(prefix, template, selected = "") {
+function populateRearrangementSubjectSelect(prefix, equation, selected = "") {
   const select = document.getElementById(`${prefix}CalcRearrangementSubject`);
   if (!select) return;
-  const slotIds = getSlotIdsFromTemplate(template);
-  select.innerHTML = slotIds.map((id) => {
-    const sel = id === selected ? " selected" : "";
+  const subjects = equation ? listRearrangementSubjectIds(equation) : [];
+  if (!subjects.length) {
+    select.innerHTML = '<option value="">— Select equation first —</option>';
+    return;
+  }
+  const pick = selected && subjects.includes(selected) ? selected : subjects[0];
+  select.innerHTML = subjects.map((id) => {
+    const sel = id === pick ? " selected" : "";
     return `<option value="${escapeHtml(id)}"${sel}>${escapeHtml(id)}</option>`;
   }).join("");
+  if (!selected && pick) select.value = pick;
+}
+
+/** Show rearrangement subject + mode panels when the rearrangement step is enabled. */
+export function updateRearrangementAuthoringUi(prefix = "") {
+  const p = (id) => document.getElementById(prefix + id);
+  const rearrOn = !!p("CalcStepRearrangement")?.checked;
+  const subOn = !!p("CalcStepSubstitution")?.checked;
+  const structured = (p("CalcSubstitutionMode")?.value || "free_text") === "structured";
+  const numericMode = structured && subOn && (p("CalcRearrangementMode")?.value || "numeric") === "numeric";
+
+  p("CalcRearrangementSubjectRow")?.classList.toggle("hidden", !rearrOn);
+  p("CalcRearrangementStructuredExtras")?.classList.toggle("hidden", !(rearrOn && structured && subOn));
+  p("CalcRearrangementSymbolicRow")?.classList.toggle("hidden", !rearrOn || numericMode);
+}
+
+export async function refreshRearrangementSubjectFromForm(prefix = "", supabaseClient = null) {
+  const p = (id) => document.getElementById(prefix + id);
+  updateRearrangementAuthoringUi(prefix);
+  if (!p("CalcStepRearrangement")?.checked) return;
+
+  let equations = getCachedEquationSheetOptions(prefix);
+  if (!equations.length && supabaseClient) {
+    const sheetId = p("CalcEquationSheet")?.value || "";
+    if (sheetId) {
+      try {
+        equations = await loadEquationSheetOptions(supabaseClient, sheetId);
+      } catch (_) {
+        equations = [];
+      }
+    }
+  }
+
+  const eqId = p("CalcSubstitutionEquation")?.value?.trim()
+    || p("CalcEquationAnswer")?.value?.trim()
+    || "";
+  const equation = equations.find((e) => e.id === eqId || e.label === eqId) || null;
+  const current = p("CalcRearrangementSubject")?.value?.trim()
+    || equation?.rearrangement_forms?.default_subject
+    || "";
+  populateRearrangementSubjectSelect(prefix, equation, current);
 }
 
 function updateRearrangementNumericPreview(prefix, equation, subStep, rearrStep) {
@@ -441,6 +490,7 @@ export function updateStructuredSubstitutionAuthoringUi(prefix = "") {
   const subOn = !!p("CalcStepSubstitution")?.checked;
   const rearrOn = !!p("CalcStepRearrangement")?.checked;
   p("CalcRearrangementStructuredExtras")?.classList.toggle("hidden", !(structured && subOn && rearrOn));
+  updateRearrangementAuthoringUi(prefix);
 }
 
 export async function refreshStructuredSubstitutionAdmin(supabaseClient, prefix = "") {
@@ -472,7 +522,7 @@ export async function refreshStructuredSubstitutionAdmin(supabaseClient, prefix 
   renderStructuredSubstitutionPreview(prefix, template, slotAnswers);
   populateRearrangementSubjectSelect(
     prefix,
-    template,
+    equation,
     p("CalcRearrangementSubject")?.value || equation?.rearrangement_forms?.default_subject || ""
   );
 
@@ -538,11 +588,16 @@ export function wireStructuredSubstitutionAuthoring(prefix = "", supabaseClient,
     "CalcSubstitutionMode",
     "CalcSubstitutionEquation",
     "CalcRearrangementMode",
-    "CalcRearrangementSubject"
+    "CalcRearrangementSubject",
+    "CalcStepRearrangement",
+    "CalcEquationAnswer"
   ];
   for (const id of ids) {
     const el = document.getElementById(prefix + id);
     el?.addEventListener("change", async () => {
+      if (id === "CalcStepRearrangement" || id === "CalcRearrangementSubject" || id === "CalcEquationAnswer") {
+        await refreshRearrangementSubjectFromForm(prefix, supabaseClient);
+      }
       await refreshStructuredSubstitutionAdmin(supabaseClient, prefix);
     });
   }
@@ -806,6 +861,7 @@ export function wireStudentEquationSelectPreview(onTypeset, q = null, equationSh
   if (!select || !preview) {
     rerenderStructuredSteps();
     wireSubstitutionSlotInputListener(refreshRearrangementOnly, workflowRoot);
+    wireConversionInputListener(refreshRearrangementOnly);
     return;
   }
 
@@ -829,6 +885,7 @@ export function wireStudentEquationSelectPreview(onTypeset, q = null, equationSh
     rerenderStructuredSteps();
   });
   wireSubstitutionSlotInputListener(refreshRearrangementOnly, workflowRoot);
+  wireConversionInputListener(refreshRearrangementOnly);
   rerenderStructuredSteps();
 }
 
@@ -842,6 +899,16 @@ function wireSubstitutionSlotInputListener(onInput, root = null) {
     if (e.target?.classList?.contains("calc-sub-slot")) onInput();
   };
   panel.addEventListener("input", panel._calcSubSlotHandler);
+}
+
+function wireConversionInputListener(onInput) {
+  const convEl = document.getElementById("calc_conversion");
+  if (!convEl || typeof onInput !== "function") return;
+  if (convEl._calcConvHandler) {
+    convEl.removeEventListener("input", convEl._calcConvHandler);
+  }
+  convEl._calcConvHandler = () => onInput();
+  convEl.addEventListener("input", convEl._calcConvHandler);
 }
 
 export function fillEquationSelectElement(selectEl, equations, selectedId = "") {
@@ -1180,7 +1247,7 @@ function renderEquationSheetPanel(config, equationSheet, presentation) {
   `;
 }
 
-function resolveExpectedRearrangementAnswer(step, config, steps, resp, equationSheet) {
+function resolveExpectedRearrangementAnswer(step, config, steps, resp, equationSheet, conversionEcf = null) {
   const subStep = steps.find((s) => s.type === "substitution");
   if (!subStep?.slot_answers || !equationSheet) return step.answer || "";
   const isNumeric = step.mode === "numeric"
@@ -1194,8 +1261,86 @@ function resolveExpectedRearrangementAnswer(step, config, steps, resp, equationS
   const markSchemeEq = resolveMarkSchemeEquationId(config, subStep);
   const eq = findEquationInSheet(equationSheet, markSchemeEq || selectedEq);
   if (!eq) return step.answer || "";
-  const built = buildNumericRearrangementOptions(eq, subStep, step);
+  const convStep = steps.find((s) => s.type === "conversion");
+  const studentSlots = typeof subPayload === "object" ? subPayload?.slots : null;
+  const siSlots = buildSiSlotAnswersForRearrangement(
+    subStep,
+    convStep,
+    resp,
+    studentSlots,
+    conversionEcf
+  );
+  const built = buildNumericRearrangementOptions(eq, subStep, step, { siSlotAnswers: siSlots });
   return built.answer || step.answer || "";
+}
+
+/** When conversion is wrong, derive ratio for AQA error-carried-forward through later steps. */
+export function resolveConversionEcfState(steps, resp) {
+  const convStep = steps.find((s) => s.type === "conversion");
+  if (!convStep) return null;
+  const studentVal = parseFloat(resp?.steps?.conversion);
+  const target = parseFloat(convStep.answer);
+  const tol = parseFloat(convStep.tolerance ?? 0.001);
+  if (!Number.isFinite(studentVal) || !Number.isFinite(target) || target === 0) return null;
+  if (Math.abs(studentVal - target) <= tol) return null;
+  return {
+    ratio: studentVal / target,
+    studentVal,
+    target,
+    slotId: convStep.slot_id || null,
+    tol
+  };
+}
+
+function buildConversionEcfNotice(stepType, conversionEcf) {
+  const valueText = conversionEcf?.studentVal != null
+    ? `your converted value of ${conversionEcf.studentVal}`
+    : "your conversion";
+  return `Error Carried Forward (ECF): ${stepType} marked correct using ${valueText}.`;
+}
+
+/** Re-evaluate the final answer from the student's substituted SI values (handles e² etc.). */
+export function resolveWorkflowDerivedAnswer(config, steps, resp, equationSheet, conversionEcf = null) {
+  const subStep = steps.find((s) => s.type === "substitution");
+  if (!subStep?.slot_answers || !equationSheet) return null;
+
+  const markSchemeEqId = resolveMarkSchemeEquationId(config, subStep);
+  const subPayload = resp?.steps?.substitution;
+  const eqId = markSchemeEqId
+    || (typeof subPayload === "object" && subPayload?.equation_id)
+    || subStep.equation_id;
+  const equation = findEquationInSheet(equationSheet, eqId);
+  if (!equation) return null;
+
+  const convStep = steps.find((s) => s.type === "conversion");
+  const studentSlots = typeof subPayload === "object" ? subPayload?.slots : null;
+  const siSlots = buildSiSlotAnswersForRearrangement(
+    subStep,
+    convStep,
+    resp,
+    studentSlots,
+    conversionEcf
+  );
+  const slots = {};
+  for (const [id, val] of Object.entries(siSlots)) {
+    const n = parseFloat(val);
+    if (Number.isFinite(n)) slots[id] = n;
+  }
+
+  try {
+    const subject = subStep.rearrangement_subject;
+    if (subject) return solveForSubject(equation, slots, subject);
+    return evaluateEquation(equation, slots).answer;
+  } catch {
+    return null;
+  }
+}
+
+function formatAnswerForFeedback(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return String(value ?? "");
+  if (Number.isInteger(n)) return String(n);
+  return String(parseFloat(n.toPrecision(6)));
 }
 
 function rearrangementAnswerMatches(studentVal, expectedAnswer) {
@@ -1302,9 +1447,13 @@ export function renderCalculationWorkflow(q, currentKey, presentation = "practic
         </div>
       `;
     } else if (step.type === "rearrangement") {
-      let choices;
+      let choices = [];
       const subStep = steps.find((s) => s.type === "substitution");
-      if (step.mode === "numeric" && subStep && equationSheet) {
+      const convStep = steps.find((s) => s.type === "conversion");
+      const workflowRoot = resolveCalculationWorkflowRoot();
+      const rearrLocked = step.mode === "numeric" && subStep && equationSheet
+        && !isRearrangementInputReady(config, equationSheet, subStep, workflowRoot);
+      if (step.mode === "numeric" && subStep && equationSheet && !rearrLocked) {
         const eqId = resolveEquationIdForSubstitution(config, equationSheet, subStep);
         if (eqId) {
           const eq = findEquationInSheet(equationSheet, eqId);
@@ -1312,22 +1461,24 @@ export function renderCalculationWorkflow(q, currentKey, presentation = "practic
           const studentSlots = ctx.mode === "structured" && ctx.template
             ? collectStructuredSubstitution(ctx.template, resolveCalculationWorkflowRoot())
             : {};
-          const built = buildNumericRearrangementOptions(eq, subStep, step, { slotValues: studentSlots });
+          const siSlots = buildSiSlotAnswersForRearrangement(subStep, convStep, null, studentSlots);
+          const built = buildNumericRearrangementOptions(eq, subStep, step, { siSlotAnswers: siSlots });
           choices = getRearrangementChoices({
             answer: built.answer,
             distractors: built.distractors
           });
-        } else {
-          choices = [];
         }
-      } else {
+      } else if (!rearrLocked) {
         choices = getRearrangementChoices(step);
       }
+      const rearrPlaceholder = rearrLocked
+        ? "— Complete conversion and substitution first —"
+        : "— Select formula —";
       html += `
         <div class="calc-step" data-step="rearrangement" style="margin-bottom:12px;">
           <label style="display:block;font-size:0.82rem;font-weight:700;margin-bottom:4px;">${renderStepLabel(numberedLabel, step)}:</label>
-          <select id="calc_rearrangement" style="${selectStyle()}">
-            <option value="">— Select formula —</option>
+          <select id="calc_rearrangement" style="${selectStyle()}"${rearrLocked ? " disabled" : ""}>
+            <option value="">${escapeHtml(rearrPlaceholder)}</option>
             ${choices.map((d) => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join("")}
           </select>
         </div>
@@ -1483,20 +1634,32 @@ function substitutionMatches(studentText, step) {
   return accepted.some((a) => normalizeSubstitution(a) === normalized);
 }
 
-function matchSubstitutionStep(studentVal, step, config, equationSheet, markingCtx) {
-  if (markingCtx && !markingCtx.equationCorrect) return false;
+function matchSubstitutionStep(studentVal, step, config, equationSheet, markingCtx, conversionEcf = null) {
+  if (markingCtx && !markingCtx.equationCorrect) return { match: false, ecf: false };
   if (typeof studentVal === "object" && studentVal?.mode === "structured") {
-    if (!studentVal.equation_id) return false;
+    if (!studentVal.equation_id) return { match: false, ecf: false };
     const markSchemeEq = resolveMarkSchemeEquationId(config, step);
     const equation = findEquationInSheet(equationSheet, markSchemeEq || studentVal.equation_id);
     const template = getSubstitutionTemplate(equation);
     if (template && substitutionSlotsMatchCommutative(studentVal, step, template)) {
-      return true;
+      return { match: true, ecf: false };
     }
-    return substitutionMatches(studentVal.text, step);
+    if (template && conversionEcf?.slotId) {
+      const ecfStep = {
+        ...step,
+        slot_answers: {
+          ...step.slot_answers,
+          [conversionEcf.slotId]: [String(conversionEcf.studentVal)]
+        }
+      };
+      if (substitutionSlotsMatchCommutative(studentVal, ecfStep, template)) {
+        return { match: true, ecf: true };
+      }
+    }
+    return { match: substitutionMatches(studentVal.text, step), ecf: false };
   }
   const text = typeof studentVal === "string" ? studentVal : studentVal?.text || "";
-  return substitutionMatches(text, step);
+  return { match: substitutionMatches(text, step), ecf: false };
 }
 
 function getStepFeedback(step, markPoints, stepType, defaultText) {
@@ -1537,7 +1700,7 @@ function awardSimpleNumericAo(max, markPoints, stepAo) {
 }
 
 function buildSimpleNumericMissing(config, markPoints, cleanUrl, key, steps) {
-  const ansTarget = parseFloat(key?.key_payload?.answer);
+  const ansTarget = resolveExactAnswer(key);
   const unit = key?.key_payload?.unit || "";
   const calcStep = steps?.find((s) => s.type === "calculate");
 
@@ -1589,6 +1752,13 @@ function findEquationLabel(config, equationSheet, answerId) {
   return needle;
 }
 
+function resolveExactAnswer(key) {
+  const payload = key?.key_payload || {};
+  const exact = parseFloat(payload.exact_answer);
+  if (Number.isFinite(exact)) return exact;
+  return parseFloat(payload.answer);
+}
+
 export function markCalculationResponse(q, resp, key, markPoints, cleanUrl, equationSheet = null) {
   const rawConfig = getCalculationConfig(q);
   const config = enrichCalculationConfigFromEquationSheet(rawConfig, equationSheet);
@@ -1599,24 +1769,26 @@ export function markCalculationResponse(q, resp, key, markPoints, cleanUrl, equa
   const maxAo = { AO1: 0, AO2: 0, AO3: 0 };
   const missing = [];
 
-  let conversionStudent = null;
   let conversionTarget = null;
-  let conversionCorrect = false;
   let conversionTol = 0.001;
 
-  const ansTarget = parseFloat(key?.key_payload?.answer);
+  const exactAnswer = resolveExactAnswer(key);
   const ansTol = parseFloat(key?.key_payload?.tolerance ?? 0);
   const unit = key?.key_payload?.unit || "";
   const stepResults = {};
   const markingCtx = resolveMarkingContext(config, resp, equationSheet, steps);
   const wrongEquationPath = markingCtx.hasEquationSelect && !markingCtx.equationCorrect;
+  const conversionEcf = resolveConversionEcfState(steps, resp);
+  const workflowAnswer = conversionEcf
+    ? resolveWorkflowDerivedAnswer(config, steps, resp, equationSheet, conversionEcf)
+    : null;
 
   if (isSimpleNumericMode(q, config)) {
     const max = q.max_marks || 1;
     const maxAo = resolveSimpleNumericMaxAo(max, markPoints);
     const stepAo = steps[0]?.ao || "AO2";
     const studentVal = resp.steps?.calculate ?? resp.value;
-    const isCorrect = studentVal != null && Math.abs(studentVal - ansTarget) <= ansTol;
+    const isCorrect = studentVal != null && Math.abs(studentVal - exactAnswer) <= ansTol;
     const total = isCorrect ? max : 0;
     const ao = isCorrect ? awardSimpleNumericAo(max, markPoints, stepAo) : { AO1: 0, AO2: 0, AO3: 0 };
     const missing = isCorrect ? [] : buildSimpleNumericMissing(config, markPoints, cleanUrl, key, steps);
@@ -1662,9 +1834,26 @@ export function markCalculationResponse(q, resp, key, markPoints, cleanUrl, equa
         });
       }
     } else if (step.type === "substitution") {
-      if (matchSubstitutionStep(studentVal, step, config, equationSheet, markingCtx)) {
+      const subMatch = matchSubstitutionStep(
+        studentVal,
+        step,
+        config,
+        equationSheet,
+        markingCtx,
+        conversionEcf
+      );
+      if (subMatch.match) {
         earned = marks;
         isCorrect = true;
+        if (subMatch.ecf) {
+          isEcf = true;
+          missing.push({
+            ao: stepAo,
+            stepType: step.type,
+            text: buildConversionEcfNotice("substitution", conversionEcf),
+            isEcf: true
+          });
+        }
       } else if (!wrongEquationPath) {
         missing.push({
           ao: stepAo,
@@ -1679,12 +1868,10 @@ export function markCalculationResponse(q, resp, key, markPoints, cleanUrl, equa
         });
       }
     } else if (step.type === "conversion") {
-      conversionStudent = studentVal;
       conversionTarget = parseFloat(step.answer);
       conversionTol = parseFloat(step.tolerance ?? 0.001);
       if (studentVal != null && Math.abs(studentVal - conversionTarget) <= conversionTol) {
         earned = marks;
-        conversionCorrect = true;
         isCorrect = true;
       } else {
         missing.push({
@@ -1700,11 +1887,27 @@ export function markCalculationResponse(q, resp, key, markPoints, cleanUrl, equa
         });
       }
     } else if (step.type === "rearrangement") {
-      const expectedAnswer = resolveExpectedRearrangementAnswer(step, config, steps, resp, equationSheet);
+      const expectedAnswer = resolveExpectedRearrangementAnswer(
+        step,
+        config,
+        steps,
+        resp,
+        equationSheet,
+        conversionEcf
+      );
       const answerOk = rearrangementAnswerMatches(studentVal, expectedAnswer);
       if (markingCtx.equationCorrect && answerOk) {
         earned = marks;
         isCorrect = true;
+        if (conversionEcf) {
+          isEcf = true;
+          missing.push({
+            ao: stepAo,
+            stepType: step.type,
+            text: buildConversionEcfNotice("rearrangement", conversionEcf),
+            isEcf: true
+          });
+        }
       } else if (!wrongEquationPath) {
         const defaultText = expectedAnswer
           ? `Rearrangement incorrect: the correct form is "${expectedAnswer}".`
@@ -1722,11 +1925,11 @@ export function markCalculationResponse(q, resp, key, markPoints, cleanUrl, equa
         });
       }
     } else if (step.type === "calculate") {
-      let target = ansTarget;
+      let target = exactAnswer;
       const sigStep = steps.find((s) => s.type === "sig_figs");
       const sigMergedIntoCalculate = sigStep?.enforce_on_final && !(Number(sigStep.marks) > 0);
       if (sigMergedIntoCalculate && sigStep?.sig_figs) {
-        target = roundToSigFigs(ansTarget, sigStep.sig_figs);
+        target = roundToSigFigs(exactAnswer, sigStep.sig_figs);
       }
 
       let calcCorrect = markingCtx.equationCorrect
@@ -1734,18 +1937,19 @@ export function markCalculationResponse(q, resp, key, markPoints, cleanUrl, equa
         && Math.abs(studentVal - target) <= ansTol;
       isCorrect = calcCorrect;
 
-      if (!calcCorrect && markingCtx.equationCorrect && !conversionCorrect && conversionStudent != null && conversionTarget) {
-        const ratio = conversionStudent / conversionTarget;
-        const ecfTarget = target * ratio;
-        const scaledTol = Math.max(ansTol, ansTol * Math.abs(ratio));
-        if (Math.abs(studentVal - ecfTarget) <= scaledTol) {
+      if (!calcCorrect && markingCtx.equationCorrect && conversionEcf) {
+        const ecfTarget = workflowAnswer ?? (target * conversionEcf.ratio);
+        const scaledTol = workflowAnswer != null
+          ? ansTol
+          : Math.max(ansTol, ansTol * Math.abs(conversionEcf.ratio));
+        if (Number.isFinite(ecfTarget) && Math.abs(studentVal - ecfTarget) <= scaledTol) {
           isCorrect = true;
           calcCorrect = true;
           isEcf = true;
           missing.push({
             ao: stepAo,
             stepType: step.type,
-            text: `Error Carried Forward (ECF): final calculation marked correct using your converted value of ${conversionStudent}.`,
+            text: buildConversionEcfNotice("final calculation", conversionEcf),
             isEcf: true
           });
         }
@@ -1754,6 +1958,12 @@ export function markCalculationResponse(q, resp, key, markPoints, cleanUrl, equa
       if (isCorrect) {
         earned = marks;
       } else if (!wrongEquationPath) {
+        const expectedForFeedback = conversionEcf && workflowAnswer != null
+          ? workflowAnswer
+          : target;
+        const ecfNote = conversionEcf && workflowAnswer != null
+          ? " (based on your substituted values)"
+          : "";
         missing.push({
           ao: stepAo,
           stepType: step.type,
@@ -1761,15 +1971,23 @@ export function markCalculationResponse(q, resp, key, markPoints, cleanUrl, equa
             step,
             markPoints,
             "calculate",
-            `Final calculation incorrect: expected ${target}${unit ? " " + unit : ""}.`
+            `Final calculation incorrect: expected ${formatAnswerForFeedback(expectedForFeedback)}${unit ? " " + unit : ""}${ecfNote}.`
           ),
           url: cleanUrl
         });
       }
     } else if (step.type === "sig_figs") {
       const calcVal = resp.steps?.calculate ?? resp.value;
+      const sigExpected = conversionEcf && workflowAnswer != null
+        ? workflowAnswer
+        : exactAnswer;
+      const sigRounded = roundToSigFigs(sigExpected, step.sig_figs);
+      const sigEcfNote = conversionEcf && workflowAnswer != null
+        ? " based on your substituted values"
+        : "";
       if (step.enforce_on_final) {
-        if (matchesSigFigs(calcVal, ansTarget, step.sig_figs, ansTol)) {
+        const sigOpts = { requireSigFigCount: true };
+        if (matchesSigFigs(calcVal, sigExpected, step.sig_figs, ansTol, sigOpts)) {
           earned = marks;
           isCorrect = true;
         } else if (marks > 0) {
@@ -1780,12 +1998,12 @@ export function markCalculationResponse(q, resp, key, markPoints, cleanUrl, equa
               step,
               markPoints,
               "sig_figs",
-              `Significant figures incorrect: give your answer to ${step.sig_figs} significant figures.`
+              `Significant figures incorrect: expected ${formatAnswerForFeedback(sigRounded)} (${step.sig_figs} s.f.)${sigEcfNote}.`
             ),
             url: cleanUrl
           });
         }
-      } else if (studentVal != null && matchesSigFigs(studentVal, ansTarget, step.sig_figs, ansTol)) {
+      } else if (studentVal != null && matchesSigFigs(studentVal, sigExpected, step.sig_figs, ansTol, { requireSigFigCount: true })) {
         earned = marks;
         isCorrect = true;
       } else if (marks > 0) {
@@ -1796,7 +2014,7 @@ export function markCalculationResponse(q, resp, key, markPoints, cleanUrl, equa
             step,
             markPoints,
             "sig_figs",
-            `Significant figures incorrect: expected ${roundToSigFigs(ansTarget, step.sig_figs)} (${step.sig_figs} s.f.).`
+            `Significant figures incorrect: expected ${formatAnswerForFeedback(sigRounded)} (${step.sig_figs} s.f.)${sigEcfNote}.`
           ),
           url: cleanUrl
         });
@@ -2061,6 +2279,19 @@ export function buildCalculationConfigFromForm(prefix = "") {
     });
   }
 
+  if (chk("CalcStepConversion")) {
+    steps.push({
+      type: "conversion",
+      marks: markForStep("conversion", true),
+      ao: "AO2",
+      required: true,
+      label: p("CalcConversionLabel")?.value?.trim() || "",
+      answer: parseFloat(p("CalcConversionAnswer")?.value),
+      tolerance: parseFloat(p("CalcConversionTol")?.value) || 0.001,
+      feedback_if_wrong: fb("conversion")
+    });
+  }
+
   if (chk("CalcStepSubstitution")) {
     const mode = p("CalcSubstitutionMode")?.value || "free_text";
     const subStep = {
@@ -2086,19 +2317,6 @@ export function buildCalculationConfigFromForm(prefix = "") {
     steps.push(subStep);
   }
 
-  if (chk("CalcStepConversion")) {
-    steps.push({
-      type: "conversion",
-      marks: markForStep("conversion", true),
-      ao: "AO2",
-      required: true,
-      label: p("CalcConversionLabel")?.value?.trim() || "",
-      answer: parseFloat(p("CalcConversionAnswer")?.value),
-      tolerance: parseFloat(p("CalcConversionTol")?.value) || 0.001,
-      feedback_if_wrong: fb("conversion")
-    });
-  }
-
   if (chk("CalcStepRearrangement")) {
     const distractors = (p("CalcRearrangeDistractors")?.value || "")
       .split(",")
@@ -2118,7 +2336,7 @@ export function buildCalculationConfigFromForm(prefix = "") {
       distractors,
       feedback_if_wrong: fb("rearrangement")
     };
-    if (rearrMode === "numeric") {
+    if (rearrMode === "numeric" || rearrMode === "symbolic") {
       rearrStep.subject = p("CalcRearrangementSubject")?.value?.trim() || undefined;
     }
     steps.push(rearrStep);
@@ -2171,6 +2389,98 @@ function assertEditAuthoringScope(prefix) {
   }
 }
 
+/**
+ * Build calculation_config for batch numeric generation (no DOM).
+ * @param {'substitute'|'recall'|'substitution_only'|'equation_recall'|'rearrangement'} baseVariant
+ * @param {{ equationId: string, sheetId?: string|null, slotAnswers?: object, siSlotAnswers?: object, conversion?: object|null, sigFigs?: number|null, rearrangementSubject?: string|null, includeRearrangement?: boolean }} opts
+ */
+export function buildCalculationConfigForVariant(baseVariant, opts = {}) {
+  const {
+    equationId,
+    sheetId = null,
+    slotAnswers = {},
+    siSlotAnswers = null,
+    conversion = null,
+    sigFigs = null,
+    rearrangementSubject = null,
+    includeRearrangement = false
+  } = opts;
+
+  let base = baseVariant;
+  let withRearrangement = includeRearrangement;
+
+  if (baseVariant === "substitution_only" || baseVariant === "substitute") {
+    base = "substitute";
+  } else if (baseVariant === "equation_recall" || baseVariant === "recall") {
+    base = "recall";
+  } else if (baseVariant === "rearrangement") {
+    base = "recall";
+    withRearrangement = true;
+  }
+
+  const steps = [];
+
+  if (base === "recall") {
+    steps.push({
+      type: "equation_select",
+      required: true,
+      answer: equationId,
+      distractors: []
+    });
+  }
+
+  if (conversion) {
+    steps.push({
+      type: "conversion",
+      required: true,
+      label: conversion.label || "",
+      answer: conversion.answer,
+      tolerance: conversion.tolerance ?? 0.001,
+      slot_id: conversion.slot_id,
+      display_value: conversion.display_value,
+      display_factor: conversion.display_factor,
+      from_unit: conversion.from_unit,
+      to_unit: conversion.to_unit
+    });
+  }
+
+  steps.push({
+    type: "substitution",
+    required: true,
+    mode: "structured",
+    equation_id: equationId,
+    slot_answers: slotAnswers,
+    si_slot_answers: siSlotAnswers || slotAnswers,
+    rearrangement_subject: withRearrangement ? (rearrangementSubject || undefined) : undefined
+  });
+
+  if (withRearrangement) {
+    steps.push({
+      type: "rearrangement",
+      required: true,
+      mode: "numeric",
+      subject: rearrangementSubject || undefined
+    });
+  }
+
+  steps.push({ type: "calculate", required: true });
+
+  if (sigFigs != null && sigFigs > 0) {
+    steps.push({
+      type: "sig_figs",
+      required: true,
+      sig_figs: sigFigs,
+      enforce_on_final: true
+    });
+  }
+
+  return normalizeCalculationConfig({
+    equation_given: base === "substitute",
+    equation_sheet_id: sheetId,
+    steps
+  });
+}
+
 /** Auto-fill numeric rearrangement answer/distractors from slot answers + equation template at save time. */
 export function finalizeCalculationConfigForSave(config, equations = []) {
   if (!config?.steps?.length || !equations?.length) return config;
@@ -2184,7 +2494,9 @@ export function finalizeCalculationConfigForSave(config, equations = []) {
   const equation = equations.find((e) => e.id === eqId || e.label === eqId);
   if (!equation) return config;
 
-  const built = buildNumericRearrangementOptions(equation, subStep, rearrStep);
+  const convStep = config.steps.find((s) => s.type === "conversion");
+  const siSlots = buildSiSlotAnswersForRearrangement(subStep, convStep);
+  const built = buildNumericRearrangementOptions(equation, subStep, rearrStep, { siSlotAnswers: siSlots });
   if (!built.answer) return config;
 
   const steps = [...config.steps];
@@ -2306,7 +2618,7 @@ export function populateCalculationForm(prefix, config, questionId = null) {
   updateNumericAuthoringUi(prefix);
 }
 
-export function wireCalculationFormToggles(prefix = "", onChange) {
+export function wireCalculationFormToggles(prefix = "", onChange, supabaseClient = null) {
   const pairs = [
     ["CalcStepEquation", "CalcPanelEquation"],
     ["CalcStepSubstitution", "CalcPanelSubstitution"],
@@ -2324,12 +2636,15 @@ export function wireCalculationFormToggles(prefix = "", onChange) {
     const chkEl = document.getElementById(prefix + chkId);
     const panel = document.getElementById(prefix + panelId);
     if (!chkEl || !panel) continue;
-    const sync = () => {
+    const sync = async () => {
       panel.classList.toggle("hidden", !chkEl.checked);
+      if (chkId === "CalcStepRearrangement") {
+        await refreshRearrangementSubjectFromForm(prefix, supabaseClient);
+      }
       notify();
     };
-    chkEl.addEventListener("change", sync);
-    sync();
+    chkEl.addEventListener("change", () => { sync().catch(() => {}); });
+    sync().catch(() => {});
   }
 
   for (const extraId of ["CalcEquationGiven"]) {

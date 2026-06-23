@@ -1,0 +1,37 @@
+# Example batch spec for numeric question generation
+# Future CLI: node scripts/generate_numeric_questions.mjs data/batch_specs/example_kinetic_energy.yaml
+
+equation: kinetic_energy
+sheet: physics_p1_ht          # optional; auto from paper/tier/courseTrack if omitted
+subject: physics
+paper: paper1
+tier: both
+courseTrack: combined
+audience: both
+spec_ref: "4.5.1.1"           # must exist in spec_points table
+
+ws_skills:
+  - WS3.2
+ms_skills:
+  - MS3c
+  - MS2a
+
+# Each recipe row generates count questions with that step combination
+variants:
+  recipes:
+    - { base: substitute, count: 3 }
+    - { base: substitute, rearrangement: true, count: 2 }
+    - { base: recall, rearrangement: true, unitConversion: true, count: 1 }
+    - { base: substitute, unitConversion: true, sigFigs: true, count: 1 }
+
+ranges:
+  m: { min: 1, max: 8, step: 0.5 }
+  v: { min: 2, max: 15, step: 1 }
+
+constants:
+  g: 9.8
+
+sig_figs_count: 2
+seed: 42
+command_word: calculate
+demand_level: low
