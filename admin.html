@@ -190,8 +190,20 @@
     }
 
     #panelBatchNumeric .batch-prompt-edit {
-      min-height: 52px;
+      min-height: 7.5rem;
       font-size: 0.88rem;
+      line-height: 1.45;
+    }
+
+    #panelBatchNumeric .batch-recipe-opt {
+      min-width: 4.75rem;
+      min-height: 42px;
+      font-size: 0.85rem;
+      padding: 6px 30px 6px 10px;
+    }
+
+    #panelBatchNumeric #batchRearrangementSubject {
+      min-width: 9rem;
     }
 
     #panelBatchNumeric .spec-link-panel {
@@ -1607,7 +1619,7 @@
                   </div>
                 </div>
                 <label style="display:block;margin-top:8px;font-size:0.78rem;color:var(--text-muted);">Feedback if wrong (optional)</label>
-                <textarea id="CalcConversionFeedback" class="calc-step-feedback" rows="2" placeholder="Custom hint when unit conversion is incorrect…"></textarea>
+                <textarea id="CalcConversionFeedback" class="calc-step-feedback" rows="2" placeholder="e.g. Unit conversion: expected 0.09 (Convert 9 cm to m)."></textarea>
               </div>
               <div id="CalcPanelRearrangement" class="hidden" style="border-top:1px solid var(--border);padding-top:10px;margin-bottom:10px;">
                 <h4 class="calc-step-panel-title">Rearrangement step</h4>
@@ -4370,9 +4382,9 @@
       if (count <= 0) return;
       recipes.push({
         base: row.querySelector(".batch-recipe-base")?.value || "substitute",
-        rearrangement: !!row.querySelector(".batch-recipe-rearr")?.checked,
-        unitConversion: !!row.querySelector(".batch-recipe-convert")?.checked,
-        sigFigs: !!row.querySelector(".batch-recipe-sf")?.checked,
+        rearrangement: row.querySelector(".batch-recipe-rearr")?.value === "1",
+        unitConversion: row.querySelector(".batch-recipe-convert")?.value === "1",
+        sigFigs: row.querySelector(".batch-recipe-sf")?.value === "1",
         count
       });
     });
@@ -4392,13 +4404,22 @@
         </select>
       </td>
       <td style="padding:4px 6px;text-align:center;">
-        <input type="checkbox" class="batch-recipe-rearr"${recipe.rearrangement ? " checked" : ""} title="Add rearrangement step (+1 mark)" />
+        <select class="batch-recipe-rearr batch-recipe-opt select-fit" title="Add rearrangement step (+1 mark)">
+          <option value="0"${recipe.rearrangement ? "" : " selected"}>No</option>
+          <option value="1"${recipe.rearrangement ? " selected" : ""}>Yes</option>
+        </select>
       </td>
       <td style="padding:4px 6px;text-align:center;">
-        <input type="checkbox" class="batch-recipe-convert"${recipe.unitConversion ? " checked" : ""} title="Add unit conversion step (+1 mark)" />
+        <select class="batch-recipe-convert batch-recipe-opt select-fit" title="Add unit conversion step (+1 mark)">
+          <option value="0"${recipe.unitConversion ? "" : " selected"}>No</option>
+          <option value="1"${recipe.unitConversion ? " selected" : ""}>Yes</option>
+        </select>
       </td>
       <td style="padding:4px 6px;text-align:center;">
-        <input type="checkbox" class="batch-recipe-sf"${recipe.sigFigs ? " checked" : ""} title="Require sig figs on final answer (+1 mark)" />
+        <select class="batch-recipe-sf batch-recipe-opt select-fit" title="Require sig figs on final answer (+1 mark)">
+          <option value="0"${recipe.sigFigs ? "" : " selected"}>No</option>
+          <option value="1"${recipe.sigFigs ? " selected" : ""}>Yes</option>
+        </select>
       </td>
       <td style="padding:4px 6px;">
         <input type="number" class="batch-recipe-count input-compact" min="0" value="${recipe.count ?? 1}" style="width:3.5rem;" />
@@ -4839,7 +4860,7 @@
           <td style="padding:10px 12px;font-weight:700;">${i + 1}</td>
           <td style="padding:10px 12px;font-size:0.76rem;">${escapeHtml(batchVariantLabel(d.variant))}</td>
           <td style="padding:10px 12px;min-width:300px;">
-            <textarea class="batch-prompt-edit" data-batch-idx="${i}" rows="2" style="width:100%;font-size:0.8rem;font-family:inherit;padding:6px;border:1px solid #cbd5e1;border-radius:4px;">${promptEsc}</textarea>
+            <textarea class="batch-prompt-edit" data-batch-idx="${i}" rows="5" style="width:100%;font-size:0.8rem;font-family:inherit;padding:6px;border:1px solid #cbd5e1;border-radius:4px;">${promptEsc}</textarea>
             ${slotEditors ? `<div class="batch-slot-edits">${slotEditors}</div>` : ""}
           </td>
           <td style="padding:10px 12px;font-weight:700;" data-batch-marks>${q.max_marks}</td>

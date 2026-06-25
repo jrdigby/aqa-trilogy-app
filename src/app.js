@@ -3273,9 +3273,7 @@ async function setSignedInUI(user) {
     checkAndUpdateStreak(user),
     loadWeeklyForecast(user)
   ]);
-  if (activeDashboardTab === "analytics") {
-    void loadTopics();
-  }
+  void loadTopics();
   endAuthGracePeriod();
 }
 
