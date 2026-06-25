@@ -274,6 +274,7 @@ let currentMarkPoints = [];
 let currentHintState = { revealedCount: 0, panelOpen: false };
 let currentQuestionHints = [];
 let lastAnswerFocusState = null;
+let heatmapRenderGeneration = 0;
 
 function isAnswerFormControl(node) {
   if (!node || !node.tagName) return false;
@@ -746,6 +747,53 @@ if (btnSignOut) {
 }
 
 // ====== DASHBOARD ======
+function scheduleDashboardHeatmapRender(activeSRS) {
+  const heatmapContainer = el("heatmapViewWrapper");
+  if (!heatmapContainer) return;
+
+  const generation = ++heatmapRenderGeneration;
+  heatmapContainer.innerHTML =
+    `<div class="muted" style="text-align: center; padding: 12px;">Loading mastery matrix…</div>`;
+
+  const renderHeatmap = async () => {
+    if (generation !== heatmapRenderGeneration || !currentUser) return;
+
+    try {
+      const allSpecs = await dbClient.fetchAllSpecificationPoints(
+        courseTrackForProfile(currentUserProfile)
+      );
+      if (generation !== heatmapRenderGeneration || !currentUser) return;
+
+      heatmapContainer.innerHTML = "";
+      if (!allSpecs?.length) return;
+
+      const masteryHeatmapNode = renderMasteryHeatmap(
+        allSpecs,
+        activeSRS,
+        currentAccess?.canHeatmapPractice
+          ? async (selectedPoint) => {
+              console.log(`Heatmap target selection registered: [${selectedPoint.spec_ref}]`);
+              await startSessionForSpecPointWrapper(selectedPoint.id);
+            }
+          : null,
+        { readOnly: !currentAccess?.canHeatmapPractice }
+      );
+      heatmapContainer.appendChild(masteryHeatmapNode);
+    } catch (err) {
+      console.warn("DEBUG loadDashboard: deferred heatmap failed:", err);
+      if (generation !== heatmapRenderGeneration) return;
+      heatmapContainer.innerHTML =
+        `<div class="muted" style="text-align: center; padding: 12px;">Could not load mastery matrix.</div>`;
+    }
+  };
+
+  if (typeof requestIdleCallback === "function") {
+    requestIdleCallback(() => { void renderHeatmap(); }, { timeout: 2500 });
+  } else {
+    setTimeout(() => { void renderHeatmap(); }, 0);
+  }
+}
+
 async function loadDashboard(user = currentUser) {
   const userId = user?.id;
   if (!userId) return;
@@ -774,47 +822,13 @@ async function loadDashboard(user = currentUser) {
   }
 
   const due = Array.isArray(scheduleResult?.dueRows) ? scheduleResult.dueRows : [];
-  let activeSRS = Array.isArray(scheduleResult?.srsRows) ? scheduleResult.srsRows : [];
-  let allSpecs = [];
+  const activeSRS = Array.isArray(scheduleResult?.srsRows) ? scheduleResult.srsRows : [];
 
-  try {
-    allSpecs = await dbClient.fetchAllSpecificationPoints(
-      courseTrackForProfile(currentUserProfile)
-    );
-    cachedDueItems = due;
-    cachedActiveSRS = activeSRS;
-    console.log("DEBUG loadDashboard:", due.length, "due,", activeSRS.length, "SRS rows");
-  } catch (err) {
-    console.error("DEBUG loadDashboard: Dashboard failed to load:", err);
-    cachedDueItems = [];
-    if (dueCount) dueCount.textContent = "0";
-    if (dueList) dueList.innerHTML = `<div class="item text-orange"><span class="bad">Warning:</span> Connection slow or RLS blocked table. ${err.message || err}</div>`;
-    if (startPracticePreview) startPracticePreview.textContent = "Could not load schedule.";
-    if (btnStartPractice) btnStartPractice.disabled = true;
-    return;
-  }
+  cachedDueItems = due;
+  cachedActiveSRS = activeSRS;
+  console.log("DEBUG loadDashboard:", due.length, "due,", activeSRS.length, "SRS rows");
 
-  // 2. Render the interactive Curriculum Mastery Matrix (#heatmapViewWrapper lives in Practice tab)
-  const heatmapContainer = el("heatmapViewWrapper");
-  if (heatmapContainer) {
-    heatmapContainer.innerHTML = "";
-    if (allSpecs && allSpecs.length > 0) {
-      const masteryHeatmapNode = renderMasteryHeatmap(
-        allSpecs,
-        activeSRS,
-        currentAccess?.canHeatmapPractice
-          ? async (selectedPoint) => {
-              console.log(`Heatmap target selection registered: [${selectedPoint.spec_ref}]`);
-              await startSessionForSpecPointWrapper(selectedPoint.id);
-            }
-          : null,
-        { readOnly: !currentAccess?.canHeatmapPractice }
-      );
-      heatmapContainer.appendChild(masteryHeatmapNode);
-    }
-  }
-
-  // 3. Render standard pending daily items list view elements
+  // Render standard pending daily items list view elements
   const today = todayISO();
   if (dueCount) dueCount.textContent = due.length;
   if (dueList) {
@@ -849,6 +863,7 @@ async function loadDashboard(user = currentUser) {
   await updateStartPracticePreview(due, activeSRS);
 
   updateFreeAnalyticsSummary();
+  scheduleDashboardHeatmapRender(activeSRS);
   await loadRevisionCards();
 }
 
@@ -2372,6 +2387,8 @@ function getResponsePayload(q) {
 }
 
 function setSignedOutUI() {
+  heatmapRenderGeneration += 1;
+
   if (btnSignOut) btnSignOut.classList.add("hidden");      
   if (authSection) authSection.classList.remove("hidden");  
   if (onboardingSection) onboardingSection.classList.add("hidden");
@@ -3047,8 +3064,6 @@ async function handleSignedInUser(user) {
     };
   }
 
-  await refreshPlanState();
-
   if (currentUserProfile?.role === "teacher") {
     window.location.href = "teacher.html";
     return;
@@ -3064,6 +3079,8 @@ async function handleSignedInUser(user) {
     return;
   }
 
+  // Paint the dashboard shell before plan quotas and schedule data finish loading.
+  showSignedInLayout();
   await setSignedInUI(user);
 }
 
@@ -3203,6 +3220,12 @@ function showSignedInLayout() {
   if (aoMasteryWrapper) {
     aoMasteryWrapper.innerHTML = `<div class="muted" style="text-align: center; padding: 12px;">Syncing performance indicators…</div>`;
   }
+
+  const heatmapContainer = el("heatmapViewWrapper");
+  if (heatmapContainer) {
+    heatmapContainer.innerHTML =
+      `<div class="muted" style="text-align: center; padding: 12px;">Loading mastery matrix…</div>`;
+  }
 }
 
 async function setSignedInUI(user) {
@@ -3215,7 +3238,9 @@ async function setSignedInUI(user) {
       console.warn("Profile refresh skipped:", err);
     }
   }
-  showSignedInLayout();
+  if (dashSection?.classList.contains("hidden")) {
+    showSignedInLayout();
+  }
   await loadDashboard(user);
   await Promise.all([
     syncUserTierAndLoadTopics(user),
