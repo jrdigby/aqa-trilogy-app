@@ -355,10 +355,14 @@ export function parseCommutativeGroups(template) {
   return { fixedSlots, commutativeGroups };
 }
 
-function matchCommutativeGroup(groupSlotIds, payload, slotAnswers) {
+function matchCommutativeGroup(groupSlotIds, payload, slotAnswers, unknownId = null) {
   if (!groupSlotIds.length) return true;
   if (groupSlotIds.length === 1) {
     const id = groupSlotIds[0];
+    if (unknownId && id === unknownId) {
+      const val = String(payload.slots?.[id] ?? "").trim();
+      if (!val) return true;
+    }
     return slotValueMatches(payload.slots?.[id], slotAnswers[id]);
   }
 
@@ -369,6 +373,15 @@ function matchCommutativeGroup(groupSlotIds, payload, slotAnswers) {
     const accepted = slotAnswers[expId];
     for (const studId of groupSlotIds) {
       if (assigned.has(studId)) continue;
+      if (unknownId && studId === unknownId) {
+        const val = String(payload.slots?.[studId] ?? "").trim();
+        if (!val) {
+          assigned.add(studId);
+          if (tryAssign(idx + 1)) return true;
+          assigned.delete(studId);
+          continue;
+        }
+      }
       if (!slotValueMatches(payload.slots?.[studId], accepted)) continue;
       assigned.add(studId);
       if (tryAssign(idx + 1)) return true;
@@ -397,11 +410,12 @@ export function substitutionSlotsMatchCommutative(payload, subStep, template) {
   }
 
   for (const group of commutativeGroups) {
-    const checkGroup = unknownId ? group.filter((id) => id !== unknownId) : group;
-    if (!checkGroup.length) continue;
-    const hasAnswers = checkGroup.every((id) => normalizeAcceptedSlotValues(subStep.slot_answers[id])?.length);
+    const hasAnswers = group.every((id) => {
+      if (unknownId && id === unknownId) return true;
+      return normalizeAcceptedSlotValues(subStep.slot_answers[id])?.length;
+    });
     if (!hasAnswers) return false;
-    if (!matchCommutativeGroup(checkGroup, payload, subStep.slot_answers)) return false;
+    if (!matchCommutativeGroup(group, payload, subStep.slot_answers, unknownId)) return false;
   }
 
   for (const id of getSlotIdsFromTemplate(template)) {
@@ -787,29 +801,39 @@ export function resolveCalculationWorkflowRoot() {
   return null;
 }
 
+/** Active conversion step from config (required !== false), if any. */
+export function getActiveConversionStep(config) {
+  const step = (config?.steps || []).find((s) => s.type === "conversion");
+  return step && step.required !== false ? step : null;
+}
+
 /** True when no conversion step exists, or the student has entered a conversion value. */
 export function isConversionInputComplete(convStep) {
   if (!convStep) return true;
   const el = document.getElementById("calc_conversion");
-  if (!el || String(el.value).trim() === "") return false;
+  if (!el) return true;
+  if (String(el.value).trim() === "") return false;
   return Number.isFinite(parseFloat(el.value));
 }
 
 /** True when conversion (if any) and substitution slot inputs are complete for rearrangement. */
 export function isRearrangementInputReady(config, equationSheet, subStep, root = null) {
-  const convStep = (config?.steps || []).find((s) => s.type === "conversion");
+  const convStep = getActiveConversionStep(config);
   if (convStep && !isConversionInputComplete(convStep)) return false;
 
   const ctx = resolveSubstitutionContext(config, equationSheet, subStep);
   if (ctx.mode !== "structured" || !ctx.template) return true;
 
   const workflowRoot = root || resolveCalculationWorkflowRoot();
-  const slots = collectStructuredSubstitution(ctx.template, workflowRoot);
-  const unknownId = subStep?.rearrangement_subject;
+  let slots = collectStructuredSubstitution(ctx.template, workflowRoot);
+  if (!Object.values(slots).some((v) => String(v ?? "").trim()) && workflowRoot) {
+    slots = collectStructuredSubstitution(ctx.template, document);
+  }
+  const rearrStep = (config?.steps || []).find((s) => s.type === "rearrangement");
+  const unknownId = subStep?.rearrangement_subject || rearrStep?.subject || null;
   for (const id of getSlotIdsFromTemplate(ctx.template)) {
     if (unknownId && id === unknownId) continue;
-    const val = String(slots[id] ?? "").trim();
-    if (!val || Number.isNaN(parseFloat(val))) return false;
+    if (!String(slots[id] ?? "").trim()) return false;
   }
   return true;
 }
@@ -823,19 +847,30 @@ export function refreshRearrangementFromStudentSlots(config, equationSheet, subS
     return;
   }
   const eq = findEquationInSheet(equationSheet, eqId);
-  if (!eq) return;
-  const convStep = (config?.steps || []).find((s) => s.type === "conversion");
+  if (!eq) {
+    refreshRearrangementSelect(rearrStep, { answer: "", distractors: [] });
+    return;
+  }
+  const convStep = getActiveConversionStep(config);
   const workflowRoot = root || resolveCalculationWorkflowRoot();
   if (!isRearrangementInputReady(config, equationSheet, subStep, workflowRoot)) {
-    refreshRearrangementSelect(rearrStep, { locked: true });
+    const needsConversion = !!getActiveConversionStep(config);
+    refreshRearrangementSelect(rearrStep, {
+      locked: true,
+      lockReason: needsConversion ? "conversion" : "substitution"
+    });
     return;
   }
   const ctx = resolveSubstitutionContext(config, equationSheet, subStep);
-  const studentSlots = ctx.mode === "structured" && ctx.template
+  let studentSlots = ctx.mode === "structured" && ctx.template
     ? collectStructuredSubstitution(ctx.template, workflowRoot)
     : {};
+  if (ctx.template && !Object.values(studentSlots).some((v) => String(v ?? "").trim()) && workflowRoot) {
+    studentSlots = collectStructuredSubstitution(ctx.template, document);
+  }
   const convEl = document.getElementById("calc_conversion");
-  const studentConv = convEl?.value !== "" ? parseFloat(convEl.value) : null;
+  const convRaw = convEl ? String(convEl.value).trim() : "";
+  const studentConv = convRaw !== "" && Number.isFinite(parseFloat(convRaw)) ? parseFloat(convRaw) : null;
   const resp = Number.isFinite(studentConv) ? { steps: { conversion: studentConv } } : null;
   const siSlots = buildSiSlotAnswersForRearrangement(subStep, convStep, resp, studentSlots);
   const built = buildNumericRearrangementOptions(eq, subStep, rearrStep, { siSlotAnswers: siSlots });
@@ -854,7 +889,10 @@ export function refreshRearrangementSelect(rearrStep, options) {
   if (!select || !options) return;
   if (options.locked) {
     select.disabled = true;
-    select.innerHTML = '<option value="">— Complete conversion and substitution first —</option>';
+    const hint = options.lockReason === "substitution"
+      ? "— Complete substitution first —"
+      : "— Complete conversion and substitution first —";
+    select.innerHTML = `<option value="">${hint}</option>`;
     return;
   }
   select.disabled = false;

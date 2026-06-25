@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import {
   parseCommutativeGroups,
   substitutionSlotsMatchCommutative,
-  rearrangementStructurallyMatches
+  rearrangementStructurallyMatches,
+  isRearrangementInputReady
 } from "../src/substitutionTemplate.js";
 import { markCalculationResponse } from "../src/calculationWorkflow.js";
 
@@ -49,6 +50,19 @@ test("commutative substitution accepts swapped I and V values", () => {
   assert.equal(substitutionSlotsMatchCommutative(payload, subStep, powerViTemplate), true);
 });
 
+test("commutative substitution accepts swapped I and V when I is rearrangement unknown", () => {
+  const subStep = {
+    rearrangement_subject: "I",
+    slot_answers: { P: ["12"], I: ["I"], V: ["400"] }
+  };
+  const payload = {
+    mode: "structured",
+    equation_id: "power_vi",
+    slots: { P: "12", I: "400", V: "I" }
+  };
+  assert.equal(substitutionSlotsMatchCommutative(payload, subStep, powerViTemplate), true);
+});
+
 test("commutative substitution accepts permuted m, c, delta_theta values", () => {
   const subStep = {
     slot_answers: { delta_E: ["500"], m: ["2"], c: ["450"], delta_theta: ["55"] }
@@ -61,6 +75,33 @@ test("commutative substitution accepts permuted m, c, delta_theta values", () =>
   assert.equal(substitutionSlotsMatchCommutative(payload, subStep, shcTemplate), true);
   payload.slots = { delta_E: "500", m: "450", c: "2", delta_theta: "55" };
   assert.equal(substitutionSlotsMatchCommutative(payload, subStep, shcTemplate), true);
+});
+
+test("isRearrangementInputReady accepts variable symbol in non-unknown slots", () => {
+  const equationSheet = {
+    equations: [{
+      id: "power_vi",
+      substitution_template: powerViTemplate
+    }]
+  };
+  const config = {
+    steps: [
+      { type: "substitution", required: true, mode: "structured", equation_id: "power_vi" },
+      { type: "rearrangement", required: true, mode: "numeric", subject: "I" }
+    ]
+  };
+  const subStep = { equation_id: "power_vi", rearrangement_subject: "I" };
+  const slots = { P: "12", I: "400", V: "I" };
+  const root = {
+    querySelectorAll(sel) {
+      if (sel !== ".calc-sub-slot") return [];
+      return Object.entries(slots).map(([id, value]) => ({
+        dataset: { slotId: id },
+        value
+      }));
+    }
+  };
+  assert.equal(isRearrangementInputReady(config, equationSheet, subStep, root), true);
 });
 
 test("rearrangementStructurallyMatches ignores spacing", () => {

@@ -1,6 +1,6 @@
 // src/evalEngine.js
 import { escapeHtml } from './utils.js';
-import { markCalculationResponse, getCalculationConfig, getActiveSteps, buildNumericFlashcardInsights } from './calculationWorkflow.js';
+import { loadCalculationWorkflow } from './lazyCalculationWorkflow.js';
 
 export const MCQ_FLASHCARD_ADDED_MSG = "This question has been added to your flashcard list.";
 const LEGACY_FLASHCARD_REVIEW_SUFFIX = / Review your flashcards for this specific unit or definition\.?$/i;
@@ -371,7 +371,7 @@ export function getAQACommandWordHelper(promptText) {
 
   return banners.join("");
 }
-export function markResponse(q, resp, key, markPoints) {
+export async function markResponse(q, resp, key, markPoints) {
   let total = 0, max = q.max_marks || 1;
   let ao = { AO1: 0, AO2: 0, AO3: 0 };
   let maxAo = { AO1: 0, AO2: 0, AO3: 0 };
@@ -417,6 +417,12 @@ export function markResponse(q, resp, key, markPoints) {
     }
   }
   else if (key.key_type === "numeric") {
+    const {
+      markCalculationResponse,
+      getCalculationConfig,
+      getActiveSteps,
+      buildNumericFlashcardInsights,
+    } = await loadCalculationWorkflow();
     const calcConfig = getCalculationConfig(q);
     const calcSteps = getActiveSteps(calcConfig);
     const equationSheet = q._equationSheet || null;
@@ -517,11 +523,12 @@ export function markResponse(q, resp, key, markPoints) {
 }
 
 /** Max AO marks per question — mirrors markResponse / markCalculationResponse caps. */
-export function computeQuestionAOMaxCaps(q, markPoints = []) {
+export function computeQuestionAOMaxCaps(q, markPoints = [], calculationWorkflow = null) {
   const max = q.max_marks || 1;
   const maxAo = { AO1: 0, AO2: 0, AO3: 0 };
 
-  if (q.question_type === "numeric") {
+  if (q.question_type === "numeric" && calculationWorkflow) {
+    const { getCalculationConfig, getActiveSteps } = calculationWorkflow;
     const config = getCalculationConfig(q);
     const steps = getActiveSteps(config);
     if (steps.length > 0) {

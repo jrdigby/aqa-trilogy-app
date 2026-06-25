@@ -1,6 +1,6 @@
 import { startAnyPractice, startExamPrep, startSessionForSpecPoint, startSkillPractice, previewExamPaper, upsertSRS as importUpsertSRS } from './sessionEngine.js';
 import { formatPaperPreviewSummary } from './paperBuilder.js';
-import { showToastBanner, renderQuestionLayout, renderFeedback, renderLiveAIFeedback, renderAQAExtendedResponseFeedback, renderMasteryHeatmap, renderSessionContext, renderSessionCompleteSummary, renderExamPaperFeedbackSummary, renderSelfRatingPrompt, renderAdaptiveFeedback, renderHintsPanel, normalizeQuestionHints } from './uiComponents.js';
+import { showToastBanner, renderQuestionLayout, renderFeedback, renderLiveAIFeedback, renderAQAExtendedResponseFeedback, renderMasteryHeatmap, renderSessionContext, renderSessionCompleteSummary, renderExamPaperFeedbackSummary, renderSelfRatingPrompt, renderAdaptiveFeedback, renderHintsPanel, normalizeQuestionHints, mountNumericQuestionWorkflow } from './uiComponents.js';
 import {
   DEFAULT_ADAPTIVE_STATE,
   loadAdaptivePracticeState,
@@ -56,19 +56,8 @@ import {
   FREE_AI_MARKS_PER_WEEK,
   FREE_HALF_PAPERS_PER_MONTH,
 } from './featureAccess.js';
-import {
-  getPresentationMode,
-  collectCalculationResponse,
-  validateCalculationResponse,
-  applyCalculationStepHighlighting,
-  wireStudentEquationSelectPreview,
-  resolveEquationSheetIdForQuestion,
-  questionNeedsEquationSheet,
-  getCalculationConfig,
-  buildNumericFlashcardInsights
-} from './calculationWorkflow.js';
 import { computeAttemptXp, formatXpToastMessage, XP_RULES_FOOTNOTE, XP_RULES_TOAST_KEY } from './xpEngine.js';
-import { renderSkillsAnalytics } from './skillsAnalytics.js';
+import { loadCalculationWorkflow } from './lazyCalculationWorkflow.js';
 
 console.log("APP VERSION", "v-" + Date.now());
 
@@ -159,7 +148,8 @@ function mountFiltersForTab(tab) {
   mount.appendChild(filterRow);
 }
 
-function switchDashboardTab(tab) {
+function switchDashboardTab(tab, { loadData = true } = {}) {
+  const previousTab = activeDashboardTab;
   const active = DASHBOARD_TABS.includes(tab) ? tab : "practice";
   activeDashboardTab = active;
   if (panelPractice) panelPractice.classList.toggle("hidden", active !== "practice");
@@ -170,7 +160,7 @@ function switchDashboardTab(tab) {
   if (schedulePracticeBlock) {
     schedulePracticeBlock.classList.toggle("hidden", active !== "practice");
   }
-  if (active === "analytics" && currentUser) {
+  if (loadData && active === "analytics" && previousTab !== "analytics" && currentUser) {
     void loadTopics();
   }
   if (tabPractice) {
@@ -864,11 +854,10 @@ async function loadDashboard(user = currentUser) {
 
   updateFreeAnalyticsSummary();
   scheduleDashboardHeatmapRender(activeSRS);
-  await loadRevisionCards();
 }
 
-/** @returns {{ text: string, imageUrl: string }[]} */
-function extractFlashcardInsights(att) {
+/** @returns {Promise<{ text: string, imageUrl: string }[]>} */
+async function extractFlashcardInsights(att) {
   const q = att.questions || {};
   const payload = att.feedback_payload;
 
@@ -879,6 +868,7 @@ function extractFlashcardInsights(att) {
   }
 
   if (q.question_type === "numeric") {
+    const { buildNumericFlashcardInsights } = await loadCalculationWorkflow();
     const rebuilt = buildNumericFlashcardInsights(q, null, payload, null);
     if (rebuilt?.length) return rebuilt.map((step) => asInsight(step));
   }
@@ -1058,17 +1048,18 @@ async function loadRevisionCards() {
       };
     }
 
-    // Map attempts to interactive HTML cards
-    container.innerHTML = failedAttempts.map((att, idx) => {
+    const cardHtmlParts = [];
+    for (let idx = 0; idx < failedAttempts.length; idx++) {
+      const att = failedAttempts[idx];
       const q = att.questions || {};
       const spec = resolveQuestionSpecMeta(q, currentUserProfile) || {};
       const headerMeta = formatFlashcardHeaderMeta(spec, currentUserProfile);
-      const insights = extractFlashcardInsights(att);
+      const insights = await extractFlashcardInsights(att);
       const questionImageUrl = (q.image_url || "").trim();
       const hasQuestionImg = !!questionImageUrl;
 
       const uid = `card_${idx}`;
-      return `
+      cardHtmlParts.push(`
         <div id="${uid}" class="${revisionCardClassNames(q, hasQuestionImg)}">
           <div class="card-inner">
             <div class="card-front">
@@ -1090,8 +1081,9 @@ async function loadRevisionCards() {
             </div>
           </div>
         </div>
-      `;
-    }).join("");
+      `);
+    }
+    container.innerHTML = cardHtmlParts.join("");
 
     // Wire up CSS perspective animations safely
     failedAttempts.forEach((_, idx) => {
@@ -1141,11 +1133,12 @@ async function downloadStudyGuideText(attempts) {
   `;
 
   // ====== STEP 2: COMPILE THE DYNAMIC GAP LOG BLOCKS ======
-  attempts.forEach((att, i) => {
+  for (let i = 0; i < attempts.length; i++) {
+    const att = attempts[i];
     const q = att.questions || {};
     const spec = resolveQuestionSpecMeta(q, currentUserProfile) || {};
     const heading = formatFlashcardHeaderMeta(spec, currentUserProfile);
-    const insights = extractFlashcardInsights(att);
+    const insights = await extractFlashcardInsights(att);
     const questionImageUrl = (q.image_url || "").trim();
     const questionImgHtml = questionImageUrl
       ? `<img src="${escapeHtml(questionImageUrl)}" style="max-width:100%; max-height:160px; object-fit:contain; border-radius:8px; border:1px solid #e2e8f0; margin:0 0 10px 0; display:block;" alt=""/>`
@@ -1184,7 +1177,7 @@ async function downloadStudyGuideText(attempts) {
     `;
 
     printArea.appendChild(itemBlock);
-  });
+  }
 
   // Temporarily mount the print block to the hidden DOM body workspace so MathJax can see and target it
   document.body.appendChild(printArea);
@@ -1751,11 +1744,12 @@ async function exitSessionToDashboard() {
 
   await loadDashboard();
   await loadWeeklyForecast();
-
-  try {
-    await loadTopics();
-  } catch (topicErr) {
-    console.warn("Background syllabus metric reload bypassed during session reset:", topicErr);
+  if (activeDashboardTab === "analytics") {
+    try {
+      await loadTopics();
+    } catch (topicErr) {
+      console.warn("Background syllabus metric reload bypassed during session reset:", topicErr);
+    }
   }
 }
 
@@ -2299,39 +2293,73 @@ async function loadQuestion() {
 
   currentEquationSheet = null;
   const questionId = currentQ.id;
-  const sheetId = resolveEquationSheetIdForQuestion(currentQ, currentUserProfile, {
-    sessionTier: getSelectedFilters().tier
-  });
-  const needsSheet = questionNeedsEquationSheet(currentQ);
-  if (sheetId || needsSheet) {
-    const loadId = sheetId || getCalculationConfig(currentQ)?.equation_sheet_id;
-    if (loadId) {
-      const sheetRes = await supabaseClient
-        .from("equation_sheets")
-        .select("id, title, equations")
-        .eq("id", loadId)
-        .maybeSingle();
-      if (!sheetRes.error && currentQ?.id === questionId) {
-        currentEquationSheet = sheetRes.data;
+  const calcWorkflow = currentQ.question_type === "numeric"
+    ? await loadCalculationWorkflow()
+    : null;
+
+  if (calcWorkflow) {
+    const {
+      resolveEquationSheetIdForQuestion,
+      questionNeedsEquationSheet,
+      getCalculationConfig,
+      getPresentationMode,
+    } = calcWorkflow;
+    const sheetId = resolveEquationSheetIdForQuestion(currentQ, currentUserProfile, {
+      sessionTier: getSelectedFilters().tier
+    });
+    const needsSheet = questionNeedsEquationSheet(currentQ);
+    if (sheetId || needsSheet) {
+      const loadId = sheetId || getCalculationConfig(currentQ)?.equation_sheet_id;
+      if (loadId) {
+        const sheetRes = await supabaseClient
+          .from("equation_sheets")
+          .select("id, title, equations")
+          .eq("id", loadId)
+          .maybeSingle();
+        if (!sheetRes.error && currentQ?.id === questionId) {
+          currentEquationSheet = sheetRes.data;
+        }
       }
     }
-  }
-  if (currentQ?.id === questionId) {
-    currentQ._equationSheet = currentEquationSheet;
+    if (currentQ?.id === questionId) {
+      currentQ._equationSheet = currentEquationSheet;
+    }
+
+    if (currentQ?.id !== questionId) return;
+
+    const commandWordBanner = getAQACommandWordHelper(currentQ.prompt);
+    const presentation = getPresentationMode(sessionMode);
+
+    if (qBox) {
+      qBox.innerHTML = renderQuestionLayout(currentQ, commandWordBanner, currentKey, {
+        presentation,
+        equationSheet: currentEquationSheet
+      });
+      const calcModule = await mountNumericQuestionWorkflow(
+        currentQ,
+        currentKey,
+        presentation,
+        currentEquationSheet
+      );
+      triggerMathTypeset();
+      calcModule?.wireStudentEquationSelectPreview(triggerMathTypeset, currentQ, currentEquationSheet);
+      lastAnswerFocusState = null;
+    }
+
+    renderQuestionHintsPanel();
+    return;
   }
 
   if (currentQ?.id !== questionId) return;
 
   const commandWordBanner = getAQACommandWordHelper(currentQ.prompt);
-  const presentation = getPresentationMode(sessionMode);
 
   if (qBox) {
     qBox.innerHTML = renderQuestionLayout(currentQ, commandWordBanner, currentKey, {
-      presentation,
-      equationSheet: currentEquationSheet
+      presentation: "practice",
+      equationSheet: null
     });
     triggerMathTypeset();
-    wireStudentEquationSelectPreview(triggerMathTypeset, currentQ, currentEquationSheet);
     lastAnswerFocusState = null;
   }
 
@@ -2369,13 +2397,14 @@ async function finalizeSessionSRS() {
   }
 }
 
-function getResponsePayload(q) {
+async function getResponsePayload(q) {
   if (!q) return { type: "short_text", text: "" };
   if (q.question_type === "mcq") {
     const picked = document.querySelector('input[name="mcq"]:checked')?.value ?? "";
     return { type: "mcq", answer: picked };
   }
   if (q.question_type === "numeric") {
+    const { collectCalculationResponse } = await loadCalculationWorkflow();
     const resp = collectCalculationResponse(q, sessionMode, currentEquationSheet);
     const unit = (currentKey && currentKey.key_payload && currentKey.key_payload.unit)
       ? currentKey.key_payload.unit
@@ -3165,10 +3194,7 @@ function updateTierBoundaryBadge() {
   }
 }
 
-async function syncUserTierAndLoadTopics(user) {
-  console.log("DEBUG: Launching background syllabus loading thread...");
-  await loadTopics();
-
+async function syncAdaptivePracticeState(user) {
   try {
     adaptivePracticeState = await loadAdaptivePracticeState(supabaseClient, user.id);
     try {
@@ -3199,7 +3225,7 @@ function showSignedInLayout() {
   updateTierBoundaryBadge();
 
   const savedTab = localStorage.getItem(DASHBOARD_TAB_KEY);
-  switchDashboardTab(DASHBOARD_TABS.includes(savedTab) ? savedTab : "practice");
+  switchDashboardTab(DASHBOARD_TABS.includes(savedTab) ? savedTab : "practice", { loadData: false });
   settingsOpen = false;
   if (panelSettings) panelSettings.classList.add("hidden");
   if (btnOpenSettings) btnOpenSettings.textContent = "⚙️ Settings";
@@ -3243,10 +3269,13 @@ async function setSignedInUI(user) {
   }
   await loadDashboard(user);
   await Promise.all([
-    syncUserTierAndLoadTopics(user),
-    loadWeeklyForecast(user),
-    checkAndUpdateStreak(user)
+    syncAdaptivePracticeState(user),
+    checkAndUpdateStreak(user),
+    loadWeeklyForecast(user)
   ]);
+  if (activeDashboardTab === "analytics") {
+    void loadTopics();
+  }
   endAuthGracePeriod();
 }
 
@@ -3432,6 +3461,9 @@ async function loadTopics() {
       });
 
       const qMaxAOMap = {};
+      const calculationWorkflow = (questions || []).some((q) => q.question_type === "numeric")
+        ? await loadCalculationWorkflow()
+        : null;
 
       questions.forEach(q => {
         if (!questionTierMatchesProfile(q.tier, targetTiers)) return;
@@ -3440,7 +3472,11 @@ async function loadTopics() {
         if (matchedTopic === undefined) return;
         if (topic && matchedTopic !== topic) return;
 
-        qMaxAOMap[q.id] = computeQuestionAOMaxCaps(q, markPointsByQuestion[q.id] || []);
+        qMaxAOMap[q.id] = computeQuestionAOMaxCaps(
+          q,
+          markPointsByQuestion[q.id] || [],
+          calculationWorkflow
+        );
       });
 
       const aoStats = {
@@ -3519,6 +3555,7 @@ async function loadTopics() {
   const skillsAnalyticsWrapper = el("skillsAnalyticsWrapper");
   if (skillsAnalyticsWrapper && currentUser && currentAccess?.canFullAnalytics) {
     try {
+      const { renderSkillsAnalytics } = await import("./skillsAnalytics.js");
       renderSkillsAnalytics(
         skillsAnalyticsWrapper,
         { questions, attempts, validQuestionIds },
@@ -3675,7 +3712,7 @@ if (btnSubmit) {
   btnSubmit.onclick = async () => {
     if (!currentUser || !currentQ) return;
     
-    const response = getResponsePayload(currentQ);
+    const response = await getResponsePayload(currentQ);
 
     if (currentQ.question_type === "extended_response" || currentQ.marking_method === "ai_rubric") {
       if (!response.text || response.text.trim().length === 0) {
@@ -3686,6 +3723,7 @@ if (btnSubmit) {
     }
 
     if (currentQ.question_type === "numeric") {
+      const { validateCalculationResponse } = await loadCalculationWorkflow();
       const calcValidation = validateCalculationResponse(currentQ, response, sessionMode);
       if (!calcValidation.valid) {
         showToastBanner(calcValidation.message, true);
@@ -3855,7 +3893,7 @@ if (btnSubmit) {
       }
 
     } else {
-      const marking = markResponse(currentQ, response, currentKey, currentMarkPoints);
+      const marking = await markResponse(currentQ, response, currentKey, currentMarkPoints);
       const isExamPaper = sessionMode === "paper_practice";
 
       if (feedback) {
@@ -3869,9 +3907,10 @@ if (btnSubmit) {
             </div>
           `;
         } else {
-          feedback.innerHTML = renderFeedback(marking, currentQ, currentKey, currentMarkPoints);
+          feedback.innerHTML = await renderFeedback(marking, currentQ, currentKey, currentMarkPoints);
           triggerMathTypeset();
           if (currentQ.question_type === "numeric" && marking.stepResults) {
+            const { applyCalculationStepHighlighting } = await loadCalculationWorkflow();
             applyCalculationStepHighlighting(marking.stepResults);
           }
         }
