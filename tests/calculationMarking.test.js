@@ -6,7 +6,7 @@ import {
   rearrangementStructurallyMatches,
   isRearrangementInputReady
 } from "../src/substitutionTemplate.js";
-import { markCalculationResponse } from "../src/calculationWorkflow.js";
+import { markCalculationResponse, buildSubstitutionFeedbackText, applyDefaultStepFeedbackToConfig } from "../src/calculationWorkflow.js";
 
 const powerViTemplate = {
   layout: "product",
@@ -160,7 +160,7 @@ test("wrong equation: no calculate mark even if answer matches", () => {
   assert.equal(result.stepResults.calculate.earned, 0);
   assert.equal(result.stepResults.calculate.correct, false);
   const texts = result.missing.map((m) => m.text);
-  assert.ok(texts.some((t) => t.includes("incorrect equation")));
+  assert.ok(texts.some((t) => t.includes("correct equation")));
 });
 
 test("correct equation: rearrangement spacing variant marks correct", () => {
@@ -483,4 +483,55 @@ test("ECF: spring constant k re-evaluates with e² not linear ratio", async () =
   const calcFb = failResult.missing.find((m) => m.stepType === "calculate");
   assert.ok(calcFb?.text.includes("703"), `feedback should show ECF target: ${calcFb?.text}`);
   assert.ok(calcFb?.text.includes("substituted values"));
+});
+
+test("buildSubstitutionFeedbackText uses actual slot values", () => {
+  const equation = {
+    id: "kinetic_energy",
+    substitution_template: {
+      layout: "product",
+      tokens: [
+        { kind: "slot", id: "E_k" },
+        { kind: "op", text: "=" },
+        { kind: "slot", id: "m" },
+        { kind: "op", text: "×" },
+        { kind: "slot", id: "v", label: "v" },
+        { kind: "op", text: "²" }
+      ]
+    }
+  };
+  const subStep = {
+    slot_answers: { m: ["100"], v: ["20"], E_k: ["E_k"] }
+  };
+  const text = buildSubstitutionFeedbackText(subStep, equation);
+  assert.equal(text, "Substitute m=100kg and v=20m/s");
+  assert.ok(!text.toLowerCase().includes("incorrect"));
+});
+
+test("applyDefaultStepFeedbackToConfig drops incorrect from step feedback", () => {
+  const config = {
+    equation_given: true,
+    steps: [
+      {
+        type: "conversion",
+        required: true,
+        label: "Convert 9 cm to m",
+        answer: 0.09
+      },
+      {
+        type: "calculate",
+        required: true
+      }
+    ]
+  };
+  const enriched = applyDefaultStepFeedbackToConfig(config, {
+    answer: 16,
+    unit: "J"
+  }, { overwrite: true });
+  const conv = enriched.steps.find((s) => s.type === "conversion");
+  const calc = enriched.steps.find((s) => s.type === "calculate");
+  assert.equal(conv.feedback_if_wrong, "Unit conversion: expected 0.09 (Convert 9 cm to m).");
+  assert.equal(calc.feedback_if_wrong, "Final calculation: expected 16 J.");
+  assert.ok(!conv.feedback_if_wrong.includes("incorrect"));
+  assert.ok(!calc.feedback_if_wrong.includes("incorrect"));
 });

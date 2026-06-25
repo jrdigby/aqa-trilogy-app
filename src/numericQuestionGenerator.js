@@ -9,7 +9,8 @@ import {
   buildCalculationConfigForVariant,
   finalizeCalculationConfigForSave,
   computeMaxMarksFromConfig,
-  resolveEquationSheetId
+  resolveEquationSheetId,
+  applyDefaultStepFeedbackToConfig
 } from "./calculationWorkflow.js";
 import { suggestSkillsForQuestion } from "./skillTagging.js";
 
@@ -1037,6 +1038,15 @@ export function recomputeBatchDraft(draft, equation, sheet) {
     includeRearrangement: withRearrangement
   });
   calcConfig = finalizeCalculationConfigForSave(calcConfig, sheet?.equations || []);
+  calcConfig = applyDefaultStepFeedbackToConfig(calcConfig, {
+    equation,
+    equationSheet: sheet,
+    answer,
+    unit: spec.unit || unit,
+    slotEdits: draft.slot_edits,
+    promptOverrides,
+    rearrangementSubject
+  }, { overwrite: true });
 
   if (!draft._promptManuallyEdited) {
     draft.question.prompt = buildPrompt(equation, baseVariant, slots, {
@@ -1234,6 +1244,21 @@ export function generateNumericQuestion(spec, variantDesc, sheet, rng = Math.ran
     givenSlotIds
   );
   draft._autoPrompt = prompt;
+
+  draft.question.calculation_config = applyDefaultStepFeedbackToConfig(
+    draft.question.calculation_config,
+    {
+      equation,
+      equationSheet: sheet,
+      answer,
+      unit: spec.unit || unit,
+      slotEdits: draft.slot_edits,
+      promptOverrides,
+      rearrangementSubject
+    },
+    { overwrite: true }
+  );
+  draft.question.max_marks = computeMaxMarksFromConfig(draft.question.calculation_config);
 
   return draft;
 }

@@ -1,7 +1,12 @@
 // Physics calculation workflow — render, collect, validate, and mark step-by-step numeric questions
 import { escapeHtml } from "./utils.js";
 import { matchesSigFigs, roundToSigFigs } from "./sigFigs.js";
-import { evaluateEquation, solveForSubject } from "./numericQuestionGenerator.js";
+import {
+  evaluateEquation,
+  solveForSubject,
+  getSlotSiUnit,
+  identifyResultSlot
+} from "./numericQuestionGenerator.js";
 import { normalizeTier, courseTrackForProfile, resolveQuestionSpecMeta } from "./sciencePath.js";
 import {
   buildNumericRearrangementOptions,
@@ -152,6 +157,244 @@ function readStepFeedback(prefix, fieldSuffix) {
 function writeStepFeedback(prefix, fieldSuffix, value) {
   const el = document.getElementById(prefix + fieldSuffix);
   if (el) el.value = value || "";
+}
+
+function writeAutoStepFeedback(prefix, fieldSuffix, value) {
+  const el = document.getElementById(prefix + fieldSuffix);
+  if (!el) return;
+  if (!el.value.trim() || el.dataset.autoFeedback === "1") {
+    el.dataset.programmaticFeedback = "1";
+    el.value = value || "";
+    if (value) el.dataset.autoFeedback = "1";
+    else delete el.dataset.autoFeedback;
+    delete el.dataset.programmaticFeedback;
+  }
+}
+
+function wireAutoFeedbackInputs(prefix = "") {
+  for (const fieldSuffix of Object.values(FEEDBACK_FIELD_BY_TYPE)) {
+    const el = document.getElementById(prefix + fieldSuffix);
+    if (!el || el.dataset.autoFeedbackWired) continue;
+    el.dataset.autoFeedbackWired = "1";
+    el.addEventListener("input", () => {
+      if (el.dataset.programmaticFeedback) return;
+      delete el.dataset.autoFeedback;
+    });
+  }
+}
+
+function firstSlotAnswerValue(vals) {
+  if (vals == null) return "";
+  const raw = Array.isArray(vals) ? vals[0] : String(vals);
+  return String(raw).split("|")[0].trim();
+}
+
+function isSymbolicSlotValue(slotId, display) {
+  if (!display) return true;
+  return !/\d/.test(display) && (display === slotId || /^[A-Za-zΔθ]+$/.test(display));
+}
+
+function formatSlotForSubstitutionFeedback(slotId, value, unit = "") {
+  const display = firstSlotAnswerValue(value);
+  if (isSymbolicSlotValue(slotId, display)) return "";
+  const u = unit || getSlotSiUnit(slotId) || "";
+  return `${slotId}=${display}${u}`;
+}
+
+function substitutionFeedbackSlotIds(subStep, equation, rearrangementSubject = null) {
+  const template = getSubstitutionTemplate(equation);
+  if (!template) return [];
+  const resultSlot = identifyResultSlot(template);
+  const subject = rearrangementSubject || subStep?.rearrangement_subject;
+  let slotIds = getSlotIdsFromTemplate(template);
+  if (subject) {
+    slotIds = slotIds.filter((id) => id !== subject);
+  } else if (resultSlot) {
+    slotIds = slotIds.filter((id) => id !== resultSlot);
+  }
+  return slotIds;
+}
+
+export function buildSubstitutionFeedbackText(subStep, equation, ctx = {}) {
+  const { slotEdits, promptOverrides, rearrangementSubject } = ctx;
+  if (!equation) return "Substitute the correct values from the question.";
+
+  const slotIds = substitutionFeedbackSlotIds(subStep, equation, rearrangementSubject);
+  const parts = slotIds.map((id) => {
+    if (slotEdits?.[id]) {
+      const edit = slotEdits[id];
+      const display = edit.display;
+      if (isSymbolicSlotValue(id, String(display ?? ""))) return "";
+      const unit = edit.unit || getSlotSiUnit(id) || "";
+      return `${id}=${display}${unit}`;
+    }
+    if (promptOverrides?.[id]) {
+      return `${id}=${promptOverrides[id]}`;
+    }
+    return formatSlotForSubstitutionFeedback(id, subStep?.slot_answers?.[id]);
+  }).filter(Boolean);
+
+  if (!parts.length) return "Substitute the correct values from the question.";
+  return `Substitute ${parts.join(" and ")}`;
+}
+
+export function buildDefaultStepFeedback(step, config, ctx = {}) {
+  if (!step?.type) return "";
+
+  const {
+    equation,
+    equationSheet,
+    answer,
+    unit = "",
+    slotEdits,
+    promptOverrides,
+    rearrangementSubject
+  } = ctx;
+
+  switch (step.type) {
+    case "equation_select": {
+      const label = findEquationLabel(config, equationSheet, step.answer);
+      return `Equation: the correct equation is "${label}".`;
+    }
+    case "substitution":
+      return buildSubstitutionFeedbackText(step, equation, {
+        slotEdits,
+        promptOverrides,
+        rearrangementSubject
+      });
+    case "conversion": {
+      const target = step.answer;
+      const label = step.label ? ` (${step.label})` : "";
+      if (target == null || target === "") {
+        return label ? `Unit conversion: expected value${label}.` : "Unit conversion: check your converted value.";
+      }
+      return `Unit conversion: expected ${target}${label}.`;
+    }
+    case "rearrangement":
+      return step.answer?.trim()
+        ? `Rearrangement: the correct form is "${step.answer.trim()}".`
+        : "Rearrangement: check your rearranged formula.";
+    case "calculate": {
+      if (answer == null || !Number.isFinite(Number(answer))) {
+        return "Final calculation: check your arithmetic step by step.";
+      }
+      const formatted = formatAnswerForFeedback(answer);
+      return `Final calculation: expected ${formatted}${unit ? ` ${unit}` : ""}.`;
+    }
+    case "sig_figs": {
+      if (answer == null || !Number.isFinite(Number(answer)) || !step.sig_figs) {
+        return step.sig_figs
+          ? `Significant figures: give your answer to ${step.sig_figs} s.f.`
+          : "Significant figures: check the required precision.";
+      }
+      const rounded = roundToSigFigs(Number(answer), step.sig_figs);
+      return `Significant figures: expected ${formatAnswerForFeedback(rounded)} (${step.sig_figs} s.f.).`;
+    }
+    default:
+      return "";
+  }
+}
+
+export function applyDefaultStepFeedbackToConfig(config, ctx = {}, { overwrite = false } = {}) {
+  if (!config?.steps?.length) return config;
+  const cfg = cloneCalculationConfig(config);
+
+  cfg.steps = cfg.steps.map((step) => {
+    if (!overwrite && step.feedback_if_wrong?.trim()) return step;
+    const text = buildDefaultStepFeedback(step, cfg, ctx);
+    return text ? { ...step, feedback_if_wrong: text } : step;
+  });
+
+  return cfg;
+}
+
+function resolveAuthoringAnswer(prefix, equation, slotAnswers) {
+  const ansEl = document.getElementById(prefix === "edit" ? "editNumAns" : "numAnsVal");
+  const raw = parseFloat(ansEl?.value);
+  if (Number.isFinite(raw)) return raw;
+
+  if (!equation || !slotAnswers || !Object.keys(slotAnswers).length) return null;
+  try {
+    const slots = {};
+    for (const [id, vals] of Object.entries(slotAnswers)) {
+      const v = parseFloat(firstSlotAnswerValue(vals));
+      if (!Number.isFinite(v)) return null;
+      slots[id] = v;
+    }
+    return evaluateEquation(equation, slots).answer;
+  } catch {
+    return null;
+  }
+}
+
+function resolveAuthoringUnit(prefix, equation, slotAnswers) {
+  const unitEl = document.getElementById(prefix === "edit" ? "editNumUnit" : "numAnsUnit");
+  const unit = unitEl?.value?.trim();
+  if (unit) return unit;
+  if (!equation || !slotAnswers) return "";
+  try {
+    const slots = {};
+    for (const [id, vals] of Object.entries(slotAnswers)) {
+      const v = parseFloat(firstSlotAnswerValue(vals));
+      if (!Number.isFinite(v)) return "";
+      slots[id] = v;
+    }
+    return evaluateEquation(equation, slots).unit || "";
+  } catch {
+    return "";
+  }
+}
+
+/** Auto-fill per-step feedback fields from slot values, conversion, and answer key. */
+export function syncAuthoringStepFeedbackFromForm(prefix = "", supabaseClient = null) {
+  if (typeof document === "undefined") return;
+
+  const p = (id) => document.getElementById(prefix + id);
+  let config;
+  try {
+    config = buildCalculationConfigFromForm(prefix);
+  } catch {
+    return;
+  }
+
+  const eqId = p("CalcSubstitutionEquation")?.value?.trim()
+    || p("CalcEquationAnswer")?.value?.trim()
+    || "";
+  let equations = getCachedEquationSheetOptions(prefix);
+  let equation = equations.find((e) => e.id === eqId || e.label === eqId) || null;
+
+  const sheetId = p("CalcEquationSheet")?.value || "";
+  const finish = (eq) => {
+    const subStep = config.steps.find((s) => s.type === "substitution");
+    const slotAnswers = subStep?.slot_answers || readSlotAnswersFromForm(prefix);
+    const answer = resolveAuthoringAnswer(prefix, eq, slotAnswers);
+    const unit = resolveAuthoringUnit(prefix, eq, slotAnswers);
+    const enriched = applyDefaultStepFeedbackToConfig(config, {
+      equation: eq,
+      equationSheet: equations.length ? { equations } : null,
+      answer,
+      unit,
+      rearrangementSubject: p("CalcRearrangementSubject")?.value?.trim() || subStep?.rearrangement_subject
+    }, { overwrite: false });
+
+    for (const step of enriched.steps || []) {
+      const field = FEEDBACK_FIELD_BY_TYPE[step.type];
+      if (field && step.feedback_if_wrong) {
+        writeAutoStepFeedback(prefix, field, step.feedback_if_wrong);
+      }
+    }
+  };
+
+  if (equation || !sheetId || !supabaseClient) {
+    finish(equation);
+    return;
+  }
+
+  loadEquationSheetOptions(supabaseClient, sheetId).then((loaded) => {
+    equations = loaded;
+    equation = loaded.find((e) => e.id === eqId || e.label === eqId) || null;
+    finish(equation);
+  }).catch(() => finish(null));
 }
 
 export function cloneCalculationConfig(config) {
@@ -530,6 +773,7 @@ export async function refreshStructuredSubstitutionAdmin(supabaseClient, prefix 
   const subStep = { slot_answers: readSlotAnswersFromForm(prefix), rearrangement_subject: p("CalcRearrangementSubject")?.value };
   const rearrStep = { mode: p("CalcRearrangementMode")?.value || "numeric", subject: p("CalcRearrangementSubject")?.value };
   updateRearrangementNumericPreview(prefix, equation, subStep, rearrStep);
+  syncAuthoringStepFeedbackFromForm(prefix, supabaseClient);
 }
 
 function getCachedEquationSheetOptions(prefix = "") {
@@ -565,6 +809,7 @@ function updateStructuredSubstitutionDerivedUi(prefix = "", supabaseClient = nul
         subject: p("CalcRearrangementSubject")?.value
       };
       updateRearrangementNumericPreview(prefix, equation, subStep, rearrStep);
+      syncAuthoringStepFeedbackFromForm(prefix, supabaseClient);
     }).catch(() => {});
     return;
   }
@@ -582,6 +827,7 @@ function updateStructuredSubstitutionDerivedUi(prefix = "", supabaseClient = nul
     subject: p("CalcRearrangementSubject")?.value
   };
   updateRearrangementNumericPreview(prefix, equation, subStep, rearrStep);
+  syncAuthoringStepFeedbackFromForm(prefix, supabaseClient);
 }
 
 export function wireStructuredSubstitutionAuthoring(prefix = "", supabaseClient, onChange) {
@@ -753,7 +999,9 @@ export function buildWrongEquationFeedback(markSchemeEquation, cleanUrl, steps, 
         subStep,
         markPoints,
         "substitution",
-        "Substitution incorrect: wrong variables substituted."
+        buildSubstitutionFeedbackText(subStep, markSchemeEquation, {
+          rearrangementSubject: subStep?.rearrangement_subject
+        })
       ),
       url: cleanUrl
     });
@@ -768,7 +1016,7 @@ export function buildWrongEquationFeedback(markSchemeEquation, cleanUrl, steps, 
         rearrStep,
         markPoints,
         "rearrangement",
-        "Rearrangement incorrect: wrong variables used."
+        "Rearrangement: wrong variables used."
       ),
       url: cleanUrl
     });
@@ -783,7 +1031,7 @@ export function buildWrongEquationFeedback(markSchemeEquation, cleanUrl, steps, 
         calcStep,
         markPoints,
         "calculate",
-        "Answer incorrect: an incorrect equation was used."
+        "Answer: check you used the correct equation."
       ),
       url: cleanUrl
     });
@@ -1830,7 +2078,7 @@ export function markCalculationResponse(q, resp, key, markPoints, cleanUrl, equa
             step,
             markPoints,
             "equation_select",
-            `Equation incorrect: the correct equation is "${expectedLabel}".`
+            `Equation: the correct equation is "${expectedLabel}".`
           ),
           url: cleanUrl
         });
@@ -1864,7 +2112,9 @@ export function markCalculationResponse(q, resp, key, markPoints, cleanUrl, equa
             step,
             markPoints,
             "substitution",
-            "Substitution incorrect: check that you have inserted the correct values from the question."
+            buildSubstitutionFeedbackText(step, findEquationInSheet(equationSheet, step.equation_id), {
+              rearrangementSubject: step.rearrangement_subject
+            })
           ),
           url: cleanUrl
         });
@@ -1883,7 +2133,7 @@ export function markCalculationResponse(q, resp, key, markPoints, cleanUrl, equa
             step,
             markPoints,
             "conversion",
-            `Unit conversion incorrect: expected ${conversionTarget}${step.label ? ` (${step.label})` : ""}.`
+            `Unit conversion: expected ${conversionTarget}${step.label ? ` (${step.label})` : ""}.`
           ),
           url: cleanUrl
         });
@@ -1912,8 +2162,8 @@ export function markCalculationResponse(q, resp, key, markPoints, cleanUrl, equa
         }
       } else if (!wrongEquationPath) {
         const defaultText = expectedAnswer
-          ? `Rearrangement incorrect: the correct form is "${expectedAnswer}".`
-          : "Rearrangement incorrect: check your rearranged formula.";
+          ? `Rearrangement: the correct form is "${expectedAnswer}".`
+          : "Rearrangement: check your rearranged formula.";
         missing.push({
           ao: stepAo,
           stepType: step.type,
@@ -1973,7 +2223,7 @@ export function markCalculationResponse(q, resp, key, markPoints, cleanUrl, equa
             step,
             markPoints,
             "calculate",
-            `Final calculation incorrect: expected ${formatAnswerForFeedback(expectedForFeedback)}${unit ? " " + unit : ""}${ecfNote}.`
+            `Final calculation: expected ${formatAnswerForFeedback(expectedForFeedback)}${unit ? " " + unit : ""}${ecfNote}.`
           ),
           url: cleanUrl
         });
@@ -2000,7 +2250,7 @@ export function markCalculationResponse(q, resp, key, markPoints, cleanUrl, equa
               step,
               markPoints,
               "sig_figs",
-              `Significant figures incorrect: expected ${formatAnswerForFeedback(sigRounded)} (${step.sig_figs} s.f.)${sigEcfNote}.`
+              `Significant figures: expected ${formatAnswerForFeedback(sigRounded)} (${step.sig_figs} s.f.)${sigEcfNote}.`
             ),
             url: cleanUrl
           });
@@ -2016,7 +2266,7 @@ export function markCalculationResponse(q, resp, key, markPoints, cleanUrl, equa
             step,
             markPoints,
             "sig_figs",
-            `Significant figures incorrect: expected ${formatAnswerForFeedback(sigRounded)} (${step.sig_figs} s.f.)${sigEcfNote}.`
+            `Significant figures: expected ${formatAnswerForFeedback(sigRounded)} (${step.sig_figs} s.f.)${sigEcfNote}.`
           ),
           url: cleanUrl
         });
@@ -2621,6 +2871,8 @@ export function populateCalculationForm(prefix, config, questionId = null) {
 }
 
 export function wireCalculationFormToggles(prefix = "", onChange, supabaseClient = null) {
+  wireAutoFeedbackInputs(prefix);
+
   const pairs = [
     ["CalcStepEquation", "CalcPanelEquation"],
     ["CalcStepSubstitution", "CalcPanelSubstitution"],
@@ -2652,6 +2904,19 @@ export function wireCalculationFormToggles(prefix = "", onChange, supabaseClient
   for (const extraId of ["CalcEquationGiven"]) {
     const el = document.getElementById(prefix + extraId);
     el?.addEventListener("change", notify);
+  }
+
+  for (const fieldId of ["CalcConversionLabel", "CalcConversionAnswer", "CalcRearrangeAnswer", "CalcSigFigsCount"]) {
+    const el = document.getElementById(prefix + fieldId);
+    el?.addEventListener("input", () => syncAuthoringStepFeedbackFromForm(prefix, supabaseClient));
+    el?.addEventListener("change", () => syncAuthoringStepFeedbackFromForm(prefix, supabaseClient));
+  }
+
+  const numAnsId = prefix === "edit" ? "editNumAns" : "numAnsVal";
+  const numUnitId = prefix === "edit" ? "editNumUnit" : "numAnsUnit";
+  for (const fieldId of [numAnsId, numUnitId]) {
+    const el = document.getElementById(fieldId);
+    el?.addEventListener("input", () => syncAuthoringStepFeedbackFromForm(prefix, supabaseClient));
   }
 }
 
