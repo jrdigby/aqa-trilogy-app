@@ -13,6 +13,7 @@ import {
   getSlotIdsFromTemplate,
   getSubstitutionTemplate,
   listRearrangementSubjectIds,
+  getActiveConversionStep,
   isStructuredSubstitutionStep,
   rearrangementStructurallyMatches,
   refreshRearrangementFromStudentSlots,
@@ -828,10 +829,6 @@ export function wireStudentEquationSelectPreview(onTypeset, q = null, equationSh
   const select = document.getElementById("calc_equation_select");
   const preview = document.getElementById("calc_equation_select_preview");
   const style = inputStyle();
-  const workflowRoot = select?.closest(".calc-workflow-panel")
-    || document.getElementById("sandboxStage")?.querySelector(".calc-workflow-panel")
-    || document.getElementById("sandboxStage")
-    || null;
 
   const rerenderStructuredSteps = () => {
     if (!q) return;
@@ -843,7 +840,7 @@ export function wireStudentEquationSelectPreview(onTypeset, q = null, equationSh
     }
     const rearrStep = steps.find((s) => s.type === "rearrangement");
     if (rearrStep?.mode === "numeric" && subStep) {
-      refreshRearrangementFromStudentSlots(config, equationSheet, subStep, rearrStep, workflowRoot);
+      refreshRearrangementFromStudentSlots(config, equationSheet, subStep, rearrStep);
     }
   };
 
@@ -854,13 +851,13 @@ export function wireStudentEquationSelectPreview(onTypeset, q = null, equationSh
     const subStep = steps.find((s) => s.type === "substitution");
     const rearrStep = steps.find((s) => s.type === "rearrangement");
     if (rearrStep?.mode === "numeric" && subStep) {
-      refreshRearrangementFromStudentSlots(config, equationSheet, subStep, rearrStep, workflowRoot);
+      refreshRearrangementFromStudentSlots(config, equationSheet, subStep, rearrStep);
     }
   };
 
   if (!select || !preview) {
     rerenderStructuredSteps();
-    wireSubstitutionSlotInputListener(refreshRearrangementOnly, workflowRoot);
+    wireSubstitutionSlotInputListener(refreshRearrangementOnly);
     wireConversionInputListener(refreshRearrangementOnly);
     return;
   }
@@ -884,14 +881,14 @@ export function wireStudentEquationSelectPreview(onTypeset, q = null, equationSh
     onTypeset?.();
     rerenderStructuredSteps();
   });
-  wireSubstitutionSlotInputListener(refreshRearrangementOnly, workflowRoot);
+  wireSubstitutionSlotInputListener(refreshRearrangementOnly);
   wireConversionInputListener(refreshRearrangementOnly);
   rerenderStructuredSteps();
 }
 
 function wireSubstitutionSlotInputListener(onInput, root = null) {
-  const panel = root || resolveCalculationWorkflowRoot();
-  if (!panel || typeof onInput !== "function") return;
+  const panel = root || resolveCalculationWorkflowRoot() || document;
+  if (typeof onInput !== "function") return;
   if (panel._calcSubSlotHandler) {
     panel.removeEventListener("input", panel._calcSubSlotHandler);
   }
@@ -1449,7 +1446,7 @@ export function renderCalculationWorkflow(q, currentKey, presentation = "practic
     } else if (step.type === "rearrangement") {
       let choices = [];
       const subStep = steps.find((s) => s.type === "substitution");
-      const convStep = steps.find((s) => s.type === "conversion");
+      const convStep = getActiveConversionStep(config);
       const workflowRoot = resolveCalculationWorkflowRoot();
       const rearrLocked = step.mode === "numeric" && subStep && equationSheet
         && !isRearrangementInputReady(config, equationSheet, subStep, workflowRoot);
@@ -1472,7 +1469,7 @@ export function renderCalculationWorkflow(q, currentKey, presentation = "practic
         choices = getRearrangementChoices(step);
       }
       const rearrPlaceholder = rearrLocked
-        ? "— Complete conversion and substitution first —"
+        ? (convStep ? "— Complete conversion and substitution first —" : "— Complete substitution first —")
         : "— Select formula —";
       html += `
         <div class="calc-step" data-step="rearrangement" style="margin-bottom:12px;">
@@ -1641,14 +1638,19 @@ function matchSubstitutionStep(studentVal, step, config, equationSheet, markingC
     const markSchemeEq = resolveMarkSchemeEquationId(config, step);
     const equation = findEquationInSheet(equationSheet, markSchemeEq || studentVal.equation_id);
     const template = getSubstitutionTemplate(equation);
-    if (template && substitutionSlotsMatchCommutative(studentVal, step, template)) {
+    const rearrStep = (config?.steps || []).find((s) => s.type === "rearrangement");
+    const subStepForMark = {
+      ...step,
+      rearrangement_subject: step.rearrangement_subject || rearrStep?.subject || null
+    };
+    if (template && substitutionSlotsMatchCommutative(studentVal, subStepForMark, template)) {
       return { match: true, ecf: false };
     }
     if (template && conversionEcf?.slotId) {
       const ecfStep = {
-        ...step,
+        ...subStepForMark,
         slot_answers: {
-          ...step.slot_answers,
+          ...subStepForMark.slot_answers,
           [conversionEcf.slotId]: [String(conversionEcf.studentVal)]
         }
       };

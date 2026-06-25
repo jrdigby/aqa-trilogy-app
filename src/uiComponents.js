@@ -2,7 +2,7 @@
 import { escapeHtml } from './utils.js';
 import { isFuzzyMatch, highlightCommandWordsInPrompt } from './evalEngine.js';
 import { XP_RULES_FOOTNOTE } from './xpEngine.js';
-import { renderCalculationWorkflow, renderCalculationStepSummary } from './calculationWorkflow.js';
+import { loadCalculationWorkflow } from './lazyCalculationWorkflow.js';
 
 // Dom element selector shortcut helper used internally
 const el = (id) => document.getElementById(id);
@@ -63,7 +63,7 @@ export function renderQuestionLayout(q, commandWordBanner, currentKey, layoutOpt
     `;
   } 
   else if (q.question_type === "numeric") {
-    html += renderCalculationWorkflow(q, currentKey, presentation, equationSheet);
+    html += `<div id="numericWorkflowMount"></div>`;
   } 
   else if (q.question_type === "extended_response") {
     html += `
@@ -82,8 +82,18 @@ export function renderQuestionLayout(q, commandWordBanner, currentKey, layoutOpt
   return html;
 }
 
+/** Loads calculation workflow UI after renderQuestionLayout (numeric questions only). */
+export async function mountNumericQuestionWorkflow(q, currentKey, presentation, equationSheet) {
+  const mount = document.getElementById("numericWorkflowMount");
+  if (!mount) return null;
+
+  const { renderCalculationWorkflow } = await loadCalculationWorkflow();
+  mount.outerHTML = renderCalculationWorkflow(q, currentKey, presentation, equationSheet);
+  return loadCalculationWorkflow();
+}
+
 // ====== STANDARD MARK SCHEME FEEDBACK LAYOUT ENGINE ======
-export function renderFeedback(marking, currentQ, currentKey, currentMarkPoints) {
+export async function renderFeedback(marking, currentQ, currentKey, currentMarkPoints) {
   const pct = Math.round((marking.total / marking.max) * 100);
   const isPerfect = marking.total === marking.max;
 
@@ -120,6 +130,7 @@ export function renderFeedback(marking, currentQ, currentKey, currentMarkPoints)
   html += `</div>`;
 
   if (currentQ.question_type === "numeric" && marking.stepResults) {
+    const { renderCalculationStepSummary } = await loadCalculationWorkflow();
     html += renderCalculationStepSummary(marking.stepResults);
   }
 
