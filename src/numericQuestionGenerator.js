@@ -13,6 +13,8 @@ import {
   applyDefaultStepFeedbackToConfig
 } from "./calculationWorkflow.js";
 import { suggestSkillsForQuestion } from "./skillTagging.js";
+import { normalizeQuestionTierForDb } from "./sciencePath.js";
+import { normalizeQuestionTier } from "./examRules.js";
 
 /** Result quantity unit by equation id (SI unless noted). */
 const EQUATION_UNITS = {
@@ -582,6 +584,27 @@ function conversionDisplayOk(displayVal) {
   return Number.isFinite(displayVal) && displayVal >= 0.001 && displayVal <= 1e6;
 }
 
+/** Slots used to solve for an unknown — omit the subject so stale values cannot confuse the solver. */
+export function rearrangementSolveSlots(slots, subject) {
+  const solveSlots = { ...slots };
+  delete solveSlots[subject];
+  return solveSlots;
+}
+
+function canSolveForRearrangementSubject(equation, slots, subject) {
+  try {
+    const ans = solveForSubject(equation, rearrangementSolveSlots(slots, subject), subject);
+    return Number.isFinite(ans) && ans > 0;
+  } catch {
+    return false;
+  }
+}
+
+function conversionKeepsRearrangementSolvable(equation, slots, slotAnswers, pick, rearrSubject) {
+  const trial = applyConversionRule(slots, slotAnswers, pick.id, pick.si, pick.rule);
+  return canSolveForRearrangementSubject(equation, trial.slots, rearrSubject);
+}
+
 export function buildConversionStep(equation, slots, slotAnswers, rng = Math.random, options = {}) {
   const exclude = new Set((options.excludeSlotIds || []).filter(Boolean));
   const rearrSubject = options.rearrangementSubject || null;
@@ -607,7 +630,29 @@ export function buildConversionStep(equation, slots, slotAnswers, rng = Math.ran
   }
 
   if (candidates.length) {
-    const pick = candidates[Math.floor(rng() * candidates.length)];
+    let pool = candidates;
+    if (options.rearrangementSubject) {
+      const viable = candidates.filter((pick) =>
+        conversionKeepsRearrangementSolvable(
+          equation,
+          slots,
+          slotAnswers,
+          pick,
+          options.rearrangementSubject
+        )
+      );
+      if (!viable.length) {
+        return {
+          slots,
+          slot_answers: slotAnswers,
+          conversion: null,
+          promptOverrides: {},
+          conversionMeta: null
+        };
+      }
+      pool = viable;
+    }
+    const pick = pool[Math.floor(rng() * pool.length)];
     return applyConversionRule(slots, slotAnswers, pick.id, pick.si, pick.rule);
   }
 
@@ -832,25 +877,40 @@ function variantIncludesRearrangement(variantDesc) {
   return variantDesc.base === "rearrangement";
 }
 
-/** Infer demand_level for batch drafts (rearrangement alone is not high_89). */
+/** HT batch numerics always recall from equation sheet; FT may use substitute (equation given). */
+export function resolveBatchBaseVariant(spec, variantDesc) {
+  const base = normalizeVariantBase(variantDesc?.base);
+  const isHt = normalizeQuestionTier(spec?.tier || "both") === "HT";
+  if (isHt && base === "substitute") return "recall";
+  return base;
+}
+
+/**
+ * Infer demand_level for batch drafts.
+ * FT: substitute+answer (2m) → low; recall+answer (2m) → standard; +optional steps → standard.
+ * HT: always recall path — 2–3 marks → standard_45; 4–5 marks (2+ optional steps) → standard_67.
+ */
 export function inferBatchDemandLevel(variantDesc, questionMeta = {}, spec = {}) {
   if (spec.demand_level) return spec.demand_level;
 
-  const base = normalizeVariantBase(variantDesc?.base);
   const tier = spec.tier || questionMeta.tier || "both";
-  const isHt = tier === "higher" || tier === "HT" || tier === "both";
+  const isHt = normalizeQuestionTier(tier) === "HT";
+  const base = resolveBatchBaseVariant({ tier }, variantDesc);
   const withRearr = variantIncludesRearrangement(variantDesc);
   const withConv = !!variantDesc?.unitConversion;
   const withSf = !!variantDesc?.sigFigs;
   const extraSteps = (withRearr ? 1 : 0) + (withConv ? 1 : 0) + (withSf ? 1 : 0);
+  const maxMarks = questionMeta.maxMarks;
 
-  if (base === "recall") {
-    return isHt ? "standard_67" : "standard";
+  if (isHt) {
+    if ((maxMarks != null && maxMarks >= 4) || extraSteps >= 2) return "standard_67";
+    return "standard_45";
   }
 
-  if (extraSteps >= 2) return isHt ? "standard_67" : "standard";
-  if (extraSteps === 1) return isHt ? "standard_45" : "standard";
-  return isHt ? "standard_45" : "low";
+  if (base === "recall") return "standard";
+  if (extraSteps >= 2) return "standard";
+  if (extraSteps === 1) return "standard";
+  return "low";
 }
 
 function roundDisplayValue(n) {
@@ -993,8 +1053,7 @@ export function recomputeBatchDraft(draft, equation, sheet) {
   let unit;
 
   if (withRearrangement && rearrangementSubject) {
-    const solveSlots = { ...slots };
-    delete solveSlots[rearrangementSubject];
+    const solveSlots = rearrangementSolveSlots(slots, rearrangementSubject);
     answer = solveForSubject(equation, solveSlots, rearrangementSubject);
     slots[rearrangementSubject] = String(answer);
     si_slot_answers[rearrangementSubject] = [String(answer)];
@@ -1098,64 +1157,94 @@ export function generateNumericQuestion(spec, variantDesc, sheet, rng = Math.ran
   }
 
   const sheetId = resolveSheetId(spec);
-  const baseVariant = normalizeVariantBase(variantDesc.base);
+  const baseVariant = resolveBatchBaseVariant(spec, variantDesc);
   const withRearrangement = variantIncludesRearrangement(variantDesc);
+  const needsConversion = !!variantDesc.unitConversion;
+  const maxSlotAttempts = withRearrangement && needsConversion ? 24 : 1;
+
   let rearrangementSubject = null;
   let slots;
   let slot_answers;
   let answer;
   let unit;
+  let conversion = null;
+  let promptOverrides = {};
+  let conversionMeta = null;
+  let si_slot_answers;
 
   if (withRearrangement) {
     rearrangementSubject = spec.rearrangement_subject
       || pickRearrangementSubject(equation, rng, spec.rearrangement_subject);
-    const rearr = generateSlotValuesForRearrangement(
-      equation,
-      rearrangementSubject,
-      spec.ranges || {},
-      spec.constants || {},
-      rng
-    );
-    slots = rearr.slots;
-    slot_answers = rearr.slot_answers;
-    answer = rearr.answer;
-    unit = rearr.unit;
-  } else {
-    const gen = generateSlotValues(equation, spec.ranges || {}, spec.constants || {}, rng);
-    slots = gen.slots;
-    slot_answers = gen.slot_answers;
-    const ev = evaluateEquation(equation, slots);
-    answer = ev.answer;
-    unit = ev.unit;
   }
 
-  let conversion = null;
-  let promptOverrides = {};
-  let conversionMeta = null;
-  let si_slot_answers = slot_answers;
+  let lastSlotErr = null;
+  for (let attempt = 0; attempt < maxSlotAttempts; attempt++) {
+    try {
+      if (withRearrangement) {
+        const rearr = generateSlotValuesForRearrangement(
+          equation,
+          rearrangementSubject,
+          spec.ranges || {},
+          spec.constants || {},
+          rng
+        );
+        slots = rearr.slots;
+        slot_answers = rearr.slot_answers;
+        answer = rearr.answer;
+        unit = rearr.unit;
+      } else {
+        const gen = generateSlotValues(equation, spec.ranges || {}, spec.constants || {}, rng);
+        slots = gen.slots;
+        slot_answers = gen.slot_answers;
+        const ev = evaluateEquation(equation, slots);
+        answer = ev.answer;
+        unit = ev.unit;
+      }
 
-  if (variantDesc.unitConversion) {
-    const conv = buildConversionStep(equation, slots, slot_answers, rng, {
-      excludeSlotIds: rearrangementSubject ? [rearrangementSubject] : [],
-      rearrangementSubject: rearrangementSubject || null
-    });
-    slots = conv.slots;
-    slot_answers = conv.slot_answers;
-    si_slot_answers = conv.si_slot_answers || slot_answers;
-    conversion = conv.conversion;
-    promptOverrides = conv.promptOverrides || {};
-    conversionMeta = conv.conversionMeta || null;
-    if (!conversion) {
-      throw new Error(
-        `Could not build unit conversion for "${equation.id}" — no suitable quantity with a positive value`
-      );
-    }
-    if (withRearrangement && rearrangementSubject) {
-      answer = solveForSubject(equation, slots, rearrangementSubject);
-    } else {
-      answer = evaluateEquation(equation, slots).answer;
+      conversion = null;
+      promptOverrides = {};
+      conversionMeta = null;
+      si_slot_answers = slot_answers;
+
+      if (needsConversion) {
+        const conv = buildConversionStep(equation, slots, slot_answers, rng, {
+          excludeSlotIds: rearrangementSubject ? [rearrangementSubject] : [],
+          rearrangementSubject: rearrangementSubject || null
+        });
+        slots = conv.slots;
+        slot_answers = conv.slot_answers;
+        si_slot_answers = conv.si_slot_answers || slot_answers;
+        conversion = conv.conversion;
+        promptOverrides = conv.promptOverrides || {};
+        conversionMeta = conv.conversionMeta || null;
+        if (!conversion) {
+          throw new Error(
+            `Could not build unit conversion for "${equation.id}" — no suitable quantity with a positive value`
+          );
+        }
+        if (withRearrangement && rearrangementSubject) {
+          answer = solveForSubject(
+            equation,
+            rearrangementSolveSlots(slots, rearrangementSubject),
+            rearrangementSubject
+          );
+          if (!Number.isFinite(answer) || answer <= 0) {
+            throw new Error(`Could not solve for ${rearrangementSubject} in "${equation.id}"`);
+          }
+          slots[rearrangementSubject] = String(answer);
+          unit = getSubjectUnit(equation, rearrangementSubject);
+        } else {
+          answer = evaluateEquation(equation, slots).answer;
+        }
+      }
+
+      lastSlotErr = null;
+      break;
+    } catch (err) {
+      lastSlotErr = err;
     }
   }
+  if (lastSlotErr) throw lastSlotErr;
 
   const sigFigsN = variantDesc.sigFigs ? (spec.sig_figs_count ?? 2) : null;
 
@@ -1184,7 +1273,7 @@ export function generateNumericQuestion(spec, variantDesc, sheet, rng = Math.ran
 
   const maxMarks = computeMaxMarksFromConfig(calcConfig);
   const tolerance = spec.tolerance ?? defaultTolerance(answer);
-  const demandLevel = inferBatchDemandLevel(variantDesc, { tier: spec.tier }, spec);
+  const demandLevel = inferBatchDemandLevel(variantDesc, { tier: spec.tier, maxMarks }, spec);
 
   const draft = {
     variant: variantDesc,
@@ -1193,15 +1282,15 @@ export function generateNumericQuestion(spec, variantDesc, sheet, rng = Math.ran
     question: {
       question_type: "numeric",
       prompt,
-      tier: spec.tier || "both",
+      tier: normalizeQuestionTierForDb(spec.tier || "both"),
       audience: spec.audience || "both",
       marking_method: "numeric",
       max_marks: maxMarks,
       calculation_config: calcConfig,
       command_word: spec.command_word || "calculate",
       demand_level: demandLevel,
-      ao1_marks: baseVariant === "recall" ? 1 : 0,
-      ao2_marks: maxMarks - (baseVariant === "recall" ? 1 : 0),
+      ao1_marks: 0,
+      ao2_marks: maxMarks,
       ao3_marks: 0,
       is_maths_skill: true,
       is_required_practical: false
@@ -1228,6 +1317,7 @@ export function generateNumericQuestion(spec, variantDesc, sheet, rng = Math.ran
   draft._sourceSpec = {
     sheetId,
     subject: spec.subject || "physics",
+    tier: spec.tier || "both",
     sig_figs_count: spec.sig_figs_count ?? 2,
     tolerance: spec.tolerance,
     unit: spec.unit

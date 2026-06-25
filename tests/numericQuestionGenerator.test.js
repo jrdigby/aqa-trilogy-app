@@ -14,6 +14,7 @@ import {
   formatEquationLatexBlock,
   recomputeBatchDraft,
   inferBatchDemandLevel,
+  resolveBatchBaseVariant,
   getDraftGivenSlotIds,
   listConversionUnitOptions,
   parseSlotDisplayInput,
@@ -102,6 +103,22 @@ test("expandVariantDescriptors — per-recipe optional steps", () => {
   assert.equal(list.filter((v) => v.base === "recall" && v.unitConversion && v.sigFigs).length, 1);
 });
 
+test("generateBatch — maps foundation tier to FT for database", () => {
+  const { drafts, errors } = generateBatch(
+    {
+      equation: "kinetic_energy",
+      sheet: "physics_p1_ft",
+      tier: "foundation",
+      variants: { substitute: 1 },
+      seed: 1
+    },
+    sheetP1
+  );
+  assert.equal(errors.length, 0);
+  assert.equal(drafts.length, 1);
+  assert.equal(drafts[0].question.tier, "FT");
+});
+
 test("generateBatch produces drafts with answer keys", () => {
   const { drafts, errors } = generateBatch(
     {
@@ -138,6 +155,97 @@ test("substitute + rearrangement solves for unknown", () => {
   assert.ok(drafts[0].skill_codes.ms.includes("MS3b"));
 });
 
+test("inferBatchDemandLevel — HT 3-mark recall + one optional is standard_45", () => {
+  assert.equal(
+    inferBatchDemandLevel(
+      { base: "recall", rearrangement: true },
+      { tier: "higher", maxMarks: 3 },
+      {}
+    ),
+    "standard_45"
+  );
+});
+
+test("inferBatchDemandLevel — HT 4–5 marks is standard_67", () => {
+  assert.equal(
+    inferBatchDemandLevel(
+      { base: "recall", rearrangement: true, unitConversion: true },
+      { tier: "higher", maxMarks: 4 },
+      {}
+    ),
+    "standard_67"
+  );
+  assert.equal(
+    inferBatchDemandLevel(
+      { base: "recall", rearrangement: true, unitConversion: true, sigFigs: true },
+      { tier: "higher", maxMarks: 5 },
+      {}
+    ),
+    "standard_67"
+  );
+});
+
+test("resolveBatchBaseVariant — HT coerces substitute to recall", () => {
+  assert.equal(resolveBatchBaseVariant({ tier: "higher" }, { base: "substitute" }), "recall");
+  assert.equal(resolveBatchBaseVariant({ tier: "foundation" }, { base: "substitute" }), "substitute");
+});
+
+test("generateBatch — HT substitute recipe generates recall workflow", () => {
+  const { drafts } = generateBatch(
+    {
+      equation: "kinetic_energy",
+      sheet: "physics_p1_ht",
+      tier: "higher",
+      variants: { substitute: 1 },
+      seed: 20
+    },
+    sheetP1
+  );
+  assert.equal(drafts.length, 1);
+  assert.equal(drafts[0].question.calculation_config.equation_given, false);
+  assert.ok(drafts[0].question.calculation_config.steps.some((s) => s.type === "equation_select"));
+  assert.equal(drafts[0].question.demand_level, "standard_45");
+  assert.equal(drafts[0].question.max_marks, 2);
+});
+
+test("generateBatch — HT recall + rearrange is standard_45 difficulty 3", async () => {
+  const { computeQuestionDifficulty } = await import("../src/examRules.js");
+  const { drafts } = generateBatch(
+    {
+      equation: "kinetic_energy",
+      sheet: "physics_p1_ht",
+      tier: "higher",
+      rearrangement_subject: "v",
+      variants: { recipes: [{ base: "recall", rearrangement: true, count: 1 }] },
+      seed: 21
+    },
+    sheetP1
+  );
+  assert.equal(drafts[0].question.max_marks, 3);
+  assert.equal(drafts[0].question.demand_level, "standard_45");
+  assert.equal(computeQuestionDifficulty(drafts[0].question), 3);
+});
+
+test("generateBatch — HT recall + two optionals is standard_67 difficulty 4", async () => {
+  const { computeQuestionDifficulty } = await import("../src/examRules.js");
+  const { drafts } = generateBatch(
+    {
+      equation: "kinetic_energy",
+      sheet: "physics_p1_ht",
+      tier: "higher",
+      rearrangement_subject: "m",
+      variants: {
+        recipes: [{ base: "recall", rearrangement: true, unitConversion: true, count: 1 }]
+      },
+      seed: 22
+    },
+    sheetP1
+  );
+  assert.equal(drafts[0].question.max_marks, 4);
+  assert.equal(drafts[0].question.demand_level, "standard_67");
+  assert.equal(computeQuestionDifficulty(drafts[0].question), 4);
+});
+
 test("inferBatchDemandLevel — rearrangement is not auto high_89", () => {
   const demand = inferBatchDemandLevel(
     { base: "substitute", rearrangement: true },
@@ -148,7 +256,83 @@ test("inferBatchDemandLevel — rearrangement is not auto high_89", () => {
   assert.equal(demand, "standard_45");
 });
 
-test("markCalculationResponse smoke — generated substitute", () => {
+test("inferBatchDemandLevel — foundation simple substitute is low", () => {
+  assert.equal(inferBatchDemandLevel({ base: "substitute" }, { tier: "foundation" }, {}), "low");
+  assert.equal(inferBatchDemandLevel({ base: "substitute" }, { tier: "FT" }, {}), "low");
+});
+
+test("inferBatchDemandLevel — both tier is not treated as HT band", () => {
+  assert.equal(inferBatchDemandLevel({ base: "substitute" }, { tier: "both" }, {}), "low");
+});
+
+test("inferBatchDemandLevel — foundation recall is standard (difficulty 2)", () => {
+  assert.equal(inferBatchDemandLevel({ base: "recall" }, { tier: "foundation" }, {}), "standard");
+});
+
+test("generateBatch — 2-mark substitute is low FT AO2-only; recall is standard", async () => {
+  const { computeQuestionDifficulty } = await import("../src/examRules.js");
+
+  const { drafts: subDrafts } = generateBatch(
+    {
+      equation: "kinetic_energy",
+      sheet: "physics_p1_ft",
+      tier: "foundation",
+      variants: { substitute: 1 },
+      seed: 11
+    },
+    sheetP1
+  );
+  assert.equal(subDrafts[0].question.max_marks, 2);
+  assert.equal(subDrafts[0].question.demand_level, "low");
+  assert.equal(subDrafts[0].question.ao1_marks, 0);
+  assert.equal(subDrafts[0].question.ao2_marks, 2);
+  assert.equal(computeQuestionDifficulty(subDrafts[0].question), 1);
+
+  const { drafts: recallDrafts } = generateBatch(
+    {
+      equation: "kinetic_energy",
+      sheet: "physics_p1_ft",
+      tier: "foundation",
+      variants: { recall: 1 },
+      seed: 12
+    },
+    sheetP1
+  );
+  assert.equal(recallDrafts[0].question.max_marks, 2);
+  assert.equal(recallDrafts[0].question.demand_level, "standard");
+  assert.equal(recallDrafts[0].question.ao1_marks, 0);
+  assert.equal(recallDrafts[0].question.ao2_marks, 2);
+  assert.equal(computeQuestionDifficulty(recallDrafts[0].question), 2);
+});
+
+test("generateBatch — recall + rearrange + conversion + sig figs (HT) with fixed v unknown", () => {
+  for (let seed = 0; seed < 40; seed++) {
+    const { drafts, errors } = generateBatch(
+      {
+        equation: "kinetic_energy",
+        sheet: "physics_p1_ht",
+        tier: "higher",
+        rearrangement_subject: "v",
+        variants: {
+          recipes: [{
+            base: "recall",
+            rearrangement: true,
+            unitConversion: true,
+            sigFigs: true,
+            count: 1
+          }]
+        },
+        seed
+      },
+      sheetP1
+    );
+    assert.equal(errors.length, 0, `seed ${seed}: ${errors[0]?.message || ""}`);
+    assert.equal(drafts.length, 1);
+    assert.equal(drafts[0].rearrangement_subject, "v");
+    assert.equal(drafts[0].question.max_marks, 5);
+    assert.equal(drafts[0].question.demand_level, "standard_67");
+  }
+});
   const { drafts } = generateBatch(
     { equation: "kinetic_energy", sheet: "physics_p1_ht", variants: { substitute: 1 }, seed: 7 },
     sheetP1

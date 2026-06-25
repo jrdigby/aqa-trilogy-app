@@ -8,6 +8,7 @@ import {
   formatDemandLabel,
   getAuthoringGuidelinesHtml
 } from "./examRules.js";
+import { normalizeQuestionTierForDb } from "./sciencePath.js";
 
 export {
   COMMAND_WORD_OPTIONS,
@@ -308,6 +309,9 @@ export function validateCreatorMetadata({ block = true } = {}) {
 }
 
 export function applyMetadataToInsertPayload(insertPayload, meta, questionDraft) {
+  if (insertPayload.tier != null) {
+    insertPayload.tier = normalizeQuestionTierForDb(insertPayload.tier);
+  }
   Object.assign(insertPayload, {
     command_word: meta.command_word,
     demand_level: meta.demand_level,

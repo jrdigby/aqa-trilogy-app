@@ -3135,6 +3135,7 @@
 
     if (panelId === "batchNumeric") {
       initBatchVariantRecipes();
+      syncBatchRecipeUiForTier(true);
       refreshBatchEquationSelect().catch(() => {});
       loadBatchSpecPointSelect().catch(() => {});
     }
@@ -4565,16 +4566,71 @@
     return recipes;
   }
 
+  function isBatchHigherTier() {
+    const t = document.getElementById("batchTier")?.value || "both";
+    return t === "higher" || t === "HT";
+  }
+
+  function isBatchFoundationTier() {
+    const t = document.getElementById("batchTier")?.value || "both";
+    return t === "foundation" || t === "FT";
+  }
+
+  const BATCH_RECIPES_FT = [
+    { base: "substitute", count: 3 },
+    { base: "recall", count: 2 }
+  ];
+
+  const BATCH_RECIPES_HT = [
+    { base: "recall", sigFigs: true, count: 2 },
+    { base: "recall", unitConversion: true, count: 2 },
+    { base: "recall", rearrangement: true, count: 2 },
+    { base: "recall", unitConversion: true, sigFigs: true, count: 2 },
+    { base: "recall", rearrangement: true, sigFigs: true, count: 1 },
+    { base: "recall", rearrangement: true, unitConversion: true, count: 1 },
+    { base: "recall", rearrangement: true, unitConversion: true, sigFigs: true, count: 2 }
+  ];
+
+  function defaultBatchRecipesForTier() {
+    if (isBatchHigherTier()) return BATCH_RECIPES_HT;
+    if (isBatchFoundationTier()) return BATCH_RECIPES_FT;
+    return BATCH_RECIPES_FT;
+  }
+
+  function loadBatchVariantRecipesForTier() {
+    const tbody = document.getElementById("batchVariantRecipesBody");
+    if (!tbody) return;
+    tbody.innerHTML = "";
+    for (const recipe of defaultBatchRecipesForTier()) {
+      addBatchVariantRecipeRow(recipe);
+    }
+  }
+
+  function syncBatchRecipeUiForTier(reloadRecipes = false) {
+    if (reloadRecipes) {
+      loadBatchVariantRecipesForTier();
+      return;
+    }
+    const ht = isBatchHigherTier();
+    document.querySelectorAll("#batchVariantRecipesBody .batch-recipe-base").forEach((sel) => {
+      const subOpt = sel.querySelector('option[value="substitute"]');
+      if (subOpt) subOpt.disabled = ht;
+      if (ht && sel.value === "substitute") sel.value = "recall";
+    });
+  }
+
   function addBatchVariantRecipeRow(recipe = {}) {
     const tbody = document.getElementById("batchVariantRecipesBody");
     if (!tbody) return;
+    const ht = isBatchHigherTier();
+    const base = ht ? "recall" : (recipe.base || "substitute");
     const tr = document.createElement("tr");
     tr.dataset.recipeRow = "1";
     tr.innerHTML = `
       <td style="padding:4px 6px;">
         <select class="batch-recipe-base select-fit" style="min-width:7rem;">
-          <option value="substitute"${recipe.base !== "recall" ? " selected" : ""}>Substitute</option>
-          <option value="recall"${recipe.base === "recall" ? " selected" : ""}>Recall eq.</option>
+          <option value="substitute"${base !== "recall" ? " selected" : ""}${ht ? " disabled" : ""}>Substitute</option>
+          <option value="recall"${base === "recall" ? " selected" : ""}>Recall eq.</option>
         </select>
       </td>
       <td style="padding:4px 6px;text-align:center;">
@@ -4604,7 +4660,10 @@
     tr.querySelector(".batch-recipe-remove")?.addEventListener("click", () => {
       tr.remove();
       if (!tbody.querySelector("tr[data-recipe-row]")) {
-        addBatchVariantRecipeRow({ base: "substitute", count: 1 });
+        const fallback = isBatchHigherTier()
+          ? { base: "recall", count: 1 }
+          : { base: "substitute", count: 1 };
+        addBatchVariantRecipeRow(fallback);
       }
     });
     tbody.appendChild(tr);
@@ -4614,10 +4673,11 @@
     const tbody = document.getElementById("batchVariantRecipesBody");
     if (!tbody || tbody.dataset.wired) return;
     tbody.dataset.wired = "1";
-    tbody.innerHTML = "";
-    addBatchVariantRecipeRow({ base: "substitute", count: 3 });
+    loadBatchVariantRecipesForTier();
     document.getElementById("btnBatchAddRecipe")?.addEventListener("click", () => {
-      addBatchVariantRecipeRow({ base: "substitute", count: 1 });
+      addBatchVariantRecipeRow(
+        isBatchHigherTier() ? { base: "recall", count: 1 } : { base: "substitute", count: 1 }
+      );
     });
   }
 
@@ -5109,6 +5169,7 @@
 
   ["batchSubject", "batchPaper", "batchTier", "batchCourseTrack"].forEach((id) => {
     document.getElementById(id)?.addEventListener("change", () => {
+      if (id === "batchTier") syncBatchRecipeUiForTier(true);
       loadBatchSpecPointSelect().catch(() => {});
       refreshBatchEquationSelect().catch(() => {});
     });
@@ -5279,6 +5340,7 @@
 
   syncBatchSpecLinkUi();
   initBatchVariantRecipes();
+  syncBatchRecipeUiForTier(true);
   loadBatchSpecPointSelect().catch(() => {});
   refreshBatchEquationSelect().catch(() => {});
 
@@ -6463,7 +6525,9 @@
     document.getElementById("editPrompt").value = q.prompt;
     document.getElementById("editResource").value = q.resource_links || "";
     populateHintsEditor("editHintsList", Array.isArray(q.hints) ? q.hints : []);
-    document.getElementById("editTier").value = q.tier || "both";
+    document.getElementById("editTier").value = window.questionTierToAdminSelect
+      ? window.questionTierToAdminSelect(q.tier)
+      : (q.tier || "both");
 
     const editAudience = document.getElementById("editAudienceSelect");
     if (editAudience) editAudience.value = q.audience === "triple_only" ? "triple_only" : "both";
@@ -7360,10 +7424,12 @@
   import * as AdminMetadata from "./src/adminMetadata.js";
   import * as AdminSkills from "./src/adminSkills.js";
   import { getDemandOptionsForTier } from "./src/examRules.js";
+  import { questionTierToAdminSelect } from "./src/sciencePath.js";
   import { supabaseClient } from "./src/dbClient.js";
 
   window.AdminMetadata = AdminMetadata;
   window.AdminSkills = AdminSkills;
+  window.questionTierToAdminSelect = questionTierToAdminSelect;
   AdminMetadata.initCreatorMetadataUI();
   AdminMetadata.initEditMetadataListeners();
   AdminSkills.initAdminSkillsUI(supabaseClient);

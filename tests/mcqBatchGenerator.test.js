@@ -90,6 +90,7 @@ test("generateMcqBatch — rotates through different spec claims", () => {
   );
   assert.equal(errors.length, 0);
   assert.equal(drafts.length, 3);
+  assert.equal(drafts[0].question.tier, "FT");
   const correctAnswers = drafts.map((d) => d.answer_key.key_payload.correct);
   assert.ok(new Set(correctAnswers).size >= 2, "expected distinct claims across batch");
 });

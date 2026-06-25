@@ -5,6 +5,7 @@ import {
   formatDemandLabel,
   COMMAND_WORD_OPTIONS
 } from "./examRules.js";
+import { normalizeQuestionTierForDb } from "./sciencePath.js";
 import {
   parseSpecClaims,
   pickClaimWithoutReuse,
@@ -108,7 +109,7 @@ export function generateMcqQuestion(spec, variantDesc, specPoint, rng = Math.ran
   const options = shuffle([correct, ...distractors], rng);
   const prompt = buildPromptForClaim(claim, topic, commandWord, demandLevel);
 
-  const tier = spec.tier || "both";
+  const tier = normalizeQuestionTierForDb(spec.tier || "both");
   const ao1 = spec.ao1_marks != null ? spec.ao1_marks : 1;
   const ao2 = spec.ao2_marks != null ? spec.ao2_marks : 0;
   const ao3 = spec.ao3_marks != null ? spec.ao3_marks : 0;

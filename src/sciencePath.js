@@ -14,6 +14,23 @@ export function normalizeTier(tier) {
   return tier === "HT" ? "HT" : "FT";
 }
 
+/** Map admin UI tier labels to questions.tier check constraint (FT | HT | both). */
+export function normalizeQuestionTierForDb(tier) {
+  const t = String(tier || "both").trim();
+  if (t === "foundation" || t === "FT" || t === "ft") return "FT";
+  if (t === "higher" || t === "HT" || t === "ht") return "HT";
+  if (t === "both" || t === "Both") return "both";
+  return "both";
+}
+
+/** Map stored questions.tier back to admin select values (foundation | higher | both). */
+export function questionTierToAdminSelect(tier) {
+  const db = normalizeQuestionTierForDb(tier);
+  if (db === "FT") return "foundation";
+  if (db === "HT") return "higher";
+  return "both";
+}
+
 export function targetTiersForTier(tier) {
   const t = normalizeTier(tier);
   return t === "HT"
