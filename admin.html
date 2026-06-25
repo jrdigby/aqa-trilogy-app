@@ -166,12 +166,14 @@
     }
 
     /* Batch numeric generator — tight form density */
-    #panelBatchNumeric .card {
+    #panelBatchNumeric .card,
+    #panelBatchMcq .card {
       margin-bottom: 12px;
       padding: 10px 12px !important;
     }
 
-    #panelBatchNumeric .row.row-compact {
+    #panelBatchNumeric .row.row-compact,
+    #panelBatchMcq .row.row-compact {
       display: flex;
       flex-wrap: wrap;
       align-items: flex-end;
@@ -179,23 +181,28 @@
       margin-bottom: 2px;
     }
 
-    #panelBatchNumeric label {
+    #panelBatchNumeric label,
+    #panelBatchMcq label {
       margin-bottom: 1px;
       font-size: 0.76rem;
       line-height: 1.2;
     }
 
-    #panelBatchNumeric .input-compact {
+    #panelBatchNumeric .input-compact,
+    #panelBatchMcq .input-compact {
       width: 3.5rem !important;
     }
 
-    #panelBatchNumeric .batch-prompt-edit {
+    #panelBatchNumeric .batch-prompt-edit,
+    #panelBatchMcq .batch-prompt-edit,
+    #panelBatchMcq .batch-mcq-prompt-edit {
       min-height: 7.5rem;
       font-size: 0.88rem;
       line-height: 1.45;
     }
 
-    #panelBatchNumeric .batch-recipe-opt {
+    #panelBatchNumeric .batch-recipe-opt,
+    #panelBatchMcq .batch-recipe-opt {
       min-width: 4.75rem;
       min-height: 42px;
       font-size: 0.85rem;
@@ -206,47 +213,57 @@
       min-width: 9rem;
     }
 
-    #panelBatchNumeric .spec-link-panel {
+    #panelBatchNumeric .spec-link-panel,
+    #panelBatchMcq .spec-link-panel {
       margin-top: 4px !important;
     }
 
-    #panelBatchNumeric .spec-link-status {
+    #panelBatchNumeric .spec-link-status,
+    #panelBatchMcq .spec-link-status {
       margin: 0 0 3px !important;
       line-height: 1.3;
     }
 
-    #panelBatchNumeric .batch-form-section {
+    #panelBatchNumeric .batch-form-section,
+    #panelBatchMcq .batch-form-section {
       margin-top: 4px;
     }
 
-    #panelBatchNumeric .batch-actions {
+    #panelBatchNumeric .batch-actions,
+    #panelBatchMcq .batch-actions {
       margin-top: 8px;
       gap: 6px;
     }
 
-    #panelBatchNumeric #batchStatus {
+    #panelBatchNumeric #batchStatus,
+    #panelBatchMcq #batchMcqStatus {
       margin-top: 6px !important;
     }
 
-    #panelBatchNumeric details {
+    #panelBatchNumeric details,
+    #panelBatchMcq details {
       margin-top: 4px;
     }
 
-    #panelBatchNumeric .field-fit {
+    #panelBatchNumeric .field-fit,
+    #panelBatchMcq .field-fit {
       margin: 0;
     }
 
-    #panelBatchNumeric #batchSpecPointSelect {
+    #panelBatchNumeric #batchSpecPointSelect,
+    #panelBatchMcq #batchMcqSpecPointSelect {
       width: auto;
       max-width: min(100%, 26rem);
     }
 
-    #panelBatchNumeric #batchLinkedSpecDisplay {
+    #panelBatchNumeric #batchLinkedSpecDisplay,
+    #panelBatchMcq #batchMcqLinkedSpecDisplay {
       width: auto;
       max-width: min(100%, 18rem);
     }
 
-    #panelBatchNumeric .spec-link-panel .field-fit {
+    #panelBatchNumeric .spec-link-panel .field-fit,
+    #panelBatchMcq .spec-link-panel .field-fit {
       flex: 0 1 auto;
     }
 
@@ -772,6 +789,7 @@
     #panelCreator,
     #editForm,
     #panelBatchNumeric,
+    #panelBatchMcq,
     #panelAudit {
       --field-border: #94a3b8;
       --field-border-hover: #64748b;
@@ -795,6 +813,10 @@
     #panelBatchNumeric input[type="number"],
     #panelBatchNumeric select,
     #panelBatchNumeric textarea,
+    #panelBatchMcq input[type="text"],
+    #panelBatchMcq input[type="number"],
+    #panelBatchMcq select,
+    #panelBatchMcq textarea,
     #panelAudit input[type="text"],
     #panelAudit input[type="number"],
     #panelAudit select,
@@ -811,6 +833,7 @@
     #panelCreator textarea,
     #editForm textarea,
     #panelBatchNumeric textarea,
+    #panelBatchMcq textarea,
     #panelAudit textarea {
       min-height: 80px;
       resize: vertical;
@@ -819,6 +842,7 @@
     #panelCreator select,
     #editForm select,
     #panelBatchNumeric select,
+    #panelBatchMcq select,
     #panelAudit select {
       cursor: pointer;
       appearance: none;
@@ -846,6 +870,9 @@
     #panelBatchNumeric input:hover,
     #panelBatchNumeric select:hover,
     #panelBatchNumeric textarea:hover,
+    #panelBatchMcq input:hover,
+    #panelBatchMcq select:hover,
+    #panelBatchMcq textarea:hover,
     #panelAudit input:hover,
     #panelAudit select:hover,
     #panelAudit textarea:hover {
@@ -861,6 +888,9 @@
     #panelBatchNumeric input[type="text"]:hover,
     #panelBatchNumeric input[type="number"]:hover,
     #panelBatchNumeric textarea:hover,
+    #panelBatchMcq input[type="text"]:hover,
+    #panelBatchMcq input[type="number"]:hover,
+    #panelBatchMcq textarea:hover,
     #panelAudit input[type="text"]:hover,
     #panelAudit input[type="number"]:hover,
     #panelAudit textarea:hover {
@@ -870,6 +900,7 @@
     #panelCreator select:hover,
     #editForm select:hover,
     #panelBatchNumeric select:hover,
+    #panelBatchMcq select:hover,
     #panelAudit select:hover {
       background-color: #f1f5f9;
       background-image: var(--select-chevron);
@@ -884,6 +915,9 @@
     #panelBatchNumeric input:focus,
     #panelBatchNumeric select:focus,
     #panelBatchNumeric textarea:focus,
+    #panelBatchMcq input:focus,
+    #panelBatchMcq select:focus,
+    #panelBatchMcq textarea:focus,
     #panelAudit input:focus,
     #panelAudit select:focus,
     #panelAudit textarea:focus {
@@ -895,6 +929,7 @@
     #panelCreator select:focus,
     #editForm select:focus,
     #panelBatchNumeric select:focus,
+    #panelBatchMcq select:focus,
     #panelAudit select:focus {
       background-image: var(--select-chevron);
     }
@@ -905,6 +940,8 @@
     #editForm textarea::placeholder,
     #panelBatchNumeric input::placeholder,
     #panelBatchNumeric textarea::placeholder,
+    #panelBatchMcq input::placeholder,
+    #panelBatchMcq textarea::placeholder,
     #panelAudit input::placeholder,
     #panelAudit textarea::placeholder {
       color: #94a3b8;
@@ -913,7 +950,8 @@
 
     #panelCreator .input-compact,
     #editForm .input-compact,
-    #panelBatchNumeric .input-compact {
+    #panelBatchNumeric .input-compact,
+    #panelBatchMcq .input-compact {
       min-height: 38px;
       padding: 8px 10px !important;
       font-size: 0.9rem !important;
@@ -925,7 +963,8 @@
 
     #panelCreator .input-compact:focus,
     #editForm .input-compact:focus,
-    #panelBatchNumeric .input-compact:focus {
+    #panelBatchNumeric .input-compact,
+    #panelBatchMcq .input-compact:focus {
       background-color: #fff;
       border-color: var(--primary);
     }
@@ -933,6 +972,7 @@
     #panelCreator label,
     #editForm label,
     #panelBatchNumeric label,
+    #panelBatchMcq label,
     #panelAudit label {
       color: #1e293b;
     }
@@ -1300,6 +1340,7 @@
         <button class="tab-btn active" onclick="switchPanel('creator')">✏️ Create Question</button>
         <button class="tab-btn" onclick="switchPanel('csv')">📂 Packaged CSV Importer</button>
         <button class="tab-btn" data-panel="batchNumeric" onclick="switchPanel('batchNumeric')">🔢 Batch Numeric Generator</button>
+        <button class="tab-btn" data-panel="batchMcq" onclick="switchPanel('batchMcq')">☑️ Batch MCQ Generator</button>
         <button class="tab-btn" onclick="switchPanel('audit')">🔍 Database Audit &amp; Review</button>
         <button class="tab-btn" onclick="switchPanel('pilot')">🎫 Pilot Pro Access</button>
       </div>
@@ -2051,6 +2092,132 @@
         </div>
       </div>
 
+      <!-- TAB: BATCH MCQ GENERATOR -->
+      <div id="panelBatchMcq" class="panel">
+        <div class="card">
+          <h3 style="margin:0 0 4px; color:var(--primary-dark); font-size:1.02rem;">Batch MCQ Question Generator</h3>
+          <p style="color:var(--text-muted); font-size:0.78rem; line-height:1.3; margin:0 0 6px;">
+            Generate multiple-choice questions from spec point content. Each draft uses a real specification claim as the correct answer, with distractors targeting common misconceptions. Edit before commit.
+          </p>
+
+          <div class="row row-compact">
+            <div class="field-fit">
+              <label>Subject</label>
+              <select id="batchMcqSubject" class="select-fit">
+                <option value="physics">Physics</option>
+                <option value="chemistry">Chemistry</option>
+                <option value="biology">Biology</option>
+              </select>
+            </div>
+            <div class="field-fit">
+              <label>Paper</label>
+              <select id="batchMcqPaper" class="select-fit">
+                <option value="paper1">Paper 1</option>
+                <option value="paper2">Paper 2</option>
+              </select>
+            </div>
+            <div class="field-fit">
+              <label>Tier</label>
+              <select id="batchMcqTier" class="select-fit">
+                <option value="both">Both</option>
+                <option value="foundation">Foundation</option>
+                <option value="higher">Higher</option>
+              </select>
+            </div>
+            <div class="field-fit">
+              <label>Course track</label>
+              <select id="batchMcqCourseTrack" class="select-fit">
+                <option value="combined">Combined (8464)</option>
+                <option value="triple">Triple (8463)</option>
+              </select>
+            </div>
+            <div class="field-fit">
+              <label>Audience</label>
+              <select id="batchMcqAudience" class="select-fit">
+                <option value="both">Both tracks</option>
+                <option value="triple_only">Triple only</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="spec-link-panel batch-form-section" id="batchMcqSpecLinkPanel">
+            <p class="spec-link-status" id="batchMcqSpecLinkStatus" style="font-size:0.75rem;color:var(--text-muted);">
+              Select the primary spec point for your course track. When audience is Both, the linked equivalent is filled automatically at commit.
+            </p>
+            <div class="row row-compact">
+              <div class="field-fit">
+                <label id="batchMcqPrimarySpecLabel">Combined spec point (Trilogy 8464):</label>
+                <select id="batchMcqSpecPointSelect">
+                  <option value="">Select subject and paper…</option>
+                </select>
+              </div>
+              <div class="field-fit hidden" id="batchMcqSpecLinkLinkedRow">
+                <label id="batchMcqLinkedSpecLabel">Linked triple spec point:</label>
+                <input type="text" id="batchMcqLinkedSpecDisplay" readonly placeholder="— Auto-matched —" style="background:#f1f5f9;cursor:default;" />
+              </div>
+            </div>
+          </div>
+
+          <div class="row row-compact batch-form-section">
+            <div class="field-fit">
+              <label>Seed</label>
+              <input type="number" id="batchMcqSeed" class="input-compact" placeholder="auto" />
+            </div>
+          </div>
+
+          <div class="batch-form-section" style="margin-top:4px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;">
+              <label style="margin:0;font-weight:600;font-size:0.8rem;">Question recipes</label>
+              <button type="button" class="btn btn-secondary btn-compact" id="btnBatchMcqAddRecipe" style="padding:2px 8px;font-size:0.72rem;">+ Add recipe</button>
+            </div>
+            <p class="muted" style="font-size:0.72rem;margin:0 0 8px;">Each row is a demand band and how many MCQs to generate at that level — e.g. Low ×3, Standard 4–5 ×2.</p>
+            <table id="batchMcqRecipes" style="width:100%;font-size:0.76rem;border-collapse:collapse;">
+              <thead>
+                <tr style="text-align:left;color:var(--text-muted);">
+                  <th style="padding:4px 6px;">Demand level</th>
+                  <th style="padding:4px 6px;">Count</th>
+                  <th style="padding:4px 6px;"></th>
+                </tr>
+              </thead>
+              <tbody id="batchMcqRecipesBody"></tbody>
+            </table>
+          </div>
+
+          <div class="batch-actions" style="display:flex;flex-wrap:wrap;">
+            <button type="button" class="btn btn-primary btn-compact" id="btnBatchMcqPreview">Generate preview</button>
+            <button type="button" class="btn btn-primary btn-compact" id="btnBatchMcqCommit" disabled>Commit all</button>
+            <button type="button" class="btn btn-secondary btn-compact" id="btnBatchMcqExport">Export JSON</button>
+          </div>
+          <p id="batchMcqStatus" class="muted" style="font-size:0.76rem;"></p>
+        </div>
+
+        <div class="card" style="padding:0; overflow-x:auto;">
+          <div style="padding:12px 16px 0;">
+            <h4 style="margin:0;">Preview — edit prompts, options &amp; feedback before commit</h4>
+            <p id="batchMcqPreviewCount" class="muted" style="font-size:0.82rem;margin:8px 0 0;"></p>
+          </div>
+          <table style="margin:0;min-width:1200px;font-size:0.8rem;">
+            <thead>
+              <tr>
+                <th style="width:40px;">#</th>
+                <th style="width:88px;">Demand</th>
+                <th>Prompt</th>
+                <th style="width:56px;">Marks</th>
+                <th style="width:72px;">Cmd</th>
+                <th style="width:48px;">Diff</th>
+                <th style="width:64px;">AO</th>
+                <th style="width:120px;">Correct</th>
+                <th style="width:200px;text-align:right;">Operations</th>
+              </tr>
+            </thead>
+            <tbody id="batchMcqPreviewBody">
+              <tr><td colspan="9" style="padding:24px;text-align:center;color:var(--text-muted);">Generate preview to see drafts.</td></tr>
+            </tbody>
+          </table>
+          <pre id="batchMcqLog" class="hidden" style="background:#1e293b;color:#38bdf8;padding:12px;border-radius:8px;font-size:0.75rem;max-height:200px;overflow-y:auto;margin:12px 16px 16px;"></pre>
+        </div>
+      </div>
+
       <!-- TAB 3: AUDIT & REVIEW LIST -->
       <div id="panelAudit" class="panel">
         <div class="card">
@@ -2688,10 +2855,12 @@
   import { supabaseClient } from "./src/dbClient.js";
   import * as CalcWorkflow from "./src/calculationWorkflow.js";
   import * as NumericGen from "./src/numericQuestionGenerator.js";
+  import * as McqBatchGen from "./src/mcqBatchGenerator.js";
   import { resolveMcqWrongFeedback, MCQ_FLASHCARD_ADDED_MSG, highlightCommandWordsInPrompt } from "./src/evalEngine.js";
 
   window.CalcWorkflow = CalcWorkflow;
   window.NumericGen = NumericGen;
+  window.McqBatchGen = McqBatchGen;
   window.supabaseClient = supabaseClient;
   window.resolveMcqWrongFeedback = resolveMcqWrongFeedback;
   window.MCQ_FLASHCARD_ADDED_MSG = MCQ_FLASHCARD_ADDED_MSG;
@@ -2956,6 +3125,7 @@
       creator: "panelCreator",
       csv: "panelCsv",
       batchNumeric: "panelBatchNumeric",
+      batchMcq: "panelBatchMcq",
       audit: "panelAudit",
       pilot: "panelPilot"
     };
@@ -2967,6 +3137,10 @@
       initBatchVariantRecipes();
       refreshBatchEquationSelect().catch(() => {});
       loadBatchSpecPointSelect().catch(() => {});
+    }
+    if (panelId === "batchMcq") {
+      initBatchMcqRecipes();
+      loadBatchMcqSpecPointSelect().catch(() => {});
     }
   };
 
@@ -5107,6 +5281,685 @@
   initBatchVariantRecipes();
   loadBatchSpecPointSelect().catch(() => {});
   refreshBatchEquationSelect().catch(() => {});
+
+  // ====== BATCH MCQ GENERATOR ======
+  let batchMcqPreviewDrafts = [];
+
+  function readBatchMcqRecipes() {
+    const rows = document.querySelectorAll("#batchMcqRecipesBody tr[data-mcq-recipe-row]");
+    const recipes = [];
+    rows.forEach((row) => {
+      const count = parseInt(row.querySelector(".batch-mcq-recipe-count")?.value, 10) || 0;
+      if (count <= 0) return;
+      recipes.push({
+        demand_level: row.querySelector(".batch-mcq-recipe-demand")?.value || "low",
+        count
+      });
+    });
+    return recipes;
+  }
+
+  function batchMcqDemandOptionsHtml(selected = "low", tier = "both") {
+    const options = McqBatchGen.getDemandOptionsForTier(tier);
+    return options.map((o) =>
+      `<option value="${escapeHtml(o.value)}"${o.value === selected ? " selected" : ""}>${escapeHtml(o.label)}</option>`
+    ).join("");
+  }
+
+  function addBatchMcqRecipeRow(recipe = {}) {
+    const tbody = document.getElementById("batchMcqRecipesBody");
+    if (!tbody) return;
+    const tier = document.getElementById("batchMcqTier")?.value || "both";
+    const demand = recipe.demand_level || "low";
+    const tr = document.createElement("tr");
+    tr.dataset.mcqRecipeRow = "1";
+    tr.innerHTML = `
+      <td style="padding:4px 6px;">
+        <select class="batch-mcq-recipe-demand batch-recipe-opt select-fit" style="min-width:10rem;">
+          ${batchMcqDemandOptionsHtml(demand, tier)}
+        </select>
+      </td>
+      <td style="padding:4px 6px;">
+        <input type="number" class="batch-mcq-recipe-count input-compact" min="0" value="${recipe.count ?? 1}" style="width:3.5rem;" />
+      </td>
+      <td style="padding:4px 6px;">
+        <button type="button" class="btn btn-danger batch-mcq-recipe-remove" style="padding:2px 6px;font-size:0.7rem;">×</button>
+      </td>`;
+    tr.querySelector(".batch-mcq-recipe-remove")?.addEventListener("click", () => {
+      tr.remove();
+      if (!tbody.querySelector("tr[data-mcq-recipe-row]")) {
+        addBatchMcqRecipeRow({ demand_level: "low", count: 1 });
+      }
+    });
+    tbody.appendChild(tr);
+  }
+
+  function refreshBatchMcqRecipeDemandSelects() {
+    const tier = document.getElementById("batchMcqTier")?.value || "both";
+    document.querySelectorAll("#batchMcqRecipesBody .batch-mcq-recipe-demand").forEach((sel) => {
+      const cur = sel.value;
+      sel.innerHTML = batchMcqDemandOptionsHtml(cur, tier);
+      if ([...sel.options].some((o) => o.value === cur)) sel.value = cur;
+    });
+  }
+
+  function initBatchMcqRecipes() {
+    const tbody = document.getElementById("batchMcqRecipesBody");
+    if (!tbody || tbody.dataset.wired) return;
+    tbody.dataset.wired = "1";
+    tbody.innerHTML = "";
+    addBatchMcqRecipeRow({ demand_level: "low", count: 3 });
+    document.getElementById("btnBatchMcqAddRecipe")?.addEventListener("click", () => {
+      addBatchMcqRecipeRow({ demand_level: "standard", count: 1 });
+    });
+  }
+
+  function buildBatchMcqSpecFromForm() {
+    const seedRaw = document.getElementById("batchMcqSeed")?.value;
+    const seed = seedRaw !== "" && seedRaw != null ? parseInt(seedRaw, 10) : Date.now();
+    return {
+      subject: document.getElementById("batchMcqSubject")?.value || "physics",
+      paper: document.getElementById("batchMcqPaper")?.value || "paper1",
+      tier: document.getElementById("batchMcqTier")?.value || "both",
+      courseTrack: document.getElementById("batchMcqCourseTrack")?.value || "combined",
+      audience: document.getElementById("batchMcqAudience")?.value || "both",
+      seed,
+      recipes: readBatchMcqRecipes()
+    };
+  }
+
+  function syncBatchMcqSpecLinkUi() {
+    const audience = document.getElementById("batchMcqAudience")?.value || "both";
+    const track = document.getElementById("batchMcqCourseTrack")?.value || "combined";
+    const linkedRow = document.getElementById("batchMcqSpecLinkLinkedRow");
+    const primaryLabel = document.getElementById("batchMcqPrimarySpecLabel");
+    const linkedLabel = document.getElementById("batchMcqLinkedSpecLabel");
+    const status = document.getElementById("batchMcqSpecLinkStatus");
+
+    if (linkedRow) linkedRow.classList.toggle("hidden", audience !== "both");
+
+    if (track === "triple") {
+      if (primaryLabel) primaryLabel.textContent = "Triple spec point (Separate sciences):";
+      if (linkedLabel) linkedLabel.textContent = "Linked combined spec point (auto-matched):";
+      if (status) {
+        status.textContent = audience === "both"
+          ? "Select the triple spec point. The combined Trilogy equivalent is resolved at commit."
+          : "Select the triple spec point for triple-only questions.";
+      }
+    } else {
+      if (primaryLabel) primaryLabel.textContent = "Combined spec point (Trilogy 8464):";
+      if (linkedLabel) linkedLabel.textContent = "Linked triple spec point (auto-matched):";
+      if (status) {
+        status.textContent = audience === "both"
+          ? "Select the combined spec point. The triple equivalent is resolved at commit."
+          : "Select the combined spec point for this question.";
+      }
+    }
+  }
+
+  async function loadBatchMcqSpecPointSelect() {
+    const subject = document.getElementById("batchMcqSubject")?.value || "physics";
+    const paper = document.getElementById("batchMcqPaper")?.value || "paper1";
+    const courseTrack = document.getElementById("batchMcqCourseTrack")?.value || "combined";
+    const select = document.getElementById("batchMcqSpecPointSelect");
+    if (!select) return;
+
+    select.innerHTML = "<option value=\"\">Loading references…</option>";
+    try {
+      const { data, error } = await supabaseClient
+        .from("spec_points")
+        .select("id, spec_ref, topic_name, spec_text")
+        .eq("subject", subject)
+        .eq("paper", paper)
+        .eq("course_track", courseTrack)
+        .order("spec_ref", { ascending: true });
+      if (error) throw error;
+      select.innerHTML = `<option value="">Select spec point…</option>` + (data || []).map((row) =>
+        `<option value="${row.id}">${row.spec_ref} - [${row.topic_name}] ${(row.spec_text || "").slice(0, 75)}…</option>`
+      ).join("");
+    } catch (err) {
+      select.innerHTML = "<option value=\"\">Error loading spec points</option>";
+      console.warn(err);
+    }
+    syncBatchMcqSpecLinkUi();
+    const primaryId = select.value;
+    if (primaryId) await autoFillBatchMcqLinkedSpec(primaryId);
+  }
+
+  async function autoFillBatchMcqLinkedSpec(primarySpecPointId) {
+    const audience = document.getElementById("batchMcqAudience")?.value || "both";
+    const display = document.getElementById("batchMcqLinkedSpecDisplay");
+    if (!display) return;
+    if (!primarySpecPointId || audience !== "both") {
+      display.value = "";
+      return;
+    }
+    const track = document.getElementById("batchMcqCourseTrack")?.value || "combined";
+    const equiv = await lookupEquivalence(primarySpecPointId, track);
+    const linkedId = track === "triple" ? equiv?.combined : equiv?.triple;
+    if (!linkedId) {
+      display.value = "";
+      return;
+    }
+    display.value = await formatSpecPointLabel(linkedId);
+  }
+
+  async function resolveBatchMcqSpecIdsForCommit() {
+    const audience = document.getElementById("batchMcqAudience")?.value || "both";
+    const track = document.getElementById("batchMcqCourseTrack")?.value || "combined";
+    const primaryId = document.getElementById("batchMcqSpecPointSelect")?.value || "";
+
+    if (!primaryId) {
+      return { spec_point_id: null, triple_spec_point_id: null, ok: false };
+    }
+
+    if (audience === "triple_only") {
+      return { spec_point_id: primaryId, triple_spec_point_id: null, ok: true };
+    }
+
+    const equiv = await lookupEquivalence(primaryId, track);
+    if (!equiv?.combined || !equiv?.triple) {
+      return { spec_point_id: null, triple_spec_point_id: null, ok: false };
+    }
+
+    return {
+      spec_point_id: equiv.combined,
+      triple_spec_point_id: equiv.triple,
+      ok: true
+    };
+  }
+
+  async function loadBatchMcqSpecPointData(specPointId) {
+    const { data, error } = await supabaseClient
+      .from("spec_points")
+      .select("id, spec_ref, topic_name, spec_text, subject, paper, course_track")
+      .eq("id", specPointId)
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) throw new Error("Spec point not found");
+    return data;
+  }
+
+  function batchMcqCommandWordOptions(selected = "") {
+    const words = McqBatchGen.COMMAND_WORD_OPTIONS || [];
+    return `<option value="">—</option>` + words.map((w) =>
+      `<option value="${escapeHtml(w)}"${w === selected ? " selected" : ""}>${escapeHtml(w)}</option>`
+    ).join("");
+  }
+
+  function renderBatchMcqOptionBlock(draft, idx, optIdx, letter) {
+    const options = draft.question?.options || ["", "", "", ""];
+    const optText = options[optIdx] || "";
+    const correct = draft.answer_key?.key_payload?.correct || "";
+    const fbMap = draft.answer_key?.key_payload?.option_feedback || {};
+    const fbText = fbMap[optText] || "";
+    const isCorrect = optText && optText === correct;
+    return `
+      <div class="batch-mcq-opt-block" style="margin-bottom:8px;">
+        <label style="font-size:0.72rem;font-weight:600;">Option ${letter}</label>
+        <input type="text" class="batch-mcq-opt" data-batch-mcq-idx="${idx}" data-opt-idx="${optIdx}" value="${escapeHtml(optText)}" style="width:100%;font-size:0.78rem;padding:4px 8px;margin-top:2px;" />
+        <div class="batch-mcq-opt-fb-wrap${isCorrect ? " hidden" : ""}" data-opt-idx="${optIdx}" style="margin-top:4px;">
+          <label style="font-size:0.7rem;color:var(--text-muted);">Feedback if chosen</label>
+          <textarea class="batch-mcq-opt-fb" data-batch-mcq-idx="${idx}" data-opt-idx="${optIdx}" rows="2" style="width:100%;font-size:0.76rem;padding:4px 8px;">${escapeHtml(fbText)}</textarea>
+        </div>
+      </div>`;
+  }
+
+  function renderBatchMcqPreviewTable(drafts, errors) {
+    const tbody = document.getElementById("batchMcqPreviewBody");
+    const logEl = document.getElementById("batchMcqLog");
+    const countEl = document.getElementById("batchMcqPreviewCount");
+    if (!tbody) return;
+
+    if (!drafts.length && !errors.length) {
+      tbody.innerHTML = '<tr><td colspan="9" style="padding:24px;text-align:center;color:var(--text-muted);">No drafts generated.</td></tr>';
+      if (countEl) countEl.textContent = "";
+      return;
+    }
+
+    tbody.innerHTML = drafts.map((d, i) => {
+      const q = d.question;
+      const correct = d.answer_key?.key_payload?.correct || "";
+      const diff = window.AdminMetadata
+        ? window.AdminMetadata.computeQuestionDifficulty(q)
+        : (q.difficulty ?? 2);
+      const demand = McqBatchGen.demandRecipeLabel(d.variant);
+      const promptEsc = escapeHtml(q.prompt || "");
+      const mp = d.mark_points?.[0] || {};
+      const letters = ["A", "B", "C", "D"];
+      const correctOptions = (q.options || [])
+        .filter((o) => o)
+        .map((opt, oi) => {
+          const letter = letters[oi] || "?";
+          const sel = opt === correct ? " selected" : "";
+          return `<option value="${escapeHtml(opt)}"${sel}>${letter}: ${escapeHtml(opt.slice(0, 40))}${opt.length > 40 ? "…" : ""}</option>`;
+        })
+        .join("");
+
+      return `
+        <tr style="border-top:1px solid var(--border);" data-batch-mcq-idx="${i}">
+          <td style="padding:10px 12px;font-weight:700;">${i + 1}</td>
+          <td style="padding:10px 12px;font-size:0.76rem;">${escapeHtml(demand)}</td>
+          <td style="padding:10px 12px;min-width:260px;">
+            <textarea class="batch-mcq-prompt-edit" data-batch-mcq-idx="${i}" rows="4" style="width:100%;font-size:0.8rem;font-family:inherit;padding:6px;border:1px solid #cbd5e1;border-radius:4px;">${promptEsc}</textarea>
+          </td>
+          <td style="padding:10px 12px;font-weight:700;">${q.max_marks}</td>
+          <td style="padding:10px 12px;">
+            <select class="batch-mcq-cmd select-fit" data-batch-mcq-idx="${i}" style="font-size:0.72rem;min-width:5.5rem;">
+              ${batchMcqCommandWordOptions(q.command_word || "")}
+            </select>
+          </td>
+          <td style="padding:10px 12px;text-align:center;" data-batch-mcq-diff><span class="difficulty-badge difficulty-badge--compact">${diff}</span></td>
+          <td style="padding:10px 12px;font-size:0.72rem;font-family:monospace;" data-batch-mcq-ao>${escapeHtml(batchDraftAoSplit(q))}</td>
+          <td style="padding:10px 12px;font-size:0.72rem;max-width:120px;overflow:hidden;text-overflow:ellipsis;" data-batch-mcq-correct title="${escapeHtml(correct)}">${escapeHtml(correct.slice(0, 36))}${correct.length > 36 ? "…" : ""}</td>
+          <td style="padding:10px 12px;text-align:right;white-space:nowrap;">
+            <button type="button" class="btn btn-secondary" onclick="launchBatchMcqSandboxPreview(${i})" style="padding:4px 8px;font-size:0.72rem;background:#3b82f6;color:#fff;">Test</button>
+            <button type="button" class="btn btn-danger" onclick="removeBatchMcqDraft(${i})" style="padding:4px 8px;font-size:0.72rem;">Remove</button>
+          </td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border);background:#f8fafc;" data-batch-mcq-detail="${i}">
+          <td colspan="9" style="padding:10px 16px 14px;">
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px 16px;">
+              <div>${letters.map((L, oi) => renderBatchMcqOptionBlock(d, i, oi, L)).join("")}</div>
+              <div>
+                <label style="font-size:0.72rem;font-weight:600;">Correct answer</label>
+                <select class="batch-mcq-correct select-fit" data-batch-mcq-idx="${i}" style="width:100%;margin-top:4px;font-size:0.78rem;">
+                  <option value="">— Choose correct —</option>
+                  ${correctOptions}
+                </select>
+                <label style="display:block;margin-top:10px;font-size:0.72rem;font-weight:600;">Overall feedback (Section 3)</label>
+                <textarea class="batch-mcq-overall-fb" data-batch-mcq-idx="${i}" rows="3" style="width:100%;font-size:0.78rem;padding:6px;margin-top:4px;" placeholder="Generic feedback if incorrect…">${escapeHtml(mp.feedback_if_missing || "")}</textarea>
+                <div style="margin-top:10px;">
+                  <label style="font-size:0.72rem;font-weight:600;">AO marks (must total 1)</label>
+                  <div style="display:flex;gap:8px;margin-top:4px;align-items:center;">
+                    <span style="font-size:0.72rem;">AO1 <input type="number" class="batch-mcq-ao1 input-compact" data-batch-mcq-idx="${i}" min="0" max="1" value="${q.ao1_marks ?? 1}" style="width:2.5rem;" /></span>
+                    <span style="font-size:0.72rem;">AO2 <input type="number" class="batch-mcq-ao2 input-compact" data-batch-mcq-idx="${i}" min="0" max="1" value="${q.ao2_marks ?? 0}" style="width:2.5rem;" /></span>
+                    <span style="font-size:0.72rem;">AO3 <input type="number" class="batch-mcq-ao3 input-compact" data-batch-mcq-idx="${i}" min="0" max="1" value="${q.ao3_marks ?? 0}" style="width:2.5rem;" /></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </td>
+        </tr>`;
+    }).join("");
+
+    if (countEl) {
+      countEl.textContent = `${drafts.length} draft(s) ready${errors.length ? ` · ${errors.length} recipe(s) failed` : ""}`;
+    }
+
+    wireBatchMcqPreviewEditors();
+
+    if (errors.length && logEl) {
+      logEl.classList.remove("hidden");
+      logEl.textContent = errors.map((e) => `⚠ ${McqBatchGen.demandRecipeLabel(e.variant)}: ${e.message}`).join("\n");
+    } else if (logEl) {
+      logEl.classList.add("hidden");
+      logEl.textContent = "";
+    }
+  }
+
+  function syncBatchMcqDraftFromDom(idx) {
+    const draft = batchMcqPreviewDrafts[idx];
+    if (!draft) return null;
+
+    const main = document.querySelector(`tr[data-batch-mcq-idx="${idx}"]`);
+    const detail = document.querySelector(`tr[data-batch-mcq-detail="${idx}"]`);
+    if (!main || !detail) return draft;
+
+    const options = [0, 1, 2, 3].map((oi) =>
+      detail.querySelector(`.batch-mcq-opt[data-opt-idx="${oi}"]`)?.value?.trim() || ""
+    );
+    while (options.length < 4) options.push("");
+
+    const correct = detail.querySelector(".batch-mcq-correct")?.value || "";
+    const optionFeedback = {};
+    [0, 1, 2, 3].forEach((oi) => {
+      const opt = options[oi];
+      const fb = detail.querySelector(`.batch-mcq-opt-fb[data-opt-idx="${oi}"]`)?.value?.trim();
+      if (opt && fb && opt !== correct) optionFeedback[opt] = fb;
+    });
+
+    const updated = McqBatchGen.syncDraftFromPreviewEdits(draft, {
+      prompt: main.querySelector(".batch-mcq-prompt-edit")?.value?.trim(),
+      options,
+      correct,
+      option_feedback: Object.keys(optionFeedback).length ? optionFeedback : undefined,
+      overall_feedback: detail.querySelector(".batch-mcq-overall-fb")?.value?.trim(),
+      ao1_marks: parseInt(detail.querySelector(".batch-mcq-ao1")?.value, 10) || 0,
+      ao2_marks: parseInt(detail.querySelector(".batch-mcq-ao2")?.value, 10) || 0,
+      ao3_marks: parseInt(detail.querySelector(".batch-mcq-ao3")?.value, 10) || 0,
+      command_word: main.querySelector(".batch-mcq-cmd")?.value || draft.question.command_word
+    });
+
+    if (window.AdminMetadata) {
+      updated.question.difficulty = window.AdminMetadata.computeQuestionDifficulty(updated.question);
+    }
+    batchMcqPreviewDrafts[idx] = updated;
+    return updated;
+  }
+
+  function updateBatchMcqDraftRowDom(idx) {
+    const draft = batchMcqPreviewDrafts[idx];
+    if (!draft) return;
+    const row = document.querySelector(`tr[data-batch-mcq-idx="${idx}"]`);
+    if (!row) return;
+
+    const q = draft.question;
+    const correct = draft.answer_key?.key_payload?.correct || "";
+    const diff = window.AdminMetadata
+      ? window.AdminMetadata.computeQuestionDifficulty(q)
+      : (q.difficulty ?? 2);
+
+    const diffCell = row.querySelector("[data-batch-mcq-diff] .difficulty-badge")
+      || row.querySelector("[data-batch-mcq-diff]");
+    if (diffCell) diffCell.textContent = diff;
+
+    const aoCell = row.querySelector("[data-batch-mcq-ao]");
+    if (aoCell) aoCell.textContent = batchDraftAoSplit(q);
+
+    const correctCell = row.querySelector("[data-batch-mcq-correct]");
+    if (correctCell) {
+      correctCell.textContent = correct.length > 36 ? `${correct.slice(0, 36)}…` : correct;
+      correctCell.title = correct;
+    }
+  }
+
+  function updateBatchMcqCorrectSelect(idx) {
+    const detail = document.querySelector(`tr[data-batch-mcq-detail="${idx}"]`);
+    if (!detail) return;
+    const draft = batchMcqPreviewDrafts[idx];
+    const options = [0, 1, 2, 3].map((oi) =>
+      detail.querySelector(`.batch-mcq-opt[data-opt-idx="${oi}"]`)?.value?.trim() || ""
+    );
+    const select = detail.querySelector(".batch-mcq-correct");
+    if (!select) return;
+    const prev = select.value;
+    const letters = ["A", "B", "C", "D"];
+    select.innerHTML = '<option value="">— Choose correct —</option>' + options
+      .map((opt, oi) => {
+        if (!opt) return "";
+        const letter = letters[oi];
+        const sel = opt === prev ? " selected" : "";
+        return `<option value="${escapeHtml(opt)}"${sel}>${letter}: ${escapeHtml(opt.slice(0, 40))}${opt.length > 40 ? "…" : ""}</option>`;
+      })
+      .filter(Boolean)
+      .join("");
+    if (prev && options.includes(prev)) select.value = prev;
+    else if (draft?.answer_key?.key_payload?.correct && options.includes(draft.answer_key.key_payload.correct)) {
+      select.value = draft.answer_key.key_payload.correct;
+    }
+    syncBatchMcqOptionFeedbackVisibility(idx);
+  }
+
+  function syncBatchMcqOptionFeedbackVisibility(idx) {
+    const detail = document.querySelector(`tr[data-batch-mcq-detail="${idx}"]`);
+    if (!detail) return;
+    const correct = detail.querySelector(".batch-mcq-correct")?.value || "";
+    [0, 1, 2, 3].forEach((oi) => {
+      const opt = detail.querySelector(`.batch-mcq-opt[data-opt-idx="${oi}"]`)?.value?.trim() || "";
+      const wrap = detail.querySelector(`.batch-mcq-opt-fb-wrap[data-opt-idx="${oi}"]`);
+      if (!wrap) return;
+      wrap.classList.toggle("hidden", !!opt && opt === correct);
+    });
+  }
+
+  function wireBatchMcqPreviewEditors() {
+    document.querySelectorAll(".batch-mcq-prompt-edit, .batch-mcq-cmd").forEach((el) => {
+      el.addEventListener("input", () => {
+        const idx = parseInt(el.dataset.batchMcqIdx, 10);
+        syncBatchMcqDraftFromDom(idx);
+        updateBatchMcqDraftRowDom(idx);
+      });
+      el.addEventListener("change", () => {
+        const idx = parseInt(el.dataset.batchMcqIdx, 10);
+        syncBatchMcqDraftFromDom(idx);
+        updateBatchMcqDraftRowDom(idx);
+      });
+    });
+
+    document.querySelectorAll(".batch-mcq-opt").forEach((el) => {
+      el.addEventListener("input", () => {
+        const idx = parseInt(el.dataset.batchMcqIdx, 10);
+        updateBatchMcqCorrectSelect(idx);
+        syncBatchMcqDraftFromDom(idx);
+        updateBatchMcqDraftRowDom(idx);
+      });
+    });
+
+    document.querySelectorAll(".batch-mcq-correct").forEach((el) => {
+      el.addEventListener("change", () => {
+        const idx = parseInt(el.dataset.batchMcqIdx, 10);
+        syncBatchMcqOptionFeedbackVisibility(idx);
+        syncBatchMcqDraftFromDom(idx);
+        updateBatchMcqDraftRowDom(idx);
+      });
+    });
+
+    document.querySelectorAll(".batch-mcq-opt-fb, .batch-mcq-overall-fb, .batch-mcq-ao1, .batch-mcq-ao2, .batch-mcq-ao3").forEach((el) => {
+      el.addEventListener("input", () => {
+        const idx = parseInt(el.dataset.batchMcqIdx, 10);
+        syncBatchMcqDraftFromDom(idx);
+        updateBatchMcqDraftRowDom(idx);
+      });
+    });
+  }
+
+  window.removeBatchMcqDraft = function(index) {
+    batchMcqPreviewDrafts.splice(index, 1);
+    renderBatchMcqPreviewTable(batchMcqPreviewDrafts, []);
+    const commitBtn = document.getElementById("btnBatchMcqCommit");
+    if (commitBtn) commitBtn.disabled = batchMcqPreviewDrafts.length === 0;
+    document.getElementById("batchMcqStatus").textContent = `${batchMcqPreviewDrafts.length} draft(s) in preview.`;
+  };
+
+  window.launchBatchMcqSandboxPreview = async function(index) {
+    syncBatchMcqDraftFromDom(index);
+    const draft = batchMcqPreviewDrafts[index];
+    if (!draft) return;
+
+    currentSandboxedQ = { ...draft.question, id: `batch-mcq-preview-${index}` };
+    currentSandboxedKey = draft.answer_key;
+    currentSandboxedMarkPoints = draft.mark_points || [];
+    currentSandboxedEquationSheet = null;
+
+    const stage = document.getElementById("sandboxStage");
+    const feedbackCard = document.getElementById("sandboxFeedbackCard");
+    const btnSubmitSandbox = document.getElementById("btnSandboxSubmit");
+
+    stage.innerHTML = "Loading preview…";
+    feedbackCard.classList.add("hidden");
+    btnSubmitSandbox.disabled = false;
+    document.getElementById("sandboxModalOverlay").classList.remove("hidden");
+
+    renderSandboxQuestion(currentSandboxedQ);
+    if (window.MathJax?.typesetPromise) {
+      window.MathJax.typesetPromise().catch(() => {});
+    }
+  };
+
+  ["batchMcqSubject", "batchMcqPaper", "batchMcqTier", "batchMcqCourseTrack"].forEach((id) => {
+    document.getElementById(id)?.addEventListener("change", () => {
+      if (id === "batchMcqTier") refreshBatchMcqRecipeDemandSelects();
+      loadBatchMcqSpecPointSelect().catch(() => {});
+    });
+  });
+
+  document.getElementById("batchMcqAudience")?.addEventListener("change", () => {
+    syncBatchMcqSpecLinkUi();
+    const specId = document.getElementById("batchMcqSpecPointSelect")?.value;
+    if (specId) void autoFillBatchMcqLinkedSpec(specId);
+  });
+
+  document.getElementById("batchMcqCourseTrack")?.addEventListener("change", syncBatchMcqSpecLinkUi);
+
+  document.getElementById("batchMcqSpecPointSelect")?.addEventListener("change", async () => {
+    const specId = document.getElementById("batchMcqSpecPointSelect")?.value;
+    if (specId) await autoFillBatchMcqLinkedSpec(specId);
+  });
+
+  document.getElementById("btnBatchMcqPreview")?.addEventListener("click", async () => {
+    const status = document.getElementById("batchMcqStatus");
+    const commitBtn = document.getElementById("btnBatchMcqCommit");
+    try {
+      const spec = buildBatchMcqSpecFromForm();
+      if (!spec.recipes?.length) {
+        throw new Error("Add at least one recipe row with count greater than 0");
+      }
+      const specPointId = document.getElementById("batchMcqSpecPointSelect")?.value;
+      if (!specPointId) {
+        throw new Error("Select a spec point from the dropdown");
+      }
+      const specPoint = await loadBatchMcqSpecPointData(specPointId);
+      const { drafts, errors, seed } = McqBatchGen.generateMcqBatch(spec, specPoint);
+      batchMcqPreviewDrafts = drafts.map((d) => ({
+        ...d,
+        question: {
+          ...d.question,
+          difficulty: window.AdminMetadata
+            ? window.AdminMetadata.computeQuestionDifficulty(d.question)
+            : 2
+        }
+      }));
+      renderBatchMcqPreviewTable(batchMcqPreviewDrafts, errors);
+      if (commitBtn) commitBtn.disabled = batchMcqPreviewDrafts.length === 0;
+      if (status) {
+        status.textContent = `Preview: ${drafts.length} draft(s), ${errors.length} error(s). Seed: ${seed}. Edit prompts and options in the table before committing.`;
+      }
+      if (errors.length) showAdminToast(`${errors.length} recipe(s) failed — see log below table.`, true);
+    } catch (err) {
+      showAdminToast(err.message, true);
+      if (status) status.textContent = err.message;
+    }
+  });
+
+  document.getElementById("btnBatchMcqExport")?.addEventListener("click", () => {
+    if (!batchMcqPreviewDrafts.length) {
+      showAdminToast("Generate a preview first.", true);
+      return;
+    }
+    batchMcqPreviewDrafts.forEach((_, i) => syncBatchMcqDraftFromDom(i));
+    const blob = new Blob([JSON.stringify(batchMcqPreviewDrafts, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `mcq_batch_${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+
+  document.getElementById("btnBatchMcqCommit")?.addEventListener("click", async () => {
+    if (!batchMcqPreviewDrafts.length) {
+      showAdminToast("Nothing to commit — generate preview first.", true);
+      return;
+    }
+
+    batchMcqPreviewDrafts.forEach((_, i) => syncBatchMcqDraftFromDom(i));
+
+    const status = document.getElementById("batchMcqStatus");
+    const logEl = document.getElementById("batchMcqLog");
+    const commitBtn = document.getElementById("btnBatchMcqCommit");
+    if (commitBtn) commitBtn.disabled = true;
+
+    let ok = 0;
+    let fail = 0;
+    const logLines = [];
+
+    try {
+      const specIds = await resolveBatchMcqSpecIdsForCommit();
+      if (!specIds.ok) {
+        throw new Error("Could not resolve spec point equivalences — check audience and course track.");
+      }
+      const audience = document.getElementById("batchMcqAudience")?.value || "both";
+
+      for (let i = 0; i < batchMcqPreviewDrafts.length; i++) {
+        const draft = batchMcqPreviewDrafts[i];
+        const q = draft.question;
+        const aoSum = (q.ao1_marks || 0) + (q.ao2_marks || 0) + (q.ao3_marks || 0);
+        if (aoSum !== 1) {
+          fail++;
+          logLines.push(`✗ Draft ${i + 1}: AO marks must total 1 (got ${aoSum})`);
+          continue;
+        }
+        const filledOptions = (q.options || []).filter((o) => o?.trim());
+        if (filledOptions.length < 2) {
+          fail++;
+          logLines.push(`✗ Draft ${i + 1}: Need at least 2 answer options`);
+          continue;
+        }
+        if (!draft.answer_key?.key_payload?.correct) {
+          fail++;
+          logLines.push(`✗ Draft ${i + 1}: Select a correct answer`);
+          continue;
+        }
+
+        try {
+          const insertPayload = {
+            ...q,
+            options: (q.options || []).map((o) => String(o || "").trim()),
+            spec_point_id: specIds.spec_point_id,
+            triple_spec_point_id: audience === "both" ? specIds.triple_spec_point_id : null,
+            audience,
+            difficulty: window.AdminMetadata
+              ? window.AdminMetadata.computeQuestionDifficulty(q)
+              : (q.difficulty ?? 2)
+          };
+
+          const { data: qResult, error: qErr } = await supabaseClient
+            .from("questions")
+            .insert(insertPayload)
+            .select()
+            .single();
+          if (qErr) throw qErr;
+
+          const { error: kErr } = await supabaseClient
+            .from("answer_keys")
+            .insert({
+              question_id: qResult.id,
+              key_type: "mcq",
+              key_payload: draft.answer_key.key_payload
+            });
+          if (kErr) throw kErr;
+
+          if (draft.mark_points?.length) {
+            const markPayloads = draft.mark_points.map((mp) => ({
+              question_id: qResult.id,
+              ao: mp.ao || "AO1",
+              point_text: mp.point_text || draft.answer_key.key_payload.correct,
+              feedback_if_missing: mp.feedback_if_missing || "",
+              max_marks: mp.max_marks || 1
+            }));
+            const { error: mpErr } = await supabaseClient.from("mark_points").insert(markPayloads);
+            if (mpErr) throw mpErr;
+          }
+
+          ok++;
+          logLines.push(`✓ ${qResult.id} — ${McqBatchGen.demandRecipeLabel(draft.variant)}`);
+        } catch (err) {
+          fail++;
+          logLines.push(`✗ Draft ${i + 1}: ${err.message}`);
+        }
+      }
+
+      if (logEl) {
+        logEl.classList.remove("hidden");
+        logEl.textContent = logLines.join("\n");
+      }
+      if (status) status.textContent = `Committed ${ok} question(s), ${fail} failed.`;
+      showAdminToast(fail ? `Batch done with ${fail} failure(s).` : `Successfully committed ${ok} question(s).`, fail > 0);
+      if (ok > 0) {
+        batchMcqPreviewDrafts = [];
+        renderBatchMcqPreviewTable([], []);
+      }
+    } catch (err) {
+      showAdminToast(err.message, true);
+      if (status) status.textContent = err.message;
+    } finally {
+      if (commitBtn) commitBtn.disabled = batchMcqPreviewDrafts.length === 0;
+    }
+  });
+
+  syncBatchMcqSpecLinkUi();
+  initBatchMcqRecipes();
+  loadBatchMcqSpecPointSelect().catch(() => {});
 
   // ====== TAB 3: AUDIT CHECKLISTS & ACTIONS ======
   const btnQueryQuestions = document.getElementById("btnQueryQuestions");
