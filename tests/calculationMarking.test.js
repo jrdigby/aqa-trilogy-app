@@ -231,6 +231,53 @@ test("sig figs: exact calculate mark + separate sig figs mark", () => {
   assert.ok(!result.missing.some((m) => m.stepType === "calculate"));
 });
 
+test("separate answer boxes: 605 in calculate and 610 in sig figs both score", () => {
+  const q = {
+    max_marks: 2,
+    calculation_config: {
+      equation_given: true,
+      steps: [
+        { type: "calculate", required: true, marks: 1 },
+        { type: "sig_figs", required: true, sig_figs: 2, enforce_on_final: true, marks: 1 }
+      ]
+    }
+  };
+  const resp = { steps: { calculate: 605, sig_figs: 610 } };
+  const key = {
+    key_payload: {
+      answer: 605,
+      exact_answer: 605,
+      tolerance: 0.001,
+      unit: "J"
+    }
+  };
+  const result = markCalculationResponse(q, resp, key, [], null, null);
+  assert.equal(result.stepResults.calculate.correct, true);
+  assert.equal(result.stepResults.calculate.earned, 1);
+  assert.equal(result.stepResults.sig_figs.correct, true);
+  assert.equal(result.stepResults.sig_figs.earned, 1);
+  assert.equal(result.total, 2);
+});
+
+test("separate answer boxes: 610 only in calculate loses calculation mark", () => {
+  const q = {
+    calculation_config: {
+      equation_given: true,
+      steps: [
+        { type: "calculate", required: true, marks: 1 },
+        { type: "sig_figs", required: true, sig_figs: 2, enforce_on_final: true, marks: 1 }
+      ]
+    }
+  };
+  const resp = { steps: { calculate: 610, sig_figs: 610 } };
+  const key = {
+    key_payload: { answer: 605, exact_answer: 605, tolerance: 0.001, unit: "J" }
+  };
+  const result = markCalculationResponse(q, resp, key, [], null, null);
+  assert.equal(result.stepResults.calculate.correct, false);
+  assert.equal(result.stepResults.sig_figs.correct, true);
+});
+
 test("sig figs: 5 s.f. calculate answer loses sig figs mark when 2 s.f. required", () => {
   const q = {
     max_marks: 2,
@@ -534,4 +581,363 @@ test("applyDefaultStepFeedbackToConfig drops incorrect from step feedback", () =
   assert.equal(calc.feedback_if_wrong, "Final calculation: expected 16 J.");
   assert.ok(!conv.feedback_if_wrong.includes("incorrect"));
   assert.ok(!calc.feedback_if_wrong.includes("incorrect"));
+});
+
+test("buildSubstitutionFeedbackText uses SI value after unit conversion", () => {
+  const equation = {
+    id: "kinetic_energy",
+    substitution_template: {
+      layout: "product",
+      tokens: [
+        { kind: "slot", id: "E_k" },
+        { kind: "op", text: "=" },
+        { kind: "slot", id: "m" },
+        { kind: "op", text: "×" },
+        { kind: "slot", id: "v", label: "v" },
+        { kind: "op", text: "²" }
+      ]
+    }
+  };
+  const subStep = {
+    slot_answers: { m: ["10000"], v: ["4"], E_k: ["E_k"] },
+    si_slot_answers: { m: ["10"], v: ["4"], E_k: ["E_k"] }
+  };
+  const convStep = {
+    slot_id: "m",
+    answer: 10,
+    to_unit: "kg",
+    from_unit: "g",
+    display_value: 10000
+  };
+  const text = buildSubstitutionFeedbackText(subStep, equation, { convStep });
+  assert.equal(text, "Substitute m=10kg and v=4m/s");
+  assert.ok(!text.includes("10000"));
+});
+
+test("conversion then substitution — SI value after correct conversion is accepted", async () => {
+  const fs = await import("fs");
+  const path = await import("path");
+  const { fileURLToPath } = await import("url");
+  const __dirname = path.dirname(fileURLToPath(import.meta.url));
+  const sheetP1 = JSON.parse(
+    fs.readFileSync(path.join(__dirname, "..", "data", "equation_sheets", "physics_p1_ht.json"), "utf8")
+  );
+  const { generateBatch } = await import("../src/numericQuestionGenerator.js");
+
+  let draft = null;
+  for (let seed = 0; seed < 80; seed++) {
+    const { drafts } = generateBatch(
+      {
+        equation: "weight",
+        sheet: "physics_p1_ht",
+        variants: { recipes: [{ base: "substitute", unitConversion: true, count: 1 }] },
+        seed
+      },
+      sheetP1
+    );
+    const cfg = drafts[0].question.calculation_config;
+    if (cfg.steps.some((s) => s.type === "conversion" && s.slot_id === "m")) {
+      draft = drafts[0];
+      break;
+    }
+  }
+  assert.ok(draft, "expected a weight question with mass unit conversion");
+
+  const cfg = draft.question.calculation_config;
+  const convStep = cfg.steps.find((s) => s.type === "conversion");
+  const subStep = cfg.steps.find((s) => s.type === "substitution");
+  const convSlot = convStep.slot_id;
+  const siVal = subStep.si_slot_answers?.[convSlot]?.[0] ?? subStep.slot_answers[convSlot][0];
+
+  const slots = {};
+  for (const [id, vals] of Object.entries(subStep.slot_answers)) {
+    const v = Array.isArray(vals) ? vals[0] : vals;
+    slots[id] = id === convSlot ? String(siVal) : String(v);
+  }
+
+  const resp = {
+    steps: {
+      conversion: parseFloat(convStep.answer),
+      substitution: {
+        mode: "structured",
+        equation_id: subStep.equation_id,
+        slots
+      },
+      calculate: draft.answer_key.key_payload.answer
+    }
+  };
+
+  const result = markCalculationResponse(
+    draft.question,
+    resp,
+    draft.answer_key,
+    [],
+    null,
+    sheetP1
+  );
+
+  assert.equal(result.stepResults.conversion.correct, true);
+  assert.equal(result.stepResults.substitution.correct, true);
+  assert.equal(result.stepResults.substitution.ecf, false);
+});
+
+test("stale baked substitution feedback is ignored when conversion step exists", () => {
+  const equation = {
+    id: "kinetic_energy",
+    substitution_template: {
+      layout: "sum_product",
+      tokens: [
+        { kind: "slot", id: "E_k", label: "E_k" },
+        { kind: "op", text: "=" },
+        { kind: "op", text: "½" },
+        { kind: "op", text: "×" },
+        { kind: "slot", id: "m", label: "m" },
+        { kind: "op", text: "×" },
+        { kind: "slot", id: "v", label: "v" },
+        { kind: "op", text: "²" }
+      ]
+    }
+  };
+  const config = {
+    equation_given: true,
+    steps: [
+      {
+        type: "conversion",
+        required: true,
+        marks: 1,
+        slot_id: "m",
+        answer: 10,
+        display_value: 10000,
+        from_unit: "g",
+        to_unit: "kg"
+      },
+      {
+        type: "substitution",
+        required: true,
+        marks: 1,
+        mode: "structured",
+        equation_id: "kinetic_energy",
+        feedback_if_wrong: "Substitute m=10000g and v=11m/s",
+        slot_answers: { m: ["10000"], v: ["11"] },
+        si_slot_answers: { m: ["10"], v: ["11"] }
+      },
+      { type: "calculate", required: true, marks: 1 }
+    ]
+  };
+  const subStep = config.steps[1];
+  const live = buildSubstitutionFeedbackText(subStep, equation, { convStep: config.steps[0] });
+  assert.equal(live, "Substitute m=10kg and v=11m/s");
+
+  const q = {
+    question_type: "numeric",
+    calculation_config: config
+  };
+  const resp = {
+    steps: {
+      conversion: 10,
+      substitution: {
+        mode: "structured",
+        equation_id: "kinetic_energy",
+        slots: { m: "10", v: "11", E_k: "" }
+      },
+      calculate: 605
+    }
+  };
+  const key = {
+    key_type: "numeric",
+    key_payload: { answer: 605, exact_answer: 605, tolerance: 0.001, unit: "J" }
+  };
+  const result = markCalculationResponse(q, resp, key, [], null, { equations: [equation] });
+  assert.equal(result.stepResults.substitution.correct, true, "SI mass after conversion should score");
+  const subMissing = result.missing.find((m) => m.stepType === "substitution");
+  assert.equal(subMissing, undefined);
+});
+
+test("substitution with stem value after conversion — conversion hint precedes substitution feedback", async () => {
+  const fs = await import("fs");
+  const path = await import("path");
+  const { fileURLToPath } = await import("url");
+  const __dirname = path.dirname(fileURLToPath(import.meta.url));
+  const sheetP1 = JSON.parse(
+    fs.readFileSync(path.join(__dirname, "..", "data", "equation_sheets", "physics_p1_ht.json"), "utf8")
+  );
+  const { generateBatch } = await import("../src/numericQuestionGenerator.js");
+
+  const { drafts } = generateBatch(
+    {
+      equation: "weight",
+      sheet: "physics_p1_ht",
+      variants: { recipes: [{ base: "substitute", unitConversion: true, count: 1 }] },
+      seed: 12
+    },
+    sheetP1
+  );
+  const draft = drafts[0];
+  const cfg = draft.question.calculation_config;
+  const convStep = cfg.steps.find((s) => s.type === "conversion");
+  const subStep = cfg.steps.find((s) => s.type === "substitution");
+  if (convStep.slot_id !== "m") return;
+
+  const slots = {};
+  for (const [id, vals] of Object.entries(subStep.slot_answers)) {
+    const v = Array.isArray(vals) ? vals[0] : vals;
+    slots[id] = id === convStep.slot_id ? String(convStep.display_value) : String(v);
+  }
+
+  const resp = {
+    steps: {
+      conversion: parseFloat(convStep.answer),
+      substitution: {
+        mode: "structured",
+        equation_id: subStep.equation_id,
+        slots
+      },
+      calculate: 0
+    }
+  };
+
+  const result = markCalculationResponse(
+    draft.question,
+    resp,
+    draft.answer_key,
+    [],
+    null,
+    sheetP1
+  );
+
+  assert.equal(result.stepResults.substitution.correct, false);
+  const convIdx = result.missing.findIndex((m) => m.stepType === "conversion" && !m.isEcf);
+  const subIdx = result.missing.findIndex((m) => m.stepType === "substitution");
+  assert.ok(convIdx >= 0 && subIdx >= 0 && convIdx < subIdx);
+  assert.ok(result.missing[convIdx].text.includes(String(convStep.answer)));
+});
+
+test("wrong equation + empty response — conversion feedback appears only once", () => {
+  const equation = {
+    id: "kinetic_energy",
+    label: "Kinetic energy",
+    substitution_template: {
+      layout: "sum_product",
+      tokens: [
+        { kind: "slot", id: "E_k" },
+        { kind: "op", text: "=" },
+        { kind: "op", text: "½" },
+        { kind: "op", text: "×" },
+        { kind: "slot", id: "m" },
+        { kind: "op", text: "×" },
+        { kind: "slot", id: "v" },
+        { kind: "op", text: "²" }
+      ]
+    }
+  };
+  const sheet = { equations: [equation] };
+  const q = {
+    question_type: "numeric",
+    calculation_config: {
+      equation_given: false,
+      steps: [
+        { type: "equation_select", required: true, marks: 0, answer: "kinetic_energy" },
+        {
+          type: "conversion",
+          required: true,
+          marks: 1,
+          label: "Convert 10000 g to kg",
+          answer: 10,
+          tolerance: 0.001,
+          slot_id: "m"
+        },
+        {
+          type: "substitution",
+          required: true,
+          marks: 1,
+          mode: "structured",
+          equation_id: "kinetic_energy",
+          slot_answers: { m: ["10"], v: ["11"] }
+        },
+        { type: "calculate", required: true, marks: 1 }
+      ]
+    }
+  };
+  const resp = {
+    steps: {
+      equation_select: "gravitational_potential",
+      substitution: { mode: "structured", equation_id: "gravitational_potential", slots: {} }
+    }
+  };
+  const key = {
+    key_type: "numeric",
+    key_payload: { answer: 605, exact_answer: 605, tolerance: 0.001, unit: "J" }
+  };
+
+  const result = markCalculationResponse(q, resp, key, [], null, sheet);
+  const convMissing = result.missing.filter(
+    (m) => m.stepType === "conversion" && !m.isEcf
+  );
+  assert.equal(convMissing.length, 1, `expected one conversion line, got ${convMissing.length}`);
+});
+
+test("wrong equation but correct unit conversion still earns the conversion mark", () => {
+  const equation = {
+    id: "kinetic_energy",
+    substitution_template: {
+      layout: "sum_product",
+      tokens: [
+        { kind: "slot", id: "E_k" },
+        { kind: "op", text: "=" },
+        { kind: "op", text: "½" },
+        { kind: "op", text: "×" },
+        { kind: "slot", id: "m" },
+        { kind: "op", text: "×" },
+        { kind: "slot", id: "v" },
+        { kind: "op", text: "²" }
+      ]
+    }
+  };
+  const sheet = { equations: [equation] };
+  const q = {
+    question_type: "numeric",
+    calculation_config: {
+      equation_given: false,
+      steps: [
+        { type: "equation_select", required: true, marks: 0, answer: "kinetic_energy" },
+        {
+          type: "conversion",
+          required: true,
+          marks: 1,
+          label: "Convert 10000 g to kg",
+          answer: 10,
+          tolerance: 0.001,
+          slot_id: "m"
+        },
+        {
+          type: "substitution",
+          required: true,
+          marks: 1,
+          mode: "structured",
+          equation_id: "kinetic_energy",
+          slot_answers: { m: ["10"], v: ["11"] }
+        },
+        { type: "calculate", required: true, marks: 1 }
+      ]
+    }
+  };
+  const resp = {
+    steps: {
+      equation_select: "weight",
+      conversion: 10
+    }
+  };
+  const key = {
+    key_type: "numeric",
+    key_payload: { answer: 605, exact_answer: 605, tolerance: 0.001, unit: "J" }
+  };
+
+  const result = markCalculationResponse(q, resp, key, [], null, sheet);
+  assert.equal(result.stepResults.conversion.correct, true);
+  assert.equal(result.stepResults.conversion.earned, 1);
+  assert.equal(result.total, 1);
+  assert.ok(
+    !result.missing.some((m) => m.stepType === "conversion" && !m.isEcf),
+    "correct conversion should not appear in missing feedback"
+  );
 });

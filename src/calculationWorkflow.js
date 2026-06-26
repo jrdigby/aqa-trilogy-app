@@ -30,6 +30,7 @@ import {
   resolveEquationIdForSubstitution,
   resolveMarkSchemeEquationId,
   resolveSubstitutionContext,
+  resolveSubstitutionMarkScheme,
   substitutionPayloadIsComplete,
   substitutionSlotsMatchCommutative
 } from "./substitutionTemplate.js";
@@ -216,22 +217,33 @@ function substitutionFeedbackSlotIds(subStep, equation, rearrangementSubject = n
 }
 
 export function buildSubstitutionFeedbackText(subStep, equation, ctx = {}) {
-  const { slotEdits, promptOverrides, rearrangementSubject } = ctx;
+  const { slotEdits, promptOverrides, rearrangementSubject, convStep } = ctx;
   if (!equation) return "Substitute the correct values from the question.";
 
   const slotIds = substitutionFeedbackSlotIds(subStep, equation, rearrangementSubject);
   const parts = slotIds.map((id) => {
+    if (convStep?.slot_id === id) {
+      const si = convStep.answer != null
+        ? String(convStep.answer)
+        : firstSlotAnswerValue(subStep?.si_slot_answers?.[id] ?? subStep?.slot_answers?.[id]);
+      if (!si || isSymbolicSlotValue(id, si)) return "";
+      const unit = convStep.to_unit || getSlotSiUnit(id) || "";
+      return `${id}=${si}${unit}`;
+    }
     if (slotEdits?.[id]) {
       const edit = slotEdits[id];
-      const display = edit.display;
+      const display = edit.isConversionSlot ? (edit.si ?? edit.display) : edit.display;
       if (isSymbolicSlotValue(id, String(display ?? ""))) return "";
-      const unit = edit.unit || getSlotSiUnit(id) || "";
+      const unit = edit.isConversionSlot
+        ? (edit.toUnit || getSlotSiUnit(id) || "")
+        : (edit.unit || getSlotSiUnit(id) || "");
       return `${id}=${display}${unit}`;
     }
     if (promptOverrides?.[id]) {
       return `${id}=${promptOverrides[id]}`;
     }
-    return formatSlotForSubstitutionFeedback(id, subStep?.slot_answers?.[id]);
+    const markVals = subStep?.si_slot_answers?.[id] ?? subStep?.slot_answers?.[id];
+    return formatSlotForSubstitutionFeedback(id, markVals);
   }).filter(Boolean);
 
   if (!parts.length) return "Substitute the correct values from the question.";
@@ -256,12 +268,15 @@ export function buildDefaultStepFeedback(step, config, ctx = {}) {
       const label = findEquationLabel(config, equationSheet, step.answer);
       return `Equation: the correct equation is "${label}".`;
     }
-    case "substitution":
+    case "substitution": {
+      const convStep = (config?.steps || []).find((s) => s.type === "conversion");
       return buildSubstitutionFeedbackText(step, equation, {
         slotEdits,
         promptOverrides,
-        rearrangementSubject
+        rearrangementSubject,
+        convStep
       });
+    }
     case "conversion": {
       const target = step.answer;
       const label = step.label ? ` (${step.label})` : "";
@@ -969,7 +984,7 @@ export function resolveMarkingContext(config, resp, equationSheet, steps) {
   };
 }
 
-export function buildWrongEquationFeedback(markSchemeEquation, cleanUrl, steps, markPoints) {
+export function buildWrongEquationFeedback(markSchemeEquation, cleanUrl, steps, markPoints, stepResults = {}) {
   const items = [];
   const eqStep = steps.find((s) => s.type === "equation_select");
   const latex = markSchemeEquation?.latex || "";
@@ -990,8 +1005,11 @@ export function buildWrongEquationFeedback(markSchemeEquation, cleanUrl, steps, 
     });
   }
 
+  // Unit conversion is always marked in the main loop — independent of equation choice.
+
+  const convStep = steps.find((s) => s.type === "conversion");
   const subStep = steps.find((s) => s.type === "substitution");
-  if (subStep && (Number(subStep.marks) || 0) > 0) {
+  if (subStep && (Number(subStep.marks) || 0) > 0 && !stepResults.substitution?.correct) {
     items.push({
       ao: subStep.ao || "AO2",
       stepType: "substitution",
@@ -1000,15 +1018,17 @@ export function buildWrongEquationFeedback(markSchemeEquation, cleanUrl, steps, 
         markPoints,
         "substitution",
         buildSubstitutionFeedbackText(subStep, markSchemeEquation, {
-          rearrangementSubject: subStep?.rearrangement_subject
-        })
+          rearrangementSubject: subStep?.rearrangement_subject,
+          convStep
+        }),
+        { steps }
       ),
       url: cleanUrl
     });
   }
 
   const rearrStep = steps.find((s) => s.type === "rearrangement");
-  if (rearrStep && (Number(rearrStep.marks) || 0) > 0) {
+  if (rearrStep && (Number(rearrStep.marks) || 0) > 0 && !stepResults.rearrangement?.correct) {
     items.push({
       ao: rearrStep.ao || "AO2",
       stepType: "rearrangement",
@@ -1023,7 +1043,7 @@ export function buildWrongEquationFeedback(markSchemeEquation, cleanUrl, steps, 
   }
 
   const calcStep = steps.find((s) => s.type === "calculate");
-  if (calcStep && (Number(calcStep.marks) || 0) > 0) {
+  if (calcStep && (Number(calcStep.marks) || 0) > 0 && !stepResults.calculate?.correct) {
     items.push({
       ao: calcStep.ao || "AO2",
       stepType: "calculate",
@@ -1624,6 +1644,20 @@ function inputStyle() {
   return "padding:6px; font-size:0.85rem; border-radius:4px; border:1px solid #cbd5e1; box-sizing:border-box;";
 }
 
+/** Single answer box: sig figs merged into calculate (legacy, 0-mark sig step only). */
+function usesMergedSigFigsOnCalculate(sigStep) {
+  return !!sigStep && sigStep.required !== false && !!sigStep.enforce_on_final && !(Number(sigStep.marks) > 0);
+}
+
+/** Dedicated sig figs input after the calculation answer. */
+function usesSeparateSigFigsBox(sigStep) {
+  return !!sigStep && sigStep.required !== false && !usesMergedSigFigsOnCalculate(sigStep);
+}
+
+function findActiveSigFigsStep(config) {
+  return (config?.steps || []).find((s) => s.type === "sig_figs" && s.required !== false) || null;
+}
+
 function selectStyle() {
   return `${inputStyle()} width:fit-content; max-width:100%; min-width:12ch;`;
 }
@@ -1729,12 +1763,15 @@ export function renderCalculationWorkflow(q, currentKey, presentation = "practic
         </div>
       `;
     } else if (step.type === "calculate") {
-      const sigStep = (config.steps || []).find((s) => s.type === "sig_figs" && s.required !== false && s.enforce_on_final);
-      const sfNote = sigStep?.sig_figs ? ` <span style="font-weight:600;color:#64748b;">(to ${sigStep.sig_figs} s.f.)</span>` : "";
-      const sigAttr = sigStep ? ' data-sig-enforced="true"' : "";
+      const sigStep = findActiveSigFigsStep(config);
+      const mergedSig = usesMergedSigFigsOnCalculate(sigStep);
+      const sfNote = mergedSig && sigStep?.sig_figs
+        ? ` <span style="font-weight:600;color:#64748b;">(to ${sigStep.sig_figs} s.f.)</span>`
+        : "";
+      const sigAttr = mergedSig ? ' data-sig-enforced="true"' : "";
       const calcMarksOverride = simpleMode ? (q.max_marks || 1) : null;
       const calcLabel = renderStepLabel(numberedLabel, step, calcMarksOverride);
-      const sigBadge = sigStep ? formatStepMarksBadge(sigStep) : "";
+      const sigBadge = mergedSig && sigStep ? formatStepMarksBadge(sigStep) : "";
       html += `
         <div class="calc-step" data-step="calculate"${sigAttr} style="margin-bottom:${hasMultiStep ? "0" : "12px"};">
           <label style="display:block;font-size:0.82rem;font-weight:700;margin-bottom:4px;">${calcLabel}${sigBadge}${sfNote}:</label>
@@ -1744,7 +1781,7 @@ export function renderCalculationWorkflow(q, currentKey, presentation = "practic
           </div>
         </div>
       `;
-    } else if (step.type === "sig_figs" && !step.enforce_on_final) {
+    } else if (step.type === "sig_figs" && usesSeparateSigFigsBox(step)) {
       html += `
         <div class="calc-step" data-step="sig_figs" style="margin-bottom:12px;">
           <label style="display:block;font-size:0.82rem;font-weight:700;margin-bottom:4px;">${renderStepLabel(numberedLabel, step)}:</label>
@@ -1811,7 +1848,7 @@ export function collectCalculationResponse(q, sessionMode, equationSheet = null)
       stepValues.rearrangement = readTextInput("calc_rearrangement");
     } else if (step.type === "calculate") {
       stepValues.calculate = readNumericInput("numAns");
-    } else if (step.type === "sig_figs" && !step.enforce_on_final) {
+    } else if (step.type === "sig_figs" && usesSeparateSigFigsBox(step)) {
       stepValues.sig_figs = readNumericInput("calc_sig_figs");
     }
   }
@@ -1831,18 +1868,32 @@ export function collectCalculationResponse(q, sessionMode, equationSheet = null)
 
 export function validateCalculationResponse(q, resp, sessionMode) {
   const config = getCalculationConfig(q);
+  const equationSheet = q?._equationSheet || null;
   const presentation = getPresentationMode(sessionMode);
   const missing = [];
 
   for (const step of getActiveSteps(config)) {
     const val = resp.steps?.[step.type];
-    if (step.type === "calculate" || step.type === "conversion" || step.type === "sig_figs") {
+    if (step.type === "calculate" || step.type === "conversion") {
+      if (val == null || val === "") {
+        missing.push(getStepLabel(step.type, presentation, step));
+      }
+    } else if (step.type === "sig_figs" && usesSeparateSigFigsBox(step)) {
       if (val == null || val === "") {
         missing.push(getStepLabel(step.type, presentation, step));
       }
     } else if (step.type === "substitution") {
-      if (typeof val === "object" && val?.mode === "structured") {
-        if (!substitutionPayloadIsComplete(val)) {
+        let omitSlotIds = [];
+        if (!step.rearrangement_subject && step.equation_id && equationSheet) {
+          const equation = findEquationInSheet(equationSheet, step.equation_id);
+          const template = getSubstitutionTemplate(equation);
+          const resultSlot = identifyResultSlot(template);
+          if (resultSlot) omitSlotIds = [resultSlot];
+        }
+        if (!substitutionPayloadIsComplete(val, {
+          rearrangementSubject: step.rearrangement_subject,
+          omitSlotIds
+        })) {
           missing.push(getStepLabel(step.type, presentation, step));
         }
       } else if (!val || (typeof val === "object" && !val.text)) {
@@ -1879,7 +1930,7 @@ function substitutionMatches(studentText, step) {
   return accepted.some((a) => normalizeSubstitution(a) === normalized);
 }
 
-function matchSubstitutionStep(studentVal, step, config, equationSheet, markingCtx, conversionEcf = null) {
+function matchSubstitutionStep(studentVal, step, config, equationSheet, markingCtx, conversionEcf = null, resp = null) {
   if (markingCtx && !markingCtx.equationCorrect) return { match: false, ecf: false };
   if (typeof studentVal === "object" && studentVal?.mode === "structured") {
     if (!studentVal.equation_id) return { match: false, ecf: false };
@@ -1887,24 +1938,18 @@ function matchSubstitutionStep(studentVal, step, config, equationSheet, markingC
     const equation = findEquationInSheet(equationSheet, markSchemeEq || studentVal.equation_id);
     const template = getSubstitutionTemplate(equation);
     const rearrStep = (config?.steps || []).find((s) => s.type === "rearrangement");
-    const subStepForMark = {
-      ...step,
-      rearrangement_subject: step.rearrangement_subject || rearrStep?.subject || null
-    };
+    const convStep = (config?.steps || []).find((s) => s.type === "conversion");
+    const subStepForMark = resolveSubstitutionMarkScheme(
+      {
+        ...step,
+        rearrangement_subject: step.rearrangement_subject || rearrStep?.subject || null
+      },
+      convStep,
+      resp,
+      conversionEcf
+    );
     if (template && substitutionSlotsMatchCommutative(studentVal, subStepForMark, template)) {
-      return { match: true, ecf: false };
-    }
-    if (template && conversionEcf?.slotId) {
-      const ecfStep = {
-        ...subStepForMark,
-        slot_answers: {
-          ...subStepForMark.slot_answers,
-          [conversionEcf.slotId]: [String(conversionEcf.studentVal)]
-        }
-      };
-      if (substitutionSlotsMatchCommutative(studentVal, ecfStep, template)) {
-        return { match: true, ecf: true };
-      }
+      return { match: true, ecf: !!conversionEcf };
     }
     return { match: substitutionMatches(studentVal.text, step), ecf: false };
   }
@@ -1912,12 +1957,42 @@ function matchSubstitutionStep(studentVal, step, config, equationSheet, markingC
   return { match: substitutionMatches(text, step), ecf: false };
 }
 
-function getStepFeedback(step, markPoints, stepType, defaultText) {
+function getStepFeedback(step, markPoints, stepType, defaultText, config = null) {
   const inline = step?.feedback_if_wrong?.trim();
-  if (inline) return inline;
+  if (inline && !shouldIgnoreInlineStepFeedback(step, stepType, config)) return inline;
   const tag = `[calc:${stepType}]`;
   const mp = markPoints?.find((p) => p.point_text === tag);
   return mp?.feedback_if_missing?.trim() || defaultText;
+}
+
+/** Baked authoring feedback can show stem units (e.g. m=10000g) — ignore when conversion step exists. */
+function shouldIgnoreInlineStepFeedback(step, stepType, config) {
+  if (stepType !== "substitution" || !config?.steps) return false;
+  const convStep = config.steps.find((s) => s.type === "conversion");
+  if (!convStep?.slot_id) return false;
+  const inline = step?.feedback_if_wrong?.trim();
+  if (!inline) return false;
+  if (convStep.display_value != null && inline.includes(String(convStep.display_value))) {
+    return true;
+  }
+  const slotId = convStep.slot_id;
+  const si = firstSlotAnswerValue(
+    step?.si_slot_answers?.[slotId] ?? step?.slot_answers?.[slotId]
+  );
+  if (si && convStep.answer != null && String(si) === String(convStep.answer)) {
+    const stemPattern = new RegExp(`${slotId}\\s*=\\s*${convStep.display_value}`, "i");
+    if (stemPattern.test(inline)) return true;
+  }
+  return true;
+}
+
+function buildLiveSubstitutionFeedback(step, config, equationSheet) {
+  const convStep = (config?.steps || []).find((s) => s.type === "conversion");
+  const equation = findEquationInSheet(equationSheet, step.equation_id);
+  return buildSubstitutionFeedbackText(step, equation, {
+    rearrangementSubject: step.rearrangement_subject,
+    convStep
+  });
 }
 
 function resolveSimpleNumericMaxAo(max, markPoints) {
@@ -2009,6 +2084,51 @@ function resolveExactAnswer(key) {
   return parseFloat(payload.answer);
 }
 
+function stepTypeOrderIndex(stepType, steps) {
+  const idx = steps.findIndex((s) => s.type === stepType);
+  if (idx >= 0) return idx;
+  const fallback = STEP_ORDER.indexOf(stepType);
+  return fallback >= 0 ? fallback : 99;
+}
+
+function sortMissingFeedbackByStepOrder(missing, steps) {
+  if (!missing?.length || missing.length < 2) return missing;
+  return [...missing].sort(
+    (a, b) => stepTypeOrderIndex(a.stepType, steps) - stepTypeOrderIndex(b.stepType, steps)
+  );
+}
+
+/** Drop duplicate non-ECF lines for the same step (e.g. conversion reported twice). */
+function dedupeMissingFeedback(missing) {
+  if (!missing?.length) return missing;
+  const seen = new Set();
+  return missing.filter((m) => {
+    if (m.isEcf || !m.stepType) return true;
+    if (seen.has(m.stepType)) return false;
+    seen.add(m.stepType);
+    return true;
+  });
+}
+
+function conversionStepWasCorrect(convStep, resp) {
+  if (!convStep) return false;
+  const studentVal = parseFloat(resp?.steps?.conversion);
+  const target = parseFloat(convStep.answer);
+  const tol = parseFloat(convStep.tolerance ?? 0.001);
+  return Number.isFinite(studentVal)
+    && Number.isFinite(target)
+    && Math.abs(studentVal - target) <= tol;
+}
+
+function studentUsedStemValueInSubstitution(convStep, subPayload) {
+  if (!convStep?.slot_id || convStep.display_value == null) return false;
+  const slots = subPayload?.slots || {};
+  const entered = parseFloat(slots[convStep.slot_id]);
+  const display = parseFloat(convStep.display_value);
+  if (!Number.isFinite(entered) || !Number.isFinite(display)) return false;
+  return Math.abs(entered - display) < 1e-9;
+}
+
 export function markCalculationResponse(q, resp, key, markPoints, cleanUrl, equationSheet = null) {
   const rawConfig = getCalculationConfig(q);
   const config = enrichCalculationConfigFromEquationSheet(rawConfig, equationSheet);
@@ -2084,13 +2204,15 @@ export function markCalculationResponse(q, resp, key, markPoints, cleanUrl, equa
         });
       }
     } else if (step.type === "substitution") {
+      const convStep = steps.find((s) => s.type === "conversion");
       const subMatch = matchSubstitutionStep(
         studentVal,
         step,
         config,
         equationSheet,
         markingCtx,
-        conversionEcf
+        conversionEcf,
+        resp
       );
       if (subMatch.match) {
         earned = marks;
@@ -2105,6 +2227,24 @@ export function markCalculationResponse(q, resp, key, markPoints, cleanUrl, equa
           });
         }
       } else if (!wrongEquationPath) {
+        if (
+          convStep
+          && conversionStepWasCorrect(convStep, resp)
+          && studentUsedStemValueInSubstitution(convStep, studentVal)
+        ) {
+          const unitSuffix = convStep.to_unit ? ` ${convStep.to_unit}` : "";
+          missing.push({
+            ao: convStep.ao || stepAo,
+            stepType: "conversion",
+            text: getStepFeedback(
+              convStep,
+              markPoints,
+              "conversion",
+              `After converting to${unitSuffix}, substitute ${convStep.answer}${unitSuffix} into the equation — not the value from the question stem (${convStep.display_value} ${convStep.from_unit || ""}).`.trim()
+            ),
+            url: cleanUrl
+          });
+        }
         missing.push({
           ao: stepAo,
           stepType: step.type,
@@ -2112,9 +2252,8 @@ export function markCalculationResponse(q, resp, key, markPoints, cleanUrl, equa
             step,
             markPoints,
             "substitution",
-            buildSubstitutionFeedbackText(step, findEquationInSheet(equationSheet, step.equation_id), {
-              rearrangementSubject: step.rearrangement_subject
-            })
+            buildLiveSubstitutionFeedback(step, config, equationSheet),
+            config
           ),
           url: cleanUrl
         });
@@ -2122,7 +2261,10 @@ export function markCalculationResponse(q, resp, key, markPoints, cleanUrl, equa
     } else if (step.type === "conversion") {
       conversionTarget = parseFloat(step.answer);
       conversionTol = parseFloat(step.tolerance ?? 0.001);
-      if (studentVal != null && Math.abs(studentVal - conversionTarget) <= conversionTol) {
+      const convCorrect = studentVal != null
+        && studentVal !== ""
+        && Math.abs(studentVal - conversionTarget) <= conversionTol;
+      if (convCorrect) {
         earned = marks;
         isCorrect = true;
       } else {
@@ -2133,7 +2275,8 @@ export function markCalculationResponse(q, resp, key, markPoints, cleanUrl, equa
             step,
             markPoints,
             "conversion",
-            `Unit conversion: expected ${conversionTarget}${step.label ? ` (${step.label})` : ""}.`
+            `Unit conversion: expected ${conversionTarget}${step.label ? ` (${step.label})` : ""}.`,
+            config
           ),
           url: cleanUrl
         });
@@ -2179,8 +2322,7 @@ export function markCalculationResponse(q, resp, key, markPoints, cleanUrl, equa
     } else if (step.type === "calculate") {
       let target = exactAnswer;
       const sigStep = steps.find((s) => s.type === "sig_figs");
-      const sigMergedIntoCalculate = sigStep?.enforce_on_final && !(Number(sigStep.marks) > 0);
-      if (sigMergedIntoCalculate && sigStep?.sig_figs) {
+      if (usesMergedSigFigsOnCalculate(sigStep) && sigStep?.sig_figs) {
         target = roundToSigFigs(exactAnswer, sigStep.sig_figs);
       }
 
@@ -2229,7 +2371,6 @@ export function markCalculationResponse(q, resp, key, markPoints, cleanUrl, equa
         });
       }
     } else if (step.type === "sig_figs") {
-      const calcVal = resp.steps?.calculate ?? resp.value;
       const sigExpected = conversionEcf && workflowAnswer != null
         ? workflowAnswer
         : exactAnswer;
@@ -2237,28 +2378,19 @@ export function markCalculationResponse(q, resp, key, markPoints, cleanUrl, equa
       const sigEcfNote = conversionEcf && workflowAnswer != null
         ? " based on your substituted values"
         : "";
-      if (step.enforce_on_final) {
-        const sigOpts = { requireSigFigCount: true };
-        if (matchesSigFigs(calcVal, sigExpected, step.sig_figs, ansTol, sigOpts)) {
-          earned = marks;
-          isCorrect = true;
-        } else if (marks > 0) {
-          missing.push({
-            ao: stepAo,
-            stepType: step.type,
-            text: getStepFeedback(
-              step,
-              markPoints,
-              "sig_figs",
-              `Significant figures: expected ${formatAnswerForFeedback(sigRounded)} (${step.sig_figs} s.f.)${sigEcfNote}.`
-            ),
-            url: cleanUrl
-          });
-        }
-      } else if (studentVal != null && matchesSigFigs(studentVal, sigExpected, step.sig_figs, ansTol, { requireSigFigCount: true })) {
+      const mergedSig = usesMergedSigFigsOnCalculate(step);
+      const sigValue = mergedSig
+        ? (resp.steps?.calculate ?? resp.value)
+        : studentVal;
+
+      if (
+        sigValue != null
+        && sigValue !== ""
+        && matchesSigFigs(sigValue, sigExpected, step.sig_figs, ansTol, { requireSigFigCount: true })
+      ) {
         earned = marks;
         isCorrect = true;
-      } else if (marks > 0) {
+      } else if (marks > 0 && !wrongEquationPath) {
         missing.push({
           ao: stepAo,
           stepType: step.type,
@@ -2280,7 +2412,7 @@ export function markCalculationResponse(q, resp, key, markPoints, cleanUrl, equa
       max: marks,
       correct: isCorrect,
       ecf: isEcf,
-      enforceOnFinal: !!step.enforce_on_final
+      enforceOnFinal: usesMergedSigFigsOnCalculate(step)
     };
   }
 
@@ -2289,13 +2421,16 @@ export function markCalculationResponse(q, resp, key, markPoints, cleanUrl, equa
       markingCtx.markSchemeEquation,
       cleanUrl,
       steps,
-      markPoints
+      markPoints,
+      stepResults
     ));
   }
 
+  const orderedMissing = dedupeMissingFeedback(sortMissingFeedbackByStepOrder(missing, steps));
+
   const quality = total === max && max > 0 ? 5 : total > 0 ? 3 : steps.length > 1 ? 0 : 1;
 
-  return { total, max, ao, maxAo, missing, quality, stepResults };
+  return { total, max, ao, maxAo, missing: orderedMissing, quality, stepResults };
 }
 
 function combineCalcAndSigResults(calcResult, sigResult) {
@@ -2423,7 +2558,7 @@ function getStepExpectedHint(step, config, key, equationSheet) {
       return ans != null ? `Answer: ${ans}${unit ? ` ${unit}` : ""}` : "Calculate the final value.";
     }
     case "sig_figs":
-      return step.enforce_on_final ? null : `Round to ${step.sig_figs} significant figures`;
+      return `Round to ${step.sig_figs} significant figures`;
     default:
       return "";
   }
@@ -2445,7 +2580,7 @@ export function buildNumericFlashcardInsights(q, key, feedbackPayload, equationS
 
   const lines = [];
   for (const step of steps) {
-    if (step.type === "sig_figs" && step.enforce_on_final) continue;
+    if (step.type === "sig_figs" && usesMergedSigFigsOnCalculate(step)) continue;
 
     let sr = stepResults[step.type];
     if (step.type === "calculate" && stepResults.sig_figs?.enforceOnFinal) {

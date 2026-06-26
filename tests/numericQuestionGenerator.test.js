@@ -419,6 +419,34 @@ test("parseSlotDisplayInput — typed value with unit", () => {
   assert.ok(energyOpts.some((o) => o.fromUnit === "MJ"));
 });
 
+test("conversion + substitution (no rearrangement) — substitution mark scheme uses SI", () => {
+  const { drafts } = generateBatch(
+    {
+      equation: "weight",
+      sheet: "physics_p1_ht",
+      variants: { recipes: [{ base: "substitute", unitConversion: true, count: 1 }] },
+      seed: 12
+    },
+    sheetP1
+  );
+  const cfg = drafts[0].question.calculation_config;
+  const convStep = cfg.steps.find((s) => s.type === "conversion");
+  const subStep = cfg.steps.find((s) => s.type === "substitution");
+  assert.ok(convStep?.slot_id);
+  assert.ok(!cfg.steps.some((s) => s.type === "rearrangement"));
+
+  const convSlot = convStep.slot_id;
+  const siVal = subStep.si_slot_answers?.[convSlot]?.[0] ?? subStep.slot_answers[convSlot][0];
+  assert.equal(siVal, String(convStep.answer));
+  assert.notEqual(siVal, String(convStep.display_value));
+
+  const subFb = cfg.steps.find((s) => s.type === "substitution")?.feedback_if_wrong || "";
+  if (convSlot === "m") {
+    assert.ok(subFb.includes(`m=${siVal}`), `feedback should use SI mass: ${subFb}`);
+    assert.ok(!subFb.includes(String(convStep.display_value)), `feedback should not use stem display: ${subFb}`);
+  }
+});
+
 test("conversion + rearrangement — substitution mark scheme uses SI after conversion step", async () => {
   const { buildSiSlotAnswersForRearrangement, buildNumericRearrangementOptions } = await import(
     "../src/substitutionTemplate.js"

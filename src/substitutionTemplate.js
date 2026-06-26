@@ -229,14 +229,16 @@ export function collectSubstitutionPayload(config, equationSheet, subStep) {
   return { mode: "free_text", text };
 }
 
-export function substitutionPayloadIsComplete(payload) {
+export function substitutionPayloadIsComplete(payload, options = {}) {
   if (!payload) return false;
   if (payload.mode === "free_text") return !!payload.text;
   if (!payload.equation_id) return false;
   const slots = payload.slots || {};
-  const unknownId = payload.rearrangement_subject || null;
+  const unknownId = payload.rearrangement_subject || options.rearrangementSubject || null;
+  const omit = new Set(options.omitSlotIds || []);
   return Object.entries(slots).every(([id, v]) => {
     if (unknownId && id === unknownId) return true;
+    if (omit.has(id)) return true;
     return String(v ?? "").trim() !== "";
   });
 }
@@ -399,28 +401,36 @@ export function substitutionSlotsMatchCommutative(payload, subStep, template) {
   if (!template) return false;
 
   const unknownId = subStep.rearrangement_subject || null;
+  const resultSlot = !unknownId ? identifyResultSlotFromTemplate(template) : null;
+  const shouldSkipSlot = (id) => {
+    if (unknownId && id === unknownId) return true;
+    if (resultSlot && id === resultSlot) return true;
+    return false;
+  };
+
   const { fixedSlots, commutativeGroups } = parseCommutativeGroups(template);
   const allGrouped = new Set([...fixedSlots, ...commutativeGroups.flat()]);
 
   for (const id of fixedSlots) {
-    if (unknownId && id === unknownId) continue;
+    if (shouldSkipSlot(id)) continue;
     const accepted = normalizeAcceptedSlotValues(subStep.slot_answers[id]);
     if (!accepted?.length) return false;
     if (!slotValueMatches(payload.slots?.[id], accepted)) return false;
   }
 
   for (const group of commutativeGroups) {
-    const hasAnswers = group.every((id) => {
-      if (unknownId && id === unknownId) return true;
-      return normalizeAcceptedSlotValues(subStep.slot_answers[id])?.length;
-    });
+    const activeGroup = group.filter((id) => !shouldSkipSlot(id));
+    if (!activeGroup.length) continue;
+    const hasAnswers = activeGroup.every((id) =>
+      normalizeAcceptedSlotValues(subStep.slot_answers[id])?.length
+    );
     if (!hasAnswers) return false;
-    if (!matchCommutativeGroup(group, payload, subStep.slot_answers, unknownId)) return false;
+    if (!matchCommutativeGroup(activeGroup, payload, subStep.slot_answers, unknownId)) return false;
   }
 
   for (const id of getSlotIdsFromTemplate(template)) {
     if (allGrouped.has(id)) continue;
-    if (unknownId && id === unknownId) continue;
+    if (shouldSkipSlot(id)) continue;
     const accepted = normalizeAcceptedSlotValues(subStep.slot_answers[id]);
     if (!accepted?.length) return false;
     if (!slotValueMatches(payload.slots?.[id], accepted)) return false;
@@ -630,6 +640,48 @@ export function slotValuesForExpression(slotValues) {
     out[id] = [String(text).trim()];
   }
   return out;
+}
+
+/**
+ * Mark-scheme slot answers for substitution when a unit-conversion step is present.
+ * Uses SI values (not stem display units) and the student's converted value when conversion is correct.
+ */
+export function resolveSubstitutionMarkScheme(subStep, convStep, resp = null, conversionEcf = null) {
+  const base = subStep?.si_slot_answers || subStep?.slot_answers || {};
+  const slotAnswers = {};
+  for (const [id, vals] of Object.entries(base)) {
+    const ms = Array.isArray(vals) ? vals : [String(vals)];
+    slotAnswers[id] = [...ms];
+  }
+
+  if (!convStep?.slot_id) {
+    return { ...subStep, slot_answers: slotAnswers };
+  }
+
+  const convSlotId = convStep.slot_id;
+  const siVal = lookupSlotValue(subStep?.si_slot_answers, convSlotId)
+    ?? lookupSlotValue(slotAnswers, convSlotId)
+    ?? lookupSlotValue(subStep?.slot_answers, convSlotId);
+  if (convStep.answer != null && String(convStep.answer).trim() !== "") {
+    slotAnswers[convSlotId] = [String(convStep.answer)];
+  } else if (siVal != null) {
+    slotAnswers[convSlotId] = [String(siVal)];
+  }
+
+  const studentConv = parseFloat(resp?.steps?.conversion);
+  const target = parseFloat(convStep.answer);
+  const tol = parseFloat(convStep.tolerance ?? 0.001);
+  if (conversionEcf?.slotId === convSlotId && Number.isFinite(conversionEcf.studentVal)) {
+    slotAnswers[convSlotId] = [String(conversionEcf.studentVal)];
+  } else if (
+    Number.isFinite(studentConv)
+    && Number.isFinite(target)
+    && Math.abs(studentConv - target) <= tol
+  ) {
+    slotAnswers[convSlotId] = [String(studentConv)];
+  }
+
+  return { ...subStep, slot_answers: slotAnswers };
 }
 
 /**
@@ -911,13 +963,24 @@ export function enrichCalculationConfigFromEquationSheet(config, equationSheet) 
   const equation = findEquationInSheet(equationSheet, equationId);
   if (!equation) return config;
 
+  const convStep = config.steps.find((s) => s.type === "conversion");
+
   const steps = config.steps.map((step) => {
+    if (step.type === "substitution" && convStep) {
+      const normalized = resolveSubstitutionMarkScheme(step, convStep);
+      return {
+        ...normalized,
+        si_slot_answers: normalized.slot_answers
+      };
+    }
     if (step.type !== "rearrangement") return step;
     if (step.mode === "symbolic") return step;
-    if (!subStep.slot_answers) return step;
-    const convStep = config.steps.find((s) => s.type === "conversion");
-    const siSlots = buildSiSlotAnswersForRearrangement(subStep, convStep);
-    const built = buildNumericRearrangementOptions(equation, subStep, step, { siSlotAnswers: siSlots });
+    const subForRearr = convStep
+      ? resolveSubstitutionMarkScheme(subStep, convStep)
+      : subStep;
+    if (!subForRearr.slot_answers) return step;
+    const siSlots = buildSiSlotAnswersForRearrangement(subForRearr, convStep);
+    const built = buildNumericRearrangementOptions(equation, subForRearr, step, { siSlotAnswers: siSlots });
     if (!built.answer) return step;
     return {
       ...step,
