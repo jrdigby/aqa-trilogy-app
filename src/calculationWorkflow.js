@@ -1883,6 +1883,7 @@ export function validateCalculationResponse(q, resp, sessionMode) {
         missing.push(getStepLabel(step.type, presentation, step));
       }
     } else if (step.type === "substitution") {
+      if (typeof val === "object" && val?.mode === "structured") {
         let omitSlotIds = [];
         if (!step.rearrangement_subject && step.equation_id && equationSheet) {
           const equation = findEquationInSheet(equationSheet, step.equation_id);
