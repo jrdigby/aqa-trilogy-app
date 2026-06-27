@@ -36,6 +36,7 @@ import {
   substitutionSlotsMatchCommutative,
   buildMarkSchemeSubstitutionSlots,
   formatSubstitutionEquationDisplay,
+  resolveSymbolSlotIds,
   slotLabelFromTemplate
 } from "./substitutionTemplate.js";
 
@@ -230,11 +231,15 @@ export function buildSubstitutionFeedbackContent(subStep, equation, ctx = {}) {
     return { text: "Substitute the correct values from the question." };
   }
 
+  const symbolSlotIds = resolveSymbolSlotIds(template, subStep, config);
   const slots = buildMarkSchemeSubstitutionSlots(template, subStep, { convStep, config });
   for (const id of getSlotIdsFromTemplate(template)) {
-    if (convStep?.slot_id === id && convStep.answer != null) {
-      slots[id] = String(convStep.answer);
-    } else if (slotEdits?.[id]) {
+    if (symbolSlotIds.has(id)) continue;
+    if (convStep?.slot_id === id) {
+      if (convStep.answer != null) slots[id] = String(convStep.answer);
+      continue;
+    }
+    if (slotEdits?.[id]) {
       const edit = slotEdits[id];
       slots[id] = edit.isConversionSlot ? (edit.si ?? edit.display) : edit.display;
     } else if (promptOverrides?.[id]) {

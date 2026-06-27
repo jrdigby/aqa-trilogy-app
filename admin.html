@@ -685,8 +685,71 @@
       gap: 16px;
     }
 
+    #editModalOverlay {
+      overflow-y: auto;
+      padding: 16px 0;
+    }
+
     #editModalOverlay .card {
       max-width: 800px;
+      max-height: 94vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-sizing: border-box;
+      margin-bottom: 0;
+      padding: 14px 18px 12px;
+    }
+
+    #editModalOverlay .edit-modal-header {
+      flex-shrink: 0;
+      padding-bottom: 8px;
+      margin-bottom: 8px;
+    }
+
+    #editModalOverlay .edit-modal-header h3 {
+      font-size: 1rem;
+    }
+
+    #editModalOverlay .edit-modal-close {
+      font-size: 1.2rem;
+      line-height: 1;
+    }
+
+    #editModalOverlay .edit-modal-notice {
+      padding: 8px 10px;
+      margin-bottom: 10px;
+      font-size: 0.75rem;
+      line-height: 1.35;
+    }
+
+    #editModalOverlay #editGradingModeIndicator {
+      padding: 8px 10px;
+      margin-bottom: 10px;
+      font-size: 0.75rem;
+      line-height: 1.35;
+    }
+
+    #editModalOverlay .edit-modal-body {
+      flex: 1 1 auto;
+      overflow-y: auto;
+      min-height: 0;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    #editModalOverlay .edit-modal-footer {
+      flex-shrink: 0;
+      padding-top: 10px;
+      margin-top: 8px;
+    }
+
+    #editModalOverlay .edit-modal-footer .btn {
+      padding: 5px 12px;
+      font-size: 0.78rem;
+    }
+
+    #editModalOverlay .edit-modal-footer-actions {
+      margin-top: 8px;
     }
 
     #sandboxModalOverlay {
@@ -1663,7 +1726,7 @@
                   <textarea id="CalcSubstitutionAccepted" rows="3" placeholder="e.g.&#10;E_k = 0.5 × 2.0 × 4.0²&#10;E_k = 0.5 * 2.0 * 4.0^2" title="One accepted substitution per line"></textarea>
                 </div>
                 <label style="display:block;margin-top:8px;font-size:0.78rem;color:var(--text-muted);">Feedback if wrong (optional)</label>
-                <textarea id="CalcSubstitutionFeedback" class="calc-step-feedback" rows="2" placeholder="e.g. Substitute m = 2.0 kg and v = 4.0 m/s into E_k = ½mv²."></textarea>
+                <textarea id="CalcSubstitutionFeedback" class="calc-step-feedback" rows="2" placeholder="e.g. Substitute E_k = ½ × 2.0 × 4.0²"></textarea>
               </div>
               <div id="CalcPanelConversion" class="hidden" style="border-top:1px solid var(--border);padding-top:10px;margin-bottom:10px;">
                 <h4 class="calc-step-panel-title">Unit conversion step</h4>
@@ -2391,18 +2454,19 @@
   </div>
 
   <!-- MODAL WINDOW B: INTERACTIVE EDIT/MODIFY WINDOW -->
-  <div id="editModalOverlay" class="hidden" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(15,23,42,0.6); z-index:1900; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(4px); overflow-y:auto; padding: 40px 0;">
-    <div class="card" style="width:100%; max-width:800px; box-shadow:0 20px 25px -5px rgba(0,0,0,0.1); border-radius:16px; margin: auto 16px; max-height:90vh; overflow-y:auto; box-sizing:border-box;">
-      <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:12px; margin-bottom:16px;">
-        <h3 style="margin:0; font-size:1.15rem; color:#1e293b;">✏️ Modify Active Question Record</h3>
-        <button onclick="closeEditModal()" style="border:none; background:none; font-size:1.4rem; cursor:pointer; color:var(--text-muted);">&times;</button>
+  <div id="editModalOverlay" class="hidden" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(15,23,42,0.6); z-index:1900; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(4px);">
+    <div class="card" style="width:100%; max-width:800px; box-shadow:0 20px 25px -5px rgba(0,0,0,0.1); border-radius:16px; margin: auto 16px;">
+      <div class="edit-modal-header" style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border);">
+        <h3 style="margin:0; color:#1e293b;">✏️ Modify Active Question Record</h3>
+        <button type="button" class="edit-modal-close" onclick="closeEditModal()" style="border:none; background:none; cursor:pointer; color:var(--text-muted);">&times;</button>
       </div>
 
-      <div style="background:#eff6ff; border:1px solid #bfdbfe; color:#1e40af; padding:12px; border-radius:8px; font-size:0.8rem; margin-bottom:16px; line-height:1.4;">
+      <div class="edit-modal-body">
+      <div class="edit-modal-notice" style="background:#eff6ff; border:1px solid #bfdbfe; color:#1e40af; border-radius:8px;">
         💡 <strong>Live Edits Mode:</strong> Making changes here and clicking "Save Changes" will instantly update active tables.
       </div>
 
-      <div id="editGradingModeIndicator" style="border: 1px solid transparent; padding: 12px; border-radius: 8px; font-size: 0.8rem; line-height: 1.45; margin-bottom: 16px;"></div>
+      <div id="editGradingModeIndicator" style="border: 1px solid transparent; border-radius: 8px;"></div>
 
       <form id="editForm" class="edit-form-layout" onsubmit="return false;">
         <input type="hidden" id="editQuestionId"/>
@@ -2626,7 +2690,7 @@
                 <textarea id="editCalcSubstitutionAccepted" rows="3" placeholder="e.g.&#10;E_k = 0.5 × 2.0 × 4.0²"></textarea>
               </div>
               <label style="display:block;margin-top:8px;font-size:0.78rem;color:var(--text-muted);">Feedback if wrong (optional)</label>
-              <textarea id="editCalcSubstitutionFeedback" class="calc-step-feedback" rows="2" placeholder="e.g. Substitute m = 2.0 kg and v = 4.0 m/s into the equation."></textarea>
+              <textarea id="editCalcSubstitutionFeedback" class="calc-step-feedback" rows="2" placeholder="e.g. Substitute E_k = ½ × 2.0 × 4.0²"></textarea>
             </div>
             <div id="editCalcPanelConversion" class="hidden" style="border-top:1px solid var(--border);padding-top:8px;margin-bottom:8px;">
               <h4 class="calc-step-panel-title">Unit conversion step</h4>
@@ -2856,11 +2920,14 @@
         </div>
 
       </form>
+      </div>
 
-      <div id="editSaveError" role="alert" aria-live="assertive"></div>
-      <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:20px; border-top:1px solid var(--border); padding-top:16px;">
-        <button onclick="closeEditModal()" class="btn btn-secondary" style="padding:8px 16px;">Discard Changes</button>
-        <button id="btnSaveEdits" class="btn btn-primary" style="padding:8px 16px;">Save Changes</button>
+      <div class="edit-modal-footer" style="border-top:1px solid var(--border);">
+        <div id="editSaveError" role="alert" aria-live="assertive"></div>
+        <div class="edit-modal-footer-actions" style="display:flex; justify-content:flex-end; gap:8px;">
+          <button type="button" onclick="closeEditModal()" class="btn btn-secondary">Discard Changes</button>
+          <button type="button" id="btnSaveEdits" class="btn btn-primary">Save Changes</button>
+        </div>
       </div>
     </div>
   </div>

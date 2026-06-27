@@ -22,6 +22,7 @@ import {
 } from "../src/numericQuestionGenerator.js";
 import {
   buildCalculationConfigForVariant,
+  buildSubstitutionFeedbackText,
   computeMaxMarksFromConfig,
   finalizeCalculationConfigForSave,
   markCalculationResponse
@@ -37,9 +38,37 @@ function findEq(sheet, id) {
 
 test("evaluateEquation — product layout (weight)", () => {
   const eq = findEq(sheetP2, "weight");
-  const { answer, unit } = evaluateEquation(eq, { m: "2", g: "9.8" });
+  const { answer, unit } = evaluateEquation(eq, { m: "2", g: "10" });
   assert.equal(unit, "N");
-  assert.ok(Math.abs(answer - 19.6) < 0.01);
+  assert.ok(Math.abs(answer - 20) < 0.01);
+});
+
+test("solveForSubject — gravitational potential energy rearranged for h", () => {
+  const eq = findEq(sheetP1, "gravitational_potential_energy");
+  const slots = { E_p: "200", m: "4", g: "10" };
+  const h = solveForSubject(eq, slots, "h");
+  assert.ok(Math.abs(h - 5) < 0.001, `expected h=5, got ${h}`);
+});
+
+test("generateBatch — gravitational potential energy rearrangement for h", () => {
+  const { drafts, errors } = generateBatch(
+    {
+      equation: "gravitational_potential_energy",
+      sheet: "physics_p1_ht",
+      rearrangement_subject: "h",
+      variants: { recipes: [{ base: "recall", rearrangement: true, count: 1 }] },
+      seed: 42
+    },
+    sheetP1
+  );
+  assert.equal(errors.length, 0, errors.map((e) => e.message).join("; "));
+  assert.equal(drafts.length, 1);
+  const cfg = drafts[0].question.calculation_config;
+  assert.ok(cfg.steps.some((s) => s.type === "rearrangement"));
+  assert.equal(
+    cfg.steps.find((s) => s.type === "substitution")?.rearrangement_subject,
+    "h"
+  );
 });
 
 test("buildCalculationConfigForVariant — substitute vs optional rearrangement", () => {
@@ -419,10 +448,10 @@ test("parseSlotDisplayInput — typed value with unit", () => {
   assert.ok(energyOpts.some((o) => o.fromUnit === "MJ"));
 });
 
-test("conversion + substitution (no rearrangement) — substitution mark scheme uses SI", () => {
+test("conversion + substitution (no rearrangement) — substitution feedback shows full equation with SI values", () => {
   const { drafts } = generateBatch(
     {
-      equation: "weight",
+      equation: "kinetic_energy",
       sheet: "physics_p1_ht",
       variants: { recipes: [{ base: "substitute", unitConversion: true, count: 1 }] },
       seed: 12
@@ -440,11 +469,38 @@ test("conversion + substitution (no rearrangement) — substitution mark scheme 
   assert.equal(siVal, String(convStep.answer));
   assert.notEqual(siVal, String(convStep.display_value));
 
-  const subFb = cfg.steps.find((s) => s.type === "substitution")?.feedback_if_wrong || "";
-  if (convSlot === "m") {
-    assert.ok(subFb.includes(`m=${siVal}`), `feedback should use SI mass: ${subFb}`);
-    assert.ok(!subFb.includes(String(convStep.display_value)), `feedback should not use stem display: ${subFb}`);
-  }
+  const eq = findEq(sheetP1, "kinetic_energy");
+  const expected = buildSubstitutionFeedbackText(subStep, eq, { convStep, config: cfg });
+  assert.equal(subStep.feedback_if_wrong, expected);
+  assert.match(subStep.feedback_if_wrong, /^Substitute E_k = /);
+  assert.ok(subStep.feedback_if_wrong.includes(siVal), `feedback should use SI value in equation: ${subStep.feedback_if_wrong}`);
+  assert.ok(!subStep.feedback_if_wrong.includes(String(convStep.display_value)), `feedback should not use stem display: ${subStep.feedback_if_wrong}`);
+});
+
+test("batch substitution feedback_if_wrong matches live equation feedback (rearrangement keeps symbol slot)", () => {
+  const { drafts } = generateBatch(
+    {
+      equation: "kinetic_energy",
+      sheet: "physics_p1_ht",
+      rearrangement_subject: "m",
+      variants: { recipes: [{ base: "substitute", rearrangement: true, count: 1 }] },
+      seed: 77
+    },
+    sheetP1
+  );
+  const draft = drafts[0];
+  const cfg = draft.question.calculation_config;
+  const subStep = cfg.steps.find((s) => s.type === "substitution");
+  const eq = findEq(sheetP1, "kinetic_energy");
+  const convStep = cfg.steps.find((s) => s.type === "conversion");
+  const expected = buildSubstitutionFeedbackText(subStep, eq, {
+    convStep,
+    config: cfg,
+    slotEdits: draft.slot_edits,
+    promptOverrides: {}
+  });
+  assert.equal(subStep.feedback_if_wrong, expected);
+  assert.match(subStep.feedback_if_wrong, /\bm\b/, "unknown subject should stay as symbol in equation feedback");
 });
 
 test("conversion + rearrangement — substitution mark scheme uses SI after conversion step", async () => {

@@ -126,7 +126,7 @@ const DEFAULT_SLOT_RANGES = {
   P: { min: 10, max: 2000, step: 10 },
   E: { min: 100, max: 5000, step: 50 },
   Q: { min: 1, max: 100, step: 1 },
-  g: { min: 9.8, max: 9.8, step: 0.1 },
+  g: { min: 10, max: 10, step: 1 },
   c: { min: 4200, max: 4200, step: 1 },
   h: { min: 1, max: 2, step: 0.1 },
   k: { min: 50, max: 500, step: 10 },
@@ -148,7 +148,7 @@ const DEFAULT_SLOT_RANGES = {
   T: { min: 0.001, max: 2, step: 0.001 }
 };
 
-const DEFAULT_CONSTANTS = { g: 9.8, c: 4200 };
+const DEFAULT_CONSTANTS = { g: 10, c: 4200 };
 
 const PROMPT_TEMPLATES = {
   kinetic_energy:
@@ -423,9 +423,19 @@ export function solveForSubject(equation, slots, subject) {
       const other = val(others[0]);
       if (Number.isFinite(res) && Number.isFinite(other) && other !== 0) return res / other;
     }
-    if (ids.length === 3 && ids.includes("g")) {
-      if (subject === "m" && val("g")) return res / val("g");
-      if (subject === "g" && val("m")) return res / val("m");
+    if (others.length >= 2) {
+      let product = 1;
+      for (const id of others) {
+        const v = val(id);
+        if (!Number.isFinite(v) || v === 0) {
+          product = NaN;
+          break;
+        }
+        product *= v;
+      }
+      if (Number.isFinite(product) && product !== 0 && Number.isFinite(res)) {
+        return res / product;
+      }
     }
   }
 

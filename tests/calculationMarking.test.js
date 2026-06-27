@@ -560,6 +560,35 @@ test("buildSubstitutionFeedbackText shows full equation with symbol slot from bl
   assert.ok(!text.toLowerCase().includes("incorrect"));
 });
 
+test("buildSubstitutionFeedbackText keeps symbol slot when batch slotEdits include numeric subject value", () => {
+  const equation = {
+    id: "kinetic_energy",
+    substitution_template: kineticEnergyTemplate
+  };
+  const config = {
+    steps: [
+      {
+        type: "substitution",
+        mode: "structured",
+        equation_id: "kinetic_energy",
+        slot_answers: { E_k: ["16"], m: ["2"], v: ["4"] },
+        si_slot_answers: { E_k: ["16"], m: ["2"], v: ["4"] },
+        rearrangement_subject: "m"
+      },
+      { type: "rearrangement", required: true, mode: "numeric", subject: "m" }
+    ]
+  };
+  const subStep = config.steps[0];
+  const slotEdits = {
+    E_k: { display: "16", si: "16" },
+    m: { display: "2", si: "2" },
+    v: { display: "4", si: "4" }
+  };
+  const text = buildSubstitutionFeedbackText(subStep, equation, { config, slotEdits });
+  assert.equal(text, "Substitute E_k = ½ × m × 4²");
+  assert.ok(!text.includes("½ × 2 ×"), "subject numeric value must not replace symbol in feedback equation");
+});
+
 test("resolveSymbolSlotIds uses blank expected values from mark scheme", () => {
   const subStep = { slot_answers: { m: ["500"], v: ["15"] } };
   const ids = resolveSymbolSlotIds(kineticEnergyTemplate, subStep);
