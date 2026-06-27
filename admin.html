@@ -689,6 +689,31 @@
       max-width: 800px;
     }
 
+    #sandboxModalOverlay {
+      overflow-y: auto;
+      padding: 16px 0;
+    }
+
+    #sandboxModalOverlay .card {
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-sizing: border-box;
+      margin-bottom: 0;
+    }
+
+    #sandboxModalOverlay .sandbox-modal-body {
+      flex: 1 1 auto;
+      overflow-y: auto;
+      min-height: 0;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    #sandboxModalOverlay .sandbox-modal-footer {
+      flex-shrink: 0;
+    }
+
     @media (min-width: 1100px) {
       .creator-core-body {
         display: grid;
@@ -2343,20 +2368,22 @@
   <!-- MODAL WINDOW A: INTERACTIVE SANDBOX SIMULATOR -->
   <div id="sandboxModalOverlay" class="hidden" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(15,23,42,0.6); z-index:2000; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(4px);">
     <div class="card" style="width:100%; max-width:650px; box-shadow:0 20px 25px -5px rgba(0,0,0,0.1); margin: 0 16px; border-radius:16px;">
-      <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:12px; margin-bottom:16px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:12px; margin-bottom:16px; flex-shrink:0;">
         <h3 style="margin:0; font-size:1.15rem; color:#1e293b;">🧪 Sandbox Sandbox Testing Playground</h3>
         <button onclick="closeSandboxModal()" style="border:none; background:none; font-size:1.4rem; cursor:pointer; color:var(--text-muted);">&times;</button>
       </div>
 
-      <!-- Target Simulator Stage -->
-      <div id="sandboxStage" style="min-height:100px; padding:4px 0;"></div>
+      <div class="sandbox-modal-body">
+        <!-- Target Simulator Stage -->
+        <div id="sandboxStage" style="min-height:100px; padding:4px 0;"></div>
 
-      <!-- Realtime Evaluated feedback card -->
-      <div id="sandboxFeedbackCard" class="hidden" style="margin-top: 16px; border: 1px solid var(--border); border-radius: 8px; padding: 16px; background: #f8fafc;">
-        <div id="sandboxFeedbackPayload" style="font-size:0.88rem; line-height:1.5;"></div>
+        <!-- Realtime Evaluated feedback card -->
+        <div id="sandboxFeedbackCard" class="hidden" style="margin-top: 16px; border: 1px solid var(--border); border-radius: 8px; padding: 16px; background: #f8fafc;">
+          <div id="sandboxFeedbackPayload" style="font-size:0.88rem; line-height:1.5;"></div>
+        </div>
       </div>
 
-      <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:20px; border-top:1px solid var(--border); padding-top:16px;">
+      <div class="sandbox-modal-footer" style="display:flex; justify-content:flex-end; gap:8px; margin-top:20px; border-top:1px solid var(--border); padding-top:16px;">
         <button onclick="closeSandboxModal()" class="btn btn-secondary" style="padding:8px 16px;">Close sandbox</button>
         <button id="btnSandboxSubmit" class="btn btn-primary" style="padding:8px 16px; background:#3b82f6;">Run Scoring Engine</button>
       </div>
@@ -2869,9 +2896,10 @@
   let loadedQuestionsCache = [];
   let auditSpecMap = {};
   let auditCheckPointsCounterMap = {};
-  let auditSort = { column: "severity", direction: "desc" };
+  let auditSort = { column: "ref", direction: "asc" };
   let auditCourseTrackFilter = "";
   const AUDIT_DEMAND_ORDER = { low: 1, standard: 2, standard_45: 3, standard_67: 4, high_89: 5 };
+  const AUDIT_DEFAULT_SORT_COLUMNS = ["ref", "demand", "difficulty", "id"];
   let markPointsCounter = 0;
   let calcRemediationCounter = 0;
   let editCalcRemediationCounter = 0;
@@ -6204,6 +6232,8 @@
         return window.AdminMetadata
           ? window.AdminMetadata.computeQuestionDifficulty(q)
           : (Number(q.difficulty) || 0);
+      case "id":
+        return q.id || "";
       case "ao":
         return (Number(q.ao1_marks) || 0) + (Number(q.ao2_marks) || 0) + (Number(q.ao3_marks) || 0);
       case "meta": {
@@ -6223,19 +6253,20 @@
     const sorted = [...questions];
     const { column, direction } = auditSort;
     const dir = direction === "asc" ? 1 : -1;
+    const sortColumns = [column, ...AUDIT_DEFAULT_SORT_COLUMNS.filter((c) => c !== column)];
 
     sorted.sort((a, b) => {
-      const cmp = compareAuditValues(
-        getAuditSortValue(a, column, specMap),
-        getAuditSortValue(b, column, specMap)
-      );
-      if (cmp !== 0) return cmp * dir;
-
-      const refCmp = compareAuditValues(
-        getAuditQuestionSpecRef(a, specMap),
-        getAuditQuestionSpecRef(b, specMap)
-      );
-      return refCmp;
+      for (const col of sortColumns) {
+        const cmp = compareAuditValues(
+          getAuditSortValue(a, col, specMap),
+          getAuditSortValue(b, col, specMap)
+        );
+        if (cmp !== 0) {
+          const colDir = col === column ? dir : 1;
+          return cmp * colDir;
+        }
+      }
+      return 0;
     });
     return sorted;
   }
@@ -6401,7 +6432,7 @@
       auditSort.direction = auditSort.direction === "asc" ? "desc" : "asc";
     } else {
       auditSort.column = col;
-      auditSort.direction = col === "severity" ? "desc" : "asc";
+      auditSort.direction = "asc";
     }
     renderAuditTable();
   });

@@ -31,8 +31,12 @@ import {
   resolveMarkSchemeEquationId,
   resolveSubstitutionContext,
   resolveSubstitutionMarkScheme,
+  resolveSubstitutionRearrangementSubject,
   substitutionPayloadIsComplete,
-  substitutionSlotsMatchCommutative
+  substitutionSlotsMatchCommutative,
+  buildMarkSchemeSubstitutionSlots,
+  formatSubstitutionEquationDisplay,
+  slotLabelFromTemplate
 } from "./substitutionTemplate.js";
 
 const STEP_ORDER = [
@@ -216,38 +220,41 @@ function substitutionFeedbackSlotIds(subStep, equation, rearrangementSubject = n
   return slotIds;
 }
 
-export function buildSubstitutionFeedbackText(subStep, equation, ctx = {}) {
-  const { slotEdits, promptOverrides, rearrangementSubject, convStep } = ctx;
-  if (!equation) return "Substitute the correct values from the question.";
+export function buildSubstitutionFeedbackContent(subStep, equation, ctx = {}) {
+  const { convStep, config, slotEdits, promptOverrides } = ctx;
+  if (!equation) {
+    return { text: "Substitute the correct values from the question." };
+  }
+  const template = getSubstitutionTemplate(equation);
+  if (!template) {
+    return { text: "Substitute the correct values from the question." };
+  }
 
-  const slotIds = substitutionFeedbackSlotIds(subStep, equation, rearrangementSubject);
-  const parts = slotIds.map((id) => {
-    if (convStep?.slot_id === id) {
-      const si = convStep.answer != null
-        ? String(convStep.answer)
-        : firstSlotAnswerValue(subStep?.si_slot_answers?.[id] ?? subStep?.slot_answers?.[id]);
-      if (!si || isSymbolicSlotValue(id, si)) return "";
-      const unit = convStep.to_unit || getSlotSiUnit(id) || "";
-      return `${id}=${si}${unit}`;
-    }
-    if (slotEdits?.[id]) {
+  const slots = buildMarkSchemeSubstitutionSlots(template, subStep, { convStep, config });
+  for (const id of getSlotIdsFromTemplate(template)) {
+    if (convStep?.slot_id === id && convStep.answer != null) {
+      slots[id] = String(convStep.answer);
+    } else if (slotEdits?.[id]) {
       const edit = slotEdits[id];
-      const display = edit.isConversionSlot ? (edit.si ?? edit.display) : edit.display;
-      if (isSymbolicSlotValue(id, String(display ?? ""))) return "";
-      const unit = edit.isConversionSlot
-        ? (edit.toUnit || getSlotSiUnit(id) || "")
-        : (edit.unit || getSlotSiUnit(id) || "");
-      return `${id}=${display}${unit}`;
+      slots[id] = edit.isConversionSlot ? (edit.si ?? edit.display) : edit.display;
+    } else if (promptOverrides?.[id]) {
+      slots[id] = promptOverrides[id];
     }
-    if (promptOverrides?.[id]) {
-      return `${id}=${promptOverrides[id]}`;
-    }
-    const markVals = subStep?.si_slot_answers?.[id] ?? subStep?.slot_answers?.[id];
-    return formatSlotForSubstitutionFeedback(id, markVals);
-  }).filter(Boolean);
+  }
 
-  if (!parts.length) return "Substitute the correct values from the question.";
-  return `Substitute ${parts.join(" and ")}`;
+  const plainEq = formatSubstitutionEquationDisplay(template, slots, { latex: false });
+  const latexEq = formatSubstitutionEquationDisplay(template, slots, { latex: true });
+  if (!plainEq) {
+    return { text: "Substitute the correct values from the question." };
+  }
+  return {
+    text: `Substitute ${plainEq}`,
+    html: latexEq ? equationPreviewMarkup(latexEq) : ""
+  };
+}
+
+export function buildSubstitutionFeedbackText(subStep, equation, ctx = {}) {
+  return buildSubstitutionFeedbackContent(subStep, equation, ctx).text;
 }
 
 export function buildDefaultStepFeedback(step, config, ctx = {}) {
@@ -273,8 +280,8 @@ export function buildDefaultStepFeedback(step, config, ctx = {}) {
       return buildSubstitutionFeedbackText(step, equation, {
         slotEdits,
         promptOverrides,
-        rearrangementSubject,
-        convStep
+        convStep,
+        config
       });
     }
     case "conversion": {
@@ -629,9 +636,10 @@ function renderSubstitutionSlotRows(prefix, template, slotAnswers = {}) {
   wrap.innerHTML = slotIds.map((id) => {
     const vals = slotAnswers[id];
     const value = Array.isArray(vals) ? vals.join(" | ") : (vals || "");
+    const label = slotLabelFromTemplate(template, id);
     return `
       <div class="row" data-slot-id="${escapeHtml(id)}" style="margin-bottom:6px;align-items:center;">
-        <label style="min-width:3em;font-weight:600;">${escapeHtml(id)}</label>
+        <label style="min-width:3em;font-weight:600;">${escapeHtml(label)}</label>
         <input type="text" value="${escapeHtml(value)}" placeholder="e.g. 400 or I | i" title="Use | for accepted alternates" style="flex:1;padding:6px;border:1px solid #cbd5e1;border-radius:4px;"/>
       </div>`;
   }).join("");
@@ -656,9 +664,16 @@ function renderStructuredSubstitutionPreview(prefix, template, slotAnswers) {
     preview.innerHTML = "<span class=\"muted\">Select an equation with a template to preview slot layout.</span>";
     return;
   }
+  const p = (id) => document.getElementById(prefix + id);
+  const rearrangementActive = !!p("CalcStepRearrangement")?.checked;
+  const subject = rearrangementActive ? p("CalcRearrangementSubject")?.value?.trim() : "";
+  const previewConfig = rearrangementActive
+    ? { steps: [{ type: "rearrangement", required: true, subject }] }
+    : null;
   preview.innerHTML = renderSubstitutionStepInner(
     { mode: "structured", template, equationId: null },
-    "padding:4px;font-size:0.85rem;border:1px solid #94a3b8;border-radius:4px;"
+    "padding:4px;font-size:0.85rem;border:1px solid #94a3b8;border-radius:4px;",
+    { config: previewConfig, subStep: subject ? { rearrangement_subject: subject } : null }
   );
 }
 
@@ -1010,19 +1025,22 @@ export function buildWrongEquationFeedback(markSchemeEquation, cleanUrl, steps, 
   const convStep = steps.find((s) => s.type === "conversion");
   const subStep = steps.find((s) => s.type === "substitution");
   if (subStep && (Number(subStep.marks) || 0) > 0 && !stepResults.substitution?.correct) {
+    const subFb = buildSubstitutionFeedbackContent(subStep, markSchemeEquation, {
+      convStep,
+      config: { steps }
+    });
+    const subText = getStepFeedback(
+      subStep,
+      markPoints,
+      "substitution",
+      subFb.text,
+      { steps }
+    );
     items.push({
       ao: subStep.ao || "AO2",
       stepType: "substitution",
-      text: getStepFeedback(
-        subStep,
-        markPoints,
-        "substitution",
-        buildSubstitutionFeedbackText(subStep, markSchemeEquation, {
-          rearrangementSubject: subStep?.rearrangement_subject,
-          convStep
-        }),
-        { steps }
-      ),
+      text: subText,
+      html: subText === subFb.text ? subFb.html : "",
       url: cleanUrl
     });
   }
@@ -1715,7 +1733,7 @@ export function renderCalculationWorkflow(q, currentKey, presentation = "practic
       html += `
         <div class="calc-step" data-step="substitution" style="margin-bottom:12px;">
           <label style="display:block;font-size:0.82rem;font-weight:700;margin-bottom:4px;">${renderStepLabel(numberedLabel, step)}:</label>
-          <div class="calc-sub-step-inner">${renderSubstitutionStepInner(ctx, inputStyle())}</div>
+          <div class="calc-sub-step-inner">${renderSubstitutionStepInner(ctx, inputStyle(), { config, subStep: step })}</div>
         </div>
       `;
     } else if (step.type === "conversion") {
@@ -1884,17 +1902,7 @@ export function validateCalculationResponse(q, resp, sessionMode) {
       }
     } else if (step.type === "substitution") {
       if (typeof val === "object" && val?.mode === "structured") {
-        let omitSlotIds = [];
-        if (!step.rearrangement_subject && step.equation_id && equationSheet) {
-          const equation = findEquationInSheet(equationSheet, step.equation_id);
-          const template = getSubstitutionTemplate(equation);
-          const resultSlot = identifyResultSlot(template);
-          if (resultSlot) omitSlotIds = [resultSlot];
-        }
-        if (!substitutionPayloadIsComplete(val, {
-          rearrangementSubject: step.rearrangement_subject,
-          omitSlotIds
-        })) {
+        if (!substitutionPayloadIsComplete(val)) {
           missing.push(getStepLabel(step.type, presentation, step));
         }
       } else if (!val || (typeof val === "object" && !val.text)) {
@@ -1938,12 +1946,11 @@ function matchSubstitutionStep(studentVal, step, config, equationSheet, markingC
     const markSchemeEq = resolveMarkSchemeEquationId(config, step);
     const equation = findEquationInSheet(equationSheet, markSchemeEq || studentVal.equation_id);
     const template = getSubstitutionTemplate(equation);
-    const rearrStep = (config?.steps || []).find((s) => s.type === "rearrangement");
     const convStep = (config?.steps || []).find((s) => s.type === "conversion");
     const subStepForMark = resolveSubstitutionMarkScheme(
       {
         ...step,
-        rearrangement_subject: step.rearrangement_subject || rearrStep?.subject || null
+        rearrangement_subject: resolveSubstitutionRearrangementSubject(step, config)
       },
       convStep,
       resp,
@@ -1990,10 +1997,7 @@ function shouldIgnoreInlineStepFeedback(step, stepType, config) {
 function buildLiveSubstitutionFeedback(step, config, equationSheet) {
   const convStep = (config?.steps || []).find((s) => s.type === "conversion");
   const equation = findEquationInSheet(equationSheet, step.equation_id);
-  return buildSubstitutionFeedbackText(step, equation, {
-    rearrangementSubject: step.rearrangement_subject,
-    convStep
-  });
+  return buildSubstitutionFeedbackContent(step, equation, { config, convStep });
 }
 
 function resolveSimpleNumericMaxAo(max, markPoints) {
@@ -2246,16 +2250,19 @@ export function markCalculationResponse(q, resp, key, markPoints, cleanUrl, equa
             url: cleanUrl
           });
         }
+        const subFb = buildLiveSubstitutionFeedback(step, config, equationSheet);
+        const subText = getStepFeedback(
+          step,
+          markPoints,
+          "substitution",
+          subFb.text,
+          config
+        );
         missing.push({
           ao: stepAo,
           stepType: step.type,
-          text: getStepFeedback(
-            step,
-            markPoints,
-            "substitution",
-            buildLiveSubstitutionFeedback(step, config, equationSheet),
-            config
-          ),
+          text: subText,
+          html: subText === subFb.text ? subFb.html : "",
           url: cleanUrl
         });
       }
@@ -2544,7 +2551,7 @@ function getStepExpectedHint(step, config, key, equationSheet) {
           const v = Array.isArray(vals) ? vals[0] : vals;
           return `${id} → ${v}`;
         });
-        return parts.length ? `Expected slots: ${parts.join(", ")}` : "Fill each box with the correct value or symbol.";
+        return parts.length ? `Expected slots: ${parts.join(", ")}` : "Enter values from the question; type the symbol for the quantity you are finding.";
       }
       return step.accepted?.[0]
         ? `Example: ${step.accepted[0]}`

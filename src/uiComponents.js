@@ -7,6 +7,16 @@ import { loadCalculationWorkflow } from './lazyCalculationWorkflow.js';
 // Dom element selector shortcut helper used internally
 const el = (id) => document.getElementById(id);
 
+function formatCalcMissingFeedbackBody(item) {
+  if (item.stepType === "equation_select" && item.html) {
+    return `The correct equation is: ${item.html}`;
+  }
+  if (item.stepType === "substitution" && item.html) {
+    return `Substitute ${item.html}`;
+  }
+  return `${escapeHtml(item.text)}${item.html || ""}`;
+}
+
 // ====== GLOBAL TOAST NOTIFICATION BANNER ======
 export function showToastBanner(msg, isError = true, durationMs = 5000) {
   let banner = el("toastBanner");
@@ -226,9 +236,7 @@ export async function renderFeedback(marking, currentQ, currentKey, currentMarkP
       const badgeColor = isEcf ? "#166534" : "white";
       const badgeLabel = isEcf ? "ECF" : m.ao;
 
-      const feedbackContent = (m.stepType === "equation_select" && m.html)
-        ? `The correct equation is: ${m.html}`
-        : `${escapeHtml(m.text)}${m.html || ""}`;
+      const feedbackContent = formatCalcMissingFeedbackBody(m);
 
       return `
         <div class="item" style="margin: 5px 0; padding: 12px; background: ${containerBg}; border-left: 4px solid ${borderCol}; border-radius: 0 6px 6px 0; color: ${textCol};">
@@ -862,9 +870,7 @@ export function renderExamPaperFeedbackSummary(attemptLog) {
     const gaps = (m.missing || [])
       .filter((g) => !g.isEcf)
       .map((g) => {
-        const body = (g.stepType === "equation_select" && g.html)
-          ? `The correct equation is: ${g.html}`
-          : `${escapeHtml(g.text)}${g.html || ""}`;
+        const body = formatCalcMissingFeedbackBody(g);
         return `<li style="margin-bottom:6px;">${body}</li>`;
       })
       .join("");

@@ -4,7 +4,8 @@ import {
   parseCommutativeGroups,
   substitutionSlotsMatchCommutative,
   rearrangementStructurallyMatches,
-  isRearrangementInputReady
+  isRearrangementInputReady,
+  resolveSymbolSlotIds
 } from "../src/substitutionTemplate.js";
 import { markCalculationResponse, buildSubstitutionFeedbackText, applyDefaultStepFeedbackToConfig } from "../src/calculationWorkflow.js";
 
@@ -29,6 +30,20 @@ const shcTemplate = {
     { kind: "slot", id: "c", label: "c" },
     { kind: "op", text: "×" },
     { kind: "slot", id: "delta_theta", label: "Δθ" }
+  ]
+};
+
+const kineticEnergyTemplate = {
+  layout: "sum_product",
+  tokens: [
+    { kind: "slot", id: "E_k", label: "E_k" },
+    { kind: "op", text: "=" },
+    { kind: "op", text: "½" },
+    { kind: "op", text: "×" },
+    { kind: "slot", id: "m", label: "m" },
+    { kind: "op", text: "×" },
+    { kind: "slot", id: "v", label: "v" },
+    { kind: "op", text: "²" }
   ]
 };
 
@@ -532,27 +547,90 @@ test("ECF: spring constant k re-evaluates with e² not linear ratio", async () =
   assert.ok(calcFb?.text.includes("substituted values"));
 });
 
-test("buildSubstitutionFeedbackText uses actual slot values", () => {
+test("buildSubstitutionFeedbackText shows full equation with symbol slot from blank mark scheme", () => {
   const equation = {
     id: "kinetic_energy",
-    substitution_template: {
-      layout: "product",
-      tokens: [
-        { kind: "slot", id: "E_k" },
-        { kind: "op", text: "=" },
-        { kind: "slot", id: "m" },
-        { kind: "op", text: "×" },
-        { kind: "slot", id: "v", label: "v" },
-        { kind: "op", text: "²" }
+    substitution_template: kineticEnergyTemplate
+  };
+  const subStep = {
+    slot_answers: { m: ["100"], v: ["20"] }
+  };
+  const text = buildSubstitutionFeedbackText(subStep, equation);
+  assert.equal(text, "Substitute E_k = ½ × 100 × 20²");
+  assert.ok(!text.toLowerCase().includes("incorrect"));
+});
+
+test("resolveSymbolSlotIds uses blank expected values from mark scheme", () => {
+  const subStep = { slot_answers: { m: ["500"], v: ["15"] } };
+  const ids = resolveSymbolSlotIds(kineticEnergyTemplate, subStep);
+  assert.ok(ids.has("E_k"));
+  assert.ok(!ids.has("m"));
+  assert.ok(!ids.has("v"));
+});
+
+test("stale rearrangement_subject ignored when rearrangement step is inactive", () => {
+  const config = {
+    steps: [
+      { type: "substitution", required: true },
+      { type: "calculate", required: true }
+    ]
+  };
+  const subStep = { rearrangement_subject: "v" };
+  const ids = resolveSymbolSlotIds(kineticEnergyTemplate, subStep, config);
+  assert.ok(ids.has("E_k"));
+  assert.ok(!ids.has("v"));
+});
+
+test("symbol slot accepts variable name when mark scheme leaves result slot blank", () => {
+  const subStep = { slot_answers: { m: ["20"], v: ["4"] } };
+  const payload = {
+    mode: "structured",
+    equation_id: "kinetic_energy",
+    slots: { E_k: "E_k", m: "20", v: "4" }
+  };
+  assert.equal(substitutionSlotsMatchCommutative(payload, subStep, kineticEnergyTemplate), true);
+});
+
+test("kinetic energy substitution accepts E_k symbol with m and v filled", () => {
+  const sheet = {
+    equations: [{ id: "kinetic_energy", substitution_template: kineticEnergyTemplate }]
+  };
+  const q = {
+    question_type: "numeric",
+    max_marks: 2,
+    calculation_config: {
+      equation_given: true,
+      steps: [
+        {
+          type: "substitution",
+          required: true,
+          mode: "structured",
+          equation_id: "kinetic_energy",
+          slot_answers: { m: ["20"], v: ["4"] },
+          marks: 1
+        },
+        { type: "calculate", required: true, marks: 1 }
       ]
     }
   };
-  const subStep = {
-    slot_answers: { m: ["100"], v: ["20"], E_k: ["E_k"] }
+  const resp = {
+    steps: {
+      substitution: {
+        mode: "structured",
+        equation_id: "kinetic_energy",
+        slots: { E_k: "E_k", m: "20", v: "4" }
+      },
+      calculate: 160
+    }
   };
-  const text = buildSubstitutionFeedbackText(subStep, equation);
-  assert.equal(text, "Substitute m=100kg and v=20m/s");
-  assert.ok(!text.toLowerCase().includes("incorrect"));
+  const key = {
+    key_type: "numeric",
+    key_payload: { answer: 160, exact_answer: 160, tolerance: 0.001, unit: "J" }
+  };
+
+  const result = markCalculationResponse(q, resp, key, [], null, sheet);
+  assert.equal(result.stepResults.substitution.correct, true);
+  assert.equal(result.total, 2);
 });
 
 test("applyDefaultStepFeedbackToConfig drops incorrect from step feedback", () => {
@@ -586,21 +664,11 @@ test("applyDefaultStepFeedbackToConfig drops incorrect from step feedback", () =
 test("buildSubstitutionFeedbackText uses SI value after unit conversion", () => {
   const equation = {
     id: "kinetic_energy",
-    substitution_template: {
-      layout: "product",
-      tokens: [
-        { kind: "slot", id: "E_k" },
-        { kind: "op", text: "=" },
-        { kind: "slot", id: "m" },
-        { kind: "op", text: "×" },
-        { kind: "slot", id: "v", label: "v" },
-        { kind: "op", text: "²" }
-      ]
-    }
+    substitution_template: kineticEnergyTemplate
   };
   const subStep = {
-    slot_answers: { m: ["10000"], v: ["4"], E_k: ["E_k"] },
-    si_slot_answers: { m: ["10"], v: ["4"], E_k: ["E_k"] }
+    slot_answers: { m: ["10000"], v: ["4"] },
+    si_slot_answers: { m: ["10"], v: ["4"] }
   };
   const convStep = {
     slot_id: "m",
@@ -610,7 +678,7 @@ test("buildSubstitutionFeedbackText uses SI value after unit conversion", () => 
     display_value: 10000
   };
   const text = buildSubstitutionFeedbackText(subStep, equation, { convStep });
-  assert.equal(text, "Substitute m=10kg and v=4m/s");
+  assert.equal(text, "Substitute E_k = ½ × 10 × 4²");
   assert.ok(!text.includes("10000"));
 });
 
@@ -726,7 +794,7 @@ test("stale baked substitution feedback is ignored when conversion step exists",
   };
   const subStep = config.steps[1];
   const live = buildSubstitutionFeedbackText(subStep, equation, { convStep: config.steps[0] });
-  assert.equal(live, "Substitute m=10kg and v=11m/s");
+  assert.equal(live, "Substitute E_k = ½ × 10 × 11²");
 
   const q = {
     question_type: "numeric",

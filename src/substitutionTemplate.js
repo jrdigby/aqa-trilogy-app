@@ -77,8 +77,185 @@ export function identifyResultSlotFromTemplate(template) {
     const lhs = template.lhs?.find((t) => t.kind === "slot");
     return lhs?.id || null;
   }
+  if (template.layout === "product" || template.layout === "sum_product") {
+    const eqIdx = (template.tokens || []).findIndex((t) => t.kind === "op" && t.text === "=");
+    if (eqIdx < 0) return null;
+    const lhsSlot = template.tokens.slice(0, eqIdx).find((t) => t.kind === "slot");
+    return lhsSlot?.id || null;
+  }
   const first = template.tokens?.find((t) => t.kind === "slot");
   return first?.id || null;
+}
+
+/** Rearrangement step only when required (optional steps must not affect substitution). */
+export function findActiveRearrangementStep(config) {
+  const step = (config?.steps || []).find((s) => s.type === "rearrangement");
+  if (!step || step.required === false) return null;
+  return step;
+}
+
+/** Unknown variable for substitution — only when a rearrangement step is active. */
+export function resolveSubstitutionRearrangementSubject(subStep, config = null) {
+  const rearrStep = config ? findActiveRearrangementStep(config) : null;
+  if (!rearrStep) return null;
+  return subStep?.rearrangement_subject || rearrStep.subject || null;
+}
+
+/** Slots where students type the variable symbol, not a number. */
+export function isBlankSlotAnswer(vals) {
+  if (vals == null) return true;
+  if (Array.isArray(vals)) {
+    if (!vals.length) return true;
+    return vals.every((v) => !String(v ?? "").trim());
+  }
+  return !String(vals).trim();
+}
+
+/** Slots where students type the variable symbol (blank expected value in mark scheme). */
+export function resolveSymbolSlotIds(template, subStep, config = null) {
+  const slotAnswers = subStep?.slot_answers || {};
+  const ids = getSlotIdsFromTemplate(template);
+  const hasAnyMarkSchemeValue = ids.some((id) => !isBlankSlotAnswer(slotAnswers[id]));
+  if (hasAnyMarkSchemeValue) {
+    const fromBlanks = ids.filter((id) => isBlankSlotAnswer(slotAnswers[id]));
+    if (fromBlanks.length) return new Set(fromBlanks);
+  }
+
+  const subject = resolveSubstitutionRearrangementSubject(subStep, config);
+  if (subject) return new Set([subject]);
+  const result = identifyResultSlotFromTemplate(template);
+  return result ? new Set([result]) : new Set();
+}
+
+export function slotLabelFromTemplate(template, slotId) {
+  const find = (items) => {
+    for (const item of items || []) {
+      if (item.kind === "slot" && item.id === slotId) return item.label || item.id;
+    }
+    return null;
+  };
+  if (!template) return slotId;
+  if (template.layout === "fraction") {
+    return find(template.lhs) || find(template.numerator) || find(template.denominator) || slotId;
+  }
+  return find(template.tokens) || slotId;
+}
+
+function slotValueMatchesSymbol(slotId, studentVal, template = null) {
+  const n = normalizeSlotValue(studentVal);
+  if (!n) return false;
+  if (n === normalizeSlotValue(slotId)) return true;
+  const label = template ? slotLabelFromTemplate(template, slotId) : null;
+  if (label && n === normalizeSlotValue(label)) return true;
+  for (const [unicode, id] of Object.entries(SLOT_ID_ALIASES)) {
+    if (id === slotId && n === normalizeSlotValue(unicode)) return true;
+  }
+  return false;
+}
+
+function slotValueMatchesAccepted(slotId, studentVal, acceptedList, symbolSlotIds, template = null) {
+  if (symbolSlotIds?.has(slotId) && slotValueMatchesSymbol(slotId, studentVal, template)) return true;
+  return slotValueMatches(studentVal, acceptedList);
+}
+
+export function renderSubstitutionHelper(template, symbolSlotIds) {
+  if (!symbolSlotIds?.size) return "";
+  const labels = [...symbolSlotIds].map((id) => slotLabelFromTemplate(template, id));
+  const symText = labels.length === 1 ? labels[0] : labels.join(" or ");
+  return `<p class="calc-sub-hint" style="font-size:0.8rem;color:#64748b;margin:0 0 8px;line-height:1.45;">Enter values from the question in each box. For the quantity you are finding, type its symbol (<strong>${escapeHtml(symText)}</strong>).</p>`;
+}
+
+function firstMarkSchemeSlotValue(vals) {
+  if (vals == null) return "";
+  const raw = Array.isArray(vals) ? vals[0] : String(vals);
+  return String(raw).split("|")[0].trim();
+}
+
+/** Build slot → display map for substitution feedback (symbols + numeric values). */
+export function buildMarkSchemeSubstitutionSlots(template, subStep, ctx = {}) {
+  const { convStep, config } = ctx;
+  const symbolSlotIds = resolveSymbolSlotIds(template, subStep, config);
+  const slots = {};
+  for (const id of getSlotIdsFromTemplate(template)) {
+    if (symbolSlotIds.has(id)) {
+      slots[id] = slotLabelFromTemplate(template, id);
+      continue;
+    }
+    if (convStep?.slot_id === id && convStep.answer != null) {
+      slots[id] = String(convStep.answer);
+      continue;
+    }
+    const v = firstMarkSchemeSlotValue(
+      subStep?.si_slot_answers?.[id] ?? subStep?.slot_answers?.[id]
+    );
+    slots[id] = v || slotLabelFromTemplate(template, id);
+  }
+  return slots;
+}
+
+function formatSubstitutionTokenSequence(items, slots, template, { latex = false } = {}) {
+  let out = "";
+  let needSpace = false;
+  for (let i = 0; i < (items || []).length; i++) {
+    const item = items[i];
+    if (item.kind === "slot") {
+      const val = slots[item.id] ?? slotLabelFromTemplate(template, item.id);
+      const next = items[i + 1];
+      if (next?.kind === "op" && /^[²³]$/.test(String(next.text || ""))) {
+        const pow = next.text === "²" ? "2" : "3";
+        out += (needSpace ? " " : "") + (latex ? `${val}^{${pow}}` : `${val}${next.text}`);
+        i++;
+      } else {
+        out += (needSpace ? " " : "") + val;
+      }
+      needSpace = true;
+    } else if (item.kind === "op") {
+      if (item.text === "×") {
+        out += latex ? " \\times " : " × ";
+        needSpace = false;
+      } else if (item.text === "½") {
+        out += (needSpace ? " " : "") + (latex ? "\\frac{1}{2}" : "½");
+        needSpace = true;
+      } else {
+        out += (needSpace ? " " : "") + item.text;
+        needSpace = true;
+      }
+    }
+  }
+  return out.trim();
+}
+
+/** Plain-text or LaTeX substitution line, e.g. E_k = ½ × 500 × 15² */
+export function formatSubstitutionEquationDisplay(template, slots, { latex = false } = {}) {
+  if (!template) return "";
+
+  if (template.layout === "fraction") {
+    const lhs = formatSubstitutionTokenSequence(template.lhs, slots, template, { latex });
+    const num = formatSubstitutionTokenSequence(template.numerator, slots, template, { latex });
+    const den = formatSubstitutionTokenSequence(template.denominator, slots, template, { latex });
+    const eq = latex ? " = " : " = ";
+    const rhs = latex ? `\\frac{${num}}{${den}}` : `${num} / ${den}`;
+    return `${lhs}${eq}${rhs}`;
+  }
+
+  const segments = [];
+  let buffer = [];
+  const flush = () => {
+    if (buffer.length) {
+      segments.push(formatSubstitutionTokenSequence(buffer, slots, template, { latex }));
+      buffer = [];
+    }
+  };
+  for (const item of template.tokens || []) {
+    if (item.kind === "op" && item.text === "=") {
+      flush();
+      segments.push(latex ? " = " : " = ");
+    } else {
+      buffer.push(item);
+    }
+  }
+  flush();
+  return segments.join("");
 }
 
 /** Candidate unknowns for rearrangement (excludes equation result slot). */
@@ -163,14 +340,17 @@ export function renderPendingEquationSelectSubstitution() {
   return `<p class="calc-sub-pending" style="font-size:0.85rem;color:#64748b;margin:0;font-style:italic;">Select an equation in the step above first.</p>`;
 }
 
-export function renderSubstitutionStepInner(ctx, inputStyle) {
+export function renderSubstitutionStepInner(ctx, inputStyle, renderOpts = {}) {
   if (ctx.mode === "pending") {
     return renderPendingEquationSelectSubstitution();
   }
   if (ctx.mode !== "structured" || !ctx.template) {
     return renderFreeTextSubstitution(inputStyle);
   }
-  return `<div id="calc_substitution_structured" data-equation-id="${escapeHtml(ctx.equationId || "")}">${renderSubstitutionHtml(ctx.template, inputStyle)}</div>`;
+  const symbolSlotIds = renderOpts.symbolSlotIds
+    ?? resolveSymbolSlotIds(ctx.template, renderOpts.subStep, renderOpts.config);
+  const helper = renderSubstitutionHelper(ctx.template, symbolSlotIds);
+  return `${helper}<div id="calc_substitution_structured" data-equation-id="${escapeHtml(ctx.equationId || "")}">${renderSubstitutionHtml(ctx.template, inputStyle)}</div>`;
 }
 
 export function collectStructuredSubstitution(template, root = null) {
@@ -229,18 +409,12 @@ export function collectSubstitutionPayload(config, equationSheet, subStep) {
   return { mode: "free_text", text };
 }
 
-export function substitutionPayloadIsComplete(payload, options = {}) {
+export function substitutionPayloadIsComplete(payload) {
   if (!payload) return false;
   if (payload.mode === "free_text") return !!payload.text;
   if (!payload.equation_id) return false;
   const slots = payload.slots || {};
-  const unknownId = payload.rearrangement_subject || options.rearrangementSubject || null;
-  const omit = new Set(options.omitSlotIds || []);
-  return Object.entries(slots).every(([id, v]) => {
-    if (unknownId && id === unknownId) return true;
-    if (omit.has(id)) return true;
-    return String(v ?? "").trim() !== "";
-  });
+  return Object.values(slots).every((v) => String(v ?? "").trim() !== "");
 }
 
 function normalizeAcceptedSlotValues(accepted) {
@@ -357,15 +531,17 @@ export function parseCommutativeGroups(template) {
   return { fixedSlots, commutativeGroups };
 }
 
-function matchCommutativeGroup(groupSlotIds, payload, slotAnswers, unknownId = null) {
+function matchCommutativeGroup(groupSlotIds, payload, slotAnswers, symbolSlotIds, template) {
   if (!groupSlotIds.length) return true;
   if (groupSlotIds.length === 1) {
     const id = groupSlotIds[0];
-    if (unknownId && id === unknownId) {
-      const val = String(payload.slots?.[id] ?? "").trim();
-      if (!val) return true;
-    }
-    return slotValueMatches(payload.slots?.[id], slotAnswers[id]);
+    return slotValueMatchesAccepted(
+      id,
+      payload.slots?.[id],
+      slotAnswers[id],
+      symbolSlotIds,
+      template
+    );
   }
 
   const assigned = new Set();
@@ -375,16 +551,7 @@ function matchCommutativeGroup(groupSlotIds, payload, slotAnswers, unknownId = n
     const accepted = slotAnswers[expId];
     for (const studId of groupSlotIds) {
       if (assigned.has(studId)) continue;
-      if (unknownId && studId === unknownId) {
-        const val = String(payload.slots?.[studId] ?? "").trim();
-        if (!val) {
-          assigned.add(studId);
-          if (tryAssign(idx + 1)) return true;
-          assigned.delete(studId);
-          continue;
-        }
-      }
-      if (!slotValueMatches(payload.slots?.[studId], accepted)) continue;
+      if (!slotValueMatchesAccepted(expId, payload.slots?.[studId], accepted, symbolSlotIds, template)) continue;
       assigned.add(studId);
       if (tryAssign(idx + 1)) return true;
       assigned.delete(studId);
@@ -400,40 +567,30 @@ export function substitutionSlotsMatchCommutative(payload, subStep, template) {
   if (!payload.equation_id) return false;
   if (!template) return false;
 
-  const unknownId = subStep.rearrangement_subject || null;
-  const resultSlot = !unknownId ? identifyResultSlotFromTemplate(template) : null;
-  const shouldSkipSlot = (id) => {
-    if (unknownId && id === unknownId) return true;
-    if (resultSlot && id === resultSlot) return true;
-    return false;
-  };
-
+  const symbolSlotIds = resolveSymbolSlotIds(template, subStep);
   const { fixedSlots, commutativeGroups } = parseCommutativeGroups(template);
   const allGrouped = new Set([...fixedSlots, ...commutativeGroups.flat()]);
 
   for (const id of fixedSlots) {
-    if (shouldSkipSlot(id)) continue;
     const accepted = normalizeAcceptedSlotValues(subStep.slot_answers[id]);
-    if (!accepted?.length) return false;
-    if (!slotValueMatches(payload.slots?.[id], accepted)) return false;
+    if (!accepted?.length && !symbolSlotIds.has(id)) return false;
+    if (!slotValueMatchesAccepted(id, payload.slots?.[id], accepted, symbolSlotIds, template)) return false;
   }
 
   for (const group of commutativeGroups) {
-    const activeGroup = group.filter((id) => !shouldSkipSlot(id));
-    if (!activeGroup.length) continue;
-    const hasAnswers = activeGroup.every((id) =>
-      normalizeAcceptedSlotValues(subStep.slot_answers[id])?.length
+    if (!group.length) continue;
+    const hasAnswers = group.every((id) =>
+      symbolSlotIds.has(id) || normalizeAcceptedSlotValues(subStep.slot_answers[id])?.length
     );
     if (!hasAnswers) return false;
-    if (!matchCommutativeGroup(activeGroup, payload, subStep.slot_answers, unknownId)) return false;
+    if (!matchCommutativeGroup(group, payload, subStep.slot_answers, symbolSlotIds, template)) return false;
   }
 
   for (const id of getSlotIdsFromTemplate(template)) {
     if (allGrouped.has(id)) continue;
-    if (shouldSkipSlot(id)) continue;
     const accepted = normalizeAcceptedSlotValues(subStep.slot_answers[id]);
-    if (!accepted?.length) return false;
-    if (!slotValueMatches(payload.slots?.[id], accepted)) return false;
+    if (!accepted?.length && !symbolSlotIds.has(id)) return false;
+    if (!slotValueMatchesAccepted(id, payload.slots?.[id], accepted, symbolSlotIds, template)) return false;
   }
 
   return true;
@@ -881,10 +1038,7 @@ export function isRearrangementInputReady(config, equationSheet, subStep, root =
   if (!Object.values(slots).some((v) => String(v ?? "").trim()) && workflowRoot) {
     slots = collectStructuredSubstitution(ctx.template, document);
   }
-  const rearrStep = (config?.steps || []).find((s) => s.type === "rearrangement");
-  const unknownId = subStep?.rearrangement_subject || rearrStep?.subject || null;
   for (const id of getSlotIdsFromTemplate(ctx.template)) {
-    if (unknownId && id === unknownId) continue;
     if (!String(slots[id] ?? "").trim()) return false;
   }
   return true;
@@ -933,7 +1087,7 @@ export function refreshSubstitutionStepDom(config, equationSheet, subStep, input
   const container = document.querySelector('.calc-step[data-step="substitution"] .calc-sub-step-inner');
   if (!container) return;
   const ctx = resolveSubstitutionContext(config, equationSheet, subStep);
-  container.innerHTML = renderSubstitutionStepInner(ctx, inputStyle);
+  container.innerHTML = renderSubstitutionStepInner(ctx, inputStyle, { config, subStep });
 }
 
 export function refreshRearrangementSelect(rearrStep, options) {

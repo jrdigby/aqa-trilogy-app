@@ -215,7 +215,7 @@ function getTipHtmlForCommandWord(word) {
       </div>
     `;
   }
-  if (word === "state" || word === "give" || word === "name") {
+  if (word === "state" || word === "name") {
     return `
       <div class="exam-tip exam-tip--state">
         <strong>📋 AQA GCSE Examiner Tip (${word.toUpperCase()})</strong><br/>
