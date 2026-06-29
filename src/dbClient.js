@@ -10,7 +10,7 @@ export const SRS_DUE_SELECT =
   "spec_point_id,due_date,interval_days,ease_factor,repetitions,lapses,last_quality, spec_points(id,subject,topic_name,spec_ref,spec_text)";
 
 export const SRS_STATE_SELECT =
-  "spec_point_id, interval_days, ease_factor, due_date, repetitions";
+  "spec_point_id, interval_days, ease_factor, due_date, repetitions, lapses, last_quality";
 
 // Core Supabase client initialization bound locally
 export const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);

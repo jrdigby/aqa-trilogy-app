@@ -266,6 +266,10 @@ let currentQuestionHints = [];
 let lastAnswerFocusState = null;
 let heatmapRenderGeneration = 0;
 
+function srsSpecPointIdForQuestion(q = currentQ) {
+  return resolveSpecPointIdForTrack(q, currentUserProfile);
+}
+
 function isAnswerFormControl(node) {
   if (!node || !node.tagName) return false;
   const tag = node.tagName.toLowerCase();
@@ -2583,7 +2587,7 @@ async function runLocalExtendedMarking(response) {
 
   feedback.innerHTML = renderAQAExtendedResponseFeedback(studentTextRaw, customPayload, localKeywords, matchedKeywords);
   triggerMathTypeset();
-  sessionQualityLog.push({ specPointId: currentQ.spec_point_id, quality: 3 });
+  sessionQualityLog.push({ specPointId: srsSpecPointIdForQuestion(), quality: 3 });
 
   const maxMarks = currentQ.max_marks || 6;
   const matchedCount = matchedKeywords.length;
@@ -2592,8 +2596,8 @@ async function runLocalExtendedMarking(response) {
   logSessionAttempt({
     questionId: currentQ.id,
     questionType: currentQ.question_type,
-    specPointId: currentQ.spec_point_id,
-    specPoint: currentQ.spec_points,
+    specPointId: srsSpecPointIdForQuestion(),
+    specPoint: resolveQuestionSpecMeta(currentQ, currentUserProfile),
     scoreTotal: estimatedScore,
     scoreMax: maxMarks,
   });
@@ -3870,12 +3874,12 @@ if (btnSubmit) {
         else if (data.score_total >= 1) srsQuality = 1;
         else srsQuality = 0;
 
-        sessionQualityLog.push({ specPointId: currentQ.spec_point_id, quality: srsQuality });
+        sessionQualityLog.push({ specPointId: srsSpecPointIdForQuestion(), quality: srsQuality });
         logSessionAttempt({
           questionId: currentQ.id,
           questionType: currentQ.question_type,
-          specPointId: currentQ.spec_point_id,
-          specPoint: currentQ.spec_points,
+          specPointId: srsSpecPointIdForQuestion(),
+          specPoint: resolveQuestionSpecMeta(currentQ, currentUserProfile),
           scoreTotal: data.score_total,
           scoreMax: data.score_max,
           xpEarned
@@ -3931,12 +3935,12 @@ if (btnSubmit) {
         });
 
         if (result.error) throw result.error;
-        sessionQualityLog.push({ specPointId: currentQ.spec_point_id, quality: marking.quality });
+        sessionQualityLog.push({ specPointId: srsSpecPointIdForQuestion(), quality: marking.quality });
         logSessionAttempt({
           questionId: currentQ.id,
           questionType: currentQ.question_type,
-          specPointId: currentQ.spec_point_id,
-          specPoint: currentQ.spec_points,
+          specPointId: srsSpecPointIdForQuestion(),
+          specPoint: resolveQuestionSpecMeta(currentQ, currentUserProfile),
           scoreTotal: marking.total,
           scoreMax: marking.max,
           xpEarned,

@@ -552,13 +552,16 @@ export function renderMasteryHeatmap(allSpecPoints, srsStates, onCellClickCallba
       if (srsRecord) {
         const reps = srsRecord.repetitions ?? 0;
         const days = srsRecord.interval_days || 0;
+        const lapses = srsRecord.lapses ?? 0;
+        const lastQuality = srsRecord.last_quality ?? 0;
+        const hasBeenPractised = reps > 0 || lapses > 0 || lastQuality > 0;
 
-        if (reps === 0) {
+        if (reps === 0 && !hasBeenPractised) {
           stateClass = "cell-scheduled";
           baseColor = "#dbeafe";
           borderStyle = "1px solid #93c5fd";
           tooltipText = `📅 [${point.spec_ref}] ${point.topic_name} - Scheduled (not practised yet)`;
-        } else if (days === 0 || (srsRecord.ease_factor && srsRecord.ease_factor < 2.0)) {
+        } else if (reps === 0 || days === 0 || (srsRecord.ease_factor && srsRecord.ease_factor < 2.0)) {
           stateClass = "cell-gap";
           baseColor = "#f59e0b";
           borderStyle = "1px solid #d97706";
