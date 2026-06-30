@@ -31,7 +31,7 @@
           },
           {
             "kind": "op",
-            "text": "\u00d7"
+            "text": "×"
           },
           {
             "kind": "slot",
@@ -61,7 +61,7 @@
           },
           {
             "subject": "W",
-            "correct": "W = m \u00d7 g",
+            "correct": "W = m × g",
             "distractor_patterns": [
               "multiply_instead",
               "swap_operands"
@@ -96,7 +96,7 @@
           },
           {
             "kind": "op",
-            "text": "\u00d7"
+            "text": "×"
           },
           {
             "kind": "slot",
@@ -126,7 +126,7 @@
           },
           {
             "subject": "W",
-            "correct": "W = F \u00d7 s",
+            "correct": "W = F × s",
             "distractor_patterns": [
               "multiply_instead",
               "swap_operands"
@@ -161,7 +161,7 @@
           },
           {
             "kind": "op",
-            "text": "\u00d7"
+            "text": "×"
           },
           {
             "kind": "slot",
@@ -191,7 +191,7 @@
           },
           {
             "subject": "F",
-            "correct": "F = k \u00d7 e",
+            "correct": "F = k × e",
             "distractor_patterns": [
               "multiply_instead",
               "swap_operands"
@@ -226,7 +226,7 @@
           },
           {
             "kind": "op",
-            "text": "\u00d7"
+            "text": "×"
           },
           {
             "kind": "slot",
@@ -256,7 +256,7 @@
           },
           {
             "subject": "s",
-            "correct": "s = v \u00d7 t",
+            "correct": "s = v × t",
             "distractor_patterns": [
               "multiply_instead",
               "swap_operands"
@@ -285,7 +285,7 @@
           {
             "kind": "slot",
             "id": "delta_v",
-            "label": "\u0394v"
+            "label": "Δv"
           }
         ],
         "denominator": [
@@ -301,7 +301,7 @@
         "variants": [
           {
             "subject": "delta_v",
-            "correct": "delta_v = a \u00d7 t",
+            "correct": "delta_v = a × t",
             "distractor_patterns": [
               "invert_fraction",
               "multiply_instead"
@@ -360,7 +360,7 @@
           },
           {
             "kind": "op",
-            "text": "\u00d7"
+            "text": "×"
           },
           {
             "kind": "slot",
@@ -390,7 +390,7 @@
           },
           {
             "subject": "F",
-            "correct": "F = m \u00d7 a",
+            "correct": "F = m × a",
             "distractor_patterns": [
               "multiply_instead",
               "swap_operands"
@@ -425,7 +425,7 @@
           },
           {
             "kind": "op",
-            "text": "\u00d7"
+            "text": "×"
           },
           {
             "kind": "slot",
@@ -455,7 +455,7 @@
           },
           {
             "subject": "p",
-            "correct": "p = m \u00d7 v",
+            "correct": "p = m × v",
             "distractor_patterns": [
               "multiply_instead",
               "swap_operands"
@@ -542,12 +542,12 @@
           },
           {
             "kind": "op",
-            "text": "\u00d7"
+            "text": "×"
           },
           {
             "kind": "slot",
             "id": "lambda",
-            "label": "\u03bb"
+            "label": "λ"
           }
         ]
       },
@@ -572,7 +572,7 @@
           },
           {
             "subject": "v",
-            "correct": "v = f \u00d7 lambda",
+            "correct": "v = f × lambda",
             "distractor_patterns": [
               "multiply_instead",
               "swap_operands"
@@ -607,7 +607,7 @@
           },
           {
             "kind": "op",
-            "text": "\u00d7"
+            "text": "×"
           },
           {
             "kind": "slot",
@@ -616,7 +616,7 @@
           },
           {
             "kind": "op",
-            "text": "\u00d7"
+            "text": "×"
           },
           {
             "kind": "slot",
@@ -630,7 +630,7 @@
         "variants": [
           {
             "subject": "I",
-            "correct": "I = F / (B \u00d7 l)",
+            "correct": "I = F / (B × l)",
             "distractor_patterns": [
               "invert_fraction",
               "multiply_instead"
@@ -656,7 +656,7 @@
           },
           {
             "kind": "op",
-            "text": "\u00d7"
+            "text": "×"
           },
           {
             "kind": "slot",
@@ -674,7 +674,7 @@
           },
           {
             "kind": "op",
-            "text": "\u00d7"
+            "text": "×"
           },
           {
             "kind": "slot",

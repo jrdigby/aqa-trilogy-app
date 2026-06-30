@@ -43,6 +43,47 @@ test("evaluateEquation — product layout (weight)", () => {
   assert.ok(Math.abs(answer - 20) < 0.01);
 });
 
+test("evaluateEquation — efficiency (energy transfer)", () => {
+  const eq = findEq(sheetP1, "efficiency_energy");
+  assert.ok(eq?.substitution_template, "efficiency_energy should have a substitution template");
+  const { answer, unit } = evaluateEquation(eq, { E_useful: "3000", E_in: "10000" });
+  assert.equal(unit, "");
+  assert.ok(Math.abs(answer - 0.3) < 0.001);
+});
+
+test("evaluateEquation — efficiency (power output)", () => {
+  const eq = findEq(sheetP1, "efficiency_power");
+  assert.ok(eq?.substitution_template, "efficiency_power should have a substitution template");
+  const { answer } = evaluateEquation(eq, { P_useful: "150", P_in: "500" });
+  assert.ok(Math.abs(answer - 0.3) < 0.001);
+});
+
+test("generateBatch — efficiency energy substitute variant", () => {
+  const { drafts, errors } = generateBatch(
+    {
+      equation: "efficiency_energy",
+      subject: "physics",
+      paper: "paper1",
+      tier: "foundation",
+      seed: 42,
+      variants: { recipes: [{ base: "substitute", count: 1 }] }
+    },
+    sheetP1
+  );
+  assert.equal(errors.length, 0, errors.map((e) => e.message).join("; "));
+  assert.equal(drafts.length, 1);
+  const d = drafts[0];
+  assert.ok(d.question.prompt.includes("useful energy"));
+  assert.ok(Number(d.answer_key.key_payload.answer) > 0);
+  assert.ok(Number(d.answer_key.key_payload.answer) < 1);
+});
+
+test("solveForSubject — efficiency energy rearranged for E_useful", () => {
+  const eq = findEq(sheetP1, "efficiency_energy");
+  const E_useful = solveForSubject(eq, { efficiency: "0.25", E_in: "8000" }, "E_useful");
+  assert.ok(Math.abs(E_useful - 2000) < 0.001, `expected 2000, got ${E_useful}`);
+});
+
 test("solveForSubject — gravitational potential energy rearranged for h", () => {
   const eq = findEq(sheetP1, "gravitational_potential_energy");
   const slots = { E_p: "200", m: "4", g: "10" };
@@ -362,6 +403,8 @@ test("generateBatch — recall + rearrange + conversion + sig figs (HT) with fix
     assert.equal(drafts[0].question.demand_level, "standard_67");
   }
 });
+
+test("generateBatch — structured substitution marks full marks for kinetic energy", () => {
   const { drafts } = generateBatch(
     { equation: "kinetic_energy", sheet: "physics_p1_ht", variants: { substitute: 1 }, seed: 7 },
     sheetP1

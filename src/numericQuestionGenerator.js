@@ -78,7 +78,11 @@ const SUBJECT_UNITS = {
   g: "N/kg",
   c: "J/(kg °C)",
   h: "m",
-  T: "s"
+  T: "s",
+  E_useful: "J",
+  E_in: "J",
+  P_useful: "W",
+  P_in: "W"
 };
 
 /** Human-readable names for prompt text. */
@@ -110,7 +114,12 @@ const SLOT_PROMPT_LABELS = {
   h: "height",
   L: "specific latent heat",
   delta_theta: "temperature change",
-  delta_E: "energy change"
+  delta_E: "energy change",
+  efficiency: "efficiency",
+  E_useful: "useful output energy",
+  E_in: "total input energy",
+  P_useful: "useful power output",
+  P_in: "total power input"
 };
 
 /** Default numeric ranges for common slot ids when spec omits ranges. */
@@ -145,7 +154,11 @@ const DEFAULT_SLOT_RANGES = {
   L: { min: 200000, max: 500000, step: 10000 },
   M: { min: 1, max: 50, step: 1 },
   d: { min: 0.1, max: 2, step: 0.1 },
-  T: { min: 0.001, max: 2, step: 0.001 }
+  T: { min: 0.001, max: 2, step: 0.001 },
+  E_useful: { min: 200, max: 4000, step: 50 },
+  E_in: { min: 5000, max: 12000, step: 100 },
+  P_useful: { min: 50, max: 400, step: 10 },
+  P_in: { min: 500, max: 2000, step: 50 }
 };
 
 const DEFAULT_CONSTANTS = { g: 10, c: 4200 };
@@ -167,7 +180,11 @@ const PROMPT_TEMPLATES = {
   acceleration:
     "Calculate the acceleration when velocity changes by {delta_v} m/s in {t} s.",
   elastic_potential_energy:
-    "A spring has spring constant {k} N/m and extension {e} m. Calculate the elastic potential energy stored."
+    "A spring has spring constant {k} N/m and extension {e} m. Calculate the elastic potential energy stored.",
+  efficiency_energy:
+    "A device transfers {E_useful} J of useful energy from a total input of {E_in} J. Calculate the efficiency.",
+  efficiency_power:
+    "An appliance delivers {P_useful} W of useful power from a total power input of {P_in} W. Calculate the efficiency."
 };
 
 const CONVERSION_CATALOG = [

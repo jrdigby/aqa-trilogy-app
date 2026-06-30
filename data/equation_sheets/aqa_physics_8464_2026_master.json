@@ -1,6 +1,6 @@
 {
   "exam_series": "2026",
-  "source": "AQA GCSE Combined Science Trilogy (8464) Physics Equations Sheet \u2014 June 2026 insert",
+  "source": "AQA GCSE Combined Science Trilogy (8464) Physics Equations Sheet — June 2026 insert",
   "equations": [
     {
       "id": "kinetic_energy",
@@ -25,11 +25,11 @@
           },
           {
             "kind": "op",
-            "text": "\u00bd"
+            "text": "½"
           },
           {
             "kind": "op",
-            "text": "\u00d7"
+            "text": "×"
           },
           {
             "kind": "slot",
@@ -38,7 +38,7 @@
           },
           {
             "kind": "op",
-            "text": "\u00d7"
+            "text": "×"
           },
           {
             "kind": "slot",
@@ -47,7 +47,7 @@
           },
           {
             "kind": "op",
-            "text": "\u00b2"
+            "text": "²"
           }
         ]
       },
@@ -56,7 +56,7 @@
         "variants": [
           {
             "subject": "v",
-            "correct": "v\u00b2 = 2 \u00d7 E_k / m",
+            "correct": "v² = 2 × E_k / m",
             "distractor_patterns": [
               "invert_fraction",
               "multiply_instead"
@@ -64,7 +64,7 @@
           },
           {
             "subject": "m",
-            "correct": "m = 2 \u00d7 E_k / v\u00b2",
+            "correct": "m = 2 × E_k / v²",
             "distractor_patterns": [
               "invert_fraction",
               "multiply_instead"
@@ -96,11 +96,11 @@
           },
           {
             "kind": "op",
-            "text": "\u00bd"
+            "text": "½"
           },
           {
             "kind": "op",
-            "text": "\u00d7"
+            "text": "×"
           },
           {
             "kind": "slot",
@@ -109,7 +109,7 @@
           },
           {
             "kind": "op",
-            "text": "\u00d7"
+            "text": "×"
           },
           {
             "kind": "slot",
@@ -118,7 +118,7 @@
           },
           {
             "kind": "op",
-            "text": "\u00b2"
+            "text": "²"
           }
         ]
       },
@@ -127,7 +127,7 @@
         "variants": [
           {
             "subject": "e",
-            "correct": "e\u00b2 = 2 \u00d7 E_e / k",
+            "correct": "e² = 2 × E_e / k",
             "distractor_patterns": [
               "invert_fraction",
               "multiply_instead"
@@ -135,7 +135,7 @@
           },
           {
             "subject": "k",
-            "correct": "k = 2 \u00d7 E_e / e\u00b2",
+            "correct": "k = 2 × E_e / e²",
             "distractor_patterns": [
               "invert_fraction",
               "multiply_instead"
@@ -172,7 +172,7 @@
           },
           {
             "kind": "op",
-            "text": "\u00d7"
+            "text": "×"
           },
           {
             "kind": "slot",
@@ -181,7 +181,7 @@
           },
           {
             "kind": "op",
-            "text": "\u00d7"
+            "text": "×"
           },
           {
             "kind": "slot",
@@ -195,7 +195,7 @@
         "variants": [
           {
             "subject": "h",
-            "correct": "h = E_p / (m \u00d7 g)",
+            "correct": "h = E_p / (m × g)",
             "distractor_patterns": [
               "invert_fraction",
               "multiply_instead"
@@ -219,7 +219,7 @@
           {
             "kind": "slot",
             "id": "delta_E",
-            "label": "\u0394E"
+            "label": "ΔE"
           },
           {
             "kind": "op",
@@ -232,7 +232,7 @@
           },
           {
             "kind": "op",
-            "text": "\u00d7"
+            "text": "×"
           },
           {
             "kind": "slot",
@@ -241,12 +241,12 @@
           },
           {
             "kind": "op",
-            "text": "\u00d7"
+            "text": "×"
           },
           {
             "kind": "slot",
             "id": "delta_theta",
-            "label": "\u0394\u03b8"
+            "label": "Δθ"
           }
         ]
       },
@@ -255,7 +255,7 @@
         "variants": [
           {
             "subject": "c",
-            "correct": "c = delta_E / (m \u00d7 delta_theta)",
+            "correct": "c = delta_E / (m × delta_theta)",
             "distractor_patterns": [
               "invert_fraction",
               "multiply_instead"
@@ -310,7 +310,7 @@
           },
           {
             "subject": "E",
-            "correct": "E = P \u00d7 t",
+            "correct": "E = P × t",
             "distractor_patterns": [
               "invert_fraction",
               "multiply_instead"
@@ -373,7 +373,7 @@
           },
           {
             "subject": "W",
-            "correct": "W = P \u00d7 t",
+            "correct": "W = P × t",
             "distractor_patterns": [
               "invert_fraction",
               "multiply_instead"
@@ -398,7 +398,60 @@
         "energy"
       ],
       "paper": "paper1",
-      "ht_only": false
+      "ht_only": false,
+      "substitution_template": {
+        "layout": "fraction",
+        "lhs": [
+          {
+            "kind": "slot",
+            "id": "efficiency",
+            "label": "efficiency"
+          }
+        ],
+        "numerator": [
+          {
+            "kind": "slot",
+            "id": "E_useful",
+            "label": "useful output energy"
+          }
+        ],
+        "denominator": [
+          {
+            "kind": "slot",
+            "id": "E_in",
+            "label": "total input energy"
+          }
+        ]
+      },
+      "rearrangement_forms": {
+        "default_subject": "E_useful",
+        "variants": [
+          {
+            "subject": "E_useful",
+            "correct": "E_useful = efficiency × E_in",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          },
+          {
+            "subject": "E_in",
+            "correct": "E_in = E_useful / efficiency",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          },
+          {
+            "subject": "efficiency",
+            "correct": "efficiency = E_useful / E_in",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          }
+        ]
+      }
     },
     {
       "id": "efficiency_power",
@@ -408,7 +461,60 @@
         "energy"
       ],
       "paper": "paper1",
-      "ht_only": false
+      "ht_only": false,
+      "substitution_template": {
+        "layout": "fraction",
+        "lhs": [
+          {
+            "kind": "slot",
+            "id": "efficiency",
+            "label": "efficiency"
+          }
+        ],
+        "numerator": [
+          {
+            "kind": "slot",
+            "id": "P_useful",
+            "label": "useful power output"
+          }
+        ],
+        "denominator": [
+          {
+            "kind": "slot",
+            "id": "P_in",
+            "label": "total power input"
+          }
+        ]
+      },
+      "rearrangement_forms": {
+        "default_subject": "P_useful",
+        "variants": [
+          {
+            "subject": "P_useful",
+            "correct": "P_useful = efficiency × P_in",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          },
+          {
+            "subject": "P_in",
+            "correct": "P_in = P_useful / efficiency",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          },
+          {
+            "subject": "efficiency",
+            "correct": "efficiency = P_useful / P_in",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          }
+        ]
+      }
     },
     {
       "id": "charge",
@@ -438,7 +544,7 @@
           },
           {
             "kind": "op",
-            "text": "\u00d7"
+            "text": "×"
           },
           {
             "kind": "slot",
@@ -468,7 +574,7 @@
           },
           {
             "subject": "Q",
-            "correct": "Q = I \u00d7 t",
+            "correct": "Q = I × t",
             "distractor_patterns": [
               "multiply_instead",
               "swap_operands"
@@ -505,7 +611,7 @@
           },
           {
             "kind": "op",
-            "text": "\u00d7"
+            "text": "×"
           },
           {
             "kind": "slot",
@@ -535,7 +641,7 @@
           },
           {
             "subject": "V",
-            "correct": "V = I \u00d7 R",
+            "correct": "V = I × R",
             "distractor_patterns": [
               "multiply_instead",
               "swap_operands"
@@ -572,7 +678,7 @@
           },
           {
             "kind": "op",
-            "text": "\u00d7"
+            "text": "×"
           },
           {
             "kind": "slot",
@@ -602,7 +708,7 @@
           },
           {
             "subject": "P",
-            "correct": "P = V \u00d7 I",
+            "correct": "P = V × I",
             "distractor_patterns": [
               "multiply_instead",
               "swap_operands"
@@ -639,11 +745,11 @@
           },
           {
             "kind": "op",
-            "text": "\u00b2"
+            "text": "²"
           },
           {
             "kind": "op",
-            "text": "\u00d7"
+            "text": "×"
           },
           {
             "kind": "slot",
@@ -657,7 +763,7 @@
         "variants": [
           {
             "subject": "I",
-            "correct": "I\u00b2 = P / R",
+            "correct": "I² = P / R",
             "distractor_patterns": [
               "invert_fraction",
               "multiply_instead"
@@ -665,7 +771,7 @@
           },
           {
             "subject": "R",
-            "correct": "R = P / I\u00b2",
+            "correct": "R = P / I²",
             "distractor_patterns": [
               "invert_fraction",
               "multiply_instead"
@@ -702,7 +808,7 @@
           },
           {
             "kind": "op",
-            "text": "\u00d7"
+            "text": "×"
           },
           {
             "kind": "slot",
@@ -732,7 +838,7 @@
           },
           {
             "subject": "E",
-            "correct": "E = P \u00d7 t",
+            "correct": "E = P × t",
             "distractor_patterns": [
               "multiply_instead",
               "swap_operands"
@@ -769,7 +875,7 @@
           },
           {
             "kind": "op",
-            "text": "\u00d7"
+            "text": "×"
           },
           {
             "kind": "slot",
@@ -799,7 +905,7 @@
           },
           {
             "subject": "E",
-            "correct": "E = Q \u00d7 V",
+            "correct": "E = Q × V",
             "distractor_patterns": [
               "multiply_instead",
               "swap_operands"
@@ -823,7 +929,7 @@
           {
             "kind": "slot",
             "id": "rho",
-            "label": "\u03c1"
+            "label": "ρ"
           }
         ],
         "numerator": [
@@ -846,7 +952,7 @@
         "variants": [
           {
             "subject": "m",
-            "correct": "m = rho \u00d7 V",
+            "correct": "m = rho × V",
             "distractor_patterns": [
               "invert_fraction",
               "multiply_instead"
@@ -899,7 +1005,7 @@
           },
           {
             "kind": "op",
-            "text": "\u00d7"
+            "text": "×"
           },
           {
             "kind": "slot",
@@ -929,7 +1035,7 @@
           },
           {
             "subject": "E",
-            "correct": "E = m \u00d7 L",
+            "correct": "E = m × L",
             "distractor_patterns": [
               "multiply_instead",
               "swap_operands"
@@ -966,7 +1072,7 @@
           },
           {
             "kind": "op",
-            "text": "\u00d7"
+            "text": "×"
           },
           {
             "kind": "slot",
@@ -996,7 +1102,7 @@
           },
           {
             "subject": "W",
-            "correct": "W = m \u00d7 g",
+            "correct": "W = m × g",
             "distractor_patterns": [
               "multiply_instead",
               "swap_operands"
@@ -1033,7 +1139,7 @@
           },
           {
             "kind": "op",
-            "text": "\u00d7"
+            "text": "×"
           },
           {
             "kind": "slot",
@@ -1063,7 +1169,7 @@
           },
           {
             "subject": "W",
-            "correct": "W = F \u00d7 s",
+            "correct": "W = F × s",
             "distractor_patterns": [
               "multiply_instead",
               "swap_operands"
@@ -1100,7 +1206,7 @@
           },
           {
             "kind": "op",
-            "text": "\u00d7"
+            "text": "×"
           },
           {
             "kind": "slot",
@@ -1130,7 +1236,7 @@
           },
           {
             "subject": "F",
-            "correct": "F = k \u00d7 e",
+            "correct": "F = k × e",
             "distractor_patterns": [
               "multiply_instead",
               "swap_operands"
@@ -1167,7 +1273,7 @@
           },
           {
             "kind": "op",
-            "text": "\u00d7"
+            "text": "×"
           },
           {
             "kind": "slot",
@@ -1197,7 +1303,7 @@
           },
           {
             "subject": "s",
-            "correct": "s = v \u00d7 t",
+            "correct": "s = v × t",
             "distractor_patterns": [
               "multiply_instead",
               "swap_operands"
@@ -1228,7 +1334,7 @@
           {
             "kind": "slot",
             "id": "delta_v",
-            "label": "\u0394v"
+            "label": "Δv"
           }
         ],
         "denominator": [
@@ -1244,7 +1350,7 @@
         "variants": [
           {
             "subject": "delta_v",
-            "correct": "delta_v = a \u00d7 t",
+            "correct": "delta_v = a × t",
             "distractor_patterns": [
               "invert_fraction",
               "multiply_instead"
@@ -1307,7 +1413,7 @@
           },
           {
             "kind": "op",
-            "text": "\u00d7"
+            "text": "×"
           },
           {
             "kind": "slot",
@@ -1337,7 +1443,7 @@
           },
           {
             "subject": "F",
-            "correct": "F = m \u00d7 a",
+            "correct": "F = m × a",
             "distractor_patterns": [
               "multiply_instead",
               "swap_operands"
@@ -1374,7 +1480,7 @@
           },
           {
             "kind": "op",
-            "text": "\u00d7"
+            "text": "×"
           },
           {
             "kind": "slot",
@@ -1404,7 +1510,7 @@
           },
           {
             "subject": "p",
-            "correct": "p = m \u00d7 v",
+            "correct": "p = m × v",
             "distractor_patterns": [
               "multiply_instead",
               "swap_operands"
@@ -1495,12 +1601,12 @@
           },
           {
             "kind": "op",
-            "text": "\u00d7"
+            "text": "×"
           },
           {
             "kind": "slot",
             "id": "lambda",
-            "label": "\u03bb"
+            "label": "λ"
           }
         ]
       },
@@ -1525,7 +1631,7 @@
           },
           {
             "subject": "v",
-            "correct": "v = f \u00d7 lambda",
+            "correct": "v = f × lambda",
             "distractor_patterns": [
               "multiply_instead",
               "swap_operands"
@@ -1562,7 +1668,7 @@
           },
           {
             "kind": "op",
-            "text": "\u00d7"
+            "text": "×"
           },
           {
             "kind": "slot",
@@ -1571,7 +1677,7 @@
           },
           {
             "kind": "op",
-            "text": "\u00d7"
+            "text": "×"
           },
           {
             "kind": "slot",
@@ -1585,7 +1691,7 @@
         "variants": [
           {
             "subject": "I",
-            "correct": "I = F / (B \u00d7 l)",
+            "correct": "I = F / (B × l)",
             "distractor_patterns": [
               "invert_fraction",
               "multiply_instead"
@@ -1613,7 +1719,7 @@
           },
           {
             "kind": "op",
-            "text": "\u00d7"
+            "text": "×"
           },
           {
             "kind": "slot",
@@ -1631,7 +1737,7 @@
           },
           {
             "kind": "op",
-            "text": "\u00d7"
+            "text": "×"
           },
           {
             "kind": "slot",
