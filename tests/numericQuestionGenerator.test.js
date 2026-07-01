@@ -73,6 +73,10 @@ test("generateBatch — efficiency energy substitute variant", () => {
   assert.equal(errors.length, 0, errors.map((e) => e.message).join("; "));
   assert.equal(drafts.length, 1);
   const d = drafts[0];
+  const sub = d.question.calculation_config.steps.find((s) => s.type === "substitution");
+  assert.ok(sub.slot_answers.E_useful?.length);
+  assert.ok(sub.slot_answers.E_in?.length);
+  assert.equal(sub.slot_answers.efficiency, undefined, "result slot omitted from slot_answers");
   assert.ok(d.question.prompt.includes("useful energy"));
   assert.ok(Number(d.answer_key.key_payload.answer) > 0);
   assert.ok(Number(d.answer_key.key_payload.answer) < 1);

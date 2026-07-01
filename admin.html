@@ -5241,7 +5241,18 @@
     currentSandboxedQ = { ...draft.question, id: `batch-preview-${index}` };
     currentSandboxedKey = draft.answer_key;
     currentSandboxedMarkPoints = [];
-    currentSandboxedEquationSheet = batchLoadedSheet;
+
+    let sheet = batchLoadedSheet;
+    const sheetId = draft._sourceSpec?.sheetId
+      || draft.question?.calculation_config?.equation_sheet_id;
+    if (!sheet?.equations?.length && sheetId) {
+      try {
+        sheet = await NumericGen.loadEquationSheet(sheetId);
+      } catch (err) {
+        console.warn("Batch sandbox: could not load equation sheet", err);
+      }
+    }
+    currentSandboxedEquationSheet = sheet;
 
     const stage = document.getElementById("sandboxStage");
     const feedbackCard = document.getElementById("sandboxFeedbackCard");

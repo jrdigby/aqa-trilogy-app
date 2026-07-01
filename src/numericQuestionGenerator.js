@@ -519,7 +519,7 @@ export function generateSlotValues(equation, ranges = {}, constants = {}, rng = 
   const { answer } = evaluateEquation(equation, slots);
   if (resultSlot) {
     slots[resultSlot] = String(answer);
-    slotAnswers[resultSlot] = [String(answer)];
+    // Students type the result symbol in substitution — omit from mark-scheme slot_answers.
   }
 
   return { slots, slot_answers: slotAnswers };
