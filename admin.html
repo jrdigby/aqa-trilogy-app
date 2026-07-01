@@ -2077,6 +2077,11 @@
               <label>Seed</label>
               <input type="number" id="batchSeed" class="input-compact" placeholder="auto" />
             </div>
+            <div class="field-fit hidden" id="batchEfficiencyPercentRow" style="display:flex;align-items:flex-end;padding-bottom:6px;">
+              <label style="display:flex;align-items:center;gap:4px;margin:0;cursor:pointer;font-size:0.76rem;" title="Express efficiency answers as a percentage (e.g. 30) rather than a decimal (0.30)">
+                <input type="checkbox" id="batchEfficiencyPercent" /> Efficiency as %
+              </label>
+            </div>
           </div>
 
           <div class="batch-form-section" style="margin-top:4px;">
@@ -4789,14 +4794,17 @@
     const seedRaw = document.getElementById("batchSeed")?.value;
     const seed = seedRaw !== "" && seedRaw != null ? parseInt(seedRaw, 10) : Date.now();
     const rearrSubj = document.getElementById("batchRearrangementSubject")?.value?.trim() || null;
+    const eqId = document.getElementById("batchEquation")?.value || null;
+    const efficiencyAsPct = document.getElementById("batchEfficiencyPercent")?.checked === true;
     return {
-      equation: document.getElementById("batchEquation")?.value || null,
+      equation: eqId,
       subject: document.getElementById("batchSubject")?.value || "physics",
       paper: document.getElementById("batchPaper")?.value || "paper1",
       tier: document.getElementById("batchTier")?.value || "both",
       courseTrack: document.getElementById("batchCourseTrack")?.value || "combined",
       audience: document.getElementById("batchAudience")?.value || "both",
       rearrangement_subject: rearrSubj,
+      efficiency_as_percentage: efficiencyAsPct && NumericGen.isEfficiencyEquation(eqId),
       ws_skills: (document.getElementById("batchWsSkills")?.value || "").split(/[,;|]/).map((s) => s.trim()).filter(Boolean),
       ms_skills: (document.getElementById("batchMsSkills")?.value || "").split(/[,;|]/).map((s) => s.trim()).filter(Boolean),
       sig_figs_count: parseInt(document.getElementById("batchSigFigsN")?.value, 10) || 2,
@@ -4922,6 +4930,11 @@
   function refreshBatchRearrangementSubjects() {
     const select = document.getElementById("batchRearrangementSubject");
     const eqId = document.getElementById("batchEquation")?.value;
+    const pctRow = document.getElementById("batchEfficiencyPercentRow");
+    if (pctRow) {
+      const showPct = !!(eqId && NumericGen.isEfficiencyEquation(eqId));
+      pctRow.classList.toggle("hidden", !showPct);
+    }
     if (!select || !batchLoadedSheet || !eqId) {
       if (select) select.innerHTML = '<option value="">Auto (mix)</option>';
       return;

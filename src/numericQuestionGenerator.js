@@ -158,8 +158,47 @@ const DEFAULT_SLOT_RANGES = {
   E_useful: { min: 200, max: 4000, step: 50 },
   E_in: { min: 5000, max: 12000, step: 100 },
   P_useful: { min: 50, max: 400, step: 10 },
-  P_in: { min: 500, max: 2000, step: 50 }
+  P_in: { min: 500, max: 2000, step: 50 },
+  efficiency: { min: 0.15, max: 0.85, step: 0.05 }
 };
+
+const EFFICIENCY_EQUATION_IDS = new Set(["efficiency_energy", "efficiency_power"]);
+
+export function isEfficiencyEquation(equationOrId) {
+  const id = typeof equationOrId === "string" ? equationOrId : equationOrId?.id;
+  return EFFICIENCY_EQUATION_IDS.has(id);
+}
+
+function efficiencyAsPercentage(spec) {
+  return !!spec?.efficiency_as_percentage;
+}
+
+/** Decimal efficiency (0–1) → display value for prompts when percentage mode is on. */
+function efficiencyDecimalToDisplay(decimal) {
+  const n = parseFloat(decimal);
+  if (!Number.isFinite(n)) return decimal;
+  const pct = n * 100;
+  return Number.isInteger(pct) ? String(pct) : String(Math.round(pct * 10) / 10);
+}
+
+function isEfficiencyResultAnswer(equation, rearrangementSubject) {
+  const resultSlot = identifyResultSlot(getSubstitutionTemplate(equation));
+  return !rearrangementSubject || rearrangementSubject === resultSlot;
+}
+
+function finalizeEfficiencyAnswer(answer, equation, spec, rearrangementSubject) {
+  if (!isEfficiencyEquation(equation) || !efficiencyAsPercentage(spec)) {
+    return { answer, unit: EQUATION_UNITS[equation.id] || "" };
+  }
+  if (isEfficiencyResultAnswer(equation, rearrangementSubject)) {
+    const pct = Math.round(answer * 10000) / 100;
+    return { answer: pct, unit: "%" };
+  }
+  if (rearrangementSubject) {
+    return { answer, unit: getSubjectUnit(equation, rearrangementSubject) };
+  }
+  return { answer, unit: "" };
+}
 
 const DEFAULT_CONSTANTS = { g: 10, c: 4200 };
 
@@ -200,20 +239,21 @@ const CONVERSION_CATALOG = [
   { slotPattern: /^I$/, fromUnit: "uA", toUnit: "A", factor: 1e-6 },
   { slotPattern: /^V$/, fromUnit: "mV", toUnit: "V", factor: 0.001 },
   { slotPattern: /^V$/, fromUnit: "kV", toUnit: "V", factor: 1000 },
-  { slotPattern: /^P$/, fromUnit: "kW", toUnit: "W", factor: 1000 },
-  { slotPattern: /^P$/, fromUnit: "MW", toUnit: "W", factor: 1e6 },
+  { slotPattern: /^P$|^P_useful$|^P_in$/, fromUnit: "kW", toUnit: "W", factor: 1000 },
+  { slotPattern: /^P$|^P_useful$|^P_in$/, fromUnit: "MW", toUnit: "W", factor: 1e6 },
   {
-    slotPattern: /^E$|^E_k$|^E_e$|^E_p$|^delta_E$|^W$/,
+    slotPattern: /^E$|^E_k$|^E_e$|^E_p$|^delta_E$|^W$|^E_useful$|^E_in$/,
     fromUnit: "kJ",
     toUnit: "J",
     factor: 1000
   },
   {
-    slotPattern: /^E$|^E_k$|^E_e$|^E_p$|^delta_E$/,
+    slotPattern: /^E$|^E_k$|^E_e$|^E_p$|^delta_E$|^E_useful$|^E_in$/,
     fromUnit: "MJ",
     toUnit: "J",
     factor: 1e6
   },
+  { slotPattern: /^efficiency$/, fromUnit: "%", toUnit: "", factor: 0.01 },
   { slotPattern: /^Q$/, fromUnit: "mC", toUnit: "C", factor: 0.001 },
   { slotPattern: /^k$/, fromUnit: "N/cm", toUnit: "N/m", factor: 100 },
   { slotPattern: /^k$/, fromUnit: "N/mm", toUnit: "N/m", factor: 1000 }
@@ -572,9 +612,10 @@ export function generateSlotValuesForRearrangement(
 }
 
 function applyConversionRule(slots, slotAnswers, id, siValue, rule) {
-  const displayVal = rule.factor >= 1
-    ? Math.round((siValue / rule.factor) * 100) / 100
-    : Math.round((siValue / rule.factor) * 10) / 10;
+  const displayVal = conversionDisplayValue(siValue, rule.factor);
+  if (!conversionDisplayOk(displayVal)) {
+    throw new Error(`Conversion display value out of range for slot "${id}"`);
+  }
   const converted = Math.round(displayVal * rule.factor * 1e6) / 1e6;
 
   const siSlotAnswers = {};
@@ -605,6 +646,15 @@ function applyConversionRule(slots, slotAnswers, id, siValue, rule) {
       factor: rule.factor
     }
   };
+}
+
+function conversionDisplayValue(siValue, factor) {
+  const raw = siValue / factor;
+  if (!Number.isFinite(raw) || raw <= 0) return NaN;
+  if (raw >= 10) return Math.round(raw * 10) / 10;
+  if (raw >= 1) return Math.round(raw * 100) / 100;
+  if (raw >= 0.1) return Math.round(raw * 1000) / 1000;
+  return Math.round(raw * 10000) / 10000;
 }
 
 function conversionDisplayOk(displayVal) {
@@ -650,8 +700,11 @@ export function buildConversionStep(equation, slots, slotAnswers, rng = Math.ran
     const si = slotNumericValue(slots, id);
     if (!Number.isFinite(si) || si <= 0) continue;
     for (const rule of CONVERSION_CATALOG) {
-      if (rule.slotPattern.test(id) && conversionDisplayOk(si / rule.factor)) {
-        candidates.push({ id, rule, si });
+      if (rule.slotPattern.test(id)) {
+        const displayVal = conversionDisplayValue(si, rule.factor);
+        if (conversionDisplayOk(displayVal)) {
+          candidates.push({ id, rule, si });
+        }
       }
     }
   }
@@ -691,18 +744,23 @@ function formatSlotForPrompt(id, value, overrides) {
   return value;
 }
 
-function buildRearrangementPrompt(equation, subject, slots, promptOverrides) {
+function formatGivenSlotForPrompt(id, slots, promptOverrides, ctx = {}) {
+  const slotLabel = getSlotPromptLabel(id, ctx.equation);
+  const val = formatSlotForPrompt(id, slots[id], promptOverrides);
+  if (promptOverrides?.[id]) return `${slotLabel} = ${val}`;
+  if (id === "efficiency" && ctx.efficiencyAsPercentage) {
+    return `${slotLabel} = ${efficiencyDecimalToDisplay(slots[id])}%`;
+  }
+  const unit = SUBJECT_UNITS[id] || "";
+  return unit ? `${slotLabel} = ${val} ${unit}` : `${slotLabel} = ${val}`;
+}
+
+function buildRearrangementPrompt(equation, subject, slots, promptOverrides, ctx = {}) {
   const label = getSlotPromptLabel(subject, equation);
   const template = getSubstitutionTemplate(equation);
   const parts = getSlotIdsFromTemplate(template)
     .filter((id) => id !== subject)
-    .map((id) => {
-      const slotLabel = getSlotPromptLabel(id, equation);
-      const val = formatSlotForPrompt(id, slots[id], promptOverrides);
-      if (promptOverrides?.[id]) return `${slotLabel} = ${val}`;
-      const unit = SUBJECT_UNITS[id] || "";
-      return unit ? `${slotLabel} = ${val} ${unit}` : `${slotLabel} = ${val}`;
-    })
+    .map((id) => formatGivenSlotForPrompt(id, slots, promptOverrides, { ...ctx, equation }))
     .join(", ");
 
   return `Calculate the ${label} when ${parts}.`;
@@ -715,10 +773,12 @@ export function buildPrompt(equation, baseVariant, slots, ctx = {}) {
     rearrangementSubject = null,
     customTemplate = null,
     includeRearrangement = false,
-    sigFigsCount = null
+    sigFigsCount = null,
+    efficiencyAsPercentage: efficiencyPct = false
   } = ctx;
 
   const solvingForUnknown = includeRearrangement || (baseVariant === "rearrangement" && rearrangementSubject);
+  const promptCtx = { equation, efficiencyAsPercentage: efficiencyPct };
 
   let text;
   if (customTemplate) {
@@ -726,7 +786,7 @@ export function buildPrompt(equation, baseVariant, slots, ctx = {}) {
       formatSlotForPrompt(key, slots[key] ?? "?", promptOverrides)
     );
   } else if (solvingForUnknown && rearrangementSubject) {
-    text = buildRearrangementPrompt(equation, rearrangementSubject, slots, promptOverrides);
+    text = buildRearrangementPrompt(equation, rearrangementSubject, slots, promptOverrides, promptCtx);
   } else if (PROMPT_TEMPLATES[equation.id] && !Object.keys(promptOverrides).length) {
     text = PROMPT_TEMPLATES[equation.id].replace(/\{(\w+)\}/g, (_, key) =>
       formatSlotForPrompt(key, slots[key] ?? "?", promptOverrides)
@@ -735,11 +795,7 @@ export function buildPrompt(equation, baseVariant, slots, ctx = {}) {
     const subTemplate = getSubstitutionTemplate(equation);
     const parts = getSlotIdsFromTemplate(subTemplate)
       .filter((id) => id !== identifyResultSlot(subTemplate))
-      .map((id) => {
-        const val = formatSlotForPrompt(id, slots[id], promptOverrides);
-        if (promptOverrides?.[id]) return `${getSlotPromptLabel(id, equation)} = ${val}`;
-        return `${getSlotPromptLabel(id, equation)} = ${val}`;
-      })
+      .map((id) => formatGivenSlotForPrompt(id, slots, promptOverrides, promptCtx))
       .join(", ");
     text = `Calculate the ${equation.label || equation.id} using ${parts || "the values given"}.`;
   }
@@ -747,6 +803,14 @@ export function buildPrompt(equation, baseVariant, slots, ctx = {}) {
   const showLatex = equationGiven && equation.latex && baseVariant !== "equation_recall" && baseVariant !== "recall";
   if (showLatex) {
     text += formatEquationLatexBlock(equation.latex);
+  }
+
+  if (
+    efficiencyPct
+    && isEfficiencyEquation(equation)
+    && isEfficiencyResultAnswer(equation, rearrangementSubject)
+  ) {
+    text += "\n\nGive your answer as a percentage.";
   }
 
   if (sigFigsCount != null && sigFigsCount > 0) {
@@ -810,7 +874,8 @@ function slotAnswersForConfig(slot_answers) {
 /** SI unit for a template slot (for conversion dropdowns and typed values). */
 export function getSlotSiUnit(slotId) {
   if (SUBJECT_UNITS[slotId]) return SUBJECT_UNITS[slotId];
-  if (/^(E_k|E_e|E_p|delta_E)$/.test(slotId)) return "J";
+  if (/^(E_k|E_e|E_p|delta_E|E_useful|E_in)$/.test(slotId)) return "J";
+  if (/^(P|P_useful|P_in)$/.test(slotId)) return "W";
   return "";
 }
 
@@ -1091,6 +1156,10 @@ export function recomputeBatchDraft(draft, equation, sheet) {
     unit = ev.unit;
   }
 
+  const effFmt = finalizeEfficiencyAnswer(answer, equation, spec, rearrangementSubject);
+  answer = effFmt.answer;
+  unit = spec.unit || effFmt.unit || unit;
+
   let conversion = null;
   if (draft._conversionMeta?.slotId) {
     const { slotId, fromUnit, toUnit, factor } = draft._conversionMeta;
@@ -1140,7 +1209,8 @@ export function recomputeBatchDraft(draft, equation, sheet) {
       equationGiven: calcConfig.equation_given !== false,
       rearrangementSubject,
       includeRearrangement: withRearrangement,
-      sigFigsCount: sigFigsN
+      sigFigsCount: sigFigsN,
+      efficiencyAsPercentage: efficiencyAsPercentage(spec)
     });
     draft._autoPrompt = draft.question.prompt;
   }
@@ -1273,6 +1343,10 @@ export function generateNumericQuestion(spec, variantDesc, sheet, rng = Math.ran
   }
   if (lastSlotErr) throw lastSlotErr;
 
+  const effFmt = finalizeEfficiencyAnswer(answer, equation, spec, rearrangementSubject);
+  answer = effFmt.answer;
+  unit = spec.unit || effFmt.unit || unit;
+
   const sigFigsN = variantDesc.sigFigs ? (spec.sig_figs_count ?? 2) : null;
 
   let calcConfig = buildCalculationConfigForVariant(baseVariant, {
@@ -1295,7 +1369,8 @@ export function generateNumericQuestion(spec, variantDesc, sheet, rng = Math.ran
     equationGiven,
     rearrangementSubject,
     includeRearrangement: withRearrangement,
-    sigFigsCount: sigFigsN
+    sigFigsCount: sigFigsN,
+    efficiencyAsPercentage: efficiencyAsPercentage(spec)
   });
 
   const maxMarks = computeMaxMarksFromConfig(calcConfig);
@@ -1347,7 +1422,8 @@ export function generateNumericQuestion(spec, variantDesc, sheet, rng = Math.ran
     tier: spec.tier || "both",
     sig_figs_count: spec.sig_figs_count ?? 2,
     tolerance: spec.tolerance,
-    unit: spec.unit
+    unit: spec.unit,
+    efficiency_as_percentage: !!spec.efficiency_as_percentage
   };
   const givenSlotIds = getDraftGivenSlotIds(
     { variant: variantDesc, rearrangement_subject: rearrangementSubject },

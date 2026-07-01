@@ -82,6 +82,86 @@ test("generateBatch — efficiency energy substitute variant", () => {
   assert.ok(Number(d.answer_key.key_payload.answer) < 1);
 });
 
+test("generateBatch — efficiency energy recall + conversion (kJ/MJ)", () => {
+  for (let seed = 0; seed < 20; seed++) {
+    const { drafts, errors } = generateBatch(
+      {
+        equation: "efficiency_energy",
+        subject: "physics",
+        paper: "paper1",
+        tier: "higher",
+        seed,
+        variants: { recipes: [{ base: "recall", unitConversion: true, count: 1 }] }
+      },
+      sheetP1
+    );
+    assert.equal(errors.length, 0, `seed ${seed}: ${errors[0]?.message || ""}`);
+    assert.equal(drafts.length, 1);
+    const conv = drafts[0].question.calculation_config.steps.find((s) => s.type === "conversion");
+    assert.ok(conv, "expected conversion step");
+    assert.ok(["E_useful", "E_in"].includes(conv.slot_id));
+    assert.ok(["kJ", "MJ"].includes(conv.from_unit));
+  }
+});
+
+test("generateBatch — efficiency power recall + conversion (kW/MW)", () => {
+  for (let seed = 0; seed < 20; seed++) {
+    const { drafts, errors } = generateBatch(
+      {
+        equation: "efficiency_power",
+        subject: "physics",
+        paper: "paper1",
+        tier: "higher",
+        seed,
+        variants: { recipes: [{ base: "recall", unitConversion: true, count: 1 }] }
+      },
+      sheetP1
+    );
+    assert.equal(errors.length, 0, `seed ${seed}: ${errors[0]?.message || ""}`);
+    const conv = drafts[0].question.calculation_config.steps.find((s) => s.type === "conversion");
+    assert.ok(conv);
+    assert.ok(["P_useful", "P_in"].includes(conv.slot_id));
+    assert.ok(["kW", "MW"].includes(conv.from_unit));
+  }
+});
+
+test("listConversionUnitOptions — efficiency energy slots offer kJ and MJ", () => {
+  for (const slotId of ["E_useful", "E_in"]) {
+    const opts = listConversionUnitOptions(slotId);
+    assert.ok(opts.some((o) => o.fromUnit === "kJ"), `${slotId} should offer kJ`);
+    assert.ok(opts.some((o) => o.fromUnit === "MJ"), `${slotId} should offer MJ`);
+  }
+});
+
+test("listConversionUnitOptions — efficiency power slots offer kW and MW", () => {
+  for (const slotId of ["P_useful", "P_in"]) {
+    const opts = listConversionUnitOptions(slotId);
+    assert.ok(opts.some((o) => o.fromUnit === "kW"), `${slotId} should offer kW`);
+    assert.ok(opts.some((o) => o.fromUnit === "MW"), `${slotId} should offer MW`);
+  }
+});
+
+test("generateBatch — efficiency as percentage", () => {
+  const { drafts, errors } = generateBatch(
+    {
+      equation: "efficiency_energy",
+      subject: "physics",
+      paper: "paper1",
+      tier: "foundation",
+      efficiency_as_percentage: true,
+      constants: { E_useful: "3000", E_in: "10000" },
+      seed: 42,
+      variants: { recipes: [{ base: "substitute", count: 1 }] }
+    },
+    sheetP1
+  );
+  assert.equal(errors.length, 0, errors.map((e) => e.message).join("; "));
+  assert.equal(drafts.length, 1);
+  assert.equal(drafts[0].answer_key.key_payload.answer, 30);
+  assert.equal(drafts[0].answer_key.key_payload.unit, "%");
+  assert.ok(drafts[0].question.prompt.includes("percentage"));
+});
+
 test("solveForSubject — efficiency energy rearranged for E_useful", () => {
   const eq = findEq(sheetP1, "efficiency_energy");
   const E_useful = solveForSubject(eq, { efficiency: "0.25", E_in: "8000" }, "E_useful");
