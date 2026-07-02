@@ -602,6 +602,28 @@
       box-sizing: border-box;
     }
 
+    .container:has(#panelCreator.active) {
+      margin-top: 12px;
+      margin-bottom: 12px;
+      max-height: calc(100dvh - 5rem);
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .container:has(#panelCreator.active) #creatorContainer {
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #creatorContainer:has(#panelCreator.active) > .tab-nav {
+      flex-shrink: 0;
+      margin-bottom: 12px;
+    }
+
     @media (min-width: 1280px) {
       .container {
         max-width: 1440px;
@@ -627,6 +649,24 @@
 
     .creator-workspace .card:last-of-type {
       margin-bottom: 0;
+    }
+
+    .creator-workspace {
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      overflow: hidden;
+    }
+
+    .creator-scroll-window {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding-right: 6px;
+      -webkit-overflow-scrolling: touch;
     }
 
     .creator-answers-row {
@@ -662,10 +702,18 @@
 
     .creator-actions {
       display: flex;
-      gap: 12px;
+      gap: 6px;
       justify-content: flex-end;
-      margin-bottom: 40px;
-      padding-top: 4px;
+      margin: 0;
+      padding: 4px 0 0;
+      flex-shrink: 0;
+      background: var(--bg);
+      border-top: 1px solid var(--border);
+    }
+
+    .creator-actions .btn {
+      padding: 5px 10px;
+      font-size: 0.78rem;
     }
 
     .metadata-inner {
@@ -823,6 +871,22 @@
 
       .edit-answers-markpoints {
         grid-column: 1 / -1;
+      }
+    }
+
+    @media (max-width: 899px) {
+      .container:has(#panelCreator.active) {
+        margin-top: 8px;
+        margin-bottom: 8px;
+        max-height: calc(100dvh - 4.5rem);
+      }
+
+      .creator-actions {
+        justify-content: stretch;
+      }
+
+      .creator-actions .btn {
+        flex: 1 1 0;
       }
     }
 
@@ -1245,6 +1309,10 @@
       display: block;
     }
 
+    .panel.active.creator-workspace {
+      display: flex;
+    }
+
     .hidden {
       display: none !important;
     }
@@ -1435,7 +1503,7 @@
 
       <!-- TAB 1: CREATOR PANEL -->
       <div id="panelCreator" class="panel active creator-workspace">
-        
+        <div class="creator-scroll-window">
         <!-- SECTION 1: CORE -->
         <div class="card creator-section-core">
           <h3 style="margin-top:0; color:var(--primary-dark); font-size:1.1rem; border-bottom:1px solid var(--border); padding-bottom:8px;">Section 1: Question Core &amp; Curriculum Mapping</h3>
@@ -1935,6 +2003,7 @@
               <div id="metadataWarnings" class="metadata-warnings hidden metadata-span-full"></div>
             </div>
           </div>
+        </div>
         </div>
 
         <!-- Panel Submission Actions -->
