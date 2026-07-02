@@ -546,6 +546,59 @@
       grid-column: 1 / -1;
     }
 
+    .mark-point-row .mp-image-row,
+    .mark-point-row .edit-mp-image-row {
+      grid-column: 1 / -1;
+      padding: 8px 10px;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+
+    .mark-point-row .mp-image-label,
+    .mark-point-row .edit-mp-image-label {
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+
+    .mark-point-row .mp-image-controls,
+    .mark-point-row .edit-mp-image-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .mark-point-row .mp-image-url,
+    .mark-point-row .edit-mp-image-url {
+      flex: 1;
+      min-width: 140px;
+      min-height: 38px;
+    }
+
+    .mark-point-row .mp-image-file,
+    .mark-point-row .edit-mp-image-file {
+      max-width: 220px;
+      font-size: 0.78rem;
+    }
+
+    .mark-point-row .mp-image-preview-wrap,
+    .mark-point-row .edit-mp-image-preview-wrap {
+      margin-top: 8px;
+    }
+
+    .mark-point-row .mp-image-preview,
+    .mark-point-row .edit-mp-image-preview {
+      max-height: 72px;
+      max-width: 100%;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      display: block;
+    }
+
     .calc-rem-row {
       display: grid;
       grid-template-columns: 100px 1fr 40px;
@@ -1932,7 +1985,7 @@
             <button class="btn btn-secondary" id="btnAddMarkPoint" style="padding:4px 10px; font-size:0.75rem;">+ Add Criteria Step</button>
           </div>
           <p id="section3Help" style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.4; margin-bottom: 16px;">
-            <strong>Short Answer Questions:</strong> Each matched row awards 1 mark (AO-specific). If left blank, grading uses the required/optional keywords in Section 2 instead.<br/>
+            <strong>Short Answer Questions:</strong> Each matched row awards 1 mark (AO-specific). If left blank, grading uses the required/optional keywords in Section 2 instead. Optional feedback diagrams appear when a student misses that checkpoint.<br/>
             <strong>Numeric Questions:</strong> Feedback is configured in Section 2 (calculation workflow panels) — this section is not used.<br/>
             <strong>MCQ:</strong> Add one generic remediation row (feedback field only). Shown below any per-option feedback from Section 2 when a student picks a wrong answer.
           </p>
@@ -2897,7 +2950,7 @@
               <button type="button" class="btn btn-secondary" id="btnEditAddMarkPoint" style="padding:3px 8px; font-size:0.75rem;">+ Add Criteria Step</button>
             </div>
             <p id="editSection3Help" class="hidden" style="font-size: 0.78rem; color: var(--text-muted); line-height: 1.4; margin: 0 0 12px;">
-              <strong>MCQ:</strong> One generic remediation row (feedback only). Shown below per-option feedback from Section 2.
+              <strong>MCQ:</strong> One generic remediation row (feedback only). Shown below per-option feedback from Section 2. Optional feedback diagrams appear when a student picks a wrong answer.
             </p>
             <div id="editMarkPointsWrapper"></div>
           </div>
@@ -4134,8 +4187,104 @@
   document.getElementById("btnAddCalcRemediation")?.addEventListener("click", () => window.addCalcRemediationRow("", "AO2", ""));
   document.getElementById("btnEditAddCalcRemediation")?.addEventListener("click", () => window.addCalcRemediationRow("edit", "AO2", ""));
 
+  function getMarkPointImageStoragePrefix() {
+    return document.getElementById("subjectSelect")?.value
+      || document.getElementById("auditSubject")?.value
+      || "misc";
+  }
+
+  function syncMarkPointImagePreview(row, mode = "creator") {
+    const urlSel = mode === "edit" ? ".edit-mp-image-url" : ".mp-image-url";
+    const fileSel = mode === "edit" ? ".edit-mp-image-file" : ".mp-image-file";
+    const previewWrapSel = mode === "edit" ? ".edit-mp-image-preview-wrap" : ".mp-image-preview-wrap";
+    const previewSel = mode === "edit" ? ".edit-mp-image-preview" : ".mp-image-preview";
+    const url = row.querySelector(urlSel)?.value.trim() || "";
+    const fileInput = row.querySelector(fileSel);
+    const wrap = row.querySelector(previewWrapSel);
+    const img = row.querySelector(previewSel);
+    if (!wrap || !img) return;
+
+    if (fileInput?.files?.length > 0) {
+      img.src = URL.createObjectURL(fileInput.files[0]);
+      wrap.classList.remove("hidden");
+      return;
+    }
+
+    if (url) {
+      img.src = url;
+      wrap.classList.remove("hidden");
+    } else {
+      img.src = "";
+      wrap.classList.add("hidden");
+    }
+  }
+
+  function wireMarkPointImageRow(row, mode = "creator") {
+    const urlSel = mode === "edit" ? ".edit-mp-image-url" : ".mp-image-url";
+    const fileSel = mode === "edit" ? ".edit-mp-image-file" : ".mp-image-file";
+    const clearSel = mode === "edit" ? ".edit-mp-image-clear" : ".mp-image-clear";
+    const urlInput = row.querySelector(urlSel);
+    const fileInput = row.querySelector(fileSel);
+    const clearBtn = row.querySelector(clearSel);
+
+    urlInput?.addEventListener("input", () => syncMarkPointImagePreview(row, mode));
+    fileInput?.addEventListener("change", () => {
+      if (fileInput.files?.length && urlInput) {
+        urlInput.value = "";
+      }
+      syncMarkPointImagePreview(row, mode);
+    });
+    clearBtn?.addEventListener("click", () => {
+      if (urlInput) urlInput.value = "";
+      if (fileInput) fileInput.value = "";
+      syncMarkPointImagePreview(row, mode);
+    });
+    syncMarkPointImagePreview(row, mode);
+  }
+
+  async function resolveMarkPointImageUrl(row, mode = "creator") {
+    const urlSel = mode === "edit" ? ".edit-mp-image-url" : ".mp-image-url";
+    const fileSel = mode === "edit" ? ".edit-mp-image-file" : ".mp-image-file";
+    const urlInput = row.querySelector(urlSel);
+    const fileInput = row.querySelector(fileSel);
+    const existingUrl = urlInput?.value.trim() || "";
+
+    if (fileInput?.files?.length > 0) {
+      const file = fileInput.files[0];
+      const ext = file.name.split(".").pop();
+      const randName = `${Math.random().toString(36).substring(2)}.${ext}`;
+      const path = `${getMarkPointImageStoragePrefix()}/mark-points/${randName}`;
+      const { error: uploadError } = await supabaseClient.storage
+        .from("question-images")
+        .upload(path, file);
+      if (uploadError) throw uploadError;
+      const { data } = supabaseClient.storage.from("question-images").getPublicUrl(path);
+      return data.publicUrl;
+    }
+
+    return existingUrl || null;
+  }
+
+  async function buildMarkPointPayloadsFromRows(rows, questionId, mode = "creator") {
+    const payloads = [];
+    for (const r of rows) {
+      const aoSel = mode === "edit" ? ".edit-mp-ao" : ".mp-ao";
+      const textSel = mode === "edit" ? ".edit-mp-text" : ".mp-text";
+      const fbSel = mode === "edit" ? ".edit-mp-feedback" : ".mp-feedback";
+      payloads.push({
+        question_id: questionId,
+        ao: r.querySelector(aoSel).value,
+        point_text: r.querySelector(textSel).value.trim(),
+        feedback_if_missing: r.querySelector(fbSel).value.trim(),
+        max_marks: 1,
+        image_url: await resolveMarkPointImageUrl(r, mode)
+      });
+    }
+    return payloads;
+  }
+
   // ====== SECTION 3: MARK POINTS DYNAMIC LIST (CREATOR) ======
-  window.addMarkPointRow = function(ptText = "", selectedAo = "AO1", fbText = "") {
+  window.addMarkPointRow = function(ptText = "", selectedAo = "AO1", fbText = "", imageUrl = "") {
     markPointsCounter++;
     const wrap = document.getElementById("markPointsWrapper");
     
@@ -4150,10 +4299,22 @@
         <option value="AO3" ${selectedAo === "AO3" ? "selected" : ""}>AO3</option>
       </select>
       <span class="mp-text-wrap"><input class="mp-text" type="text" placeholder="Point target keyword (e.g. gravity|gravitational)" value="${escapeHtml(ptText)}"/></span>
-      <textarea class="mp-feedback" rows="2" placeholder="Remediation tips...">${escapeHtml(fbText)}</textarea>
       <button onclick="removeMarkPointRow(${markPointsCounter})" style="background:var(--error); color:white; border:none; border-radius:6px; cursor:pointer; height:38px; font-weight:bold; width: 100%;">&times;</button>
+      <textarea class="mp-feedback" rows="2" placeholder="Remediation tips...">${escapeHtml(fbText)}</textarea>
+      <div class="mp-image-row">
+        <span class="mp-image-label">Feedback diagram (optional — shown when this checkpoint is missed)</span>
+        <div class="mp-image-controls">
+          <input class="mp-image-url" type="text" placeholder="Image URL…" value="${escapeHtml(imageUrl)}" />
+          <input class="mp-image-file" type="file" accept="image/*" title="Upload feedback diagram" />
+          <button type="button" class="btn btn-secondary mp-image-clear" style="padding:4px 10px; font-size:0.75rem;">Clear</button>
+        </div>
+        <div class="mp-image-preview-wrap hidden">
+          <img class="mp-image-preview" alt="Feedback diagram preview" />
+        </div>
+      </div>
     `;
     wrap.appendChild(row);
+    wireMarkPointImageRow(row, "creator");
     if (document.getElementById("qType")?.value === "mcq") row.classList.add("mcq-mode");
     if (window.AdminMetadata) window.AdminMetadata.autoSizeAdminSelects(wrap);
   };
@@ -4166,7 +4327,7 @@
   };
 
   // ====== SECTION 3: MARK POINTS DYNAMIC LIST (EDIT WINDOW) ======
-  window.addEditMarkPointRow = function(ptText = "", selectedAo = "AO1", fbText = "") {
+  window.addEditMarkPointRow = function(ptText = "", selectedAo = "AO1", fbText = "", imageUrl = "") {
     editMarkPointsCounter++;
     const wrap = document.getElementById("editMarkPointsWrapper");
     
@@ -4181,10 +4342,22 @@
         <option value="AO3" ${selectedAo === "AO3" ? "selected" : ""}>AO3</option>
       </select>
       <span class="edit-mp-text-wrap"><input class="edit-mp-text" type="text" placeholder="Point target keyword (e.g. gravity|gravitational)" value="${escapeHtml(ptText)}"/></span>
-      <textarea class="edit-mp-feedback" rows="2" placeholder="Remediation tips...">${escapeHtml(fbText)}</textarea>
       <button type="button" onclick="removeEditMarkPointRow(${editMarkPointsCounter})" style="background:var(--error); color:white; border:none; border-radius:6px; cursor:pointer; height:38px; font-weight:bold; width: 100%;">&times;</button>
+      <textarea class="edit-mp-feedback" rows="2" placeholder="Remediation tips...">${escapeHtml(fbText)}</textarea>
+      <div class="edit-mp-image-row">
+        <span class="edit-mp-image-label">Feedback diagram (optional — shown when this checkpoint is missed)</span>
+        <div class="edit-mp-image-controls">
+          <input class="edit-mp-image-url" type="text" placeholder="Image URL…" value="${escapeHtml(imageUrl)}" />
+          <input class="edit-mp-image-file" type="file" accept="image/*" title="Upload feedback diagram" />
+          <button type="button" class="btn btn-secondary edit-mp-image-clear" style="padding:4px 10px; font-size:0.75rem;">Clear</button>
+        </div>
+        <div class="edit-mp-image-preview-wrap hidden">
+          <img class="edit-mp-image-preview" alt="Feedback diagram preview" />
+        </div>
+      </div>
     `;
     wrap.appendChild(row);
+    wireMarkPointImageRow(row, "edit");
     if (document.getElementById("editQuestionType")?.value === "mcq") row.classList.add("mcq-mode");
   };
 
@@ -4401,14 +4574,7 @@
       // Save Section 3 detailed Mark Points (short answer only — numeric uses Section 2 feedback)
       const rows = Array.from(document.querySelectorAll("#markPointsWrapper .mark-point-row"));
       if (rows.length > 0 && questionType !== "numeric") {
-        const markPayloads = rows.map(r => ({
-          question_id: qResult.id,
-          ao: r.querySelector(".mp-ao").value,
-          point_text: r.querySelector(".mp-text").value.trim(),
-          feedback_if_missing: r.querySelector(".mp-feedback").value.trim(),
-          max_marks: 1
-        }));
-        
+        const markPayloads = await buildMarkPointPayloadsFromRows(rows, qResult.id, "creator");
         const { error: mpErr } = await supabaseClient.from("mark_points").insert(markPayloads);
         if (mpErr) throw mpErr;
       }
@@ -6866,7 +7032,7 @@
     try {
       const { data: dbMps, error: mpsErr } = await supabaseClient
         .from("mark_points")
-        .select("ao, point_text, feedback_if_missing")
+        .select("ao, point_text, feedback_if_missing, image_url")
         .eq("question_id", q.id);
         
       if (!mpsErr && dbMps) {
@@ -6879,7 +7045,7 @@
             addEditMarkPointRow("", "AO1", legacyMcqFeedback);
           } else {
             mps.forEach(mp => {
-              addEditMarkPointRow(mp.point_text, mp.ao, mp.feedback_if_missing);
+              addEditMarkPointRow(mp.point_text, mp.ao, mp.feedback_if_missing, mp.image_url || "");
             });
           }
         }
@@ -7168,14 +7334,7 @@
       if (q.question_type !== "numeric") {
         const editRows = Array.from(document.querySelectorAll("#editMarkPointsWrapper .edit-mp-row, #editMarkPointsWrapper .mark-point-row"));
         if (editRows.length > 0) {
-          const markPayloads = editRows.map(r => ({
-            question_id: qId,
-            ao: r.querySelector(".edit-mp-ao").value,
-            point_text: r.querySelector(".edit-mp-text").value.trim(),
-            feedback_if_missing: r.querySelector(".edit-mp-feedback").value.trim(),
-            max_marks: 1
-          }));
-
+          const markPayloads = await buildMarkPointPayloadsFromRows(editRows, qId, "edit");
           const { error: mpErr } = await supabaseClient.from("mark_points").insert(markPayloads);
           if (mpErr) throw mpErr;
         }
