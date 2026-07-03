@@ -1549,7 +1549,7 @@
         <button class="tab-btn active" onclick="switchPanel('creator')">✏️ Create Question</button>
         <button class="tab-btn" onclick="switchPanel('csv')">📂 Packaged CSV Importer</button>
         <button class="tab-btn" data-panel="batchNumeric" onclick="switchPanel('batchNumeric')">🔢 Batch Numeric Generator</button>
-        <button class="tab-btn" data-panel="batchMcq" onclick="switchPanel('batchMcq')">☑️ Batch MCQ Generator</button>
+        <button class="tab-btn" data-panel="batchMcq" onclick="switchPanel('batchMcq')">✨ AI Question Studio</button>
         <button class="tab-btn" onclick="switchPanel('audit')">🔍 Database Audit &amp; Review</button>
         <button class="tab-btn" onclick="switchPanel('pilot')">🎫 Pilot Pro Access</button>
       </div>
@@ -2326,12 +2326,12 @@
         </div>
       </div>
 
-      <!-- TAB: BATCH MCQ GENERATOR -->
+      <!-- TAB: AI QUESTION STUDIO -->
       <div id="panelBatchMcq" class="panel">
         <div class="card">
-          <h3 style="margin:0 0 4px; color:var(--primary-dark); font-size:1.02rem;">Batch MCQ Question Generator</h3>
+          <h3 style="margin:0 0 4px; color:var(--primary-dark); font-size:1.02rem;">AI Question Studio</h3>
           <p style="color:var(--text-muted); font-size:0.78rem; line-height:1.3; margin:0 0 6px;">
-            Generate multiple-choice questions from spec point content. Each draft uses a real specification claim as the correct answer, with distractors targeting common misconceptions. Edit before commit.
+            Generate MCQ and short-text questions from spec point content using Gemini. Edit prompts, options, mark checkpoints and feedback before commit. Requires the <code>generate-questions</code> edge function with <code>GEMINI_API_KEY</code> configured.
           </p>
 
           <div class="row row-compact">
@@ -2392,22 +2392,16 @@
             </div>
           </div>
 
-          <div class="row row-compact batch-form-section">
-            <div class="field-fit">
-              <label>Seed</label>
-              <input type="number" id="batchMcqSeed" class="input-compact" placeholder="auto" />
-            </div>
-          </div>
-
           <div class="batch-form-section" style="margin-top:4px;">
             <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;">
               <label style="margin:0;font-weight:600;font-size:0.8rem;">Question recipes</label>
               <button type="button" class="btn btn-secondary btn-compact" id="btnBatchMcqAddRecipe" style="padding:2px 8px;font-size:0.72rem;">+ Add recipe</button>
             </div>
-            <p class="muted" style="font-size:0.72rem;margin:0 0 8px;">Each row is a demand band and how many MCQs to generate at that level — e.g. Low ×3, Standard 4–5 ×2.</p>
+            <p class="muted" style="font-size:0.72rem;margin:0 0 8px;">Each row: question type, demand band, and count — e.g. MCQ Low ×3, Short text Standard ×2.</p>
             <table id="batchMcqRecipes" style="width:100%;font-size:0.76rem;border-collapse:collapse;">
               <thead>
                 <tr style="text-align:left;color:var(--text-muted);">
+                  <th style="padding:4px 6px;">Type</th>
                   <th style="padding:4px 6px;">Demand level</th>
                   <th style="padding:4px 6px;">Count</th>
                   <th style="padding:4px 6px;"></th>
@@ -2418,7 +2412,7 @@
           </div>
 
           <div class="batch-actions" style="display:flex;flex-wrap:wrap;">
-            <button type="button" class="btn btn-primary btn-compact" id="btnBatchMcqPreview">Generate preview</button>
+            <button type="button" class="btn btn-primary btn-compact" id="btnBatchMcqPreview">Generate with AI</button>
             <button type="button" class="btn btn-primary btn-compact" id="btnBatchMcqCommit" disabled>Commit all</button>
             <button type="button" class="btn btn-secondary btn-compact" id="btnBatchMcqExport">Export JSON</button>
           </div>
@@ -2434,18 +2428,19 @@
             <thead>
               <tr>
                 <th style="width:40px;">#</th>
+                <th style="width:72px;">Type</th>
                 <th style="width:88px;">Demand</th>
                 <th>Prompt</th>
                 <th style="width:56px;">Marks</th>
                 <th style="width:72px;">Cmd</th>
                 <th style="width:48px;">Diff</th>
                 <th style="width:64px;">AO</th>
-                <th style="width:120px;">Correct</th>
+                <th style="width:120px;">Summary</th>
                 <th style="width:200px;text-align:right;">Operations</th>
               </tr>
             </thead>
             <tbody id="batchMcqPreviewBody">
-              <tr><td colspan="9" style="padding:24px;text-align:center;color:var(--text-muted);">Generate preview to see drafts.</td></tr>
+              <tr><td colspan="10" style="padding:24px;text-align:center;color:var(--text-muted);">Generate with AI to see drafts.</td></tr>
             </tbody>
           </table>
           <pre id="batchMcqLog" class="hidden" style="background:#1e293b;color:#38bdf8;padding:12px;border-radius:8px;font-size:0.75rem;max-height:200px;overflow-y:auto;margin:12px 16px 16px;"></pre>
@@ -3096,12 +3091,14 @@
   import * as CalcWorkflow from "./src/calculationWorkflow.js";
   import * as NumericGen from "./src/numericQuestionGenerator.js";
   import * as McqBatchGen from "./src/mcqBatchGenerator.js";
+  import * as AiQuestionDraft from "./src/aiQuestionDraft.js";
   import * as CsvImport from "./src/csvQuestionImport.js";
   import { resolveMcqWrongFeedback, MCQ_FLASHCARD_ADDED_MSG, highlightCommandWordsInPrompt } from "./src/evalEngine.js";
 
   window.CalcWorkflow = CalcWorkflow;
   window.NumericGen = NumericGen;
   window.McqBatchGen = McqBatchGen;
+  window.AiQuestionDraft = AiQuestionDraft;
   window.CsvImport = CsvImport;
   window.supabaseClient = supabaseClient;
   window.resolveMcqWrongFeedback = resolveMcqWrongFeedback;
@@ -5683,8 +5680,9 @@
   loadBatchSpecPointSelect().catch(() => {});
   refreshBatchEquationSelect().catch(() => {});
 
-  // ====== BATCH MCQ GENERATOR ======
+  // ====== AI QUESTION STUDIO (batch panel) ======
   let batchMcqPreviewDrafts = [];
+  const AI_STUDIO_MAX_QUESTIONS = 12;
 
   function readBatchMcqRecipes() {
     const rows = document.querySelectorAll("#batchMcqRecipesBody tr[data-mcq-recipe-row]");
@@ -5693,6 +5691,7 @@
       const count = parseInt(row.querySelector(".batch-mcq-recipe-count")?.value, 10) || 0;
       if (count <= 0) return;
       recipes.push({
+        question_type: row.querySelector(".batch-mcq-recipe-type")?.value || "mcq",
         demand_level: row.querySelector(".batch-mcq-recipe-demand")?.value || "low",
         count
       });
@@ -5701,7 +5700,7 @@
   }
 
   function batchMcqDemandOptionsHtml(selected = "low", tier = "both") {
-    const options = McqBatchGen.getDemandOptionsForTier(tier);
+    const options = AiQuestionDraft.getDemandOptionsForTier(tier);
     return options.map((o) =>
       `<option value="${escapeHtml(o.value)}"${o.value === selected ? " selected" : ""}>${escapeHtml(o.label)}</option>`
     ).join("");
@@ -5712,9 +5711,16 @@
     if (!tbody) return;
     const tier = document.getElementById("batchMcqTier")?.value || "both";
     const demand = recipe.demand_level || "low";
+    const qType = recipe.question_type || "mcq";
     const tr = document.createElement("tr");
     tr.dataset.mcqRecipeRow = "1";
     tr.innerHTML = `
+      <td style="padding:4px 6px;">
+        <select class="batch-mcq-recipe-type batch-recipe-opt select-fit" style="min-width:7rem;">
+          <option value="mcq"${qType === "mcq" ? " selected" : ""}>MCQ</option>
+          <option value="short_text"${qType === "short_text" ? " selected" : ""}>Short text</option>
+        </select>
+      </td>
       <td style="padding:4px 6px;">
         <select class="batch-mcq-recipe-demand batch-recipe-opt select-fit" style="min-width:10rem;">
           ${batchMcqDemandOptionsHtml(demand, tier)}
@@ -5749,22 +5755,20 @@
     if (!tbody || tbody.dataset.wired) return;
     tbody.dataset.wired = "1";
     tbody.innerHTML = "";
-    addBatchMcqRecipeRow({ demand_level: "low", count: 3 });
+    addBatchMcqRecipeRow({ question_type: "mcq", demand_level: "low", count: 3 });
+    addBatchMcqRecipeRow({ question_type: "short_text", demand_level: "standard", count: 2 });
     document.getElementById("btnBatchMcqAddRecipe")?.addEventListener("click", () => {
-      addBatchMcqRecipeRow({ demand_level: "standard", count: 1 });
+      addBatchMcqRecipeRow({ question_type: "mcq", demand_level: "standard", count: 1 });
     });
   }
 
   function buildBatchMcqSpecFromForm() {
-    const seedRaw = document.getElementById("batchMcqSeed")?.value;
-    const seed = seedRaw !== "" && seedRaw != null ? parseInt(seedRaw, 10) : Date.now();
     return {
       subject: document.getElementById("batchMcqSubject")?.value || "physics",
       paper: document.getElementById("batchMcqPaper")?.value || "paper1",
       tier: document.getElementById("batchMcqTier")?.value || "both",
       courseTrack: document.getElementById("batchMcqCourseTrack")?.value || "combined",
       audience: document.getElementById("batchMcqAudience")?.value || "both",
-      seed,
       recipes: readBatchMcqRecipes()
     };
   }
@@ -5906,6 +5910,105 @@
       </div>`;
   }
 
+  function batchDraftSummary(draft) {
+    const q = draft?.question;
+    if (q?.question_type === "short_text") {
+      const n = draft.mark_points?.length || 0;
+      return n ? `${n} mark point${n === 1 ? "" : "s"}` : "—";
+    }
+    const correct = draft.answer_key?.key_payload?.correct || "";
+    return correct.length > 36 ? `${correct.slice(0, 36)}…` : correct;
+  }
+
+  function renderBatchShortTextMarkBlock(draft, idx, mpIdx) {
+    const mp = draft.mark_points?.[mpIdx] || {};
+    const ao = mp.ao || (mpIdx === 0 ? "AO1" : "AO2");
+    return `
+      <div class="batch-ai-mp-block" style="margin-bottom:10px;padding:8px;border:1px solid #e2e8f0;border-radius:6px;background:#fff;">
+        <label style="font-size:0.72rem;font-weight:600;">Mark point ${mpIdx + 1}</label>
+        <div style="display:flex;gap:8px;margin-top:4px;align-items:center;">
+          <span style="font-size:0.72rem;">AO</span>
+          <select class="batch-ai-mp-ao select-fit" data-batch-mcq-idx="${idx}" data-mp-idx="${mpIdx}" style="font-size:0.72rem;min-width:4rem;">
+            <option value="AO1"${ao === "AO1" ? " selected" : ""}>AO1</option>
+            <option value="AO2"${ao === "AO2" ? " selected" : ""}>AO2</option>
+            <option value="AO3"${ao === "AO3" ? " selected" : ""}>AO3</option>
+          </select>
+        </div>
+        <label style="display:block;margin-top:6px;font-size:0.7rem;color:var(--text-muted);">Keywords (pipe for synonyms)</label>
+        <input type="text" class="batch-ai-mp-keywords" data-batch-mcq-idx="${idx}" data-mp-idx="${mpIdx}" value="${escapeHtml(mp.point_text || "")}" style="width:100%;font-size:0.78rem;padding:4px 8px;margin-top:2px;" />
+        <label style="display:block;margin-top:6px;font-size:0.7rem;color:var(--text-muted);">Feedback if missing</label>
+        <textarea class="batch-ai-mp-feedback" data-batch-mcq-idx="${idx}" data-mp-idx="${mpIdx}" rows="2" style="width:100%;font-size:0.76rem;padding:4px 8px;margin-top:2px;">${escapeHtml(mp.feedback_if_missing || "")}</textarea>
+        <label style="display:block;margin-top:6px;font-size:0.7rem;color:var(--text-muted);">Diagram URL (optional)</label>
+        <input type="text" class="batch-ai-mp-image" data-batch-mcq-idx="${idx}" data-mp-idx="${mpIdx}" value="${escapeHtml(mp.image_url || "")}" placeholder="https://…" style="width:100%;font-size:0.76rem;padding:4px 8px;margin-top:2px;" />
+      </div>`;
+  }
+
+  function renderBatchMcqDetailRow(d, i) {
+    const q = d.question;
+    const correct = d.answer_key?.key_payload?.correct || "";
+    const mp = d.mark_points?.[0] || {};
+    const letters = ["A", "B", "C", "D"];
+    const correctOptions = (q.options || [])
+      .filter((o) => o)
+      .map((opt, oi) => {
+        const letter = letters[oi] || "?";
+        const sel = opt === correct ? " selected" : "";
+        return `<option value="${escapeHtml(opt)}"${sel}>${letter}: ${escapeHtml(opt.slice(0, 40))}${opt.length > 40 ? "…" : ""}</option>`;
+      })
+      .join("");
+
+    return `
+      <tr style="border-bottom:1px solid var(--border);background:#f8fafc;" data-batch-mcq-detail="${i}">
+        <td colspan="10" style="padding:10px 16px 14px;">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px 16px;">
+            <div>${letters.map((L, oi) => renderBatchMcqOptionBlock(d, i, oi, L)).join("")}</div>
+            <div>
+              <label style="font-size:0.72rem;font-weight:600;">Correct answer</label>
+              <select class="batch-mcq-correct select-fit" data-batch-mcq-idx="${i}" style="width:100%;margin-top:4px;font-size:0.78rem;">
+                <option value="">— Choose correct —</option>
+                ${correctOptions}
+              </select>
+              <label style="display:block;margin-top:10px;font-size:0.72rem;font-weight:600;">Overall feedback (Section 3)</label>
+              <textarea class="batch-mcq-overall-fb" data-batch-mcq-idx="${i}" rows="3" style="width:100%;font-size:0.78rem;padding:6px;margin-top:4px;" placeholder="Generic feedback if incorrect…">${escapeHtml(mp.feedback_if_missing || "")}</textarea>
+              <div style="margin-top:10px;">
+                <label style="font-size:0.72rem;font-weight:600;">AO marks (must total ${q.max_marks || 1})</label>
+                <div style="display:flex;gap:8px;margin-top:4px;align-items:center;">
+                  <span style="font-size:0.72rem;">AO1 <input type="number" class="batch-mcq-ao1 input-compact" data-batch-mcq-idx="${i}" min="0" max="3" value="${q.ao1_marks ?? 1}" style="width:2.5rem;" /></span>
+                  <span style="font-size:0.72rem;">AO2 <input type="number" class="batch-mcq-ao2 input-compact" data-batch-mcq-idx="${i}" min="0" max="3" value="${q.ao2_marks ?? 0}" style="width:2.5rem;" /></span>
+                  <span style="font-size:0.72rem;">AO3 <input type="number" class="batch-mcq-ao3 input-compact" data-batch-mcq-idx="${i}" min="0" max="3" value="${q.ao3_marks ?? 0}" style="width:2.5rem;" /></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </td>
+      </tr>`;
+  }
+
+  function renderBatchShortTextDetailRow(d, i) {
+    const q = d.question;
+    const maxMp = Math.max(2, q.max_marks || 2);
+    const blocks = [];
+    for (let mpIdx = 0; mpIdx < maxMp; mpIdx++) {
+      blocks.push(renderBatchShortTextMarkBlock(d, i, mpIdx));
+    }
+    return `
+      <tr style="border-bottom:1px solid var(--border);background:#f8fafc;" data-batch-mcq-detail="${i}">
+        <td colspan="10" style="padding:10px 16px 14px;">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px 16px;">
+            ${blocks.join("")}
+            <div>
+              <label style="font-size:0.72rem;font-weight:600;">AO marks (must total ${q.max_marks || 2})</label>
+              <div style="display:flex;gap:8px;margin-top:4px;align-items:center;">
+                <span style="font-size:0.72rem;">AO1 <input type="number" class="batch-mcq-ao1 input-compact" data-batch-mcq-idx="${i}" min="0" max="3" value="${q.ao1_marks ?? 1}" style="width:2.5rem;" /></span>
+                <span style="font-size:0.72rem;">AO2 <input type="number" class="batch-mcq-ao2 input-compact" data-batch-mcq-idx="${i}" min="0" max="3" value="${q.ao2_marks ?? 1}" style="width:2.5rem;" /></span>
+                <span style="font-size:0.72rem;">AO3 <input type="number" class="batch-mcq-ao3 input-compact" data-batch-mcq-idx="${i}" min="0" max="3" value="${q.ao3_marks ?? 0}" style="width:2.5rem;" /></span>
+              </div>
+            </div>
+          </div>
+        </td>
+      </tr>`;
+  }
+
   function renderBatchMcqPreviewTable(drafts, errors) {
     const tbody = document.getElementById("batchMcqPreviewBody");
     const logEl = document.getElementById("batchMcqLog");
@@ -5913,33 +6016,26 @@
     if (!tbody) return;
 
     if (!drafts.length && !errors.length) {
-      tbody.innerHTML = '<tr><td colspan="9" style="padding:24px;text-align:center;color:var(--text-muted);">No drafts generated.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="10" style="padding:24px;text-align:center;color:var(--text-muted);">No drafts generated.</td></tr>';
       if (countEl) countEl.textContent = "";
       return;
     }
 
     tbody.innerHTML = drafts.map((d, i) => {
       const q = d.question;
-      const correct = d.answer_key?.key_payload?.correct || "";
+      const isShort = q.question_type === "short_text";
       const diff = window.AdminMetadata
         ? window.AdminMetadata.computeQuestionDifficulty(q)
         : (q.difficulty ?? 2);
-      const demand = McqBatchGen.demandRecipeLabel(d.variant);
+      const demand = AiQuestionDraft.demandRecipeLabel(d.variant);
+      const typeLabel = isShort ? "Short text" : "MCQ";
       const promptEsc = escapeHtml(q.prompt || "");
-      const mp = d.mark_points?.[0] || {};
-      const letters = ["A", "B", "C", "D"];
-      const correctOptions = (q.options || [])
-        .filter((o) => o)
-        .map((opt, oi) => {
-          const letter = letters[oi] || "?";
-          const sel = opt === correct ? " selected" : "";
-          return `<option value="${escapeHtml(opt)}"${sel}>${letter}: ${escapeHtml(opt.slice(0, 40))}${opt.length > 40 ? "…" : ""}</option>`;
-        })
-        .join("");
+      const summary = batchDraftSummary(d);
 
       return `
         <tr style="border-top:1px solid var(--border);" data-batch-mcq-idx="${i}">
           <td style="padding:10px 12px;font-weight:700;">${i + 1}</td>
+          <td style="padding:10px 12px;font-size:0.76rem;">${escapeHtml(typeLabel)}</td>
           <td style="padding:10px 12px;font-size:0.76rem;">${escapeHtml(demand)}</td>
           <td style="padding:10px 12px;min-width:260px;">
             <textarea class="batch-mcq-prompt-edit" data-batch-mcq-idx="${i}" rows="4" style="width:100%;font-size:0.8rem;font-family:inherit;padding:6px;border:1px solid #cbd5e1;border-radius:4px;">${promptEsc}</textarea>
@@ -5952,47 +6048,24 @@
           </td>
           <td style="padding:10px 12px;text-align:center;" data-batch-mcq-diff><span class="difficulty-badge difficulty-badge--compact">${diff}</span></td>
           <td style="padding:10px 12px;font-size:0.72rem;font-family:monospace;" data-batch-mcq-ao>${escapeHtml(batchDraftAoSplit(q))}</td>
-          <td style="padding:10px 12px;font-size:0.72rem;max-width:120px;overflow:hidden;text-overflow:ellipsis;" data-batch-mcq-correct title="${escapeHtml(correct)}">${escapeHtml(correct.slice(0, 36))}${correct.length > 36 ? "…" : ""}</td>
+          <td style="padding:10px 12px;font-size:0.72rem;max-width:120px;overflow:hidden;text-overflow:ellipsis;" data-batch-mcq-summary title="${escapeHtml(summary)}">${escapeHtml(summary)}</td>
           <td style="padding:10px 12px;text-align:right;white-space:nowrap;">
             <button type="button" class="btn btn-secondary" onclick="launchBatchMcqSandboxPreview(${i})" style="padding:4px 8px;font-size:0.72rem;background:#3b82f6;color:#fff;">Test</button>
             <button type="button" class="btn btn-danger" onclick="removeBatchMcqDraft(${i})" style="padding:4px 8px;font-size:0.72rem;">Remove</button>
           </td>
         </tr>
-        <tr style="border-bottom:1px solid var(--border);background:#f8fafc;" data-batch-mcq-detail="${i}">
-          <td colspan="9" style="padding:10px 16px 14px;">
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px 16px;">
-              <div>${letters.map((L, oi) => renderBatchMcqOptionBlock(d, i, oi, L)).join("")}</div>
-              <div>
-                <label style="font-size:0.72rem;font-weight:600;">Correct answer</label>
-                <select class="batch-mcq-correct select-fit" data-batch-mcq-idx="${i}" style="width:100%;margin-top:4px;font-size:0.78rem;">
-                  <option value="">— Choose correct —</option>
-                  ${correctOptions}
-                </select>
-                <label style="display:block;margin-top:10px;font-size:0.72rem;font-weight:600;">Overall feedback (Section 3)</label>
-                <textarea class="batch-mcq-overall-fb" data-batch-mcq-idx="${i}" rows="3" style="width:100%;font-size:0.78rem;padding:6px;margin-top:4px;" placeholder="Generic feedback if incorrect…">${escapeHtml(mp.feedback_if_missing || "")}</textarea>
-                <div style="margin-top:10px;">
-                  <label style="font-size:0.72rem;font-weight:600;">AO marks (must total 1)</label>
-                  <div style="display:flex;gap:8px;margin-top:4px;align-items:center;">
-                    <span style="font-size:0.72rem;">AO1 <input type="number" class="batch-mcq-ao1 input-compact" data-batch-mcq-idx="${i}" min="0" max="1" value="${q.ao1_marks ?? 1}" style="width:2.5rem;" /></span>
-                    <span style="font-size:0.72rem;">AO2 <input type="number" class="batch-mcq-ao2 input-compact" data-batch-mcq-idx="${i}" min="0" max="1" value="${q.ao2_marks ?? 0}" style="width:2.5rem;" /></span>
-                    <span style="font-size:0.72rem;">AO3 <input type="number" class="batch-mcq-ao3 input-compact" data-batch-mcq-idx="${i}" min="0" max="1" value="${q.ao3_marks ?? 0}" style="width:2.5rem;" /></span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </td>
-        </tr>`;
+        ${isShort ? renderBatchShortTextDetailRow(d, i) : renderBatchMcqDetailRow(d, i)}`;
     }).join("");
 
     if (countEl) {
-      countEl.textContent = `${drafts.length} draft(s) ready${errors.length ? ` · ${errors.length} recipe(s) failed` : ""}`;
+      countEl.textContent = `${drafts.length} draft(s) ready${errors.length ? ` · ${errors.length} warning(s)` : ""}`;
     }
 
     wireBatchMcqPreviewEditors();
 
     if (errors.length && logEl) {
       logEl.classList.remove("hidden");
-      logEl.textContent = errors.map((e) => `⚠ ${McqBatchGen.demandRecipeLabel(e.variant)}: ${e.message}`).join("\n");
+      logEl.textContent = errors.map((e) => `⚠ ${typeof e === "string" ? e : `${AiQuestionDraft.demandRecipeLabel(e.variant)}: ${e.message}`}`).join("\n");
     } else if (logEl) {
       logEl.classList.add("hidden");
       logEl.textContent = "";
@@ -6007,30 +6080,50 @@
     const detail = document.querySelector(`tr[data-batch-mcq-detail="${idx}"]`);
     if (!main || !detail) return draft;
 
-    const options = [0, 1, 2, 3].map((oi) =>
-      detail.querySelector(`.batch-mcq-opt[data-opt-idx="${oi}"]`)?.value?.trim() || ""
-    );
-    while (options.length < 4) options.push("");
-
-    const correct = detail.querySelector(".batch-mcq-correct")?.value || "";
-    const optionFeedback = {};
-    [0, 1, 2, 3].forEach((oi) => {
-      const opt = options[oi];
-      const fb = detail.querySelector(`.batch-mcq-opt-fb[data-opt-idx="${oi}"]`)?.value?.trim();
-      if (opt && fb && opt !== correct) optionFeedback[opt] = fb;
-    });
-
-    const updated = McqBatchGen.syncDraftFromPreviewEdits(draft, {
+    const baseEdits = {
       prompt: main.querySelector(".batch-mcq-prompt-edit")?.value?.trim(),
-      options,
-      correct,
-      option_feedback: Object.keys(optionFeedback).length ? optionFeedback : undefined,
-      overall_feedback: detail.querySelector(".batch-mcq-overall-fb")?.value?.trim(),
       ao1_marks: parseInt(detail.querySelector(".batch-mcq-ao1")?.value, 10) || 0,
       ao2_marks: parseInt(detail.querySelector(".batch-mcq-ao2")?.value, 10) || 0,
       ao3_marks: parseInt(detail.querySelector(".batch-mcq-ao3")?.value, 10) || 0,
       command_word: main.querySelector(".batch-mcq-cmd")?.value || draft.question.command_word
-    });
+    };
+
+    let updated;
+    if (draft.question.question_type === "short_text") {
+      const maxMp = Math.max(2, draft.question.max_marks || 2);
+      const mark_points = [];
+      for (let mpIdx = 0; mpIdx < maxMp; mpIdx++) {
+        mark_points.push({
+          ao: detail.querySelector(`.batch-ai-mp-ao[data-mp-idx="${mpIdx}"]`)?.value || "AO1",
+          point_text: detail.querySelector(`.batch-ai-mp-keywords[data-mp-idx="${mpIdx}"]`)?.value?.trim() || "",
+          feedback_if_missing: detail.querySelector(`.batch-ai-mp-feedback[data-mp-idx="${mpIdx}"]`)?.value?.trim() || "",
+          image_url: detail.querySelector(`.batch-ai-mp-image[data-mp-idx="${mpIdx}"]`)?.value?.trim() || null,
+          max_marks: 1
+        });
+      }
+      updated = AiQuestionDraft.syncDraftFromPreviewEdits(draft, { ...baseEdits, mark_points });
+    } else {
+      const options = [0, 1, 2, 3].map((oi) =>
+        detail.querySelector(`.batch-mcq-opt[data-opt-idx="${oi}"]`)?.value?.trim() || ""
+      );
+      while (options.length < 4) options.push("");
+
+      const correct = detail.querySelector(".batch-mcq-correct")?.value || "";
+      const optionFeedback = {};
+      [0, 1, 2, 3].forEach((oi) => {
+        const opt = options[oi];
+        const fb = detail.querySelector(`.batch-mcq-opt-fb[data-opt-idx="${oi}"]`)?.value?.trim();
+        if (opt && fb && opt !== correct) optionFeedback[opt] = fb;
+      });
+
+      updated = AiQuestionDraft.syncDraftFromPreviewEdits(draft, {
+        ...baseEdits,
+        options,
+        correct,
+        option_feedback: Object.keys(optionFeedback).length ? optionFeedback : undefined,
+        overall_feedback: detail.querySelector(".batch-mcq-overall-fb")?.value?.trim()
+      });
+    }
 
     if (window.AdminMetadata) {
       updated.question.difficulty = window.AdminMetadata.computeQuestionDifficulty(updated.question);
@@ -6046,7 +6139,7 @@
     if (!row) return;
 
     const q = draft.question;
-    const correct = draft.answer_key?.key_payload?.correct || "";
+    const summary = batchDraftSummary(draft);
     const diff = window.AdminMetadata
       ? window.AdminMetadata.computeQuestionDifficulty(q)
       : (q.difficulty ?? 2);
@@ -6058,10 +6151,10 @@
     const aoCell = row.querySelector("[data-batch-mcq-ao]");
     if (aoCell) aoCell.textContent = batchDraftAoSplit(q);
 
-    const correctCell = row.querySelector("[data-batch-mcq-correct]");
-    if (correctCell) {
-      correctCell.textContent = correct.length > 36 ? `${correct.slice(0, 36)}…` : correct;
-      correctCell.title = correct;
+    const summaryCell = row.querySelector("[data-batch-mcq-summary]");
+    if (summaryCell) {
+      summaryCell.textContent = summary;
+      summaryCell.title = summary;
     }
   }
 
@@ -6136,7 +6229,7 @@
       });
     });
 
-    document.querySelectorAll(".batch-mcq-opt-fb, .batch-mcq-overall-fb, .batch-mcq-ao1, .batch-mcq-ao2, .batch-mcq-ao3").forEach((el) => {
+    document.querySelectorAll(".batch-mcq-opt-fb, .batch-mcq-overall-fb, .batch-mcq-ao1, .batch-mcq-ao2, .batch-mcq-ao3, .batch-ai-mp-keywords, .batch-ai-mp-feedback, .batch-ai-mp-image, .batch-ai-mp-ao").forEach((el) => {
       el.addEventListener("input", () => {
         const idx = parseInt(el.dataset.batchMcqIdx, 10);
         syncBatchMcqDraftFromDom(idx);
@@ -6201,17 +6294,38 @@
   document.getElementById("btnBatchMcqPreview")?.addEventListener("click", async () => {
     const status = document.getElementById("batchMcqStatus");
     const commitBtn = document.getElementById("btnBatchMcqCommit");
+    const previewBtn = document.getElementById("btnBatchMcqPreview");
     try {
       const spec = buildBatchMcqSpecFromForm();
       if (!spec.recipes?.length) {
         throw new Error("Add at least one recipe row with count greater than 0");
       }
+      const expanded = AiQuestionDraft.expandRecipes(spec.recipes);
+      if (!expanded.length) {
+        throw new Error("Add at least one recipe row with count greater than 0");
+      }
+      if (expanded.length > AI_STUDIO_MAX_QUESTIONS) {
+        throw new Error(`Maximum ${AI_STUDIO_MAX_QUESTIONS} questions per AI request — reduce recipe counts`);
+      }
       const specPointId = document.getElementById("batchMcqSpecPointSelect")?.value;
       if (!specPointId) {
         throw new Error("Select a spec point from the dropdown");
       }
+      if (previewBtn) previewBtn.disabled = true;
+      if (status) status.textContent = "Generating questions with AI…";
+
       const specPoint = await loadBatchMcqSpecPointData(specPointId);
-      const { drafts, errors, seed } = McqBatchGen.generateMcqBatch(spec, specPoint);
+      const payload = {
+        subject: spec.subject,
+        paper: spec.paper,
+        tier: spec.tier,
+        spec_ref: specPoint.spec_ref,
+        topic_name: specPoint.topic_name,
+        spec_text: specPoint.spec_text,
+        recipes: expanded
+      };
+
+      const { drafts, warnings, model } = await AiQuestionDraft.invokeGenerateQuestions(supabaseClient, payload);
       batchMcqPreviewDrafts = drafts.map((d) => ({
         ...d,
         question: {
@@ -6221,15 +6335,17 @@
             : 2
         }
       }));
-      renderBatchMcqPreviewTable(batchMcqPreviewDrafts, errors);
+      renderBatchMcqPreviewTable(batchMcqPreviewDrafts, warnings || []);
       if (commitBtn) commitBtn.disabled = batchMcqPreviewDrafts.length === 0;
       if (status) {
-        status.textContent = `Preview: ${drafts.length} draft(s), ${errors.length} error(s). Seed: ${seed}. Edit prompts and options in the table before committing.`;
+        status.textContent = `AI preview: ${drafts.length} draft(s)${model ? ` · ${model}` : ""}. Edit before commit.`;
       }
-      if (errors.length) showAdminToast(`${errors.length} recipe(s) failed — see log below table.`, true);
+      if (warnings?.length) showAdminToast(`${warnings.length} warning(s) — see log below table.`, true);
     } catch (err) {
       showAdminToast(err.message, true);
       if (status) status.textContent = err.message;
+    } finally {
+      if (previewBtn) previewBtn.disabled = false;
     }
   });
 
@@ -6242,7 +6358,7 @@
     const blob = new Blob([JSON.stringify(batchMcqPreviewDrafts, null, 2)], { type: "application/json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = `mcq_batch_${Date.now()}.json`;
+    a.download = `ai_questions_${Date.now()}.json`;
     a.click();
     URL.revokeObjectURL(a.href);
   });
@@ -6274,28 +6390,19 @@
       for (let i = 0; i < batchMcqPreviewDrafts.length; i++) {
         const draft = batchMcqPreviewDrafts[i];
         const q = draft.question;
-        const aoSum = (q.ao1_marks || 0) + (q.ao2_marks || 0) + (q.ao3_marks || 0);
-        if (aoSum !== 1) {
+        const validationErr = AiQuestionDraft.validateDraftForCommit(draft, i);
+        if (validationErr) {
           fail++;
-          logLines.push(`✗ Draft ${i + 1}: AO marks must total 1 (got ${aoSum})`);
-          continue;
-        }
-        const filledOptions = (q.options || []).filter((o) => o?.trim());
-        if (filledOptions.length < 2) {
-          fail++;
-          logLines.push(`✗ Draft ${i + 1}: Need at least 2 answer options`);
-          continue;
-        }
-        if (!draft.answer_key?.key_payload?.correct) {
-          fail++;
-          logLines.push(`✗ Draft ${i + 1}: Select a correct answer`);
+          logLines.push(`✗ ${validationErr}`);
           continue;
         }
 
         try {
           const insertPayload = {
             ...q,
-            options: (q.options || []).map((o) => String(o || "").trim()),
+            options: q.question_type === "mcq"
+              ? (q.options || []).map((o) => String(o || "").trim())
+              : null,
             spec_point_id: specIds.spec_point_id,
             triple_spec_point_id: audience === "both" ? specIds.triple_spec_point_id : null,
             audience,
@@ -6311,11 +6418,12 @@
             .single();
           if (qErr) throw qErr;
 
+          const keyType = q.question_type === "mcq" ? "mcq" : "keywords";
           const { error: kErr } = await supabaseClient
             .from("answer_keys")
             .insert({
               question_id: qResult.id,
-              key_type: "mcq",
+              key_type: keyType,
               key_payload: draft.answer_key.key_payload
             });
           if (kErr) throw kErr;
@@ -6324,8 +6432,9 @@
             const markPayloads = draft.mark_points.map((mp) => ({
               question_id: qResult.id,
               ao: mp.ao || "AO1",
-              point_text: mp.point_text || draft.answer_key.key_payload.correct,
+              point_text: mp.point_text || "",
               feedback_if_missing: mp.feedback_if_missing || "",
+              image_url: mp.image_url || null,
               max_marks: mp.max_marks || 1
             }));
             const { error: mpErr } = await supabaseClient.from("mark_points").insert(markPayloads);
@@ -6333,7 +6442,7 @@
           }
 
           ok++;
-          logLines.push(`✓ ${qResult.id} — ${McqBatchGen.demandRecipeLabel(draft.variant)}`);
+          logLines.push(`✓ ${qResult.id} — ${AiQuestionDraft.demandRecipeLabel(draft.variant)}`);
         } catch (err) {
           fail++;
           logLines.push(`✗ Draft ${i + 1}: ${err.message}`);
