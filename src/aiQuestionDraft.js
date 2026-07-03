@@ -113,7 +113,8 @@ function normalizeSingleQuestion(raw, context = {}) {
       ao2_marks: ao2,
       ao3_marks: ao3,
       is_maths_skill: false,
-      is_required_practical: false
+      is_required_practical: false,
+      image_url: String(raw?.image_url ?? "").trim() || null
     };
 
     const payload = { correct };
@@ -155,7 +156,8 @@ function normalizeSingleQuestion(raw, context = {}) {
     ao2_marks: ao2,
     ao3_marks: ao3,
     is_maths_skill: false,
-    is_required_practical: false
+    is_required_practical: false,
+    image_url: String(raw?.image_url ?? "").trim() || null
   };
 
   return {
@@ -193,6 +195,7 @@ export function syncShortTextDraftFromPreviewEdits(draft, edits) {
   if (edits.ao1_marks != null) q.ao1_marks = edits.ao1_marks;
   if (edits.ao2_marks != null) q.ao2_marks = edits.ao2_marks;
   if (edits.ao3_marks != null) q.ao3_marks = edits.ao3_marks;
+  if (edits.image_url !== undefined) q.image_url = edits.image_url;
 
   const markPoints = (edits.mark_points || draft.mark_points || []).map((mp, i) => {
     const prev = draft.mark_points?.[i] || {};
@@ -242,11 +245,12 @@ export async function invokeGenerateQuestions(supabaseClient, payload) {
     body: payload
   });
 
+  const serverMessage = typeof data?.error === "string" ? data.error : null;
   if (error) {
-    throw new Error(error.message || "AI generation request failed");
+    throw new Error(serverMessage || error.message || "AI generation request failed");
   }
-  if (data?.error) {
-    throw new Error(data.error);
+  if (serverMessage) {
+    throw new Error(serverMessage);
   }
 
   const raw = data?.questions ?? data?.drafts ?? [];

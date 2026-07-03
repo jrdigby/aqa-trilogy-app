@@ -194,11 +194,77 @@
     }
 
     #panelBatchNumeric .batch-prompt-edit,
-    #panelBatchMcq .batch-prompt-edit,
-    #panelBatchMcq .batch-mcq-prompt-edit {
+    #panelBatchMcq .batch-prompt-edit {
       min-height: 7.5rem;
       font-size: 0.88rem;
       line-height: 1.45;
+    }
+
+    #panelBatchMcq .batch-mcq-prompt-edit {
+      min-height: unset;
+      height: calc(1.45em * 4 + 12px);
+      font-size: 0.8rem;
+      line-height: 1.45;
+      resize: vertical;
+    }
+
+    #panelBatchMcq .batch-ai-textarea-compact {
+      min-height: unset !important;
+      height: calc(1.4em * 2 + 8px);
+      resize: vertical;
+    }
+
+    #panelBatchMcq .batch-ai-image-row {
+      margin-top: 6px;
+      padding: 6px 8px;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+    }
+
+    #panelBatchMcq .batch-ai-image-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+      margin-top: 2px;
+    }
+
+    #panelBatchMcq .batch-ai-image-url {
+      flex: 1;
+      min-width: 100px;
+    }
+
+    #panelBatchMcq .batch-ai-image-file {
+      max-width: 160px;
+      font-size: 0.72rem;
+      border-style: dashed;
+      cursor: pointer;
+    }
+
+    #panelBatchMcq .batch-ai-image-preview-wrap {
+      margin-top: 6px;
+    }
+
+    #panelBatchMcq .batch-ai-image-preview {
+      max-height: 56px;
+      max-width: 100%;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      display: block;
+    }
+
+    #panelBatchMcq .batch-mcq-ops-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      align-items: stretch;
+    }
+
+    #panelBatchMcq .batch-mcq-ops-stack .btn {
+      padding: 3px 6px;
+      font-size: 0.68rem;
+      white-space: nowrap;
     }
 
     #panelBatchNumeric .batch-recipe-opt,
@@ -1038,7 +1104,7 @@
     #panelCreator textarea,
     #editForm textarea,
     #panelBatchNumeric textarea,
-    #panelBatchMcq textarea,
+    #panelBatchMcq textarea:not(.batch-ai-textarea-compact):not(.batch-mcq-prompt-edit),
     #panelAudit textarea {
       min-height: 80px;
       resize: vertical;
@@ -2424,19 +2490,19 @@
             <h4 style="margin:0;">Preview — edit prompts, options &amp; feedback before commit</h4>
             <p id="batchMcqPreviewCount" class="muted" style="font-size:0.82rem;margin:8px 0 0;"></p>
           </div>
-          <table style="margin:0;min-width:1200px;font-size:0.8rem;">
+          <table style="margin:0;min-width:1100px;font-size:0.8rem;">
             <thead>
               <tr>
-                <th style="width:40px;">#</th>
-                <th style="width:72px;">Type</th>
-                <th style="width:88px;">Demand</th>
-                <th>Prompt</th>
-                <th style="width:56px;">Marks</th>
-                <th style="width:72px;">Cmd</th>
-                <th style="width:48px;">Diff</th>
-                <th style="width:64px;">AO</th>
-                <th style="width:120px;">Summary</th>
-                <th style="width:200px;text-align:right;">Operations</th>
+                <th style="width:28px;">#</th>
+                <th style="width:56px;">Type</th>
+                <th style="width:72px;">Demand</th>
+                <th style="min-width:340px;width:38%;">Prompt</th>
+                <th style="width:44px;">Marks</th>
+                <th style="width:60px;">Cmd</th>
+                <th style="width:40px;">Diff</th>
+                <th style="width:52px;">AO</th>
+                <th style="width:80px;">Summary</th>
+                <th style="width:64px;">Ops</th>
               </tr>
             </thead>
             <tbody id="batchMcqPreviewBody">
@@ -5892,6 +5958,139 @@
     ).join("");
   }
 
+  function getBatchMcqImageStoragePrefix() {
+    return document.getElementById("batchMcqSubject")?.value
+      || document.getElementById("subjectSelect")?.value
+      || "misc";
+  }
+
+  function renderBatchAiImageRow({ idx, mpIdx = null, label, imageUrl = "", subfolder = "", role = "" }) {
+    const mpAttr = mpIdx != null ? ` data-mp-idx="${mpIdx}"` : "";
+    const subAttr = subfolder ? ` data-image-subfolder="${subfolder}"` : "";
+    const roleAttr = role ? ` data-image-role="${role}"` : "";
+    return `
+      <div class="batch-ai-image-row"${mpAttr}${subAttr}${roleAttr}>
+        <label style="font-size:0.7rem;color:var(--text-muted);">${escapeHtml(label)}</label>
+        <div class="batch-ai-image-controls">
+          <input type="text" class="batch-ai-image-url" data-batch-mcq-idx="${idx}"${mpAttr} value="${escapeHtml(imageUrl)}" placeholder="URL…" />
+          <input type="file" class="batch-ai-image-file" data-batch-mcq-idx="${idx}"${mpAttr} accept="image/*" title="Upload diagram" />
+          <button type="button" class="btn btn-secondary batch-ai-image-clear" data-batch-mcq-idx="${idx}"${mpAttr} style="padding:2px 8px;font-size:0.7rem;">Clear</button>
+        </div>
+        <div class="batch-ai-image-preview-wrap hidden">
+          <img class="batch-ai-image-preview" alt="Diagram preview" />
+        </div>
+      </div>`;
+  }
+
+  function syncBatchAiImagePreview(row) {
+    const url = row.querySelector(".batch-ai-image-url")?.value.trim() || "";
+    const fileInput = row.querySelector(".batch-ai-image-file");
+    const wrap = row.querySelector(".batch-ai-image-preview-wrap");
+    const img = row.querySelector(".batch-ai-image-preview");
+    if (!wrap || !img) return;
+
+    if (fileInput?.files?.length > 0) {
+      img.src = URL.createObjectURL(fileInput.files[0]);
+      wrap.classList.remove("hidden");
+      return;
+    }
+    if (url) {
+      img.src = url;
+      wrap.classList.remove("hidden");
+    } else {
+      img.src = "";
+      wrap.classList.add("hidden");
+    }
+  }
+
+  function wireBatchAiImageRow(row) {
+    row.querySelector(".batch-ai-image-url")?.addEventListener("input", () => syncBatchAiImagePreview(row));
+    row.querySelector(".batch-ai-image-file")?.addEventListener("change", () => {
+      const urlInput = row.querySelector(".batch-ai-image-url");
+      if (row.querySelector(".batch-ai-image-file")?.files?.length && urlInput) {
+        urlInput.value = "";
+      }
+      syncBatchAiImagePreview(row);
+    });
+    row.querySelector(".batch-ai-image-clear")?.addEventListener("click", () => {
+      const urlInput = row.querySelector(".batch-ai-image-url");
+      const fileInput = row.querySelector(".batch-ai-image-file");
+      if (urlInput) urlInput.value = "";
+      if (fileInput) fileInput.value = "";
+      syncBatchAiImagePreview(row);
+    });
+    syncBatchAiImagePreview(row);
+  }
+
+  async function resolveBatchAiImageUrl(row) {
+    const urlInput = row.querySelector(".batch-ai-image-url");
+    const fileInput = row.querySelector(".batch-ai-image-file");
+    const existingUrl = urlInput?.value.trim() || "";
+
+    if (fileInput?.files?.length > 0) {
+      const file = fileInput.files[0];
+      const ext = file.name.split(".").pop();
+      const randName = `${Math.random().toString(36).substring(2)}.${ext}`;
+      const subfolder = row.dataset.imageSubfolder || "";
+      const path = subfolder
+        ? `${getBatchMcqImageStoragePrefix()}/${subfolder}/${randName}`
+        : `${getBatchMcqImageStoragePrefix()}/${randName}`;
+      const { error: uploadError } = await supabaseClient.storage
+        .from("question-images")
+        .upload(path, file);
+      if (uploadError) throw uploadError;
+      const { data } = supabaseClient.storage.from("question-images").getPublicUrl(path);
+      return data.publicUrl;
+    }
+
+    return existingUrl || null;
+  }
+
+  async function resolveBatchMcqDraftImages(idx, draft) {
+    const main = document.querySelector(`tr[data-batch-mcq-idx="${idx}"]`);
+    const detail = document.querySelector(`tr[data-batch-mcq-detail="${idx}"]`);
+    if (!main || !detail) return draft;
+
+    const stemRow = main.querySelector('.batch-ai-image-row[data-image-role="stem"]');
+    if (stemRow) {
+      draft.question.image_url = await resolveBatchAiImageUrl(stemRow);
+    }
+
+    if (draft.question.question_type === "short_text") {
+      const maxMp = Math.max(2, draft.question.max_marks || 2);
+      const mark_points = [...(draft.mark_points || [])];
+      for (let mpIdx = 0; mpIdx < maxMp; mpIdx++) {
+        const mpRow = detail.querySelector(`.batch-ai-image-row[data-mp-idx="${mpIdx}"]`);
+        if (!mpRow) continue;
+        const prev = mark_points[mpIdx] || {};
+        mark_points[mpIdx] = {
+          ...prev,
+          image_url: await resolveBatchAiImageUrl(mpRow)
+        };
+      }
+      draft.mark_points = mark_points;
+    } else {
+      const fbRow = detail.querySelector('.batch-ai-image-row[data-image-role="mcq-feedback"]');
+      if (fbRow && draft.mark_points?.length) {
+        draft.mark_points[0] = {
+          ...draft.mark_points[0],
+          image_url: await resolveBatchAiImageUrl(fbRow)
+        };
+      } else if (fbRow && !draft.mark_points?.length) {
+        const correct = draft.answer_key?.key_payload?.correct || "";
+        draft.mark_points = [{
+          ao: "AO1",
+          point_text: correct,
+          feedback_if_missing: detail.querySelector(".batch-mcq-overall-fb")?.value?.trim() || "",
+          image_url: await resolveBatchAiImageUrl(fbRow),
+          max_marks: 1
+        }];
+      }
+    }
+
+    return draft;
+  }
+
   function renderBatchMcqOptionBlock(draft, idx, optIdx, letter) {
     const options = draft.question?.options || ["", "", "", ""];
     const optText = options[optIdx] || "";
@@ -5900,12 +6099,12 @@
     const fbText = fbMap[optText] || "";
     const isCorrect = optText && optText === correct;
     return `
-      <div class="batch-mcq-opt-block" style="margin-bottom:8px;">
+      <div class="batch-mcq-opt-block" style="margin-bottom:6px;">
         <label style="font-size:0.72rem;font-weight:600;">Option ${letter}</label>
         <input type="text" class="batch-mcq-opt" data-batch-mcq-idx="${idx}" data-opt-idx="${optIdx}" value="${escapeHtml(optText)}" style="width:100%;font-size:0.78rem;padding:4px 8px;margin-top:2px;" />
-        <div class="batch-mcq-opt-fb-wrap${isCorrect ? " hidden" : ""}" data-opt-idx="${optIdx}" style="margin-top:4px;">
+        <div class="batch-mcq-opt-fb-wrap${isCorrect ? " hidden" : ""}" data-opt-idx="${optIdx}" style="margin-top:3px;">
           <label style="font-size:0.7rem;color:var(--text-muted);">Feedback if chosen</label>
-          <textarea class="batch-mcq-opt-fb" data-batch-mcq-idx="${idx}" data-opt-idx="${optIdx}" rows="2" style="width:100%;font-size:0.76rem;padding:4px 8px;">${escapeHtml(fbText)}</textarea>
+          <textarea class="batch-mcq-opt-fb batch-ai-textarea-compact" data-batch-mcq-idx="${idx}" data-opt-idx="${optIdx}" rows="2" style="width:100%;font-size:0.76rem;padding:4px 8px;">${escapeHtml(fbText)}</textarea>
         </div>
       </div>`;
   }
@@ -5924,9 +6123,9 @@
     const mp = draft.mark_points?.[mpIdx] || {};
     const ao = mp.ao || (mpIdx === 0 ? "AO1" : "AO2");
     return `
-      <div class="batch-ai-mp-block" style="margin-bottom:10px;padding:8px;border:1px solid #e2e8f0;border-radius:6px;background:#fff;">
+      <div class="batch-ai-mp-block" style="margin-bottom:8px;padding:6px 8px;border:1px solid #e2e8f0;border-radius:6px;background:#fff;">
         <label style="font-size:0.72rem;font-weight:600;">Mark point ${mpIdx + 1}</label>
-        <div style="display:flex;gap:8px;margin-top:4px;align-items:center;">
+        <div style="display:flex;gap:8px;margin-top:3px;align-items:center;">
           <span style="font-size:0.72rem;">AO</span>
           <select class="batch-ai-mp-ao select-fit" data-batch-mcq-idx="${idx}" data-mp-idx="${mpIdx}" style="font-size:0.72rem;min-width:4rem;">
             <option value="AO1"${ao === "AO1" ? " selected" : ""}>AO1</option>
@@ -5934,12 +6133,17 @@
             <option value="AO3"${ao === "AO3" ? " selected" : ""}>AO3</option>
           </select>
         </div>
-        <label style="display:block;margin-top:6px;font-size:0.7rem;color:var(--text-muted);">Keywords (pipe for synonyms)</label>
+        <label style="display:block;margin-top:4px;font-size:0.7rem;color:var(--text-muted);">Keywords (pipe for synonyms)</label>
         <input type="text" class="batch-ai-mp-keywords" data-batch-mcq-idx="${idx}" data-mp-idx="${mpIdx}" value="${escapeHtml(mp.point_text || "")}" style="width:100%;font-size:0.78rem;padding:4px 8px;margin-top:2px;" />
-        <label style="display:block;margin-top:6px;font-size:0.7rem;color:var(--text-muted);">Feedback if missing</label>
-        <textarea class="batch-ai-mp-feedback" data-batch-mcq-idx="${idx}" data-mp-idx="${mpIdx}" rows="2" style="width:100%;font-size:0.76rem;padding:4px 8px;margin-top:2px;">${escapeHtml(mp.feedback_if_missing || "")}</textarea>
-        <label style="display:block;margin-top:6px;font-size:0.7rem;color:var(--text-muted);">Diagram URL (optional)</label>
-        <input type="text" class="batch-ai-mp-image" data-batch-mcq-idx="${idx}" data-mp-idx="${mpIdx}" value="${escapeHtml(mp.image_url || "")}" placeholder="https://…" style="width:100%;font-size:0.76rem;padding:4px 8px;margin-top:2px;" />
+        <label style="display:block;margin-top:4px;font-size:0.7rem;color:var(--text-muted);">Feedback if missing</label>
+        <textarea class="batch-ai-mp-feedback batch-ai-textarea-compact" data-batch-mcq-idx="${idx}" data-mp-idx="${mpIdx}" rows="2" style="width:100%;font-size:0.76rem;padding:4px 8px;margin-top:2px;">${escapeHtml(mp.feedback_if_missing || "")}</textarea>
+        ${renderBatchAiImageRow({
+          idx,
+          mpIdx,
+          label: "Feedback diagram (optional — shown when checkpoint missed)",
+          imageUrl: mp.image_url || "",
+          subfolder: "mark-points"
+        })}
       </div>`;
   }
 
@@ -5959,8 +6163,8 @@
 
     return `
       <tr style="border-bottom:1px solid var(--border);background:#f8fafc;" data-batch-mcq-detail="${i}">
-        <td colspan="10" style="padding:10px 16px 14px;">
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px 16px;">
+        <td colspan="10" style="padding:8px 12px 10px;">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px 14px;">
             <div>${letters.map((L, oi) => renderBatchMcqOptionBlock(d, i, oi, L)).join("")}</div>
             <div>
               <label style="font-size:0.72rem;font-weight:600;">Correct answer</label>
@@ -5968,9 +6172,16 @@
                 <option value="">— Choose correct —</option>
                 ${correctOptions}
               </select>
-              <label style="display:block;margin-top:10px;font-size:0.72rem;font-weight:600;">Overall feedback (Section 3)</label>
-              <textarea class="batch-mcq-overall-fb" data-batch-mcq-idx="${i}" rows="3" style="width:100%;font-size:0.78rem;padding:6px;margin-top:4px;" placeholder="Generic feedback if incorrect…">${escapeHtml(mp.feedback_if_missing || "")}</textarea>
-              <div style="margin-top:10px;">
+              <label style="display:block;margin-top:8px;font-size:0.72rem;font-weight:600;">Overall feedback (Section 3)</label>
+              <textarea class="batch-mcq-overall-fb batch-ai-textarea-compact" data-batch-mcq-idx="${i}" rows="2" style="width:100%;font-size:0.78rem;padding:6px;margin-top:4px;" placeholder="Generic feedback if incorrect…">${escapeHtml(mp.feedback_if_missing || "")}</textarea>
+              ${renderBatchAiImageRow({
+                idx: i,
+                label: "Feedback diagram (optional — shown when incorrect)",
+                imageUrl: mp.image_url || "",
+                subfolder: "mark-points",
+                role: "mcq-feedback"
+              })}
+              <div style="margin-top:8px;">
                 <label style="font-size:0.72rem;font-weight:600;">AO marks (must total ${q.max_marks || 1})</label>
                 <div style="display:flex;gap:8px;margin-top:4px;align-items:center;">
                   <span style="font-size:0.72rem;">AO1 <input type="number" class="batch-mcq-ao1 input-compact" data-batch-mcq-idx="${i}" min="0" max="3" value="${q.ao1_marks ?? 1}" style="width:2.5rem;" /></span>
@@ -5993,8 +6204,8 @@
     }
     return `
       <tr style="border-bottom:1px solid var(--border);background:#f8fafc;" data-batch-mcq-detail="${i}">
-        <td colspan="10" style="padding:10px 16px 14px;">
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px 16px;">
+        <td colspan="10" style="padding:8px 12px 10px;">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px 14px;">
             ${blocks.join("")}
             <div>
               <label style="font-size:0.72rem;font-weight:600;">AO marks (must total ${q.max_marks || 2})</label>
@@ -6034,24 +6245,32 @@
 
       return `
         <tr style="border-top:1px solid var(--border);" data-batch-mcq-idx="${i}">
-          <td style="padding:10px 12px;font-weight:700;">${i + 1}</td>
-          <td style="padding:10px 12px;font-size:0.76rem;">${escapeHtml(typeLabel)}</td>
-          <td style="padding:10px 12px;font-size:0.76rem;">${escapeHtml(demand)}</td>
-          <td style="padding:10px 12px;min-width:260px;">
-            <textarea class="batch-mcq-prompt-edit" data-batch-mcq-idx="${i}" rows="4" style="width:100%;font-size:0.8rem;font-family:inherit;padding:6px;border:1px solid #cbd5e1;border-radius:4px;">${promptEsc}</textarea>
+          <td style="padding:6px 8px;font-weight:700;vertical-align:top;">${i + 1}</td>
+          <td style="padding:6px 8px;font-size:0.72rem;vertical-align:top;">${escapeHtml(typeLabel)}</td>
+          <td style="padding:6px 8px;font-size:0.72rem;vertical-align:top;">${escapeHtml(demand)}</td>
+          <td style="padding:6px 8px;min-width:340px;vertical-align:top;">
+            <textarea class="batch-mcq-prompt-edit" data-batch-mcq-idx="${i}" rows="4" style="width:100%;font-family:inherit;padding:6px;border:1px solid #cbd5e1;border-radius:4px;">${promptEsc}</textarea>
+            ${renderBatchAiImageRow({
+              idx: i,
+              label: "Stem diagram (optional)",
+              imageUrl: q.image_url || "",
+              role: "stem"
+            })}
           </td>
-          <td style="padding:10px 12px;font-weight:700;">${q.max_marks}</td>
-          <td style="padding:10px 12px;">
-            <select class="batch-mcq-cmd select-fit" data-batch-mcq-idx="${i}" style="font-size:0.72rem;min-width:5.5rem;">
+          <td style="padding:6px 8px;font-weight:700;vertical-align:top;">${q.max_marks}</td>
+          <td style="padding:6px 8px;vertical-align:top;">
+            <select class="batch-mcq-cmd select-fit" data-batch-mcq-idx="${i}" style="font-size:0.72rem;min-width:4.5rem;">
               ${batchMcqCommandWordOptions(q.command_word || "")}
             </select>
           </td>
-          <td style="padding:10px 12px;text-align:center;" data-batch-mcq-diff><span class="difficulty-badge difficulty-badge--compact">${diff}</span></td>
-          <td style="padding:10px 12px;font-size:0.72rem;font-family:monospace;" data-batch-mcq-ao>${escapeHtml(batchDraftAoSplit(q))}</td>
-          <td style="padding:10px 12px;font-size:0.72rem;max-width:120px;overflow:hidden;text-overflow:ellipsis;" data-batch-mcq-summary title="${escapeHtml(summary)}">${escapeHtml(summary)}</td>
-          <td style="padding:10px 12px;text-align:right;white-space:nowrap;">
-            <button type="button" class="btn btn-secondary" onclick="launchBatchMcqSandboxPreview(${i})" style="padding:4px 8px;font-size:0.72rem;background:#3b82f6;color:#fff;">Test</button>
-            <button type="button" class="btn btn-danger" onclick="removeBatchMcqDraft(${i})" style="padding:4px 8px;font-size:0.72rem;">Remove</button>
+          <td style="padding:6px 8px;text-align:center;vertical-align:top;" data-batch-mcq-diff><span class="difficulty-badge difficulty-badge--compact">${diff}</span></td>
+          <td style="padding:6px 8px;font-size:0.72rem;font-family:monospace;vertical-align:top;" data-batch-mcq-ao>${escapeHtml(batchDraftAoSplit(q))}</td>
+          <td style="padding:6px 8px;font-size:0.72rem;max-width:80px;overflow:hidden;text-overflow:ellipsis;vertical-align:top;" data-batch-mcq-summary title="${escapeHtml(summary)}">${escapeHtml(summary)}</td>
+          <td style="padding:6px 8px;vertical-align:top;">
+            <div class="batch-mcq-ops-stack">
+              <button type="button" class="btn btn-secondary" onclick="launchBatchMcqSandboxPreview(${i})" style="background:#3b82f6;color:#fff;">Test</button>
+              <button type="button" class="btn btn-danger" onclick="removeBatchMcqDraft(${i})">Remove</button>
+            </div>
           </td>
         </tr>
         ${isShort ? renderBatchShortTextDetailRow(d, i) : renderBatchMcqDetailRow(d, i)}`;
@@ -6082,6 +6301,7 @@
 
     const baseEdits = {
       prompt: main.querySelector(".batch-mcq-prompt-edit")?.value?.trim(),
+      image_url: main.querySelector('.batch-ai-image-row[data-image-role="stem"] .batch-ai-image-url')?.value?.trim() || null,
       ao1_marks: parseInt(detail.querySelector(".batch-mcq-ao1")?.value, 10) || 0,
       ao2_marks: parseInt(detail.querySelector(".batch-mcq-ao2")?.value, 10) || 0,
       ao3_marks: parseInt(detail.querySelector(".batch-mcq-ao3")?.value, 10) || 0,
@@ -6097,7 +6317,7 @@
           ao: detail.querySelector(`.batch-ai-mp-ao[data-mp-idx="${mpIdx}"]`)?.value || "AO1",
           point_text: detail.querySelector(`.batch-ai-mp-keywords[data-mp-idx="${mpIdx}"]`)?.value?.trim() || "",
           feedback_if_missing: detail.querySelector(`.batch-ai-mp-feedback[data-mp-idx="${mpIdx}"]`)?.value?.trim() || "",
-          image_url: detail.querySelector(`.batch-ai-mp-image[data-mp-idx="${mpIdx}"]`)?.value?.trim() || null,
+          image_url: detail.querySelector(`.batch-ai-image-row[data-mp-idx="${mpIdx}"] .batch-ai-image-url`)?.value?.trim() || null,
           max_marks: 1
         });
       }
@@ -6121,7 +6341,10 @@
         options,
         correct,
         option_feedback: Object.keys(optionFeedback).length ? optionFeedback : undefined,
-        overall_feedback: detail.querySelector(".batch-mcq-overall-fb")?.value?.trim()
+        overall_feedback: detail.querySelector(".batch-mcq-overall-fb")?.value?.trim(),
+        mark_point: {
+          image_url: detail.querySelector('.batch-ai-image-row[data-image-role="mcq-feedback"] .batch-ai-image-url')?.value?.trim() || null
+        }
       });
     }
 
@@ -6229,12 +6452,21 @@
       });
     });
 
-    document.querySelectorAll(".batch-mcq-opt-fb, .batch-mcq-overall-fb, .batch-mcq-ao1, .batch-mcq-ao2, .batch-mcq-ao3, .batch-ai-mp-keywords, .batch-ai-mp-feedback, .batch-ai-mp-image, .batch-ai-mp-ao").forEach((el) => {
+    document.querySelectorAll(".batch-mcq-opt-fb, .batch-mcq-overall-fb, .batch-mcq-ao1, .batch-mcq-ao2, .batch-mcq-ao3, .batch-ai-mp-keywords, .batch-ai-mp-feedback, .batch-ai-mp-ao").forEach((el) => {
       el.addEventListener("input", () => {
         const idx = parseInt(el.dataset.batchMcqIdx, 10);
         syncBatchMcqDraftFromDom(idx);
         updateBatchMcqDraftRowDom(idx);
       });
+    });
+
+    document.querySelectorAll("#batchMcqPreviewBody .batch-ai-image-row").forEach((row) => {
+      wireBatchAiImageRow(row);
+      const syncIdx = () => {
+        const idx = parseInt(row.querySelector("[data-batch-mcq-idx]")?.dataset.batchMcqIdx, 10);
+        if (!Number.isNaN(idx)) syncBatchMcqDraftFromDom(idx);
+      };
+      row.querySelector(".batch-ai-image-url")?.addEventListener("input", syncIdx);
     });
   }
 
@@ -6398,6 +6630,10 @@
         }
 
         try {
+          let resolvedDraft = await resolveBatchMcqDraftImages(i, draft);
+          batchMcqPreviewDrafts[i] = resolvedDraft;
+          const q = resolvedDraft.question;
+
           const insertPayload = {
             ...q,
             options: q.question_type === "mcq"
@@ -6424,12 +6660,12 @@
             .insert({
               question_id: qResult.id,
               key_type: keyType,
-              key_payload: draft.answer_key.key_payload
+              key_payload: resolvedDraft.answer_key.key_payload
             });
           if (kErr) throw kErr;
 
-          if (draft.mark_points?.length) {
-            const markPayloads = draft.mark_points.map((mp) => ({
+          if (resolvedDraft.mark_points?.length) {
+            const markPayloads = resolvedDraft.mark_points.map((mp) => ({
               question_id: qResult.id,
               ao: mp.ao || "AO1",
               point_text: mp.point_text || "",
@@ -6442,7 +6678,7 @@
           }
 
           ok++;
-          logLines.push(`✓ ${qResult.id} — ${AiQuestionDraft.demandRecipeLabel(draft.variant)}`);
+          logLines.push(`✓ ${qResult.id} — ${AiQuestionDraft.demandRecipeLabel(resolvedDraft.variant)}`);
         } catch (err) {
           fail++;
           logLines.push(`✗ Draft ${i + 1}: ${err.message}`);

@@ -243,11 +243,14 @@ export function syncDraftFromPreviewEdits(draft, edits) {
   if (optionFeedback) payload.option_feedback = optionFeedback;
 
   const markPoints = draft.mark_points?.length
-    ? [{ ...draft.mark_points[0], ...edits.mark_point }]
+    ? [{ ...draft.mark_points[0] }]
     : [{ ao: "AO1", point_text: correct, feedback_if_missing: edits.overall_feedback || "", max_marks: 1 }];
 
   if (edits.overall_feedback != null) {
     markPoints[0] = { ...markPoints[0], feedback_if_missing: edits.overall_feedback };
+  }
+  if (edits.mark_point) {
+    markPoints[0] = { ...markPoints[0], ...edits.mark_point };
   }
   if (correct) markPoints[0].point_text = correct;
 
@@ -261,7 +264,8 @@ export function syncDraftFromPreviewEdits(draft, edits) {
       ao3_marks: edits.ao3_marks ?? q.ao3_marks,
       command_word: edits.command_word ?? q.command_word,
       demand_level: edits.demand_level ?? q.demand_level,
-      prompt: edits.prompt ?? q.prompt
+      prompt: edits.prompt ?? q.prompt,
+      image_url: edits.image_url !== undefined ? edits.image_url : q.image_url
     },
     answer_key: {
       key_type: "mcq",

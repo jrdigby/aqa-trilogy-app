@@ -6,7 +6,24 @@ const corsHeaders = {
 };
 
 const MAX_QUESTIONS = 12;
-const MODEL = Deno.env.get("GEMINI_MODEL") || "gemini-2.0-flash";
+const GEMINI_CALL_TIMEOUT_MS = 50_000;
+const FUNCTION_BUDGET_MS = 130_000;
+const SPEC_TEXT_MAX_CHARS = 1200;
+const RECIPE_GAP_MS = 600;
+const RETRYABLE_STATUSES = new Set([429, 500, 503, 504]);
+const RETRY_BACKOFF_MS = [1200, 2500, 5000];
+
+function buildModelChain() {
+  const configured = Deno.env.get("GEMINI_MODEL") || "gemini-2.5-flash";
+  return [...new Set([
+    configured,
+    "gemini-2.5-flash",
+    "gemini-2.5-flash-lite"
+  ])];
+}
+
+const MODEL_CHAIN = buildModelChain();
+const PRIMARY_MODEL = MODEL_CHAIN[0];
 
 function jsonResponse(body, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -15,116 +32,306 @@ function jsonResponse(body, status = 200) {
   });
 }
 
-function buildPrompt(payload) {
-  const {
-    spec_ref,
-    topic_name,
-    spec_text,
-    subject,
-    paper,
-    tier,
-    recipes
-  } = payload;
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
-  const recipeLines = (recipes || [])
-    .map((r, i) => `${i + 1}. ${r.question_type} · demand ${r.demand_level}`)
-    .join("\n");
+function truncateSpecText(text) {
+  const raw = String(text || "").trim();
+  if (raw.length <= SPEC_TEXT_MAX_CHARS) return raw;
+  return `${raw.slice(0, SPEC_TEXT_MAX_CHARS)}… [truncated for generation]`;
+}
 
-  return `You are an expert AQA GCSE Combined Science (8464) question author for UK students aged 14–16.
+const MCQ_FOCUS_ANGLES = [
+  "Core recall — key term, symbol, unit, or single fact from the spec.",
+  "Applied scenario — short unfamiliar context; student applies knowledge.",
+  "Discrimination — distinguish between two easily confused concepts.",
+  "Misconception — plausible wrong ideas as distractors; tests precise understanding.",
+  "Observation or data — interpret a described result, trend, or experimental outcome."
+];
 
-Write original exam-style questions ONLY from the specification content below. British English. No trick questions. Scientifically accurate.
+const SHORT_TEXT_FOCUS_ANGLES = [
+  "Describe — structure, process, or pattern named in the spec.",
+  "Explain — cause, effect, or mechanism (why/how).",
+  "Compare or link — relationship between two spec ideas.",
+  "Apply — short novel context requiring spec knowledge in an answer.",
+  "Evaluate evidence — use a described observation to justify a conclusion."
+];
 
-SPEC CONTEXT
-- Subject: ${subject}
-- Paper: ${paper}
-- Spec reference: ${spec_ref}
-- Topic: ${topic_name}
-- Tier band for wording: ${tier} (both = suitable for shared FT/HT where possible)
-- Specification text:
-"""
-${spec_text}
-"""
+function buildRecipeContexts(recipes) {
+  const typeTotals = {};
+  for (const recipe of recipes) {
+    const t = recipe.question_type;
+    typeTotals[t] = (typeTotals[t] || 0) + 1;
+  }
+  const typeSeen = {};
+  return recipes.map((recipe, batchIndex) => {
+    const t = recipe.question_type;
+    const sameTypeIndex = typeSeen[t] || 0;
+    typeSeen[t] = sameTypeIndex + 1;
+    return { batchIndex, recipe, sameTypeIndex, sameTypeTotal: typeTotals[t] || 1 };
+  });
+}
 
-Generate exactly ${recipes?.length || 0} questions, one per recipe line:
-${recipeLines}
+function summarizeQuestionKey(question) {
+  if (question.question_type === "short_text") {
+    const kws = (question.mark_points || [])
+      .map((mp) => mp.keywords || mp.point_text)
+      .filter(Boolean)
+      .join("; ");
+    return kws || "—";
+  }
+  return question.correct || "—";
+}
 
-RULES
-- MCQ: exactly 4 options; "correct" must exactly match one option string; include specific "option_feedback" for each WRONG option (array of {option, feedback}); optional brief "overall_feedback" for Section 3.
-- short_text: 2 marks default; include exactly 2 mark_points with "keywords" (use pipe for synonyms e.g. charge|electric charge) and "feedback" for each; use describe/explain appropriate command words.
-- demand_level: low | standard | standard_45 | standard_67 | high_89 as given in recipe.
-- command_word: AQA style (state, give, describe, explain, etc.).
-- AO marks must sum to max_marks (MCQ: 1; short_text: 2 with ao1_marks=1, ao2_marks=1 unless HT explain needs AO3).
-- Prompts must not contain line breaks inside the string.
+function normalizeForCompare(text) {
+  return String(text || "").toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+}
 
-Return ONLY valid JSON (no markdown):
-{
-  "questions": [
-    {
-      "question_type": "mcq",
-      "demand_level": "low",
-      "command_word": "state",
-      "prompt": "...",
-      "max_marks": 1,
-      "ao1_marks": 1,
-      "ao2_marks": 0,
-      "ao3_marks": 0,
-      "options": ["...", "...", "...", "..."],
-      "correct": "...",
-      "option_feedback": [
-        {"option": "wrong option text exactly", "feedback": "..."}
-      ],
-      "overall_feedback": "..."
-    },
-    {
-      "question_type": "short_text",
-      "demand_level": "standard",
-      "command_word": "describe",
-      "prompt": "...",
-      "max_marks": 2,
-      "ao1_marks": 1,
-      "ao2_marks": 1,
-      "ao3_marks": 0,
-      "mark_points": [
-        {"ao": "AO1", "keywords": "term|synonym", "feedback": "..."},
-        {"ao": "AO2", "keywords": "...", "feedback": "..."}
-      ]
+function tokenOverlapRatio(a, b) {
+  const wordsA = new Set(normalizeForCompare(a).split(" ").filter((w) => w.length > 2));
+  const wordsB = new Set(normalizeForCompare(b).split(" ").filter((w) => w.length > 2));
+  if (!wordsA.size || !wordsB.size) return 0;
+  let shared = 0;
+  for (const w of wordsA) {
+    if (wordsB.has(w)) shared++;
+  }
+  return shared / Math.min(wordsA.size, wordsB.size);
+}
+
+function isNearDuplicateQuestion(candidate, priorSameType) {
+  const prompt = normalizeForCompare(candidate.prompt);
+  if (!prompt) return false;
+  for (const prev of priorSameType) {
+    const prevPrompt = normalizeForCompare(prev.prompt);
+    if (!prevPrompt) continue;
+    if (prompt === prevPrompt) return true;
+    if (tokenOverlapRatio(prompt, prevPrompt) >= 0.72) return true;
+    if (candidate.question_type !== "short_text" && prev.correct && candidate.correct) {
+      if (normalizeForCompare(candidate.correct) === normalizeForCompare(prev.correct)) {
+        return true;
+      }
     }
-  ]
-}`;
+  }
+  return false;
+}
+
+function buildSingleQuestionPrompt(payload, recipe, context = {}) {
+  const { spec_ref, topic_name, spec_text, subject, paper, tier } = payload;
+  const {
+    batchIndex = 0,
+    sameTypeIndex = 0,
+    sameTypeTotal = 1,
+    priorSameType = [],
+    forceDistinct = false
+  } = context;
+
+  const typeHint = recipe.question_type === "short_text"
+    ? "short_text: 2 mark_points (keywords + feedback), max_marks 2, ao1=1 ao2=1"
+    : "mcq: 4 options, option_feedback per wrong option, max_marks 1, ao1=1";
+
+  const angles = recipe.question_type === "short_text" ? SHORT_TEXT_FOCUS_ANGLES : MCQ_FOCUS_ANGLES;
+  const focusAngle = angles[sameTypeIndex % angles.length];
+
+  const usedCommands = [...new Set(priorSameType.map((q) => q.command_word).filter(Boolean))];
+  const avoidCommands = usedCommands.length
+    ? `Use a different command_word than: ${usedCommands.join(", ")}.`
+    : "";
+
+  const avoidBlock = priorSameType.length
+    ? `\nALREADY IN THIS BATCH — do NOT repeat or paraphrase these (new spec angle, new scenario, new correct answer/keywords required):\n${priorSameType.map((q, n) => {
+      const key = summarizeQuestionKey(q);
+      return `${n + 1}. prompt: "${q.prompt}" · command: ${q.command_word || "?"} · key: ${key}`;
+    }).join("\n")}`
+    : "";
+
+  const distinctNote = forceDistinct
+    ? "\nCRITICAL: Your last attempt duplicated an existing question. Pick a completely different sub-topic and scenario.\n"
+    : "";
+
+  const varietyNote = sameTypeTotal > 1
+    ? `\nThis is ${recipe.question_type} ${sameTypeIndex + 1} of ${sameTypeTotal} in the batch. It MUST test a different aspect of the spec than the others.\nFocus angle for this question: ${focusAngle}\n${avoidCommands}`
+    : "";
+
+  return `AQA GCSE Combined Science (8464) question author. Write ONE original exam-style question from the spec below. British English.
+${distinctNote}${varietyNote}
+Subject: ${subject} · Paper: ${paper} · Spec: ${spec_ref} · Topic: ${topic_name} · Tier: ${tier}
+Batch item: ${batchIndex + 1} · Type: ${recipe.question_type} · demand_level: ${recipe.demand_level}
+Spec text:
+"""
+${truncateSpecText(spec_text)}
+"""
+${avoidBlock}
+
+Requirements: ${typeHint} · appropriate AQA command_word · genuinely distinct from any listed above.
+Single-line prompt (no line breaks). Valid JSON only, no trailing commas.
+
+Return one JSON object:
+{"question_type":"${recipe.question_type}","demand_level":"${recipe.demand_level}","command_word":"...","prompt":"...","max_marks":${recipe.question_type === "short_text" ? 2 : 1},"ao1_marks":1,"ao2_marks":${recipe.question_type === "short_text" ? 1 : 0},"ao3_marks":0}`;
+}
+
+const QUESTION_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    question_type: { type: "STRING" },
+    demand_level: { type: "STRING" },
+    command_word: { type: "STRING" },
+    prompt: { type: "STRING" },
+    max_marks: { type: "INTEGER" },
+    ao1_marks: { type: "INTEGER" },
+    ao2_marks: { type: "INTEGER" },
+    ao3_marks: { type: "INTEGER" },
+    options: { type: "ARRAY", items: { type: "STRING" } },
+    correct: { type: "STRING" },
+    option_feedback: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: {
+          option: { type: "STRING" },
+          feedback: { type: "STRING" }
+        },
+        required: ["option", "feedback"]
+      }
+    },
+    overall_feedback: { type: "STRING" },
+    mark_points: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: {
+          ao: { type: "STRING" },
+          keywords: { type: "STRING" },
+          feedback: { type: "STRING" }
+        },
+        required: ["ao", "keywords", "feedback"]
+      }
+    }
+  },
+  required: ["question_type", "demand_level", "command_word", "prompt", "max_marks"]
+};
+
+function stripTrailingCommas(json) {
+  let out = "";
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < json.length; i++) {
+    const ch = json[i];
+    if (inString) {
+      out += ch;
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = true;
+      else if (ch === "\"") inString = false;
+      continue;
+    }
+    if (ch === "\"") {
+      inString = true;
+      out += ch;
+      continue;
+    }
+    if (ch === ",") {
+      let j = i + 1;
+      while (j < json.length && /\s/.test(json[j])) j++;
+      if (json[j] === "]" || json[j] === "}") continue;
+    }
+    out += ch;
+  }
+  return out;
+}
+
+function sanitizeJsonCandidate(text) {
+  return String(text || "")
+    .replace(/^\uFEFF/, "")
+    .replace(/[\u201C\u201D]/g, "\"")
+    .replace(/[\u2018\u2019]/g, "'")
+    .trim();
+}
+
+function parseJsonCandidate(raw, label = "AI response") {
+  for (const candidate of [raw, stripTrailingCommas(raw)]) {
+    try {
+      return JSON.parse(candidate);
+    } catch {
+      // try next
+    }
+  }
+  const preview = raw.slice(0, 400).replace(/\s+/g, " ");
+  throw new Error(`${label}: invalid JSON. Preview: ${preview}`);
 }
 
 function extractJson(text) {
-  const trimmed = String(text || "").trim();
+  const trimmed = sanitizeJsonCandidate(text);
+  if (!trimmed) throw new Error("AI response was empty");
+  try {
+    return parseJsonCandidate(trimmed, "AI JSON");
+  } catch {
+    // fall through
+  }
   const fence = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  const candidate = fence ? fence[1].trim() : trimmed;
+  const candidate = sanitizeJsonCandidate(fence ? fence[1] : trimmed);
   const start = candidate.indexOf("{");
   const end = candidate.lastIndexOf("}");
-  if (start < 0 || end <= start) throw new Error("AI response did not contain JSON");
-  return JSON.parse(candidate.slice(start, end + 1));
+  if (start < 0 || end <= start) throw new Error("AI response did not contain a JSON object");
+  return parseJsonCandidate(candidate.slice(start, end + 1), "Extracted AI JSON");
 }
 
-async function callGemini(prompt) {
-  const apiKey = Deno.env.get("GEMINI_API_KEY");
-  if (!apiKey) {
-    throw new Error("GEMINI_API_KEY is not configured on the server");
-  }
+function isTimeoutError(err) {
+  return err?.name === "TimeoutError" || /timed out|timeout/i.test(err?.message || "");
+}
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${apiKey}`;
+function parseGeminiErrorBody(bodyText) {
+  try {
+    const parsed = JSON.parse(bodyText);
+    return parsed?.error?.message || bodyText.slice(0, 200);
+  } catch {
+    return bodyText.slice(0, 200);
+  }
+}
+
+class GeminiApiError extends Error {
+  constructor(status, bodyText) {
+    const detail = parseGeminiErrorBody(bodyText);
+    super(`Gemini unavailable (${status}): ${detail}`);
+    this.name = "GeminiApiError";
+    this.status = status;
+    this.retryable = RETRYABLE_STATUSES.has(status);
+  }
+}
+
+function formatRecipeWarning(index, recipe, err) {
+  const label = `Question ${index} (${recipe.question_type} · ${recipe.demand_level})`;
+  const msg = err?.message || String(err);
+  if (/503|high demand|UNAVAILABLE/i.test(msg)) {
+    return `${label}: Gemini busy — auto-retried; click Generate again if still missing`;
+  }
+  if (isTimeoutError(err)) {
+    return `${label}: timed out — try fewer recipes per batch`;
+  }
+  return `${label}: ${msg}`;
+}
+
+async function callGeminiOnce(prompt, model, timeoutMs, temperature = 0.4) {
+  const apiKey = Deno.env.get("GEMINI_API_KEY");
+  if (!apiKey) throw new Error("GEMINI_API_KEY is not configured on the server");
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       contents: [{ parts: [{ text: prompt }] }],
       generationConfig: {
-        temperature: 0.7,
-        responseMimeType: "application/json"
+        temperature,
+        responseMimeType: "application/json",
+        responseSchema: QUESTION_SCHEMA,
+        thinkingConfig: { thinkingBudget: 0 }
       }
-    })
+    }),
+    signal: AbortSignal.timeout(timeoutMs)
   });
 
   if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`Gemini API error (${res.status}): ${errText.slice(0, 300)}`);
+    throw new GeminiApiError(res.status, await res.text());
   }
 
   const data = await res.json();
@@ -133,10 +340,170 @@ async function callGemini(prompt) {
   return extractJson(text);
 }
 
+async function callGemini(prompt, model, timeoutMs, requestId, index, temperature = 0.4) {
+  let lastErr = null;
+
+  for (let attempt = 0; attempt < RETRY_BACKOFF_MS.length; attempt++) {
+    try {
+      return await callGeminiOnce(prompt, model, timeoutMs, temperature);
+    } catch (err) {
+      lastErr = err;
+      const retryable = isTimeoutError(err) || (err instanceof GeminiApiError && err.retryable);
+      if (!retryable || attempt >= RETRY_BACKOFF_MS.length - 1) break;
+
+      const waitMs = RETRY_BACKOFF_MS[attempt];
+      console.warn(JSON.stringify({
+        requestId,
+        event: "gemini_retry",
+        index,
+        model,
+        attempt: attempt + 1,
+        waitMs,
+        status: err instanceof GeminiApiError ? err.status : "timeout",
+        message: err?.message
+      }));
+      await sleep(waitMs);
+    }
+  }
+
+  throw lastErr || new Error("Gemini call failed");
+}
+
+async function generateOneQuestion(prompt, requestId, index, timeoutMs, temperature = 0.4) {
+  let lastErr = null;
+
+  for (const model of MODEL_CHAIN) {
+    try {
+      console.log(JSON.stringify({
+        requestId,
+        event: "gemini_call",
+        index,
+        model,
+        timeoutMs,
+        temperature
+      }));
+      return await callGemini(prompt, model, timeoutMs, requestId, index, temperature);
+    } catch (err) {
+      lastErr = err;
+      const tryNextModel = err instanceof GeminiApiError && err.retryable;
+      console.warn(JSON.stringify({
+        requestId,
+        event: tryNextModel ? "gemini_model_fallback" : "gemini_failed",
+        index,
+        model,
+        status: err instanceof GeminiApiError ? err.status : null,
+        message: err?.message
+      }));
+      if (!tryNextModel) throw err;
+    }
+  }
+
+  throw lastErr || new Error("All Gemini models failed");
+}
+
+async function generateQuestionsForRecipes(payload, recipes, requestId) {
+  const questions = [];
+  const warnings = [];
+  const startedAt = Date.now();
+  const generatedByType = { mcq: [], short_text: [] };
+  const recipeContexts = buildRecipeContexts(recipes);
+
+  for (const ctx of recipeContexts) {
+    const { batchIndex, recipe, sameTypeIndex, sameTypeTotal } = ctx;
+    const i = batchIndex;
+
+    if (i > 0) await sleep(RECIPE_GAP_MS);
+
+    const elapsed = Date.now() - startedAt;
+    const remaining = FUNCTION_BUDGET_MS - elapsed;
+
+    if (remaining < 12_000) {
+      warnings.push(`Question ${i + 1} (${recipe.question_type} · ${recipe.demand_level}): skipped — not enough time remaining`);
+      continue;
+    }
+
+    const timeoutMs = Math.min(GEMINI_CALL_TIMEOUT_MS, remaining - 2000);
+    const priorSameType = generatedByType[recipe.question_type] || [];
+    const temperature = sameTypeIndex > 0 ? 0.62 : 0.4;
+
+    console.log(JSON.stringify({
+      requestId,
+      event: "recipe_start",
+      index: i + 1,
+      total: recipes.length,
+      question_type: recipe.question_type,
+      demand_level: recipe.demand_level,
+      sameTypeIndex: sameTypeIndex + 1,
+      sameTypeTotal,
+      timeoutMs
+    }));
+
+    try {
+      let question = null;
+      for (let diversityAttempt = 0; diversityAttempt < 2; diversityAttempt++) {
+        const prompt = buildSingleQuestionPrompt(payload, recipe, {
+          batchIndex,
+          sameTypeIndex,
+          sameTypeTotal,
+          priorSameType,
+          forceDistinct: diversityAttempt > 0
+        });
+        question = await generateOneQuestion(
+          prompt,
+          requestId,
+          i + 1,
+          timeoutMs,
+          diversityAttempt > 0 ? 0.72 : temperature
+        );
+        if (!isNearDuplicateQuestion(question, priorSameType)) break;
+        console.warn(JSON.stringify({
+          requestId,
+          event: "duplicate_detected",
+          index: i + 1,
+          attempt: diversityAttempt + 1,
+          prompt: question.prompt?.slice(0, 80)
+        }));
+        if (diversityAttempt === 1) {
+          warnings.push(`Question ${i + 1} (${recipe.question_type} · ${recipe.demand_level}): may be similar to another in this batch — please review`);
+        }
+      }
+
+      questions.push(question);
+      generatedByType[recipe.question_type] = [...priorSameType, question];
+      console.log(JSON.stringify({
+        requestId,
+        event: "recipe_done",
+        index: i + 1,
+        total: recipes.length,
+        elapsedMs: Date.now() - startedAt
+      }));
+    } catch (err) {
+      warnings.push(formatRecipeWarning(i + 1, recipe, err));
+      console.warn(JSON.stringify({
+        requestId,
+        event: "recipe_failed",
+        index: i + 1,
+        message: err?.message
+      }));
+    }
+  }
+
+  return { questions, warnings };
+}
+
 Deno.serve(async (req) => {
+  const requestId = crypto.randomUUID().slice(0, 8);
+
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
+
+  console.log(JSON.stringify({
+    requestId,
+    event: "request_start",
+    method: req.method,
+    models: MODEL_CHAIN
+  }));
 
   try {
     const authHeader = req.headers.get("Authorization");
@@ -183,21 +550,39 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: `Maximum ${MAX_QUESTIONS} questions per request` }, 400);
     }
 
-    const prompt = buildPrompt(payload);
-    const parsed = await callGemini(prompt);
-    const questions = Array.isArray(parsed?.questions) ? parsed.questions : [];
+    const { questions, warnings } = await generateQuestionsForRecipes(payload, recipes, requestId);
 
-    if (questions.length !== recipes.length) {
+    console.log(JSON.stringify({
+      requestId,
+      event: "generation_done",
+      questions: questions.length,
+      expected: recipes.length,
+      warnings: warnings.length
+    }));
+
+    if (!questions.length) {
       return jsonResponse({
-        questions,
-        warnings: [`Expected ${recipes.length} questions, got ${questions.length}`],
-        model: MODEL
-      });
+        error: "Gemini is temporarily busy — please wait a moment and try again."
+      }, 503);
     }
 
-    return jsonResponse({ questions, model: MODEL });
+    if (questions.length !== recipes.length) {
+      warnings.unshift(`Generated ${questions.length} of ${recipes.length} — re-run Generate to fill gaps, or reduce recipe count.`);
+    }
+
+    return jsonResponse({
+      questions,
+      warnings: warnings.length ? warnings : undefined,
+      model: PRIMARY_MODEL
+    });
   } catch (err) {
-    console.error("generate-questions error:", err);
-    return jsonResponse({ error: err?.message || "Generation failed" }, 500);
+    console.error(JSON.stringify({
+      requestId,
+      event: "error",
+      message: err?.message || String(err)
+    }));
+    return jsonResponse({
+      error: err?.message || "Generation failed"
+    }, 500);
   }
 });
