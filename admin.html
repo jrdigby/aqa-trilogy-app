@@ -2069,14 +2069,33 @@
       <!-- TAB 2: PACKAGED CSV PANEL -->
       <div id="panelCsv" class="panel">
         <div class="card">
-          <h3 style="margin-top:0; color:var(--primary-dark); font-size:1.1rem; border-bottom:1px solid var(--border); padding-bottom:8px;">Import Packaged CSV Lists</h3>
+          <h3 style="margin-top:0; color:var(--primary-dark); font-size:1.1rem; border-bottom:1px solid var(--border); padding-bottom:8px;">Import Packaged CSV / TSV Lists</h3>
           <p style="color:var(--text-muted); font-size:0.85rem; line-height:1.4;">
-            Upload mass question lists from spreadsheet exports. If the CSV row elements do not specify subject, paper, or tier references, they will inherit the fallback options configured below.
+            Bulk-import MCQ and short-text questions from Google Sheets or Excel. Use the <strong>tab-separated header template</strong> below as row&nbsp;1 in your sheet.
+            Empty <code>subject</code>, <code>paper</code>, or <code>tier</code> cells inherit the fallback values configured here.
+            Legacy comma-separated positional files (24 columns, no header) are still supported.
           </p>
+
+          <details class="guidelines-panel" style="margin-top: 12px;">
+            <summary>Column template &amp; field guide</summary>
+            <div class="guidelines-body" style="font-size:0.82rem;line-height:1.45;">
+              <p style="margin-top:0;"><strong>Delimiter:</strong> Tab (<code>.tsv</code>) recommended for Google Sheets. Comma (<code>.csv</code>) also works when fields are quoted.</p>
+              <p><strong>Keywords:</strong> <code>keywords_required</code> / <code>keywords_optional</code> — comma separates mark groups; pipe <code>|</code> = synonyms within a group (e.g. <code>gravity|gravitational, mass</code>).</p>
+              <p><strong>Hints:</strong> Separate multiple hints with <code>|||</code> (revealed one at a time in practice).</p>
+              <p><strong>MCQ feedback:</strong> <code>mcq_feedback_a</code>…<code>d</code> map to <code>option_a</code>…<code>d</code> text (shown when that wrong option is chosen).</p>
+              <p><strong>Section 3:</strong> <code>mp1_ao</code>, <code>mp1_keywords</code>, <code>mp1_feedback</code>, <code>mp1_image_url</code> … up to <code>mp6</code>. When any mark-point row is present, grading uses checkpoints (Section&nbsp;2 keywords are ignored).</p>
+              <p style="margin-bottom:0;"><strong>Images:</strong> <code>image_url</code> = question stem diagram; <code>mpN_image_url</code> = feedback diagram when that checkpoint is missed (public HTTPS URL).</p>
+            </div>
+          </details>
+
+          <div style="margin-top: 12px; display:flex; flex-wrap:wrap; gap:8px; align-items:center;">
+            <button type="button" class="btn btn-secondary" id="btnDownloadCsvTemplate">Download header template (.tsv)</button>
+            <code id="csvTemplateHeaderPreview" style="font-size:0.68rem;color:var(--text-muted);word-break:break-all;flex:1;min-width:200px;"></code>
+          </div>
 
           <div class="row row-compact" style="margin-top: 16px;">
             <div class="field-fit">
-              <label>CSV Inherited Subject:</label>
+              <label>Fallback subject:</label>
               <select id="csvSubject" class="select-fit">
                 <option value="physics">Physics Trilogy</option>
                 <option value="chemistry">Chemistry Trilogy</option>
@@ -2084,14 +2103,14 @@
               </select>
             </div>
             <div class="field-fit">
-              <label>CSV Inherited Paper:</label>
+              <label>Fallback paper:</label>
               <select id="csvPaper" class="select-fit">
                 <option value="paper1">Trilogy Paper 1</option>
                 <option value="paper2">Trilogy Paper 2</option>
               </select>
             </div>
             <div class="field-fit">
-              <label>CSV Inherited Tier:</label>
+              <label>Fallback tier:</label>
               <select id="csvTier" class="select-fit">
                 <option value="both">Both (Common Core)</option>
                 <option value="higher">Higher (Tier 5-9)</option>
@@ -2101,11 +2120,11 @@
           </div>
 
           <div style="margin-top: 16px;">
-            <label>Select Spreadsheet CSV File:</label>
-            <input type="file" id="csvFile" accept=".csv" style="padding: 10px; background: #fff; border: 1px dashed var(--border); width: 100%; box-sizing: border-box; border-radius: 8px;" />
+            <label>Spreadsheet file (.tsv, .csv, or .txt):</label>
+            <input type="file" id="csvFile" accept=".csv,.tsv,.txt" style="padding: 10px; background: #fff; border: 1px dashed var(--border); width: 100%; box-sizing: border-box; border-radius: 8px;" />
           </div>
 
-          <button class="btn btn-primary" id="btnProcessCsv" style="margin-top: 20px;">Parse CSV File</button>
+          <button class="btn btn-primary" id="btnProcessCsv" style="margin-top: 20px;">Import spreadsheet</button>
         </div>
 
         <div class="card">
@@ -3077,11 +3096,13 @@
   import * as CalcWorkflow from "./src/calculationWorkflow.js";
   import * as NumericGen from "./src/numericQuestionGenerator.js";
   import * as McqBatchGen from "./src/mcqBatchGenerator.js";
+  import * as CsvImport from "./src/csvQuestionImport.js";
   import { resolveMcqWrongFeedback, MCQ_FLASHCARD_ADDED_MSG, highlightCommandWordsInPrompt } from "./src/evalEngine.js";
 
   window.CalcWorkflow = CalcWorkflow;
   window.NumericGen = NumericGen;
   window.McqBatchGen = McqBatchGen;
+  window.CsvImport = CsvImport;
   window.supabaseClient = supabaseClient;
   window.resolveMcqWrongFeedback = resolveMcqWrongFeedback;
   window.MCQ_FLASHCARD_ADDED_MSG = MCQ_FLASHCARD_ADDED_MSG;
@@ -4644,239 +4665,203 @@
   }
   document.getElementById("btnReset").onclick = clearQuestionCreatorForm;
 
-  // ====== TAB 2: CSV PROCESSING ENGINE ======
-  document.getElementById("btnProcessCsv").onclick = async () => {
-    if (!currentAuthSessionUser) {
-      showAdminToast("Log in as an authorized teacher to upload CSV packets.", true);
-      return;
-    }
-    
-    const fileInput = document.getElementById("csvFile");
-    const logArea = document.getElementById("csvLog");
-    
-    if (fileInput.files.length === 0) {
-      showAdminToast("Please select a standard CSV file first.", true);
-      return;
-    }
-    
-    const subOverride = document.getElementById("csvSubject").value;
-    const paperOverride = document.getElementById("csvPaper").value;
-    const tierOverride = document.getElementById("csvTier").value;
-    
-    const file = fileInput.files[0];
-    const reader = new FileReader();
-    
-    logArea.textContent = `Starting CSV read operation for: "${file.name}"...`;
-    
-    reader.onload = async function(e) {
-      const text = e.target.result;
-      const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
-      
-      logArea.textContent += `\nFound ${lines.length} lines total (including possible headers).`;
-      
-      // Pop headers if present
-      const firstLine = lines[0].toLowerCase();
-      if (firstLine.includes("prompt") || firstLine.includes("spec_ref") || firstLine.includes("subject")) {
-        lines.shift();
-        logArea.textContent += `\nDetected headers list. Popping row index 0. Starting row imports...`;
-      }
-      
-      let processed = 0;
-      let failed = 0;
-      
-      for (let line of lines) {
-        // Safe CSV line tokenizer
-        const parts = [];
-        let cur = '';
-        let insideQuote = false;
-        
-        for (let i = 0; i < line.length; i++) {
-          const char = line[i];
-          if (char === '"') {
-            insideQuote = !insideQuote;
-          } else if (char === ',' && !insideQuote) {
-            parts.push(cur.trim());
-            cur = '';
-          } else {
-            cur += char;
-          }
-        }
-        parts.push(cur.trim());
-        
-        if (parts.length < 5) {
-          failed++;
-          logArea.textContent += `\nSkipped short line: "${line.slice(0,40)}..." (Invalid length: ${parts.length})`;
-          continue;
-        }
-        
-        // Parse Columns
-        let csvSub = parts[0] || subOverride;
-        let csvPaper = parts[1] || paperOverride;
-        let csvTier = parts[2] || tierOverride;
-        let csvRef = parts[3];
-        let csvType = parts[4];
-        let csvPrompt = parts[5];
-        
-        // Let's resolve the UUID for the target spec reference dynamically
-        logArea.textContent += `\nResolving syllabus ID for Reference: ${csvRef}...`;
+  // ====== TAB 2: CSV / TSV IMPORT ======
+  const csvTemplatePreview = document.getElementById("csvTemplateHeaderPreview");
+  if (csvTemplatePreview) {
+    const headerLine = CsvImport.getCsvImportHeaderLine("\t");
+    csvTemplatePreview.textContent = `${CsvImport.CSV_IMPORT_COLUMNS.length} columns: ${headerLine.slice(0, 120)}…`;
+  }
 
-        const csvAudience = (parts[19] || "both").trim().toLowerCase();
-        const audience = csvAudience === "triple_only" ? "triple_only" : "both";
-        const specTrack = audience === "triple_only" ? "triple" : "combined";
+  document.getElementById("btnDownloadCsvTemplate")?.addEventListener("click", () => {
+    const blob = new Blob([CsvImport.getCsvImportTemplateTsv()], { type: "text/tab-separated-values;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "aqa_question_import_template.tsv";
+    a.click();
+    URL.revokeObjectURL(url);
+    showAdminToast("Template downloaded — paste row 1 into Google Sheets as headers.");
+  });
 
-        const { data: matchedRef, error: refErr } = await supabaseClient
+  async function importCsvRecord(bundle, logArea) {
+    const audience = bundle.question.audience || "both";
+    const specTrack = audience === "triple_only" ? "triple" : "combined";
+
+    const { data: matchedRef, error: refErr } = await supabaseClient
+      .from("spec_points")
+      .select("id")
+      .eq("subject", bundle.subject)
+      .eq("paper", bundle.paper)
+      .eq("course_track", specTrack)
+      .eq("spec_ref", bundle.specRef)
+      .maybeSingle();
+
+    if (refErr || !matchedRef) {
+      throw new Error(`spec_ref "${bundle.specRef}" not found (${specTrack}, ${bundle.subject}/${bundle.paper})`);
+    }
+
+    let tripleSpecPointId = null;
+    if (audience === "both") {
+      if (bundle.tripleSpecRef) {
+        const { data: tripleRef, error: tripleErr } = await supabaseClient
           .from("spec_points")
           .select("id")
-          .eq("subject", csvSub)
-          .eq("paper", csvPaper)
-          .eq("course_track", specTrack)
-          .eq("spec_ref", csvRef)
+          .eq("subject", bundle.subject)
+          .eq("paper", bundle.paper)
+          .eq("course_track", "triple")
+          .eq("spec_ref", bundle.tripleSpecRef)
           .maybeSingle();
-          
-        if (refErr || !matchedRef) {
+        if (tripleErr || !tripleRef) {
+          throw new Error(`triple_spec_ref "${bundle.tripleSpecRef}" not found`);
+        }
+        tripleSpecPointId = tripleRef.id;
+      } else {
+        const { data: equiv } = await supabaseClient
+          .from("spec_point_equivalences")
+          .select("triple_spec_point_id")
+          .eq("combined_spec_point_id", matchedRef.id)
+          .maybeSingle();
+        tripleSpecPointId = equiv?.triple_spec_point_id || null;
+      }
+    }
+
+    const insertPayload = {
+      ...bundle.question,
+      spec_point_id: matchedRef.id,
+      triple_spec_point_id: tripleSpecPointId
+    };
+
+    if (bundle.requiredPracticalCode) {
+      const rpTracks = specTrack === "triple" ? ["triple", "both"] : ["combined", "both"];
+      const rpRow = cachedRequiredPracticals.find(
+        (r) => r.subject === bundle.subject && r.code === bundle.requiredPracticalCode && rpTracks.includes(r.course_track)
+      );
+      if (rpRow) {
+        insertPayload.is_required_practical = true;
+        insertPayload.required_practical_id = rpRow.id;
+      } else {
+        logArea.textContent += `\n⚠️ required_practical_code "${bundle.requiredPracticalCode}" not found — skipped.`;
+      }
+    }
+
+    if (window.AdminMetadata) {
+      window.AdminMetadata.applyMetadataToInsertPayload(insertPayload, {
+        command_word: insertPayload.command_word,
+        demand_level: insertPayload.demand_level,
+        ao1_marks: insertPayload.ao1_marks ?? 0,
+        ao2_marks: insertPayload.ao2_marks ?? 0,
+        ao3_marks: insertPayload.ao3_marks ?? 0,
+        is_maths_skill: insertPayload.is_maths_skill || false,
+        is_required_practical: insertPayload.is_required_practical || false
+      }, insertPayload);
+    }
+
+    const { data: qNode, error: qErr } = await supabaseClient
+      .from("questions")
+      .insert(insertPayload)
+      .select()
+      .single();
+    if (qErr) throw qErr;
+
+    const { error: kErr } = await supabaseClient.from("answer_keys").insert({
+      question_id: qNode.id,
+      key_type: bundle.answerKey.key_type,
+      key_payload: bundle.answerKey.key_payload
+    });
+    if (kErr) throw kErr;
+
+    if (bundle.markPoints.length > 0 && bundle.question.question_type !== "numeric") {
+      const markPayloads = bundle.markPoints.map((mp) => ({
+        question_id: qNode.id,
+        ao: mp.ao,
+        point_text: mp.point_text,
+        feedback_if_missing: mp.feedback_if_missing,
+        image_url: mp.image_url || null,
+        max_marks: mp.max_marks || 1
+      }));
+      const { error: mpErr } = await supabaseClient.from("mark_points").insert(markPayloads);
+      if (mpErr) throw mpErr;
+    }
+
+    if (window.AdminSkills && (bundle.msSkillCodes || bundle.wsSkillCodes)) {
+      const skillIds = window.AdminSkills.resolveSkillIdsFromCodeStrings(bundle.msSkillCodes, bundle.wsSkillCodes);
+      if (skillIds.length) {
+        await window.AdminSkills.saveQuestionSkills(supabaseClient, qNode.id, skillIds);
+      }
+    }
+
+    return qNode.id;
+  }
+
+  document.getElementById("btnProcessCsv").onclick = async () => {
+    if (!currentAuthSessionUser) {
+      showAdminToast("Log in as an authorized teacher to upload import files.", true);
+      return;
+    }
+
+    const fileInput = document.getElementById("csvFile");
+    const logArea = document.getElementById("csvLog");
+
+    if (fileInput.files.length === 0) {
+      showAdminToast("Please select a spreadsheet file first.", true);
+      return;
+    }
+
+    const defaults = {
+      subject: document.getElementById("csvSubject").value,
+      paper: document.getElementById("csvPaper").value,
+      tier: document.getElementById("csvTier").value
+    };
+
+    const file = fileInput.files[0];
+    const reader = new FileReader();
+
+    logArea.textContent = `Reading "${file.name}"…`;
+
+    reader.onload = async function(e) {
+      const text = e.target.result;
+      const { records, format } = CsvImport.parseImportRecords(text, defaults);
+
+      logArea.textContent += `\nFormat: ${format} · ${records.length} data row(s).`;
+
+      if (!records.length) {
+        showAdminToast("No data rows found.", true);
+        return;
+      }
+
+      let processed = 0;
+      let failed = 0;
+
+      for (let i = 0; i < records.length; i++) {
+        const record = records[i];
+        const bundle = CsvImport.recordToImportBundle(record, defaults);
+
+        if (bundle.warnings.length) {
+          logArea.textContent += `\n⚠️ Row ${i + 1} (${bundle.specRef || "?"}): ${bundle.warnings.join("; ")}`;
+        }
+
+        if (!bundle.specRef || !bundle.question.question_type || !bundle.question.prompt) {
           failed++;
-          logArea.textContent += `\n🔴 Error: Reference "${csvRef}" (${specTrack}) does not exist in spec_points. Skip row.`;
+          logArea.textContent += `\n🔴 Row ${i + 1}: skipped — missing spec_ref, question_type, or prompt.`;
           continue;
         }
 
-        let tripleSpecPointId = null;
-        const csvTripleRef = (parts[20] || "").trim();
-        if (audience === "both") {
-          if (csvTripleRef) {
-            const { data: tripleRef, error: tripleErr } = await supabaseClient
-              .from("spec_points")
-              .select("id")
-              .eq("subject", csvSub)
-              .eq("paper", csvPaper)
-              .eq("course_track", "triple")
-              .eq("spec_ref", csvTripleRef)
-              .maybeSingle();
-            if (tripleErr || !tripleRef) {
-              failed++;
-              logArea.textContent += `\n🔴 Error: triple_spec_ref "${csvTripleRef}" not found. Skip row.`;
-              continue;
-            }
-            tripleSpecPointId = tripleRef.id;
-          } else {
-            const { data: equiv } = await supabaseClient
-              .from("spec_point_equivalences")
-              .select("triple_spec_point_id")
-              .eq("combined_spec_point_id", matchedRef.id)
-              .maybeSingle();
-            tripleSpecPointId = equiv?.triple_spec_point_id || null;
-          }
-        }
-        
+        logArea.textContent += `\nRow ${i + 1}: ${bundle.specRef} · ${bundle.question.question_type}…`;
+
         try {
-          // Process Question Record
-          const csvMaxMarks = parseInt(parts[11], 10) || 1;
-          const insertPayload = {
-            spec_point_id: matchedRef.id,
-            question_type: csvType,
-            prompt: csvPrompt,
-            tier: csvTier,
-            max_marks: csvMaxMarks,
-            audience,
-            triple_spec_point_id: tripleSpecPointId,
-            marking_method: csvType === "mcq" ? "keyword" : (csvType === "numeric" ? "numeric" : (csvType === "extended_response" ? "ai_rubric" : "keyword"))
-          };
-
-          if (parts[12]) insertPayload.command_word = parts[12];
-          if (parts[13]) insertPayload.demand_level = parts[13];
-          if (parts[14]) insertPayload.ao1_marks = parseInt(parts[14], 10) || 0;
-          if (parts[15]) insertPayload.ao2_marks = parseInt(parts[15], 10) || 0;
-          if (parts[16]) insertPayload.ao3_marks = parseInt(parts[16], 10) || 0;
-          if (parts[17]) insertPayload.is_maths_skill = /^true|1|yes$/i.test(parts[17]);
-          if (parts[18]) insertPayload.is_required_practical = /^true|1|yes$/i.test(parts[18]);
-
-          const csvRpCode = (parts[21] || "").trim();
-          if (csvRpCode) {
-            const rpTracks = specTrack === "triple" ? ["triple", "both"] : ["combined", "both"];
-            const rpRow = cachedRequiredPracticals.find(
-              (r) => r.subject === csvSub && r.code === csvRpCode && rpTracks.includes(r.course_track)
-            );
-            if (rpRow) {
-              insertPayload.is_required_practical = true;
-              insertPayload.required_practical_id = rpRow.id;
-            } else {
-              logArea.textContent += `\n⚠️ required_practical_code "${csvRpCode}" not found — RP link skipped.`;
-            }
-          }
-          if (window.AdminMetadata) {
-            window.AdminMetadata.applyMetadataToInsertPayload(insertPayload, {
-              command_word: insertPayload.command_word,
-              demand_level: insertPayload.demand_level,
-              ao1_marks: insertPayload.ao1_marks ?? 0,
-              ao2_marks: insertPayload.ao2_marks ?? 0,
-              ao3_marks: insertPayload.ao3_marks ?? 0,
-              is_maths_skill: insertPayload.is_maths_skill || false,
-              is_required_practical: insertPayload.is_required_practical || false
-            }, insertPayload);
-          }
-          
-          if (csvType === "mcq") {
-            insertPayload.options = [parts[6], parts[7], parts[8], parts[9]];
-          }
-          
-          const { data: qNode, error: qErr } = await supabaseClient
-            .from("questions")
-            .insert(insertPayload)
-            .select()
-            .single();
-            
-          if (qErr) throw qErr;
-          
-          // Process Answer Key
-          let keyType = "keywords";
-          let keyPayload = {};
-          
-          if (csvType === "mcq") {
-            keyType = "mcq";
-            keyPayload = {
-              correct: parts[10],
-              feedback: "Double-check your concepts."
-            };
-          } else {
-            keyType = "keywords";
-            keyPayload = {
-              required: parts[10] ? parts[10].split("|").map(x => x.trim()) : [],
-              optional: [],
-              min_optional: 0
-            };
-          }
-          
-          const { error: kErr } = await supabaseClient
-            .from("answer_keys")
-            .insert({
-              question_id: qNode.id,
-              key_type: keyType,
-              key_payload: keyPayload
-            });
-            
-          if (kErr) throw kErr;
-
-          const msCodes = (parts[22] || "").trim();
-          const wsCodes = (parts[23] || "").trim();
-          if (window.AdminSkills && (msCodes || wsCodes)) {
-            const skillIds = window.AdminSkills.resolveSkillIdsFromCodeStrings(msCodes, wsCodes);
-            if (skillIds.length) {
-              await window.AdminSkills.saveQuestionSkills(supabaseClient, qNode.id, skillIds);
-            }
-          }
-
+          const qId = await importCsvRecord(bundle, logArea);
           processed++;
-          logArea.textContent += `\n🟢 Successfully uploaded Question ID: ${qNode.id}`;
-          
-        } catch(err) {
+          logArea.textContent += `\n🟢 Row ${i + 1}: ${qId}`;
+        } catch (err) {
           failed++;
-          logArea.textContent += `\n🔴 Transaction Error processing row: ${err.message}`;
+          logArea.textContent += `\n🔴 Row ${i + 1}: ${err.message}`;
         }
       }
-      
-      logArea.textContent += `\n\n=========================================\nCompleted! Processed: ${processed} | Failed/Skipped: ${failed}`;
-      showAdminToast(`CSV Parse completed. Verified ${processed} additions.`);
+
+      logArea.textContent += `\n\n=========================================\nDone. Imported: ${processed} | Failed/skipped: ${failed}`;
+      showAdminToast(`Import finished: ${processed} added, ${failed} failed/skipped.`, failed > 0);
     };
-    
+
     reader.readAsText(file);
   };
 
