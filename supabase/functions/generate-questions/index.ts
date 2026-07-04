@@ -13,17 +13,7 @@ const RECIPE_GAP_MS = 600;
 const RETRYABLE_STATUSES = new Set([429, 500, 503, 504]);
 const RETRY_BACKOFF_MS = [1200, 2500, 5000];
 
-function buildModelChain() {
-  const configured = Deno.env.get("GEMINI_MODEL") || "gemini-2.5-flash";
-  return [...new Set([
-    configured,
-    "gemini-2.5-flash",
-    "gemini-2.5-flash-lite"
-  ])];
-}
-
-const MODEL_CHAIN = buildModelChain();
-const PRIMARY_MODEL = MODEL_CHAIN[0];
+const GEMINI_MODEL = Deno.env.get("GEMINI_MODEL") || "gemini-2.5-flash-lite";
 
 function jsonResponse(body, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -127,8 +117,8 @@ function buildSingleQuestionPrompt(payload, recipe, context = {}) {
   } = context;
 
   const typeHint = recipe.question_type === "short_text"
-    ? "short_text: 2 mark_points (keywords + feedback), max_marks 2, ao1=1 ao2=1"
-    : "mcq: 4 options, option_feedback per wrong option, max_marks 1, ao1=1";
+    ? "short_text: exactly 2 mark_points (keywords + brief feedback), max_marks 2, ao1=1 ao2=1. Feedback max 12 words each."
+    : "mcq: exactly 4 options, option_feedback for each wrong option only (3 entries), max_marks 1, ao1=1. Wrong-option feedback max 12 words each.";
 
   const angles = recipe.question_type === "short_text" ? SHORT_TEXT_FOCUS_ANGLES : MCQ_FOCUS_ANGLES;
   const focusAngle = angles[sameTypeIndex % angles.length];
@@ -139,9 +129,10 @@ function buildSingleQuestionPrompt(payload, recipe, context = {}) {
     : "";
 
   const avoidBlock = priorSameType.length
-    ? `\nALREADY IN THIS BATCH — do NOT repeat or paraphrase these (new spec angle, new scenario, new correct answer/keywords required):\n${priorSameType.map((q, n) => {
+    ? `\nALREADY IN THIS BATCH — new spec angle, scenario, and answer required:\n${priorSameType.map((q, n) => {
       const key = summarizeQuestionKey(q);
-      return `${n + 1}. prompt: "${q.prompt}" · command: ${q.command_word || "?"} · key: ${key}`;
+      const gist = String(q.prompt || "").slice(0, 50);
+      return `${n + 1}. ${q.command_word || "?"} · ${key} · "${gist}${gist.length >= 50 ? "…" : ""}"`;
     }).join("\n")}`
     : "";
 
@@ -164,52 +155,90 @@ ${truncateSpecText(spec_text)}
 ${avoidBlock}
 
 Requirements: ${typeHint} · appropriate AQA command_word · genuinely distinct from any listed above.
-Single-line prompt (no line breaks). Valid JSON only, no trailing commas.
-
-Return one JSON object:
-{"question_type":"${recipe.question_type}","demand_level":"${recipe.demand_level}","command_word":"...","prompt":"...","max_marks":${recipe.question_type === "short_text" ? 2 : 1},"ao1_marks":1,"ao2_marks":${recipe.question_type === "short_text" ? 1 : 0},"ao3_marks":0}`;
+Single-line prompt (no line breaks). Be concise — no preamble or explanation outside the JSON schema.`;
 }
 
-const QUESTION_SCHEMA = {
+const MCQ_SCHEMA = {
   type: "OBJECT",
   properties: {
-    question_type: { type: "STRING" },
+    question_type: { type: "STRING", enum: ["mcq"] },
     demand_level: { type: "STRING" },
-    command_word: { type: "STRING" },
-    prompt: { type: "STRING" },
+    command_word: { type: "STRING", maxLength: 24 },
+    prompt: { type: "STRING", maxLength: 280 },
     max_marks: { type: "INTEGER" },
     ao1_marks: { type: "INTEGER" },
     ao2_marks: { type: "INTEGER" },
     ao3_marks: { type: "INTEGER" },
-    options: { type: "ARRAY", items: { type: "STRING" } },
-    correct: { type: "STRING" },
+    options: {
+      type: "ARRAY",
+      minItems: 4,
+      maxItems: 4,
+      items: { type: "STRING", maxLength: 160 }
+    },
+    correct: { type: "STRING", maxLength: 160 },
     option_feedback: {
       type: "ARRAY",
+      minItems: 3,
+      maxItems: 3,
       items: {
         type: "OBJECT",
         properties: {
-          option: { type: "STRING" },
-          feedback: { type: "STRING" }
+          option: { type: "STRING", maxLength: 160 },
+          feedback: { type: "STRING", maxLength: 80 }
         },
         required: ["option", "feedback"]
       }
-    },
-    overall_feedback: { type: "STRING" },
+    }
+  },
+  required: [
+    "question_type", "demand_level", "command_word", "prompt", "max_marks",
+    "ao1_marks", "ao2_marks", "ao3_marks", "options", "correct", "option_feedback"
+  ],
+  propertyOrdering: [
+    "question_type", "demand_level", "command_word", "prompt", "max_marks",
+    "ao1_marks", "ao2_marks", "ao3_marks", "options", "correct", "option_feedback"
+  ]
+};
+
+const SHORT_TEXT_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    question_type: { type: "STRING", enum: ["short_text"] },
+    demand_level: { type: "STRING" },
+    command_word: { type: "STRING", maxLength: 24 },
+    prompt: { type: "STRING", maxLength: 280 },
+    max_marks: { type: "INTEGER" },
+    ao1_marks: { type: "INTEGER" },
+    ao2_marks: { type: "INTEGER" },
+    ao3_marks: { type: "INTEGER" },
     mark_points: {
       type: "ARRAY",
+      minItems: 2,
+      maxItems: 2,
       items: {
         type: "OBJECT",
         properties: {
-          ao: { type: "STRING" },
-          keywords: { type: "STRING" },
-          feedback: { type: "STRING" }
+          ao: { type: "STRING", maxLength: 4 },
+          keywords: { type: "STRING", maxLength: 120 },
+          feedback: { type: "STRING", maxLength: 80 }
         },
         required: ["ao", "keywords", "feedback"]
       }
     }
   },
-  required: ["question_type", "demand_level", "command_word", "prompt", "max_marks"]
+  required: [
+    "question_type", "demand_level", "command_word", "prompt", "max_marks",
+    "ao1_marks", "ao2_marks", "ao3_marks", "mark_points"
+  ],
+  propertyOrdering: [
+    "question_type", "demand_level", "command_word", "prompt", "max_marks",
+    "ao1_marks", "ao2_marks", "ao3_marks", "mark_points"
+  ]
 };
+
+function schemaForQuestionType(questionType) {
+  return questionType === "short_text" ? SHORT_TEXT_SCHEMA : MCQ_SCHEMA;
+}
 
 function stripTrailingCommas(json) {
   let out = "";
@@ -310,7 +339,7 @@ function formatRecipeWarning(index, recipe, err) {
   return `${label}: ${msg}`;
 }
 
-async function callGeminiOnce(prompt, model, timeoutMs, temperature = 0.4) {
+async function callGeminiOnce(prompt, model, timeoutMs, responseSchema, requestId, index, temperature = 0.4) {
   const apiKey = Deno.env.get("GEMINI_API_KEY");
   if (!apiKey) throw new Error("GEMINI_API_KEY is not configured on the server");
 
@@ -323,7 +352,7 @@ async function callGeminiOnce(prompt, model, timeoutMs, temperature = 0.4) {
       generationConfig: {
         temperature,
         responseMimeType: "application/json",
-        responseSchema: QUESTION_SCHEMA,
+        responseSchema,
         thinkingConfig: { thinkingBudget: 0 }
       }
     }),
@@ -335,17 +364,31 @@ async function callGeminiOnce(prompt, model, timeoutMs, temperature = 0.4) {
   }
 
   const data = await res.json();
+  const usage = data?.usageMetadata;
+  if (usage) {
+    console.log(JSON.stringify({
+      requestId,
+      event: "gemini_usage",
+      index,
+      model,
+      promptTokenCount: usage.promptTokenCount,
+      candidatesTokenCount: usage.candidatesTokenCount,
+      totalTokenCount: usage.totalTokenCount
+    }));
+  }
+
   const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
   if (!text) throw new Error("Empty response from Gemini");
   return extractJson(text);
 }
 
-async function callGemini(prompt, model, timeoutMs, requestId, index, temperature = 0.4) {
+async function callGemini(prompt, model, timeoutMs, requestId, index, questionType, temperature = 0.4) {
+  const responseSchema = schemaForQuestionType(questionType);
   let lastErr = null;
 
   for (let attempt = 0; attempt < RETRY_BACKOFF_MS.length; attempt++) {
     try {
-      return await callGeminiOnce(prompt, model, timeoutMs, temperature);
+      return await callGeminiOnce(prompt, model, timeoutMs, responseSchema, requestId, index, temperature);
     } catch (err) {
       lastErr = err;
       const retryable = isTimeoutError(err) || (err instanceof GeminiApiError && err.retryable);
@@ -369,36 +412,17 @@ async function callGemini(prompt, model, timeoutMs, requestId, index, temperatur
   throw lastErr || new Error("Gemini call failed");
 }
 
-async function generateOneQuestion(prompt, requestId, index, timeoutMs, temperature = 0.4) {
-  let lastErr = null;
-
-  for (const model of MODEL_CHAIN) {
-    try {
-      console.log(JSON.stringify({
-        requestId,
-        event: "gemini_call",
-        index,
-        model,
-        timeoutMs,
-        temperature
-      }));
-      return await callGemini(prompt, model, timeoutMs, requestId, index, temperature);
-    } catch (err) {
-      lastErr = err;
-      const tryNextModel = err instanceof GeminiApiError && err.retryable;
-      console.warn(JSON.stringify({
-        requestId,
-        event: tryNextModel ? "gemini_model_fallback" : "gemini_failed",
-        index,
-        model,
-        status: err instanceof GeminiApiError ? err.status : null,
-        message: err?.message
-      }));
-      if (!tryNextModel) throw err;
-    }
-  }
-
-  throw lastErr || new Error("All Gemini models failed");
+async function generateOneQuestion(prompt, requestId, index, timeoutMs, questionType, temperature = 0.4) {
+  console.log(JSON.stringify({
+    requestId,
+    event: "gemini_call",
+    index,
+    model: GEMINI_MODEL,
+    question_type: questionType,
+    timeoutMs,
+    temperature
+  }));
+  return await callGemini(prompt, GEMINI_MODEL, timeoutMs, requestId, index, questionType, temperature);
 }
 
 async function generateQuestionsForRecipes(payload, recipes, requestId) {
@@ -453,6 +477,7 @@ async function generateQuestionsForRecipes(payload, recipes, requestId) {
           requestId,
           i + 1,
           timeoutMs,
+          recipe.question_type,
           diversityAttempt > 0 ? 0.72 : temperature
         );
         if (!isNearDuplicateQuestion(question, priorSameType)) break;
@@ -502,7 +527,7 @@ Deno.serve(async (req) => {
     requestId,
     event: "request_start",
     method: req.method,
-    models: MODEL_CHAIN
+    model: GEMINI_MODEL
   }));
 
   try {
@@ -573,7 +598,7 @@ Deno.serve(async (req) => {
     return jsonResponse({
       questions,
       warnings: warnings.length ? warnings : undefined,
-      model: PRIMARY_MODEL
+      model: GEMINI_MODEL
     });
   } catch (err) {
     console.error(JSON.stringify({
