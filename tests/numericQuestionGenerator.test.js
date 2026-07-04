@@ -194,6 +194,35 @@ test("generateBatch — gravitational potential energy rearrangement for h", () 
     cfg.steps.find((s) => s.type === "substitution")?.rearrangement_subject,
     "h"
   );
+  assert.equal(drafts[0].answer_key.key_payload.unit, "m");
+});
+
+test("generateBatch — charge flow rearrangement uses subject unit not result unit", () => {
+  const { drafts: forI, errors: errI } = generateBatch(
+    {
+      equation: "charge",
+      sheet: "physics_p1_ht",
+      rearrangement_subject: "I",
+      variants: { recipes: [{ base: "recall", rearrangement: true, count: 1 }] },
+      seed: 42
+    },
+    sheetP1
+  );
+  assert.equal(errI.length, 0, errI.map((e) => e.message).join("; "));
+  assert.equal(forI[0].answer_key.key_payload.unit, "A");
+
+  const { drafts: forT, errors: errT } = generateBatch(
+    {
+      equation: "charge",
+      sheet: "physics_p1_ht",
+      rearrangement_subject: "t",
+      variants: { recipes: [{ base: "recall", rearrangement: true, count: 1 }] },
+      seed: 42
+    },
+    sheetP1
+  );
+  assert.equal(errT.length, 0, errT.map((e) => e.message).join("; "));
+  assert.equal(forT[0].answer_key.key_payload.unit, "s");
 });
 
 test("buildCalculationConfigForVariant — substitute vs optional rearrangement", () => {

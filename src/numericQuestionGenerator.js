@@ -188,7 +188,10 @@ function isEfficiencyResultAnswer(equation, rearrangementSubject) {
 
 function finalizeEfficiencyAnswer(answer, equation, spec, rearrangementSubject) {
   if (!isEfficiencyEquation(equation) || !efficiencyAsPercentage(spec)) {
-    return { answer, unit: EQUATION_UNITS[equation.id] || "" };
+    const unit = rearrangementSubject
+      ? getSubjectUnit(equation, rearrangementSubject)
+      : (EQUATION_UNITS[equation.id] || "");
+    return { answer, unit };
   }
   if (isEfficiencyResultAnswer(equation, rearrangementSubject)) {
     const pct = Math.round(answer * 10000) / 100;
