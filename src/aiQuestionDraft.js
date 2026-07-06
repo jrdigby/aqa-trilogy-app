@@ -394,3 +394,49 @@ export async function generateQuestionStudioBatch(supabaseClient, {
     appended: gapFill
   };
 }
+
+/**
+ * Parse a batch-export or spec-ref JSON file for admin import.
+ */
+export function parseImportedDraftBundle(raw) {
+  const data = typeof raw === "string" ? JSON.parse(raw) : raw;
+  if (!data || typeof data !== "object") {
+    throw new Error("Invalid import file — expected JSON object");
+  }
+  const drafts = Array.isArray(data) ? data : (data.drafts || []);
+  if (!Array.isArray(drafts) || !drafts.length) {
+    throw new Error("Import file contains no drafts");
+  }
+  return {
+    meta: data.meta || null,
+    drafts,
+    warnings: Array.isArray(data.warnings) ? data.warnings : []
+  };
+}
+
+export function ensureDraftImportMeta(draft, bundleMeta = null) {
+  if (draft?.import_meta?.spec_ref) return draft;
+  if (!bundleMeta?.spec_ref) return draft;
+  return {
+    ...draft,
+    import_meta: {
+      spec_ref: bundleMeta.spec_ref,
+      subject: bundleMeta.subject,
+      paper: bundleMeta.paper,
+      course_track: bundleMeta.course_track || "combined",
+      audience: bundleMeta.audience || "both",
+      tier: bundleMeta.tier || "both",
+      topic_name: bundleMeta.topic_name,
+      topic_number: bundleMeta.topic_number
+    }
+  };
+}
+
+export function prepareImportedDrafts(bundle, computeDifficulty = null) {
+  const parsed = parseImportedDraftBundle(bundle);
+  const drafts = parsed.drafts.map((d) => {
+    const withMeta = ensureDraftImportMeta(d, parsed.meta);
+    return withDraftDifficulty(withMeta, computeDifficulty);
+  });
+  return { ...parsed, drafts };
+}

@@ -9,7 +9,9 @@ import {
   computeGapFillRecipes,
   splitTemplateAndAiRecipes,
   draftsToAvoidQuestions,
-  recipeKey
+  recipeKey,
+  parseImportedDraftBundle,
+  prepareImportedDrafts
 } from "../src/aiQuestionDraft.js";
 
 test("normalizeAiQuestions — MCQ with option feedback", () => {
@@ -151,4 +153,20 @@ test("draftsToAvoidQuestions — maps preview drafts for AI avoid list", () => {
 
 test("recipeKey — stable type|demand key", () => {
   assert.equal(recipeKey({ question_type: "mcq", demand_level: "low" }), "mcq|low");
+});
+
+test("parseImportedDraftBundle — reads meta and drafts", () => {
+  const bundle = {
+    meta: { spec_ref: "6.2.1", subject: "physics", paper: "paper1" },
+    drafts: [{
+      question: { question_type: "mcq", prompt: "Test?", demand_level: "low", tier: "both", max_marks: 1, ao1_marks: 1, ao2_marks: 0, ao3_marks: 0, options: ["A", "B", "C", "D"] },
+      answer_key: { key_type: "mcq", key_payload: { correct: "A" } },
+      mark_points: []
+    }]
+  };
+  const parsed = parseImportedDraftBundle(bundle);
+  assert.equal(parsed.meta.spec_ref, "6.2.1");
+  assert.equal(parsed.drafts.length, 1);
+  const prepared = prepareImportedDrafts(bundle);
+  assert.equal(prepared.drafts[0].import_meta.spec_ref, "6.2.1");
 });

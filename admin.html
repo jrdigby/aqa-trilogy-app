@@ -2401,7 +2401,7 @@
         <div class="card">
           <h3 style="margin:0 0 4px; color:var(--primary-dark); font-size:1.02rem;">AI Question Studio</h3>
           <p style="color:var(--text-muted); font-size:0.78rem; line-height:1.3; margin:0 0 6px;">
-            Generate MCQ and short-text questions with Gemini Flash-Lite. Re-generate appends only missing recipe slots (gap-fill). Edit before commit.
+            Generate MCQ and short-text questions with Gemini Flash-Lite, or import per-spec JSON from batch scripts. Re-generate appends missing recipe slots (gap-fill). tier=both on batch output. Edit before commit.
           </p>
 
           <div class="row row-compact">
@@ -2483,6 +2483,8 @@
 
           <div class="batch-actions" style="display:flex;flex-wrap:wrap;">
             <button type="button" class="btn btn-primary btn-compact" id="btnBatchMcqPreview">Generate</button>
+            <button type="button" class="btn btn-secondary btn-compact" id="btnBatchMcqImport">Import JSON</button>
+            <input type="file" id="batchMcqImportFile" accept="application/json,.json" class="hidden" />
             <button type="button" class="btn btn-secondary btn-compact" id="btnBatchMcqClearPreview">Clear preview</button>
             <button type="button" class="btn btn-primary btn-compact" id="btnBatchMcqCommit" disabled>Commit all</button>
             <button type="button" class="btn btn-secondary btn-compact" id="btnBatchMcqExport">Export JSON</button>
@@ -5951,6 +5953,71 @@
     };
   }
 
+  async function resolveSpecIdsForImportMeta(importMeta) {
+    const meta = importMeta || {};
+    const audience = meta.audience || "both";
+    const track = meta.course_track || "combined";
+    const specRef = meta.spec_ref;
+    if (!specRef || !meta.subject || !meta.paper) {
+      return { spec_point_id: null, triple_spec_point_id: null, ok: false, audience };
+    }
+
+    const specTrack = audience === "triple_only" ? "triple" : (track === "triple" ? "triple" : "combined");
+    const { data: matchedRef, error: refErr } = await supabaseClient
+      .from("spec_points")
+      .select("id")
+      .eq("subject", meta.subject)
+      .eq("paper", meta.paper)
+      .eq("course_track", specTrack)
+      .eq("spec_ref", specRef)
+      .maybeSingle();
+
+    if (refErr || !matchedRef) {
+      throw new Error(`spec_ref "${specRef}" not found (${specTrack}, ${meta.subject}/${meta.paper})`);
+    }
+
+    if (audience === "triple_only") {
+      return { spec_point_id: matchedRef.id, triple_spec_point_id: null, ok: true, audience };
+    }
+
+    const equiv = await lookupEquivalence(matchedRef.id, track);
+    if (!equiv?.combined || !equiv?.triple) {
+      return { spec_point_id: null, triple_spec_point_id: null, ok: false, audience };
+    }
+
+    return {
+      spec_point_id: equiv.combined,
+      triple_spec_point_id: equiv.triple,
+      ok: true,
+      audience
+    };
+  }
+
+  async function applyImportMetaToForm(meta) {
+    if (!meta?.spec_ref) return;
+    if (meta.subject) document.getElementById("batchMcqSubject").value = meta.subject;
+    if (meta.paper) document.getElementById("batchMcqPaper").value = meta.paper;
+    if (meta.course_track) document.getElementById("batchMcqCourseTrack").value = meta.course_track;
+    if (meta.audience) document.getElementById("batchMcqAudience").value = meta.audience;
+    syncBatchMcqSpecLinkUi();
+    await loadBatchMcqSpecPointSelect();
+    const select = document.getElementById("batchMcqSpecPointSelect");
+    if (!select) return;
+    const track = meta.course_track || "combined";
+    const { data: row } = await supabaseClient
+      .from("spec_points")
+      .select("id, spec_ref")
+      .eq("subject", meta.subject)
+      .eq("paper", meta.paper)
+      .eq("course_track", track)
+      .eq("spec_ref", meta.spec_ref)
+      .maybeSingle();
+    if (row?.id) {
+      select.value = row.id;
+      await autoFillBatchMcqLinkedSpec(row.id);
+    }
+  }
+
   async function loadBatchMcqSpecPointData(specPointId) {
     const { data, error } = await supabaseClient
       .from("spec_points")
@@ -6626,6 +6693,47 @@
     if (status) status.textContent = "Preview cleared.";
   });
 
+  document.getElementById("btnBatchMcqImport")?.addEventListener("click", () => {
+    document.getElementById("batchMcqImportFile")?.click();
+  });
+
+  document.getElementById("batchMcqImportFile")?.addEventListener("change", async (ev) => {
+    const file = ev.target.files?.[0];
+    ev.target.value = "";
+    if (!file) return;
+    const status = document.getElementById("batchMcqStatus");
+    const commitBtn = document.getElementById("btnBatchMcqCommit");
+    try {
+      const text = await file.text();
+      const bundle = JSON.parse(text);
+      const { drafts, meta, warnings } = AiQuestionDraft.prepareImportedDrafts(bundle, (q) =>
+        window.AdminMetadata ? window.AdminMetadata.computeQuestionDifficulty(q) : 2
+      );
+      batchMcqPreviewDrafts = drafts.map((d) => ({
+        ...d,
+        question: {
+          ...d.question,
+          difficulty: d.question.difficulty ?? (
+            window.AdminMetadata
+              ? window.AdminMetadata.computeQuestionDifficulty(d.question)
+              : 2
+          )
+        }
+      }));
+      await applyImportMetaToForm(meta || drafts[0]?.import_meta);
+      renderBatchMcqPreviewTable(batchMcqPreviewDrafts, warnings || []);
+      if (commitBtn) commitBtn.disabled = batchMcqPreviewDrafts.length === 0;
+      const ref = meta?.spec_ref || drafts[0]?.import_meta?.spec_ref || "import";
+      if (status) {
+        status.textContent = `Imported ${batchMcqPreviewDrafts.length} draft(s) for ${ref}. Review then Commit.`;
+      }
+      if (warnings?.length) showAdminToast(`${warnings.length} import warning(s).`, true);
+    } catch (err) {
+      showAdminToast(err.message, true);
+      if (status) status.textContent = err.message;
+    }
+  });
+
   document.getElementById("btnBatchMcqExport")?.addEventListener("click", () => {
     if (!batchMcqPreviewDrafts.length) {
       showAdminToast("Generate a preview first.", true);
@@ -6658,11 +6766,12 @@
     const logLines = [];
 
     try {
-      const specIds = await resolveBatchMcqSpecIdsForCommit();
-      if (!specIds.ok) {
+      const defaultSpecIds = await resolveBatchMcqSpecIdsForCommit();
+      const useImportMeta = batchMcqPreviewDrafts.some((d) => d.import_meta?.spec_ref);
+
+      if (!useImportMeta && !defaultSpecIds.ok) {
         throw new Error("Could not resolve spec point equivalences — check audience and course track.");
       }
-      const audience = document.getElementById("batchMcqAudience")?.value || "both";
 
       for (let i = 0; i < batchMcqPreviewDrafts.length; i++) {
         const draft = batchMcqPreviewDrafts[i];
@@ -6678,6 +6787,20 @@
           let resolvedDraft = await resolveBatchMcqDraftImages(i, draft);
           batchMcqPreviewDrafts[i] = resolvedDraft;
           const q = resolvedDraft.question;
+
+          const specIds = resolvedDraft.import_meta?.spec_ref
+            ? await resolveSpecIdsForImportMeta(resolvedDraft.import_meta)
+            : defaultSpecIds;
+          if (!specIds.ok) {
+            fail++;
+            const ref = resolvedDraft.import_meta?.spec_ref || "?";
+            logLines.push(`✗ Draft ${i + 1}: could not resolve spec_ref ${ref}`);
+            continue;
+          }
+          const audience = specIds.audience
+            || resolvedDraft.import_meta?.audience
+            || document.getElementById("batchMcqAudience")?.value
+            || "both";
 
           const insertPayload = {
             ...q,
