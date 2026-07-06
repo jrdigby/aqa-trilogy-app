@@ -1280,6 +1280,10 @@
       min-width: 12rem;
     }
 
+    #panelAudit #auditSpecRefFilter {
+      min-width: 7rem;
+    }
+
     #panelCreator .hints-author-panel .hint-row,
     #editForm .hints-author-panel .hint-row {
       display: flex;
@@ -2572,6 +2576,11 @@
               <input type="text" id="auditTopicFilter" list="auditTopicList" placeholder="e.g. Energy, Cell biology…" />
               <datalist id="auditTopicList"></datalist>
             </div>
+            <div>
+              <label>Filter spec ref:</label>
+              <input type="text" id="auditSpecRefFilter" list="auditSpecRefList" placeholder="e.g. 6.2.1, 6.2.2…" />
+              <datalist id="auditSpecRefList"></datalist>
+            </div>
           </div>
 
           <button class="btn btn-primary" id="btnQueryQuestions" style="margin-top: 10px;">Query Active Database</button>
@@ -3173,6 +3182,7 @@
   let currentAuthSessionUser = null;
   let loadedQuestionsCache = [];
   let auditSpecMap = {};
+  let auditSpecPointsCache = [];
   let auditCheckPointsCounterMap = {};
   let auditSort = { column: "ref", direction: "asc" };
   let auditCourseTrackFilter = "";
@@ -7051,7 +7061,7 @@
     updateAuditResultCount(loadedQuestionsCache.length);
   }
 
-  async function refreshAuditTopicDatalist() {
+  async function refreshAuditFilterDatalists() {
     const sub = document.getElementById("auditSubject")?.value;
     const paper = document.getElementById("auditPaper")?.value;
     const track = document.getElementById("auditCourseTrack")?.value || "";
@@ -7059,24 +7069,52 @@
 
     let query = supabaseClient
       .from("spec_points")
-      .select("topic_name")
+      .select("topic_name, spec_ref")
       .eq("subject", sub)
       .eq("paper", paper);
     if (track) query = query.eq("course_track", track);
 
     const { data } = await query;
-    const topics = [...new Set((data || []).map((row) => row.topic_name).filter(Boolean))]
+    auditSpecPointsCache = data || [];
+
+    const topics = [...new Set(auditSpecPointsCache.map((row) => row.topic_name).filter(Boolean))]
       .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
-    const datalist = document.getElementById("auditTopicList");
-    if (datalist) {
-      datalist.innerHTML = topics.map((topic) => `<option value="${escapeHtml(topic)}"></option>`).join("");
+    const topicDatalist = document.getElementById("auditTopicList");
+    if (topicDatalist) {
+      topicDatalist.innerHTML = topics.map((topic) => `<option value="${escapeHtml(topic)}"></option>`).join("");
+    }
+
+    updateAuditSpecRefDatalist();
+  }
+
+  function updateAuditSpecRefDatalist() {
+    const topicFilter = document.getElementById("auditTopicFilter")?.value.trim().toLowerCase() || "";
+    let rows = auditSpecPointsCache;
+    if (topicFilter) {
+      rows = rows.filter((row) => (row.topic_name || "").toLowerCase().includes(topicFilter));
+    }
+
+    const specRefs = [...new Set(rows.map((row) => row.spec_ref).filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }));
+    const specRefDatalist = document.getElementById("auditSpecRefList");
+    if (specRefDatalist) {
+      specRefDatalist.innerHTML = specRefs.map((ref) => `<option value="${escapeHtml(ref)}"></option>`).join("");
+    }
+
+    const specRefInput = document.getElementById("auditSpecRefFilter");
+    if (specRefInput?.value.trim()) {
+      const current = specRefInput.value.trim().toLowerCase();
+      const stillValid = specRefs.some((ref) => ref.toLowerCase() === current || ref.toLowerCase().includes(current));
+      if (!stillValid) specRefInput.value = "";
     }
   }
 
   ["auditSubject", "auditPaper", "auditCourseTrack"].forEach((id) => {
-    document.getElementById(id)?.addEventListener("change", () => { refreshAuditTopicDatalist(); });
+    document.getElementById(id)?.addEventListener("change", () => { refreshAuditFilterDatalists(); });
   });
-  refreshAuditTopicDatalist();
+  document.getElementById("auditTopicFilter")?.addEventListener("input", () => { updateAuditSpecRefDatalist(); });
+  document.getElementById("auditTopicFilter")?.addEventListener("change", () => { updateAuditSpecRefDatalist(); });
+  refreshAuditFilterDatalists();
   updateAuditSortHeaders();
 
   document.querySelector("#panelAudit thead")?.addEventListener("click", (event) => {
@@ -7103,6 +7141,7 @@
     const metaFilter = document.getElementById("auditMetadataFilter")?.value || "";
     const courseTrack = document.getElementById("auditCourseTrack")?.value || "";
     const topicFilter = document.getElementById("auditTopicFilter")?.value.trim().toLowerCase() || "";
+    const specRefFilter = document.getElementById("auditSpecRefFilter")?.value.trim().toLowerCase() || "";
 
     auditList.innerHTML = `<tr><td colspan="${AUDIT_COLSPAN}" style="padding:24px; text-align:center;">Querying database records...</td></tr>`;
     updateAuditResultCount("loading");
@@ -7154,6 +7193,12 @@
       if (topicFilter) {
         filtered = filtered.filter((q) =>
           getAuditQuestionTopic(q, auditSpecMap).toLowerCase().includes(topicFilter)
+        );
+      }
+
+      if (specRefFilter) {
+        filtered = filtered.filter((q) =>
+          getAuditQuestionSpecRef(q, auditSpecMap).toLowerCase().includes(specRefFilter)
         );
       }
 
