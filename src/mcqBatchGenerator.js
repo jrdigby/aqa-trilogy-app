@@ -79,6 +79,88 @@ export function expandDemandRecipes(recipes = []) {
   return list;
 }
 
+export function isLowDemandMcqRecipe(recipe = {}) {
+  const type = String(recipe.question_type || "mcq").toLowerCase();
+  const demand = recipe.demand_level || "low";
+  return type === "mcq" && demand === "low";
+}
+
+function normalizeCompareText(text) {
+  return String(text || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function buildAvoidTexts(avoidDrafts = []) {
+  const set = new Set();
+  for (const draft of avoidDrafts) {
+    const prompt = draft?.question?.prompt;
+    const correct = draft?.answer_key?.key_payload?.correct;
+    if (prompt) set.add(normalizeCompareText(prompt));
+    if (correct) set.add(normalizeCompareText(correct));
+  }
+  return set;
+}
+
+function pickClaimAvoidingReuse(claims, usedIds, avoidTexts, rng) {
+  if (!claims?.length) return null;
+  const unused = claims.filter((c) => !usedIds.has(c.id) && !avoidTexts.has(normalizeCompareText(c.text)));
+  let pool = unused.length ? unused : claims.filter((c) => !avoidTexts.has(normalizeCompareText(c.text)));
+  if (!pool.length) pool = claims;
+  const idx = Math.floor((rng?.() ?? Math.random()) * pool.length);
+  return pool[idx];
+}
+
+/**
+ * Generate low-demand MCQs from an expanded recipe list (one entry per question).
+ * @param {object[]} recipes — [{ question_type, demand_level }, ...]
+ */
+export function generateMcqQuestionsForRecipes(spec, specPoint, recipes = [], options = {}) {
+  const { avoidDrafts = [] } = options;
+  const seed = spec.seed != null ? spec.seed : Date.now();
+  const rng = mulberry32(seed);
+  const avoidTexts = buildAvoidTexts(avoidDrafts);
+
+  if (!recipes.length) {
+    return { drafts: [], errors: [], seed };
+  }
+
+  if (!specPoint?.spec_text && !specPoint?.topic_name) {
+    return { drafts: [], errors: [{ message: "Spec point has no content to generate from" }], seed };
+  }
+
+  const claims = parseSpecClaims(specPoint.spec_text, specPoint.topic_name);
+  if (!claims.length) {
+    return { drafts: [], errors: [{ message: "Could not parse any claims from spec point text" }], seed };
+  }
+
+  const drafts = [];
+  const errors = [];
+  const usedClaimIds = new Set();
+
+  for (const recipe of recipes) {
+    try {
+      const demandLevel = recipe.demand_level || "low";
+      const enriched = {
+        demand_level: demandLevel,
+        _claims: claims,
+        _usedClaimIds: usedClaimIds,
+        _claim: pickClaimAvoidingReuse(claims, usedClaimIds, avoidTexts, rng)
+      };
+      if (enriched._claim) usedClaimIds.add(enriched._claim.id);
+      const draft = generateMcqQuestion(spec, enriched, specPoint, rng);
+      draft._meta = { ...draft._meta, source: "template" };
+      drafts.push(draft);
+    } catch (err) {
+      errors.push({ variant: recipe, message: err.message || String(err) });
+    }
+  }
+
+  return { drafts, errors, seed };
+}
+
 export function generateMcqQuestion(spec, variantDesc, specPoint, rng = Math.random) {
   if (!specPoint) throw new Error("Spec point data is required for MCQ generation");
 

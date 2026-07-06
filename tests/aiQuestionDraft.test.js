@@ -5,7 +5,11 @@ import {
   validateDraftForCommit,
   expandRecipes,
   demandRecipeLabel,
-  syncShortTextDraftFromPreviewEdits
+  syncShortTextDraftFromPreviewEdits,
+  computeGapFillRecipes,
+  splitTemplateAndAiRecipes,
+  draftsToAvoidQuestions,
+  recipeKey
 } from "../src/aiQuestionDraft.js";
 
 test("normalizeAiQuestions — MCQ with option feedback", () => {
@@ -72,13 +76,6 @@ test("expandRecipes — flattens counts", () => {
   assert.equal(expanded[2].question_type, "short_text");
 });
 
-test("demandRecipeLabel — includes type", () => {
-  assert.equal(
-    demandRecipeLabel({ question_type: "mcq", demand_level: "low" }),
-    "MCQ · Low"
-  );
-});
-
 test("syncShortTextDraftFromPreviewEdits — updates mark points", () => {
   const [draft] = normalizeAiQuestions([{
     question_type: "short_text",
@@ -103,4 +100,55 @@ test("syncShortTextDraftFromPreviewEdits — updates mark points", () => {
   assert.equal(updated.question.prompt, "New prompt");
   assert.equal(updated.mark_points[0].point_text, "x|y");
   assert.equal(updated.mark_points[0].image_url, "https://x.png");
+});
+
+test("demandRecipeLabel — includes type", () => {
+  assert.equal(
+    demandRecipeLabel({ question_type: "mcq", demand_level: "low" }),
+    "MCQ · Low"
+  );
+});
+
+test("computeGapFillRecipes — only returns missing recipe slots", () => {
+  const target = expandRecipes([
+    { question_type: "mcq", demand_level: "low", count: 5 }
+  ]);
+  const [existing] = normalizeAiQuestions([{
+    question_type: "mcq",
+    demand_level: "low",
+    prompt: "Existing Q",
+    options: ["A", "B", "C", "D"],
+    correct: "A"
+  }]);
+  const gap = computeGapFillRecipes(target, [existing, existing, existing]);
+  assert.equal(gap.length, 2);
+  assert.equal(gap.every((r) => r.question_type === "mcq" && r.demand_level === "low"), true);
+});
+
+test("splitTemplateAndAiRecipes — all recipes use AI path", () => {
+  const recipes = expandRecipes([
+    { question_type: "mcq", demand_level: "low", count: 2 },
+    { question_type: "short_text", demand_level: "standard", count: 1 }
+  ]);
+  const { templateRecipes, aiRecipes } = splitTemplateAndAiRecipes(recipes);
+  assert.equal(templateRecipes.length, 0);
+  assert.equal(aiRecipes.length, 3);
+});
+
+test("draftsToAvoidQuestions — maps preview drafts for AI avoid list", () => {
+  const [draft] = normalizeAiQuestions([{
+    question_type: "mcq",
+    demand_level: "low",
+    prompt: "What is current?",
+    options: ["A", "B", "C", "D"],
+    correct: "A"
+  }]);
+  const avoid = draftsToAvoidQuestions([draft]);
+  assert.equal(avoid.length, 1);
+  assert.equal(avoid[0].prompt, "What is current?");
+  assert.equal(avoid[0].correct, "A");
+});
+
+test("recipeKey — stable type|demand key", () => {
+  assert.equal(recipeKey({ question_type: "mcq", demand_level: "low" }), "mcq|low");
 });

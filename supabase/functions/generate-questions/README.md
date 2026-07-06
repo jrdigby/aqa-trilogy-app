@@ -10,6 +10,8 @@ supabase secrets set GEMINI_API_KEY=your_key_here
 supabase secrets set GEMINI_MODEL=gemini-2.5-flash-lite
 ```
 
+Supports optional `avoid_questions` and `focus_offset` in the request body for gap-fill generation (existing preview drafts passed from admin).
+
 ## Deploy
 
 ```bash

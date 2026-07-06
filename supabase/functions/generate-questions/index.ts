@@ -11,7 +11,7 @@ const FUNCTION_BUDGET_MS = 130_000;
 const SPEC_TEXT_MAX_CHARS = 1200;
 const RECIPE_GAP_MS = 600;
 const RETRYABLE_STATUSES = new Set([429, 500, 503, 504]);
-const RETRY_BACKOFF_MS = [1200, 2500, 5000];
+const RETRY_BACKOFF_MS = [1200, 2500, 5000, 8000, 12000];
 
 const GEMINI_MODEL = Deno.env.get("GEMINI_MODEL") || "gemini-2.5-flash-lite";
 
@@ -106,6 +106,15 @@ function isNearDuplicateQuestion(candidate, priorSameType) {
   return false;
 }
 
+function buildAvoidByType(avoidQuestions) {
+  const out = { mcq: [], short_text: [] };
+  for (const q of avoidQuestions || []) {
+    const t = q?.question_type === "short_text" ? "short_text" : "mcq";
+    out[t].push(q);
+  }
+  return out;
+}
+
 function buildSingleQuestionPrompt(payload, recipe, context = {}) {
   const { spec_ref, topic_name, spec_text, subject, paper, tier } = payload;
   const {
@@ -113,23 +122,27 @@ function buildSingleQuestionPrompt(payload, recipe, context = {}) {
     sameTypeIndex = 0,
     sameTypeTotal = 1,
     priorSameType = [],
+    avoidSameType = [],
+    focusOffset = 0,
     forceDistinct = false
   } = context;
+
+  const allPrior = [...avoidSameType, ...priorSameType];
 
   const typeHint = recipe.question_type === "short_text"
     ? "short_text: exactly 2 mark_points (keywords + brief feedback), max_marks 2, ao1=1 ao2=1. Feedback max 12 words each."
     : "mcq: exactly 4 options, option_feedback for each wrong option only (3 entries), max_marks 1, ao1=1. Wrong-option feedback max 12 words each.";
 
   const angles = recipe.question_type === "short_text" ? SHORT_TEXT_FOCUS_ANGLES : MCQ_FOCUS_ANGLES;
-  const focusAngle = angles[sameTypeIndex % angles.length];
+  const focusAngle = angles[(avoidSameType.length + sameTypeIndex + focusOffset) % angles.length];
 
-  const usedCommands = [...new Set(priorSameType.map((q) => q.command_word).filter(Boolean))];
+  const usedCommands = [...new Set(allPrior.map((q) => q.command_word).filter(Boolean))];
   const avoidCommands = usedCommands.length
     ? `Use a different command_word than: ${usedCommands.join(", ")}.`
     : "";
 
-  const avoidBlock = priorSameType.length
-    ? `\nALREADY IN THIS BATCH — new spec angle, scenario, and answer required:\n${priorSameType.map((q, n) => {
+  const avoidBlock = allPrior.length
+    ? `\nALREADY IN THIS BATCH — new spec angle, scenario, and answer required:\n${allPrior.map((q, n) => {
       const key = summarizeQuestionKey(q);
       const gist = String(q.prompt || "").slice(0, 50);
       return `${n + 1}. ${q.command_word || "?"} · ${key} · "${gist}${gist.length >= 50 ? "…" : ""}"`;
@@ -430,6 +443,8 @@ async function generateQuestionsForRecipes(payload, recipes, requestId) {
   const warnings = [];
   const startedAt = Date.now();
   const generatedByType = { mcq: [], short_text: [] };
+  const avoidByType = buildAvoidByType(payload.avoid_questions);
+  const focusOffset = Number(payload.focus_offset) || 0;
   const recipeContexts = buildRecipeContexts(recipes);
 
   for (const ctx of recipeContexts) {
@@ -447,8 +462,10 @@ async function generateQuestionsForRecipes(payload, recipes, requestId) {
     }
 
     const timeoutMs = Math.min(GEMINI_CALL_TIMEOUT_MS, remaining - 2000);
+    const avoidSameType = avoidByType[recipe.question_type] || [];
     const priorSameType = generatedByType[recipe.question_type] || [];
-    const temperature = sameTypeIndex > 0 ? 0.62 : 0.4;
+    const allPrior = [...avoidSameType, ...priorSameType];
+    const temperature = (avoidSameType.length + sameTypeIndex) > 0 ? 0.62 : 0.4;
 
     console.log(JSON.stringify({
       requestId,
@@ -470,6 +487,8 @@ async function generateQuestionsForRecipes(payload, recipes, requestId) {
           sameTypeIndex,
           sameTypeTotal,
           priorSameType,
+          avoidSameType,
+          focusOffset,
           forceDistinct: diversityAttempt > 0
         });
         question = await generateOneQuestion(
@@ -480,7 +499,7 @@ async function generateQuestionsForRecipes(payload, recipes, requestId) {
           recipe.question_type,
           diversityAttempt > 0 ? 0.72 : temperature
         );
-        if (!isNearDuplicateQuestion(question, priorSameType)) break;
+        if (!isNearDuplicateQuestion(question, allPrior)) break;
         console.warn(JSON.stringify({
           requestId,
           event: "duplicate_detected",

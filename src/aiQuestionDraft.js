@@ -10,6 +10,8 @@ import {
 
 export { getDemandOptionsForTier, formatDemandLabel };
 
+const STUDIO_MAX_QUESTIONS = 12;
+
 const MCQ_TYPES = new Set(["mcq"]);
 const SHORT_TYPES = new Set(["short_text", "short text", "short-text"]);
 
@@ -272,4 +274,123 @@ export function expandRecipes(recipes = []) {
     }
   }
   return expanded;
+}
+
+export function recipeKey(recipe = {}) {
+  const questionType = normalizeQuestionType(recipe.question_type);
+  const demandLevel = recipe.demand_level || "low";
+  return `${questionType}|${demandLevel}`;
+}
+
+export function countRecipesByKey(recipes = []) {
+  const counts = {};
+  for (const recipe of recipes) {
+    const key = recipeKey(recipe);
+    counts[key] = (counts[key] || 0) + 1;
+  }
+  return counts;
+}
+
+export function computeGapFillRecipes(targetExpanded, existingDrafts = []) {
+  const targets = countRecipesByKey(targetExpanded);
+  const existing = countRecipesByKey(
+    existingDrafts.map((d) => ({
+      question_type: d?.question?.question_type,
+      demand_level: d?.question?.demand_level
+    }))
+  );
+  const out = [];
+  for (const [key, target] of Object.entries(targets)) {
+    const have = existing[key] || 0;
+    const gap = Math.max(0, target - have);
+    const [question_type, demand_level] = key.split("|");
+    for (let i = 0; i < gap; i++) {
+      out.push({ question_type, demand_level });
+    }
+  }
+  return out;
+}
+
+export function splitTemplateAndAiRecipes(recipes = []) {
+  // Kept for tests; all recipes use Gemini in Question Studio.
+  return { templateRecipes: [], aiRecipes: [...recipes] };
+}
+
+export function draftsToAvoidQuestions(drafts = []) {
+  return drafts
+    .map((draft) => {
+      const q = draft?.question || {};
+      const correct = draft?.answer_key?.key_payload?.correct || "";
+      const markPoints = (draft?.mark_points || []).map((mp) => ({
+        keywords: mp.point_text || mp.keywords || "",
+        point_text: mp.point_text || mp.keywords || ""
+      }));
+      return {
+        question_type: normalizeQuestionType(q.question_type),
+        prompt: String(q.prompt || "").trim(),
+        command_word: q.command_word || "",
+        correct,
+        mark_points: markPoints
+      };
+    })
+    .filter((q) => q.prompt);
+}
+
+function withDraftDifficulty(draft, computeDifficulty) {
+  if (!draft?.question || typeof computeDifficulty !== "function") return draft;
+  return {
+    ...draft,
+    question: {
+      ...draft.question,
+      difficulty: computeDifficulty(draft.question)
+    }
+  };
+}
+
+/**
+ * Question Studio batch via Gemini Flash-Lite. Appends when gap-fill applies.
+ */
+export async function generateQuestionStudioBatch(supabaseClient, {
+  spec,
+  specPoint,
+  existingDrafts = [],
+  computeDifficulty = null
+}) {
+  const expanded = expandRecipes(spec.recipes);
+  const gapFill = existingDrafts.length > 0;
+  const toGenerate = gapFill ? computeGapFillRecipes(expanded, existingDrafts) : expanded;
+
+  if (!toGenerate.length) {
+    return {
+      drafts: [],
+      warnings: ["Recipe targets already met in preview — increase counts or clear preview to regenerate."],
+      model: null,
+      appended: false
+    };
+  }
+
+  if (toGenerate.length > STUDIO_MAX_QUESTIONS) {
+    throw new Error(`Maximum ${STUDIO_MAX_QUESTIONS} questions per request — reduce recipe counts`);
+  }
+
+  const aiResult = await invokeGenerateQuestions(supabaseClient, {
+    subject: spec.subject,
+    paper: spec.paper,
+    tier: spec.tier,
+    spec_ref: specPoint.spec_ref,
+    topic_name: specPoint.topic_name,
+    spec_text: specPoint.spec_text,
+    recipes: toGenerate,
+    avoid_questions: draftsToAvoidQuestions(existingDrafts),
+    focus_offset: Math.floor(Math.random() * 5)
+  });
+
+  const drafts = (aiResult.drafts || []).map((d) => withDraftDifficulty(d, computeDifficulty));
+
+  return {
+    drafts,
+    warnings: aiResult.warnings || [],
+    model: aiResult.model,
+    appended: gapFill
+  };
 }

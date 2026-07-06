@@ -4,6 +4,7 @@ import {
   expandDemandRecipes,
   generateMcqBatch,
   generateMcqQuestion,
+  generateMcqQuestionsForRecipes,
   remapMcqOptionFeedback,
   splitSpecFragments,
   syncDraftFromPreviewEdits,
@@ -134,3 +135,26 @@ test("syncDraftFromPreviewEdits — updates AO and overall feedback", () => {
 test("demandRecipeLabel — formats demand bucket", () => {
   assert.equal(demandRecipeLabel({ demand_level: "low" }), "Low");
 });
+
+test("generateMcqQuestionsForRecipes — avoids existing draft correct answers", () => {
+  const first = generateMcqQuestionsForRecipes(
+    { tier: "both", subject: "physics", seed: 42 },
+    sampleSpecPoint,
+    [{ question_type: "mcq", demand_level: "low" }]
+  );
+  assert.equal(first.drafts.length, 1);
+  const second = generateMcqQuestionsForRecipes(
+    { tier: "both", subject: "physics", seed: 43 },
+    sampleSpecPoint,
+    [{ question_type: "mcq", demand_level: "low" }],
+    { avoidDrafts: first.drafts }
+  );
+  assert.equal(second.drafts.length, 1);
+  const firstCorrect = first.drafts[0].answer_key.key_payload.correct;
+  const secondCorrect = second.drafts[0].answer_key.key_payload.correct;
+  assert.notEqual(normalizeCompare(firstCorrect), normalizeCompare(secondCorrect));
+});
+
+function normalizeCompare(text) {
+  return String(text || "").toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+}
