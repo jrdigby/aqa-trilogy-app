@@ -4,6 +4,7 @@
 # Environment secrets
 .env
 .env.*
+!.env.example
 
 # Gemini batch job artefacts (regenerate locally)
 batch-output/

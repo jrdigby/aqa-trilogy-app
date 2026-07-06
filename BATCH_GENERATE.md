@@ -17,15 +17,21 @@ Offline Gemini **Batch API** jobs for seeding the question bank. One job per **s
 
 ## Prerequisites
 
-Set environment variables:
+Copy `.env.example` to `.env` in the project root and fill in your keys:
 
 ```bash
-GEMINI_API_KEY=...
-SUPABASE_URL=...
-SUPABASE_SERVICE_ROLE_KEY=...
+cp .env.example .env   # PowerShell: Copy-Item .env.example .env
+```
+
+```env
+GEMINI_API_KEY=your-google-ai-studio-key
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 # optional:
 GEMINI_MODEL=gemini-2.5-flash-lite
 ```
+
+The batch script loads `.env` automatically. Variables already set in your shell take precedence. `.env` is gitignored — never commit it.
 
 ## Run a batch job
 

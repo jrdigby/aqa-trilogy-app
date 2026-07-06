@@ -4,6 +4,7 @@
  *
  * Env: GEMINI_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
  * Optional: GEMINI_MODEL (default gemini-2.5-flash-lite)
+ * Loads project-root .env automatically (shell env takes precedence).
  *
  * Usage:
  *   node scripts/batch-generate-subject-paper.mjs --subject physics --paper paper1
@@ -33,9 +34,11 @@ import {
   pollBatchUntilDone,
   uploadJsonlFile
 } from "./lib/geminiBatchClient.mjs";
+import { loadEnv } from "./lib/loadEnv.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, "..");
+loadEnv(ROOT);
 const DEFAULT_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash-lite";
 const DEFAULT_AUDIENCE = "both";
 
