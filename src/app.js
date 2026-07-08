@@ -105,6 +105,18 @@ const btnExamPrep = el("btnExamPrep");
 const startPracticePreview = el("startPracticePreview");
 const btnSubmit = el("btnSubmit");
 const btnNext = el("btnNext");
+const btnExitPractice = el("btnExitPractice");
+
+const PRACTICE_SESSION_MODES = new Set(["any_practice", "spec_point", "skill_practice"]);
+
+const HIDE_COMMAND_WORD_TIPS_KEY = "hide_command_word_tips";
+function isCommandWordTipsHidden() {
+  try {
+    return localStorage.getItem(HIDE_COMMAND_WORD_TIPS_KEY) === "1";
+  } catch (_) {
+    return false;
+  }
+}
 
 const subjectFilter = el("subjectFilter");
 const paperFilter = el("paperFilter");
@@ -1730,11 +1742,22 @@ function getSessionSpecPointMeta() {
   return first?.spec_points || null;
 }
 
+function isPracticeSessionMode() {
+  return PRACTICE_SESSION_MODES.has(sessionMode);
+}
+
+function updateExitPracticeVisibility() {
+  if (!btnExitPractice) return;
+  const onSummary = sessionSummary && !sessionSummary.classList.contains("hidden");
+  btnExitPractice.classList.toggle("hidden", !isPracticeSessionMode() || onSummary);
+}
+
 async function exitSessionToDashboard() {
   if (sessionSection) sessionSection.classList.add("hidden");
   if (sessionSummary) sessionSummary.classList.add("hidden");
   if (questionView) questionView.classList.remove("hidden");
   if (dashSection) dashSection.classList.remove("hidden");
+  updateExitPracticeVisibility();
 
   pendingAdaptiveSession = null;
   lastSessionSelfRating = null;
@@ -1874,6 +1897,11 @@ function wrapSummaryExit(handler) {
   };
 }
 
+async function exitPracticeEarly() {
+  if (!isPracticeSessionMode() || !sessionQuestions.length) return;
+  await showSessionSummary();
+}
+
 async function showSessionSummary() {
   const qualitiesBySpec = captureSessionQualitiesBySpec();
   await finalizeSessionSRS();
@@ -1893,6 +1921,7 @@ async function showSessionSummary() {
   if (sessionContext) sessionContext.classList.add("hidden");
   if (sessionSummary) sessionSummary.classList.remove("hidden");
   if (progress) progress.textContent = "Session complete";
+  updateExitPracticeVisibility();
 
   const isPracticeMode = sessionMode === "any_practice" || sessionMode === "spec_point" || sessionMode === "skill_practice";
   const examFeedback = sessionMode === "paper_practice"
@@ -2252,6 +2281,19 @@ async function checkAndUpdateStreak(user = currentUser) {
 }
 
 // ====== QUESTION RENDERING + MARKING ======
+function showSubmitButton(label = "Submit Answer") {
+  if (!btnSubmit) return;
+  btnSubmit.textContent = label;
+  btnSubmit.disabled = false;
+  btnSubmit.classList.remove("hidden");
+}
+
+function hideSubmitButton() {
+  if (!btnSubmit) return;
+  btnSubmit.disabled = true;
+  btnSubmit.classList.add("hidden");
+}
+
 function showAdvanceButton() {
   if (!btnNext) return;
   const isLastQuestion = idx >= sessionQuestions.length - 1;
@@ -2278,10 +2320,9 @@ async function loadQuestion() {
   const banner = el("improveBanner");
   if (banner) banner.remove();
 
-  if (btnSubmit) {
-    btnSubmit.textContent = "Submit Answer";
-    btnSubmit.disabled = false;
-  }
+  showSubmitButton();
+
+  updateExitPracticeVisibility();
 
   console.log("DEBUG loadQuestion: Resolving markers maps asynchronously...");
   const [keyRes, markRes] = await Promise.all([
@@ -2331,13 +2372,15 @@ async function loadQuestion() {
 
     if (currentQ?.id !== questionId) return;
 
-    const commandWordBanner = getAQACommandWordHelper(currentQ.prompt);
+    const tipsHidden = isCommandWordTipsHidden();
+    const commandWordBanner = tipsHidden ? "" : getAQACommandWordHelper(currentQ.prompt);
     const presentation = getPresentationMode(sessionMode);
 
     if (qBox) {
       qBox.innerHTML = renderQuestionLayout(currentQ, commandWordBanner, currentKey, {
         presentation,
-        equationSheet: currentEquationSheet
+        equationSheet: currentEquationSheet,
+        commandWordTooltips: tipsHidden
       });
       const calcModule = await mountNumericQuestionWorkflow(
         currentQ,
@@ -2347,6 +2390,7 @@ async function loadQuestion() {
       );
       triggerMathTypeset();
       calcModule?.wireStudentEquationSelectPreview(triggerMathTypeset, currentQ, currentEquationSheet);
+      wireAnswerLengthCounter();
       lastAnswerFocusState = null;
     }
 
@@ -2356,18 +2400,43 @@ async function loadQuestion() {
 
   if (currentQ?.id !== questionId) return;
 
-  const commandWordBanner = getAQACommandWordHelper(currentQ.prompt);
+  const tipsHidden = isCommandWordTipsHidden();
+  const commandWordBanner = tipsHidden ? "" : getAQACommandWordHelper(currentQ.prompt);
 
   if (qBox) {
     qBox.innerHTML = renderQuestionLayout(currentQ, commandWordBanner, currentKey, {
       presentation: "practice",
-      equationSheet: null
+      equationSheet: null,
+      commandWordTooltips: tipsHidden
     });
     triggerMathTypeset();
+    wireAnswerLengthCounter();
     lastAnswerFocusState = null;
   }
 
   renderQuestionHintsPanel();
+}
+
+function wireAnswerLengthCounter() {
+  const textarea = el("txtAns");
+  const charEl = el("charCount");
+  const wordEl = el("wordCount");
+  if (!textarea || (!charEl && !wordEl)) return;
+
+  const update = () => {
+    const value = textarea.value || "";
+    const charTotal = value.length;
+    const wordTotal = value.trim() ? value.trim().split(/\s+/).length : 0;
+    if (charEl) {
+      charEl.textContent = `${charTotal} character${charTotal === 1 ? "" : "s"}`;
+    }
+    if (wordEl) {
+      wordEl.textContent = `${wordTotal} word${wordTotal === 1 ? "" : "s"} (aim for 100-200)`;
+    }
+  };
+
+  textarea.addEventListener("input", update);
+  update();
 }
 
 function mixWordTokens(studentText) {
@@ -2699,6 +2768,11 @@ function loadSettingsPanel() {
     displayNameInput.value = currentUserProfile.display_name || "";
   }
 
+  const hideTipsToggle = el("settingsHideCommandWordTips");
+  if (hideTipsToggle) {
+    hideTipsToggle.checked = isCommandWordTipsHidden();
+  }
+
   const prefOrder = sortSubjectsByPreference(currentUserProfile.subject_preference || {});
   const diffOrder = sortSubjectsByDifficulty(currentUserProfile.subject_difficulty || {});
   renderRankList(el("settingsPreferenceRankList"), prefOrder, "preference");
@@ -2739,6 +2813,15 @@ async function refreshSettingsClassName(classId) {
 function wireSettingsControls() {
   wireSettingsPathButtons();
   wireSettingsSubjectTierButtons();
+
+  const hideTipsToggle = el("settingsHideCommandWordTips");
+  if (hideTipsToggle) {
+    hideTipsToggle.onchange = () => {
+      try {
+        localStorage.setItem(HIDE_COMMAND_WORD_TIPS_KEY, hideTipsToggle.checked ? "1" : "0");
+      } catch (_) { /* storage unavailable */ }
+    };
+  }
 
   document.querySelectorAll(".settings-tier-btn").forEach((btn) => {
     btn.onclick = () => {
@@ -3737,7 +3820,7 @@ if (btnSubmit) {
       }
     }
 
-    btnSubmit.disabled = true;
+    hideSubmitButton();
 
     const hintsRevealed = currentHintState.revealedCount;
     const xpEarned = computeAttemptXp(currentQ, hintsRevealed, response);
@@ -3798,7 +3881,7 @@ if (btnSubmit) {
       if (!useAiMarking) {
         await runLocalExtendedMarking(response);
         if (btnNext) showAdvanceButton();
-        btnSubmit.disabled = false;
+        hideSubmitButton();
       } else {
       feedback.innerHTML = `
         <div style="text-align: center; padding: 24px 12px;">
@@ -3837,8 +3920,7 @@ if (btnSubmit) {
               textarea.focus();
               textarea.scrollIntoView({ behavior: "smooth" });
 
-              btnSubmit.textContent = "Submit Improved Answer";
-              btnSubmit.disabled = false;
+              showSubmitButton("Submit Improved Answer");
 
               let banner = el("improveBanner");
               if (!banner) {
@@ -3891,7 +3973,7 @@ if (btnSubmit) {
         showToastBanner("AI Grader slow or offline. Displaying local grading rubric schema.", true);
         await runLocalExtendedMarking(response);
       }
-      btnSubmit.disabled = false;
+      hideSubmitButton();
       }
 
     } else {
@@ -3918,6 +4000,7 @@ if (btnSubmit) {
         }
       }
       if (btnNext) showAdvanceButton();
+      hideSubmitButton();
 
       try {
         const result = await insertAttemptRow({
@@ -3953,6 +4036,12 @@ if (btnSubmit) {
         showToastBanner("Warning: Failed to log performance metric: " + err.message, true);
       }
     }
+  };
+}
+
+if (btnExitPractice) {
+  btnExitPractice.onclick = () => {
+    void exitPracticeEarly();
   };
 }
 

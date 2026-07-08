@@ -132,6 +132,12 @@
   -webkit-box-decoration-break: clone;
 }
 
+.command-word[title] {
+  cursor: help;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+
 .command-word--describe  { background: #dbeafe; color: #1e40af; }
 .command-word--explain   { background: #d1fae5; color: #065f46; }
 .command-word--evaluate  { background: #fef3c7; color: #78350f; }

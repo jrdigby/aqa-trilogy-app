@@ -812,6 +812,15 @@
           </div>
 
           <div class="settings-section">
+            <h4 class="settings-heading">Question display</h4>
+            <p class="muted settings-hint">AQA command word tips appear above questions to explain what each command word (e.g. "Describe", "Explain") is asking for.</p>
+            <label class="settings-toggle-row" style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 0.9rem; margin-top: 6px;">
+              <input type="checkbox" id="settingsHideCommandWordTips" style="width: 18px; height: 18px; cursor: pointer; accent-color: var(--primary);" />
+              <span>Hide AQA command word tips during practice</span>
+            </label>
+          </div>
+
+          <div class="settings-section">
             <h4 class="settings-heading">Science course</h4>
             <p class="muted settings-hint">Combined Science (Trilogy) or Triple Science (separate GCSEs).</p>
             <div class="onboarding-tier-options" id="settingsPathOptions">
@@ -889,7 +898,10 @@
     <section id="session" class="card hidden">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
         <h2>📝 Questions</h2>
-        <div id="progress" class="chip">Question 0 of 0</div>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <button type="button" id="btnExitPractice" class="btn-secondary hidden" style="padding: 5px 12px; font-size: 0.8rem; flex: none;">Exit practice</button>
+          <div id="progress" class="chip">Question 0 of 0</div>
+        </div>
       </div>
 
       <div id="sessionContext" class="session-context hidden"></div>
