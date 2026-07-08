@@ -46,6 +46,9 @@ export const CSV_IMPORT_COLUMNS = [
   "keywords_required",
   "keywords_optional",
   "keywords_min_optional",
+  // Short text — "pick N from pool" partial-credit marking (e.g. "State two…")
+  "keyword_pool",
+  "pool_marks_per_hit",
   // Numeric (simple answer key only)
   "numeric_answer",
   "numeric_tolerance",
@@ -320,6 +323,18 @@ export function buildAnswerKey(record, questionType, options = []) {
     };
   }
 
+  const poolStr = (record.keyword_pool || "").trim();
+  if (poolStr) {
+    return {
+      key_type: "pick_n",
+      key_payload: {
+        pool: parseKeywordGroups(poolStr),
+        marks_per_hit: parseIntOr(record.pool_marks_per_hit, 1),
+        distinct: true
+      }
+    };
+  }
+
   return {
     key_type: "keywords",
     key_payload: {
@@ -391,7 +406,9 @@ export function recordToImportBundle(record, defaults = {}) {
   };
 
   const answerKey = buildAnswerKey(record, questionType, options || []);
-  const markPoints = buildMarkPointsFromRecord(record);
+  // Pool ("pick N") marking lives entirely in the answer key — ignore any mark-point
+  // columns so grading doesn't fall through to the checkpoint engine.
+  const markPoints = answerKey.key_type === "pick_n" ? [] : buildMarkPointsFromRecord(record);
 
   if (questionType === "mcq") {
     const correct = record.mcq_correct?.trim();

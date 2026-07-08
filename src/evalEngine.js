@@ -455,6 +455,51 @@ export async function markResponse(q, resp, key, markPoints) {
 
     return { total, max, ao, maxAo, missing, quality, feedbackPayload, stepResults };
   }
+  else if (key.key_type === "pick_n") {
+    // Pool marking: award marks_per_hit for each DISTINCT acceptable answer the
+    // student names, capped at the question's max marks. Used for "state/name/give
+    // N …" questions where any N items from a larger pool earn full credit.
+    const pool = Array.isArray(key.key_payload.pool) ? key.key_payload.pool : [];
+    const marksPerHit = Number(key.key_payload.marks_per_hit) || 1;
+    const targetAo = ao[key.key_payload.ao] !== undefined ? key.key_payload.ao : "AO1";
+    const textRaw = (resp.text || "").toLowerCase();
+    const cleanStudentText = textRaw.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "");
+    const studentWords = cleanStudentText.split(/\s+/).filter(Boolean);
+
+    // All credit for a pool question sits on one AO (recall-style); reset caps so
+    // the AO breakdown never reports more than the question is worth.
+    maxAo.AO1 = 0; maxAo.AO2 = 0; maxAo.AO3 = 0;
+    maxAo[targetAo] = max;
+
+    const matched = [];
+    const missingItems = [];
+    pool.forEach((item) => {
+      if (checkKeywordOrSynonymsMatch(item, studentWords, textRaw)) matched.push(item);
+      else missingItems.push(item);
+    });
+
+    total = Math.min(matched.length * marksPerHit, max);
+    ao[targetAo] = total;
+
+    if (total < max) {
+      const marksShort = max - total;
+      const moreNeeded = Math.max(1, Math.ceil(marksShort / marksPerHit));
+      const acceptable = missingItems.map((i) => i.replace(/\|/g, " / ")).join(", ");
+      const foundNote = matched.length > 0
+        ? `You correctly named ${matched.length}. `
+        : "";
+      const acceptableNote = acceptable ? ` Acceptable answers include: ${acceptable}.` : "";
+      missing.push({
+        ao: targetAo,
+        text: `${foundNote}Give ${moreNeeded} more correct response${moreNeeded === 1 ? "" : "s"} for full marks.${acceptableNote}`,
+        url: cleanUrl
+      });
+    }
+
+    if (total === 0) quality = 0;
+    else if (total < max) quality = 3;
+    else quality = 5;
+  }
   else if (key.key_type === "keywords") {
     const required = key.key_payload.required || [];
     const optional = key.key_payload.optional || [];

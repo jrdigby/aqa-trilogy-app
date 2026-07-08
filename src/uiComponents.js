@@ -144,9 +144,11 @@ export async function renderFeedback(marking, currentQ, currentKey, currentMarkP
     html += renderCalculationStepSummary(marking.stepResults);
   }
 
-  if (currentQ.question_type === "short_text" && currentKey && currentKey.key_type === "keywords") {
+  if (currentQ.question_type === "short_text" && currentKey && (currentKey.key_type === "keywords" || currentKey.key_type === "pick_n")) {
     let allTargetKeywords = [];
-    if (currentMarkPoints && currentMarkPoints.length > 0) {
+    if (currentKey.key_type === "pick_n") {
+      allTargetKeywords = currentKey.key_payload.pool || [];
+    } else if (currentMarkPoints && currentMarkPoints.length > 0) {
       allTargetKeywords = currentMarkPoints.map(mp => mp.point_text).filter(Boolean);
     } else {
       const required = currentKey.key_payload.required || [];
@@ -215,7 +217,8 @@ export async function renderFeedback(marking, currentQ, currentKey, currentMarkP
     html += `<div style="margin-bottom: 12px;"><strong>Your Answer Analysis:</strong></div>`;
     html += `<div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 14px; border-radius: 8px; font-size: 0.95rem; line-height: 1.6; margin-bottom: 15px; color: #0f172a;">${highlightedStudentTokens.join("")}</div>`;
     
-    html += `<div><strong>Syllabus Target Keywords:</strong></div>`;
+    const targetsLabel = currentKey.key_type === "pick_n" ? "Acceptable Answers" : "Syllabus Target Keywords";
+    html += `<div><strong>${targetsLabel}:</strong></div>`;
     html += `<div style="margin-top: 6px; margin-bottom: 10px;">${highlightedTargetsHTML}</div>`;
   }
 

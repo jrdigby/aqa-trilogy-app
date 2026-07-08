@@ -101,6 +101,49 @@ test("recordToImportBundle — short text with mark points", () => {
   assert.equal(bundle.markPoints[0].image_url, "https://cdn.example/kinetic.png");
 });
 
+test("buildAnswerKey — pick_n pool from keyword_pool column", () => {
+  const key = buildAnswerKey(
+    { keyword_pool: "coal, oil|petroleum, gas, nuclear|uranium", pool_marks_per_hit: "1" },
+    "short_text"
+  );
+  assert.equal(key.key_type, "pick_n");
+  assert.deepEqual(key.key_payload.pool, ["coal", "oil|petroleum", "gas", "nuclear|uranium"]);
+  assert.equal(key.key_payload.marks_per_hit, 1);
+  assert.equal(key.key_payload.distinct, true);
+});
+
+test("buildAnswerKey — keyword_pool takes precedence and keywords ignored", () => {
+  const key = buildAnswerKey(
+    { keyword_pool: "coal, oil", keywords_required: "should, be, ignored" },
+    "short_text"
+  );
+  assert.equal(key.key_type, "pick_n");
+});
+
+test("recordToImportBundle — pick_n pool skips mark points", () => {
+  const bundle = recordToImportBundle({
+    subject: "physics",
+    paper: "paper1",
+    spec_ref: "4.1.1.3",
+    question_type: "short_text",
+    max_marks: "2",
+    ao1_marks: "2",
+    prompt: "State two non-renewable energy resources.",
+    keyword_pool: "coal, oil|petroleum, gas, nuclear|uranium",
+    pool_marks_per_hit: "1",
+    mp1_ao: "AO1",
+    mp1_keywords: "coal",
+    mp1_feedback: "should be ignored"
+  });
+  assert.equal(bundle.answerKey.key_type, "pick_n");
+  assert.equal(bundle.markPoints.length, 0);
+});
+
+test("getCsvImportHeaderLine — includes pick_n pool columns", () => {
+  const header = getCsvImportHeaderLine("\t");
+  assert.ok(header.includes("keyword_pool\tpool_marks_per_hit"));
+});
+
 test("parseImportRecords — named header TSV", () => {
   const tsv = [
     getCsvImportHeaderLine("\t"),

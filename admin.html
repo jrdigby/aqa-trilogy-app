@@ -2005,21 +2005,49 @@
 
           <!-- Sub Panel: Short Answer Keywords -->
           <div id="shortTextKeywordsPanel" style="margin-top: 16px;">
-            <p style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.4; margin-bottom: 12px;">
-              <strong>Note:</strong> If you leave the "Section 3: Step-by-Step Mark Checkpoints" completely blank below, this question will grade automatically using basic Required/Optional keyword algorithms.
-            </p>
-            <div class="row">
-              <div>
-                <label>Required Keywords (Comma-separated, supports synonyms using pipe "|"):</label>
-                <input type="text" id="shortReqKeywords" placeholder="gravity|gravitational, acceleration" />
+            <div style="max-width: 520px; margin-bottom: 14px;">
+              <label>Marking mode:</label>
+              <select id="shortMarkMode" class="select-fit">
+                <option value="keywords">Keyword match — all required terms needed (0 or full marks)</option>
+                <option value="pick_n">Pick from pool — 1 mark per correct item (partial credit)</option>
+              </select>
+            </div>
+
+            <!-- Mode A: keyword match -->
+            <div id="shortKeywordsFields">
+              <p style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.4; margin-bottom: 12px;">
+                <strong>Note:</strong> If you leave the "Section 3: Step-by-Step Mark Checkpoints" completely blank below, this question will grade automatically using basic Required/Optional keyword algorithms.
+              </p>
+              <div class="row">
+                <div>
+                  <label>Required Keywords (Comma-separated, supports synonyms using pipe "|"):</label>
+                  <input type="text" id="shortReqKeywords" placeholder="gravity|gravitational, acceleration" />
+                </div>
+                <div>
+                  <label>Optional Keywords (Comma-separated lists):</label>
+                  <input type="text" id="shortOptKeywords" placeholder="mass, weight" />
+                </div>
+                <div>
+                  <label>Minimum Optional Words Expected:</label>
+                  <input type="number" id="shortMinOptional" value="0" />
+                </div>
               </div>
-              <div>
-                <label>Optional Keywords (Comma-separated lists):</label>
-                <input type="text" id="shortOptKeywords" placeholder="mass, weight" />
-              </div>
-              <div>
-                <label>Minimum Optional Words Expected:</label>
-                <input type="number" id="shortMinOptional" value="0" />
+            </div>
+
+            <!-- Mode B: pick N from pool -->
+            <div id="shortPoolFields" class="hidden">
+              <p style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.4; margin-bottom: 12px;">
+                <strong>Pool marking:</strong> the student earns the marks-per-item value for each <em>distinct</em> acceptable answer they name, capped at the question's max marks. Ideal for "State two…", "Name three…" style questions. Set <strong>AO1 = max marks</strong> in the metadata below. Leave Section 3 checkpoints blank.
+              </p>
+              <div class="row">
+                <div style="flex: 2 1 320px;">
+                  <label>Acceptable answer pool (comma-separated; pipe "|" = synonyms of the same answer):</label>
+                  <input type="text" id="shortPoolKeywords" placeholder="coal, oil|petroleum, gas|natural gas, nuclear|uranium" />
+                </div>
+                <div>
+                  <label>Marks per correct item:</label>
+                  <input type="number" id="shortPoolMarksPerHit" value="1" min="1" />
+                </div>
               </div>
             </div>
           </div>
@@ -2151,6 +2179,7 @@
             <div class="guidelines-body" style="font-size:0.82rem;line-height:1.45;">
               <p style="margin-top:0;"><strong>Delimiter:</strong> Tab (<code>.tsv</code>) recommended for Google Sheets. Comma (<code>.csv</code>) also works when fields are quoted.</p>
               <p><strong>Keywords:</strong> <code>keywords_required</code> / <code>keywords_optional</code> — comma separates mark groups; pipe <code>|</code> = synonyms within a group (e.g. <code>gravity|gravitational, mass</code>).</p>
+              <p><strong>Pick N pool (partial credit):</strong> <code>keyword_pool</code> — comma-separated acceptable answers (<code>|</code> = synonyms), e.g. <code>coal, oil|petroleum, gas, nuclear|uranium</code>. Awards <code>pool_marks_per_hit</code> (default 1) per distinct answer, capped at <code>max_marks</code>. Ideal for "State two…". When set, keyword/Section&nbsp;3 fields are ignored.</p>
               <p><strong>Hints:</strong> Separate multiple hints with <code>|||</code> (revealed one at a time in practice).</p>
               <p><strong>MCQ feedback:</strong> <code>mcq_feedback_a</code>…<code>d</code> map to <code>option_a</code>…<code>d</code> text (shown when that wrong option is chosen).</p>
               <p><strong>Section 3:</strong> <code>mp1_ao</code>, <code>mp1_keywords</code>, <code>mp1_feedback</code>, <code>mp1_image_url</code> … up to <code>mp6</code>. When any mark-point row is present, grading uses checkpoints (Section&nbsp;2 keywords are ignored).</p>
@@ -2996,18 +3025,42 @@
         </div>
 
         <div id="editShortTextPanel" class="hidden">
-          <div class="row">
-            <div>
-              <label>Required Keywords (Supports Synonyms |):</label>
-              <input type="text" id="editShortReqKeywords"/>
+          <div style="max-width: 520px; margin-bottom: 14px;">
+            <label>Marking mode:</label>
+            <select id="editShortMarkMode" class="select-fit">
+              <option value="keywords">Keyword match — all required terms needed (0 or full marks)</option>
+              <option value="pick_n">Pick from pool — 1 mark per correct item (partial credit)</option>
+            </select>
+          </div>
+          <div id="editShortKeywordsFields">
+            <div class="row">
+              <div>
+                <label>Required Keywords (Supports Synonyms |):</label>
+                <input type="text" id="editShortReqKeywords"/>
+              </div>
+              <div>
+                <label>Optional Keywords List:</label>
+                <input type="text" id="editShortOptKeywords"/>
+              </div>
+              <div>
+                <label>Minimum Optional Words Expected:</label>
+                <input type="number" id="editShortMinOptional"/>
+              </div>
             </div>
-            <div>
-              <label>Optional Keywords List:</label>
-              <input type="text" id="editShortOptKeywords"/>
-            </div>
-            <div>
-              <label>Minimum Optional Words Expected:</label>
-              <input type="number" id="editShortMinOptional"/>
+          </div>
+          <div id="editShortPoolFields" class="hidden">
+            <p style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.4; margin-bottom: 12px;">
+              <strong>Pool marking:</strong> 1 mark (or the value below) per distinct acceptable answer, capped at max marks. Set AO1 = max marks; leave Section 3 checkpoints blank.
+            </p>
+            <div class="row">
+              <div style="flex: 2 1 320px;">
+                <label>Acceptable answer pool (comma-separated; "|" = synonyms):</label>
+                <input type="text" id="editShortPoolKeywords" placeholder="coal, oil|petroleum, gas|natural gas, nuclear|uranium"/>
+              </div>
+              <div>
+                <label>Marks per correct item:</label>
+                <input type="number" id="editShortPoolMarksPerHit" value="1" min="1"/>
+              </div>
             </div>
           </div>
         </div>
@@ -4182,6 +4235,23 @@
 
   syncCreatorMcqUi(qType?.value || "short_text");
 
+  // Toggle short-answer marking-mode sub-panels (keyword match vs. pick-from-pool).
+  // Creator ids are lower-camel (shortMarkMode); edit ids are prefixed (editShortMarkMode).
+  function shortFieldId(prefix, suffix) {
+    return prefix ? `${prefix}Short${suffix}` : `short${suffix}`;
+  }
+  function syncShortMarkMode(prefix) {
+    const modeSel = document.getElementById(shortFieldId(prefix, "MarkMode"));
+    if (!modeSel) return;
+    const isPool = modeSel.value === "pick_n";
+    document.getElementById(shortFieldId(prefix, "KeywordsFields"))?.classList.toggle("hidden", isPool);
+    document.getElementById(shortFieldId(prefix, "PoolFields"))?.classList.toggle("hidden", !isPool);
+  }
+  document.getElementById("shortMarkMode")?.addEventListener("change", () => syncShortMarkMode(""));
+  document.getElementById("editShortMarkMode")?.addEventListener("change", () => syncShortMarkMode("edit"));
+  window._syncShortMarkMode = syncShortMarkMode;
+  syncShortMarkMode("");
+
   function updateEquationAuthoringHints(prefix) {
     const p = (id) => document.getElementById(prefix + id);
     const hasSheet = !!(p("CalcEquationSheet")?.value);
@@ -4634,17 +4704,27 @@
         };
       } 
       else if (questionType === "short_text") {
-        keyType = "keywords";
-        
-        const reqStr = document.getElementById("shortReqKeywords").value.trim();
-        const optStr = document.getElementById("shortOptKeywords").value.trim();
-        const minOpt = parseInt(document.getElementById("shortMinOptional").value) || 0;
-        
-        keyPayload = {
-          required: reqStr ? reqStr.split(",").map(k => k.trim()) : [],
-          optional: optStr ? optStr.split(",").map(k => k.trim()) : [],
-          min_optional: minOpt
-        };
+        const markMode = document.getElementById("shortMarkMode")?.value || "keywords";
+        if (markMode === "pick_n") {
+          keyType = "pick_n";
+          const poolStr = document.getElementById("shortPoolKeywords").value.trim();
+          keyPayload = {
+            pool: poolStr ? poolStr.split(",").map(k => k.trim()).filter(Boolean) : [],
+            marks_per_hit: parseInt(document.getElementById("shortPoolMarksPerHit").value) || 1,
+            distinct: true
+          };
+        } else {
+          keyType = "keywords";
+          const reqStr = document.getElementById("shortReqKeywords").value.trim();
+          const optStr = document.getElementById("shortOptKeywords").value.trim();
+          const minOpt = parseInt(document.getElementById("shortMinOptional").value) || 0;
+
+          keyPayload = {
+            required: reqStr ? reqStr.split(",").map(k => k.trim()) : [],
+            optional: optStr ? optStr.split(",").map(k => k.trim()) : [],
+            min_optional: minOpt
+          };
+        }
       }
       else if (questionType === "extended_response") {
         keyType = "ai_rubric";
@@ -4668,9 +4748,10 @@
         
       if (kErr) throw kErr;
       
-      // Save Section 3 detailed Mark Points (short answer only — numeric uses Section 2 feedback)
+      // Save Section 3 detailed Mark Points (short answer only — numeric uses Section 2 feedback;
+      // pool "pick N" marking lives in the answer key, so checkpoints are skipped)
       const rows = Array.from(document.querySelectorAll("#markPointsWrapper .mark-point-row"));
-      if (rows.length > 0 && questionType !== "numeric") {
+      if (rows.length > 0 && questionType !== "numeric" && keyType !== "pick_n") {
         const markPayloads = await buildMarkPointPayloadsFromRows(rows, qResult.id, "creator");
         const { error: mpErr } = await supabaseClient.from("mark_points").insert(markPayloads);
         if (mpErr) throw mpErr;
@@ -4707,6 +4788,11 @@
     document.getElementById("shortReqKeywords").value = "";
     document.getElementById("shortOptKeywords").value = "";
     document.getElementById("shortMinOptional").value = "0";
+    document.getElementById("shortPoolKeywords").value = "";
+    document.getElementById("shortPoolMarksPerHit").value = "1";
+    const shortModeSel = document.getElementById("shortMarkMode");
+    if (shortModeSel) shortModeSel.value = "keywords";
+    if (window._syncShortMarkMode) window._syncShortMarkMode("");
 
     document.getElementById("numAnsVal").value = "";
     document.getElementById("numAnsTol").value = "";
@@ -6996,10 +7082,17 @@
             warnings.push({ type: "error", text: "❌ Missing Numeric Answer" });
           }
         } else if (q.question_type === "short_text") {
-          const reqWords = payload.required;
-          const hasKeywords = reqWords && Array.isArray(reqWords) && reqWords.filter(Boolean).length > 0;
-          if (!hasKeywords && totalCheckpoints === 0) {
-            warnings.push({ type: "error", text: "❌ Missing Required Keywords or Checkpoints" });
+          if (key.key_type === "pick_n") {
+            const pool = Array.isArray(payload.pool) ? payload.pool.filter(Boolean) : [];
+            if (pool.length === 0) {
+              warnings.push({ type: "error", text: "❌ Missing Answer Pool" });
+            }
+          } else {
+            const reqWords = payload.required;
+            const hasKeywords = reqWords && Array.isArray(reqWords) && reqWords.filter(Boolean).length > 0;
+            if (!hasKeywords && totalCheckpoints === 0) {
+              warnings.push({ type: "error", text: "❌ Missing Required Keywords or Checkpoints" });
+            }
           }
         }
       }
@@ -7536,15 +7629,26 @@
       } 
       else if (q.question_type === "short_text") {
         document.getElementById("editShortTextPanel").classList.remove("hidden");
-        
-        // Populate standard required and optional arrays
-        const requiredArr = keyData?.key_payload?.required || [];
-        const optionalArr = keyData?.key_payload?.optional || [];
-        const minOptVal = keyData?.key_payload?.min_optional || 0;
-        
-        document.getElementById("editShortReqKeywords").value = requiredArr.join(", ");
-        document.getElementById("editShortOptKeywords").value = optionalArr.join(", ");
-        document.getElementById("editShortMinOptional").value = minOptVal;
+
+        const isPool = keyData?.key_type === "pick_n";
+        const editModeSel = document.getElementById("editShortMarkMode");
+        if (editModeSel) editModeSel.value = isPool ? "pick_n" : "keywords";
+
+        if (isPool) {
+          const poolArr = keyData?.key_payload?.pool || [];
+          document.getElementById("editShortPoolKeywords").value = poolArr.join(", ");
+          document.getElementById("editShortPoolMarksPerHit").value = keyData?.key_payload?.marks_per_hit || 1;
+        } else {
+          // Populate standard required and optional arrays
+          const requiredArr = keyData?.key_payload?.required || [];
+          const optionalArr = keyData?.key_payload?.optional || [];
+          const minOptVal = keyData?.key_payload?.min_optional || 0;
+
+          document.getElementById("editShortReqKeywords").value = requiredArr.join(", ");
+          document.getElementById("editShortOptKeywords").value = optionalArr.join(", ");
+          document.getElementById("editShortMinOptional").value = minOptVal;
+        }
+        if (window._syncShortMarkMode) window._syncShortMarkMode("edit");
       }
       else if (q.question_type === "extended_response") {
         document.getElementById("editExtendedPanel").classList.remove("hidden");
@@ -7821,6 +7925,7 @@
 
       // Update associated keys structure
       let updatedPayload = {};
+      let updatedKeyType = null; // only short_text can switch key_type (keywords <-> pick_n)
       if (q.question_type === "mcq") {
         updatedPayload = {
           correct: document.getElementById("editOptCorrect").value
@@ -7834,15 +7939,27 @@
           unit: document.getElementById("editNumUnit").value.trim()
         };
       } else if (q.question_type === "short_text") {
-        const reqInput = document.getElementById("editShortReqKeywords").value.trim();
-        const optInput = document.getElementById("editShortOptKeywords").value.trim();
-        const minOptInput = parseInt(document.getElementById("editShortMinOptional").value) || 0;
+        const markMode = document.getElementById("editShortMarkMode")?.value || "keywords";
+        if (markMode === "pick_n") {
+          updatedKeyType = "pick_n";
+          const poolInput = document.getElementById("editShortPoolKeywords").value.trim();
+          updatedPayload = {
+            pool: poolInput ? poolInput.split(",").map(k => k.trim()).filter(Boolean) : [],
+            marks_per_hit: parseInt(document.getElementById("editShortPoolMarksPerHit").value) || 1,
+            distinct: true
+          };
+        } else {
+          updatedKeyType = "keywords";
+          const reqInput = document.getElementById("editShortReqKeywords").value.trim();
+          const optInput = document.getElementById("editShortOptKeywords").value.trim();
+          const minOptInput = parseInt(document.getElementById("editShortMinOptional").value) || 0;
 
-        updatedPayload = {
-          required: reqInput ? reqInput.split(",").map(k => k.trim()) : [],
-          optional: optInput ? optInput.split(",").map(k => k.trim()) : [],
-          min_optional: minOptInput
-        };
+          updatedPayload = {
+            required: reqInput ? reqInput.split(",").map(k => k.trim()) : [],
+            optional: optInput ? optInput.split(",").map(k => k.trim()) : [],
+            min_optional: minOptInput
+          };
+        }
       } else if (q.question_type === "extended_response") {
         updatedPayload = {
           marking_guidelines: document.getElementById("editGuidelines").value,
@@ -7854,17 +7971,21 @@
         };
       }
 
+      const keyUpdate = updatedKeyType
+        ? { key_type: updatedKeyType, key_payload: updatedPayload }
+        : { key_payload: updatedPayload };
       const { error: keyErr } = await supabaseClient
         .from("answer_keys")
-        .update({ key_payload: updatedPayload })
+        .update(keyUpdate)
         .eq("question_id", qId);
 
       if (keyErr) throw keyErr;
 
-      // Sync edit mark points (short answer only — numeric feedback lives in calculation_config)
+      // Sync edit mark points (short answer only — numeric feedback lives in calculation_config;
+      // pool "pick N" marking lives in the answer key, so checkpoints are cleared)
       await supabaseClient.from("mark_points").delete().eq("question_id", qId);
 
-      if (q.question_type !== "numeric") {
+      if (q.question_type !== "numeric" && updatedKeyType !== "pick_n") {
         const editRows = Array.from(document.querySelectorAll("#editMarkPointsWrapper .edit-mp-row, #editMarkPointsWrapper .mark-point-row"));
         if (editRows.length > 0) {
           const markPayloads = await buildMarkPointPayloadsFromRows(editRows, qId, "edit");
@@ -8234,6 +8355,29 @@
         </ul>
       `;
     } 
+    else if (currentSandboxedKey.key_type === "pick_n") {
+      const cleanInputText = (resp.text || "").toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "");
+      const studentWords = cleanInputText.split(/\s+/).filter(Boolean);
+      const pool = Array.isArray(currentSandboxedKey.key_payload.pool) ? currentSandboxedKey.key_payload.pool : [];
+      const marksPerHit = parseInt(currentSandboxedKey.key_payload.marks_per_hit) || 1;
+
+      const hitsList = [];
+      const missingList = [];
+      pool.forEach(item => {
+        if (checkKeywordOrSynonymsMatch(item, studentWords, (resp.text || ""))) hitsList.push(item);
+        else missingList.push(item);
+      });
+
+      score = Math.min(hitsList.length * marksPerHit, max);
+      detailsHtml = `
+        <div style="font-weight:bold; margin-bottom:12px;">Pool marking (pick ${max / marksPerHit}): <span style="color:var(--primary-dark);">${score}/${max} marks</span></div>
+        <div style="margin-bottom:8px;">🟢 Correct answers named: <code>[${hitsList.map(h => h.replace(/\|/g, " / ")).join(", ") || "None"}]</code></div>
+        <div>⚪ Other acceptable answers not given:</div>
+        <ul style="margin:5px 0; padding-left:20px; font-size:0.8rem;">
+          ${missingList.map(m => `<li><code>${m.replace(/\|/g, " / ")}</code></li>`).join("") || "<li>None — full pool matched.</li>"}
+        </ul>
+      `;
+    }
     else if (currentSandboxedKey.key_type === "keywords" || currentSandboxedMarkPoints.length > 0) {
       const cleanInputText = (resp.text || "").toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "");
       const studentWords = cleanInputText.split(/\s+/).filter(Boolean);
