@@ -103,41 +103,137 @@ export function isFuzzyMatch(userWord, targetKeyword, threshold = 0.85) {
   return similarity >= threshold;
 }
 
-// Core helper to check if a specific target concept matches, taking negations into account
-export function checkKeywordOrSynonymsMatch(targetExpr, studentWords, rawText) {
-  if (!targetExpr) return false;
-  
-  // Split synonyms by the pipe "|" character
-  const synonyms = targetExpr.split('|').map(s => s.trim().toLowerCase());
-  const lowerRawText = rawText.toLowerCase();
+/** Comma-separated AND groups; pipe = synonyms within a group. */
+export function parseKeywordExpression(expr) {
+  if (!expr?.trim()) return [];
+  return expr.split(",").map((s) => s.trim()).filter(Boolean);
+}
 
-  // Define standard English scientific negations
+function escapeRegExp(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function synonymRegex(syn) {
+  const escaped = escapeRegExp(syn.trim().toLowerCase());
+  if (syn.includes(" ")) {
+    return new RegExp(escaped.replace(/\s+/g, "\\s+"), "i");
+  }
+  return new RegExp(`\\b${escaped}\\b`, "i");
+}
+
+// Core helper to check if one synonym group matches, taking negations into account
+function checkSynonymGroupMatch(groupExpr, studentWords, rawText) {
+  if (!groupExpr) return false;
+
+  const synonyms = groupExpr.split("|").map((s) => s.trim().toLowerCase()).filter(Boolean);
+  const lowerRawText = rawText.toLowerCase();
+  const cleanRaw = lowerRawText.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, " ").replace(/\s+/g, " ").trim();
+
   const negations = ["not", "no", "without", "never", "zero"];
-  
-  return synonyms.some(syn => {
-    // 1. Check if the target word is explicitly negated in the student's sentence
-    const synIndex = lowerRawText.indexOf(syn);
+
+  return synonyms.some((syn) => {
+    const synIndex = lowerRawText.search(synonymRegex(syn));
     if (synIndex !== -1) {
-      // Extract the text block right before the keyword (up to 15 characters back)
       const lookbackStart = Math.max(0, synIndex - 15);
       const contextualSnippet = lowerRawText.substring(lookbackStart, synIndex);
-      
-      // If a negation word is right before this keyword, consider it unmatched (wrong)
-      const isNegated = negations.some(neg => {
+
+      const isNegated = negations.some((neg) => {
         const regex = new RegExp(`\\b${neg}\\b`);
         return regex.test(contextualSnippet);
       });
-      
+
       if (isNegated) return false;
     }
 
-    // 2. Direct phrase matching in cleaned raw student text if not negated
-    const cleanRaw = lowerRawText.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, " ").replace(/\s+/g, " ").trim();
     if (cleanRaw.includes(syn)) return true;
-    
-    // 3. Fall back to fuzzy matching on individual word tokens
-    return studentWords.some(userWord => isFuzzyMatch(userWord, syn, 0.85));
+
+    return studentWords.some((userWord) => isFuzzyMatch(userWord, syn, 0.85));
   });
+}
+
+// Core helper to check if a specific target concept matches, taking negations into account
+export function checkKeywordOrSynonymsMatch(targetExpr, studentWords, rawText) {
+  if (!targetExpr) return false;
+  const groups = parseKeywordExpression(targetExpr);
+  return groups.every((group) => checkSynonymGroupMatch(group, studentWords, rawText));
+}
+
+/**
+ * Character ranges in raw student text that matched syllabus keywords (for feedback UI).
+ * @returns {{ start: number, end: number, type: "exact"|"fuzzy", match: string }[]}
+ */
+export function findStudentAnswerHighlights(rawText, allTargetKeywords) {
+  if (!rawText?.trim() || !allTargetKeywords?.length) return [];
+
+  const cleanStudentText = rawText.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "");
+  const studentWords = cleanStudentText.split(/\s+/).filter(Boolean);
+  const highlights = [];
+
+  const addRange = (start, end, type, match) => {
+    if (start < 0 || end <= start || end > rawText.length) return;
+    const overlaps = highlights.some((h) => start < h.end && end > h.start);
+    if (!overlaps) highlights.push({ start, end, type, match });
+  };
+
+  for (const targetExpr of allTargetKeywords) {
+    for (const group of parseKeywordExpression(targetExpr)) {
+      const synonyms = group.split("|").map((s) => s.trim()).filter(Boolean);
+
+      for (const syn of synonyms) {
+        const synLower = syn.toLowerCase();
+        const re = synonymRegex(syn);
+        const match = re.exec(rawText);
+        if (match) {
+          addRange(match.index, match.index + match[0].length, "exact", synLower);
+          break;
+        }
+
+        const fuzzyWord = studentWords.find((w) => isFuzzyMatch(w, synLower, 0.85));
+        if (fuzzyWord) {
+          const wordRe = new RegExp(`\\b${escapeRegExp(fuzzyWord)}\\b`, "i");
+          const fuzzyMatch = wordRe.exec(rawText);
+          if (fuzzyMatch) {
+            addRange(fuzzyMatch.index, fuzzyMatch.index + fuzzyMatch[0].length, "fuzzy", synLower);
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  return highlights.sort((a, b) => a.start - b.start);
+}
+
+export function renderHighlightedStudentAnswer(rawText, allTargetKeywords) {
+  const highlights = findStudentAnswerHighlights(rawText, allTargetKeywords);
+  if (!highlights.length) return escapeHtml(rawText);
+
+  const parts = [];
+  let cursor = 0;
+
+  for (const highlight of highlights) {
+    if (highlight.start > cursor) {
+      parts.push(escapeHtml(rawText.slice(cursor, highlight.start)));
+    }
+
+    const slice = rawText.slice(highlight.start, highlight.end);
+    if (highlight.type === "exact") {
+      parts.push(
+        `<span class="match-exact" title="Exact match for: ${escapeHtml(highlight.match)}">${escapeHtml(slice)}</span>`
+      );
+    } else {
+      parts.push(
+        `<span class="match-fuzzy" style="background-color: #fff7ed; color: #9a3412; border-bottom: 2px solid #f97316;" title="Spelling correction target: ${escapeHtml(highlight.match)}">${escapeHtml(slice)} <b style="font-weight:700;">[spelling: ${escapeHtml(highlight.match)}]</b></span>`
+      );
+    }
+    cursor = highlight.end;
+  }
+
+  if (cursor < rawText.length) {
+    parts.push(escapeHtml(rawText.slice(cursor)));
+  }
+
+  return parts.join("");
 }
 
 // SM-2 style update (simple)
@@ -433,12 +529,18 @@ export function getAQACommandWordHelper(promptText) {
 
   return banners.join("");
 }
+/** Section 3 rows that participate in short-text keyword checkpoint marking. */
+export function getGradableMarkPoints(markPoints) {
+  return (markPoints || []).filter((mp) => String(mp.point_text || "").trim());
+}
+
 export async function markResponse(q, resp, key, markPoints) {
   let total = 0, max = q.max_marks || 1;
   let ao = { AO1: 0, AO2: 0, AO3: 0 };
   let maxAo = { AO1: 0, AO2: 0, AO3: 0 };
   let missing = [], quality = 0;
   let stepResults = null;
+  const gradableMarkPoints = getGradableMarkPoints(markPoints);
 
   if (!key) return { total: 0, max, ao, maxAo, missing, quality: 0, feedbackPayload: {} };
 
@@ -448,8 +550,8 @@ export async function markResponse(q, resp, key, markPoints) {
 
   if (q.question_type === "mcq") {
     applyMcqMaxAoFromQuestion(q, max, maxAo);
-  } else if (markPoints && markPoints.length > 0) {
-    markPoints.forEach(mp => {
+  } else if (gradableMarkPoints.length > 0) {
+    gradableMarkPoints.forEach(mp => {
       maxAo[mp.ao] = (maxAo[mp.ao] || 0) + (mp.max_marks || 1);
     });
   } else {
@@ -571,10 +673,10 @@ export async function markResponse(q, resp, key, markPoints) {
     const cleanStudentText = textRaw.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "");
     const studentWords = cleanStudentText.split(/\s+/).filter(Boolean);
 
-    if (markPoints && markPoints.length > 0) {
-      max = markPoints.reduce((sum, mp) => sum + (mp.max_marks || 1), 0);
+    if (gradableMarkPoints.length > 0) {
+      max = gradableMarkPoints.reduce((sum, mp) => sum + (mp.max_marks || 1), 0);
 
-      markPoints.forEach((mp) => {
+      gradableMarkPoints.forEach((mp) => {
         const pointEarned = checkKeywordOrSynonymsMatch(mp.point_text, studentWords, textRaw);
 
         if (pointEarned) {
@@ -658,12 +760,15 @@ export function computeQuestionAOMaxCaps(q, markPoints = [], calculationWorkflow
   }
 
   if (markPoints.length > 0) {
-    for (const mp of markPoints) {
-      if (mp.ao && maxAo[mp.ao] !== undefined) {
-        maxAo[mp.ao] += Number(mp.max_marks) || 1;
+    const gradable = getGradableMarkPoints(markPoints);
+    if (gradable.length > 0) {
+      for (const mp of gradable) {
+        if (mp.ao && maxAo[mp.ao] !== undefined) {
+          maxAo[mp.ao] += Number(mp.max_marks) || 1;
+        }
       }
+      return maxAo;
     }
-    return maxAo;
   }
 
   if (q.question_type === "numeric") {
