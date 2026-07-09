@@ -303,7 +303,20 @@ function findCommandWordRangeInSegment(segment, tokenIndex) {
   return null;
 }
 
-export function highlightCommandWordsInPrompt(promptText) {
+/** Plain-text version of a command word's examiner tip, for use in a tooltip. */
+export function getTipTextForCommandWord(word) {
+  const html = getTipHtmlForCommandWord(word);
+  if (!html) return "";
+  return html
+    .replace(/<br\s*\/?>/gi, " ")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function highlightCommandWordsInPrompt(promptText, options = {}) {
+  const { withTooltips = false } = options;
   const text = promptText || "";
   if (!text) return "";
 
@@ -339,14 +352,63 @@ export function highlightCommandWordsInPrompt(promptText) {
 
   for (const highlight of highlights) {
     parts.push(escapeHtml(text.slice(last, highlight.start)));
+    const tipText = withTooltips ? getTipTextForCommandWord(highlight.word) : "";
+    const titleAttr = tipText ? ` title="${escapeHtml(tipText)}"` : "";
     parts.push(
-      `<span class="command-word command-word--${highlight.word}">${escapeHtml(text.slice(highlight.start, highlight.end))}</span>`
+      `<span class="command-word command-word--${highlight.word}"${titleAttr}>${escapeHtml(text.slice(highlight.start, highlight.end))}</span>`
     );
     last = highlight.end;
   }
   parts.push(escapeHtml(text.slice(last)));
 
   return parts.join("");
+}
+
+/**
+ * Renders a question prompt as display HTML: command words highlighted, newlines
+ * preserved as line breaks, and dash/asterisk/• bullet lines grouped into lists.
+ */
+export function renderPromptStemHtml(promptText, options = {}) {
+  const inlineHtml = highlightCommandWordsInPrompt(promptText, options);
+  if (!inlineHtml) return "";
+
+  const lines = inlineHtml.split(/\r?\n/);
+  const out = [];
+  let textRun = [];
+  let listItems = [];
+  const bulletRe = /^\s*(?:[-*•])\s+(.*\S)\s*$/;
+
+  const flushText = () => {
+    if (textRun.length) {
+      out.push(textRun.join("<br>"));
+      textRun = [];
+    }
+  };
+  const flushList = () => {
+    if (listItems.length) {
+      out.push(
+        `<ul style="margin:6px 0 0; padding-left:20px;">${listItems
+          .map((li) => `<li style="margin:2px 0;">${li}</li>`)
+          .join("")}</ul>`
+      );
+      listItems = [];
+    }
+  };
+
+  for (const line of lines) {
+    const match = line.match(bulletRe);
+    if (match) {
+      flushText();
+      listItems.push(match[1]);
+    } else {
+      flushList();
+      textRun.push(line);
+    }
+  }
+  flushText();
+  flushList();
+
+  return out.join("");
 }
 
 // Formats AQA GCSE standard examiner tips dynamically based on prompt words

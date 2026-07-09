@@ -1,11 +1,26 @@
 // src/uiComponents.js
 import { escapeHtml } from './utils.js';
-import { isFuzzyMatch, highlightCommandWordsInPrompt } from './evalEngine.js';
+import { isFuzzyMatch, renderPromptStemHtml } from './evalEngine.js';
 import { XP_RULES_FOOTNOTE } from './xpEngine.js';
 import { loadCalculationWorkflow } from './lazyCalculationWorkflow.js';
 
 // Dom element selector shortcut helper used internally
 const el = (id) => document.getElementById(id);
+
+/**
+ * Repairs AI feedback text whose LaTeX backslash-escapes were collapsed into
+ * literal control characters before storage (e.g. "\times" saved as TAB+"imes",
+ * "\frac" as formfeed+"rac"). Only control chars immediately followed by a
+ * letter are restored, so genuine whitespace is left untouched.
+ */
+export function restoreMangledLatexEscapes(text) {
+  if (!text || typeof text !== "string") return text;
+  return text
+    .replace(/\t(?=[a-zA-Z])/g, "\\t")   // \times, \text, \theta, \tau, \to
+    .replace(/\f(?=[a-zA-Z])/g, "\\f")   // \frac, \forall
+    .replace(/\v(?=[a-zA-Z])/g, "\\v")   // \vec, \vee
+    .replace(/[\b](?=[a-zA-Z])/g, "\\b"); // \beta, \binom
+}
 
 function formatCalcMissingFeedbackBody(item) {
   if (item.stepType === "equation_select" && item.html) {
@@ -38,7 +53,7 @@ export function showToastBanner(msg, isError = true, durationMs = 5000) {
 
 // ====== QUESTION VIEW INJECTION COMPILER ======
 export function renderQuestionLayout(q, commandWordBanner, currentKey, layoutOptions = {}) {
-  const { presentation = "practice", equationSheet = null } = layoutOptions;
+  const { presentation = "practice", equationSheet = null, commandWordTooltips = false } = layoutOptions;
   const totalMarks = q.max_marks || (q.question_type === "extended_response" ? 6 : 1);
   const marksLabel = totalMarks === 1 ? "1 mark" : `${totalMarks} marks`;
 
@@ -49,7 +64,7 @@ export function renderQuestionLayout(q, commandWordBanner, currentKey, layoutOpt
   let html = `
     <div class="item">
       <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 15px; margin-bottom: 8px;">
-        <div style="font-weight: 700; font-size: 1rem; line-height: 1.4; color: var(--text);">${highlightCommandWordsInPrompt(q.prompt)}</div>
+        <div style="font-weight: 700; font-size: 1rem; line-height: 1.4; color: var(--text);">${renderPromptStemHtml(q.prompt, { withTooltips: commandWordTooltips })}</div>
         <span class="chip" style="background: #e2e8f0; color: #475569; font-weight: 700; font-size: 0.76rem; padding: 3px 8px; border-radius: 6px; white-space: nowrap; flex-shrink: 0; align-self: flex-start; border: 1px solid #cbd5e1;">
           ${marksLabel}
         </span>
@@ -310,7 +325,7 @@ export function renderLiveAIFeedback(evaluation, hasImprovedCurrentQ) {
       <div>
         <strong style="font-size: 0.82rem; color: #0f172a; display: block; margin-bottom: 4px;">🟢 Demonstrated Scientific Concepts:</strong>
         <ul style="margin: 0; padding-left: 20px; font-size: 0.82rem; color: #334155; line-height: 1.4;">
-          ${evaluation.analysis_highlights?.map(h => `<li style="margin-bottom: 3px;">${escapeHtml(h)}</li>`).join("")}
+          ${evaluation.analysis_highlights?.map(h => `<li style="margin-bottom: 3px;">${escapeHtml(restoreMangledLatexEscapes(h))}</li>`).join("")}
         </ul>
       </div>
 
@@ -318,7 +333,7 @@ export function renderLiveAIFeedback(evaluation, hasImprovedCurrentQ) {
         <strong style="font-size: 0.82rem; color: #991b1b; display: block; margin-bottom: 4px;">⚠️ Missing Details or Misconceptions:</strong>
         <ul style="margin: 0; padding-left: 20px; font-size: 0.82rem; color: #334155; line-height: 1.4;">
           ${evaluation.missing_or_incorrect?.length 
-            ? evaluation.missing_or_incorrect.map(m => `<li style="margin-bottom: 3px; color: #991b1b;">${escapeHtml(m)}</li>`).join("")
+            ? evaluation.missing_or_incorrect.map(m => `<li style="margin-bottom: 3px; color: #991b1b;">${escapeHtml(restoreMangledLatexEscapes(m))}</li>`).join("")
             : `<li style="color: #15803d; list-style-type: none; padding-left:0;">No scientific gaps identified. Exceptional work!</li>`}
         </ul>
       </div>
@@ -326,7 +341,7 @@ export function renderLiveAIFeedback(evaluation, hasImprovedCurrentQ) {
       <div style="margin-top: 18px; padding: 12px 14px; background: #eff6ff; border-left: 4px solid #2563eb; border-radius: 4px; box-shadow: inset 0 1px 2px rgba(0,0,0,0.02);">
         <strong style="font-size: 0.8rem; color: #1e40af; display: block; margin-bottom: 4px;">🎯 Actionable Coach Recommendation to move up a grade:</strong>
         <p style="font-size: 0.78rem; color: #1e3a8a; line-height: 1.4; margin: 0;">
-          ${escapeHtml(evaluation.actionable_improvement_advice)}
+          ${escapeHtml(restoreMangledLatexEscapes(evaluation.actionable_improvement_advice))}
         </p>
       </div>
 
@@ -334,7 +349,7 @@ export function renderLiveAIFeedback(evaluation, hasImprovedCurrentQ) {
         <div style="margin-top: 18px; padding: 14px; background: #f0fdf4; border-left: 4px solid #16a34a; border-radius: 8px; box-shadow: inset 0 1px 2px rgba(0,0,0,0.02); border: 1px solid #dcfce7;">
           <strong style="font-size: 0.82rem; color: #14532d; display: block; margin-bottom: 6px;">✨ AI Coach's Model Answer Suggestion:</strong>
           <p style="font-size: 0.8rem; color: #166534; line-height: 1.5; margin: 0; white-space: pre-wrap; font-family: inherit;">
-            ${escapeHtml(evaluation.improved_answer)}
+            ${escapeHtml(restoreMangledLatexEscapes(evaluation.improved_answer))}
           </p>
         </div>
       ` : ''}
