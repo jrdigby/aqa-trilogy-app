@@ -1,6 +1,6 @@
 // src/uiComponents.js
 import { escapeHtml } from './utils.js';
-import { isFuzzyMatch, renderPromptStemHtml } from './evalEngine.js';
+import { isFuzzyMatch, renderPromptStemHtml, renderHighlightedStudentAnswer, checkKeywordOrSynonymsMatch, getGradableMarkPoints } from './evalEngine.js';
 import { XP_RULES_FOOTNOTE } from './xpEngine.js';
 import { loadCalculationWorkflow } from './lazyCalculationWorkflow.js';
 
@@ -163,8 +163,8 @@ export async function renderFeedback(marking, currentQ, currentKey, currentMarkP
     let allTargetKeywords = [];
     if (currentKey.key_type === "pick_n") {
       allTargetKeywords = currentKey.key_payload.pool || [];
-    } else if (currentMarkPoints && currentMarkPoints.length > 0) {
-      allTargetKeywords = currentMarkPoints.map(mp => mp.point_text).filter(Boolean);
+    } else if (getGradableMarkPoints(currentMarkPoints).length > 0) {
+      allTargetKeywords = getGradableMarkPoints(currentMarkPoints).map(mp => mp.point_text).filter(Boolean);
     } else {
       const required = currentKey.key_payload.required || [];
       const optional = currentKey.key_payload.optional || [];
@@ -172,49 +172,13 @@ export async function renderFeedback(marking, currentQ, currentKey, currentMarkP
     }
     
     const studentRawText = (el("txtAns")?.value || "").trim();
-    const tokens = studentRawText.split(/(\s+|[.,\/#!$%\^&\*;:{}=\-_`~()?])/);
-    
-    const highlightedStudentTokens = tokens.map(token => {
-      if (/^[\s.,\/#!$%\^&\*;:{}=\-_`~()?]/g.test(token) || !token) return escapeHtml(token);
-      
-      let bestMatch = null;
-      let highestType = null; 
-      
-      for (const targetExpr of allTargetKeywords) {
-        const synonyms = targetExpr.split('|').map(s => s.trim().toLowerCase());
-        for (const syn of synonyms) {
-          if (token.toLowerCase() === syn) {
-            bestMatch = syn;
-            highestType = 'exact';
-            break; 
-          } else if (isFuzzyMatch(token, syn, 0.85)) {
-            bestMatch = syn;
-            highestType = 'fuzzy';
-          }
-        }
-        if (highestType === 'exact') break;
-      }
-      
-      if (highestType === 'exact') {
-        return `<span class="match-exact" title="Exact match for: ${escapeHtml(bestMatch)}">${escapeHtml(token)}</span>`;
-      } else if (highestType === 'fuzzy') {
-        return `<span class="match-fuzzy" style="background-color: #fff7ed; color: #9a3412; border-bottom: 2px solid #f97316;" title="Spelling correction target: ${escapeHtml(bestMatch)}">${escapeHtml(token)} <b style="font-weight:700;">[spelling: ${escapeHtml(bestMatch)}]</b></span>`;
-      }
-      
-      return escapeHtml(token);
-    });
+    const studentWords = studentRawText.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "").split(/\s+/).filter(Boolean);
+    const highlightedStudentHtml = renderHighlightedStudentAnswer(studentRawText, allTargetKeywords);
 
     const highlightedTargetsHTML = allTargetKeywords.map(targetExpr => {
-      const studentWords = studentRawText.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "").split(/\s+/);
-      const synonyms = targetExpr.split('|').map(s => s.trim().toLowerCase());
-      
-      const hasExact = synonyms.some(syn => {
-        const cleanRaw = studentRawText.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, " ").replace(/\s+/g, " ").trim();
-        return cleanRaw.includes(syn) || studentWords.some(w => w === syn);
-      });
-      
-      const hasFuzzy = !hasExact && synonyms.some(syn => 
-        studentWords.some(w => isFuzzyMatch(w, syn, 0.85))
+      const hasExact = checkKeywordOrSynonymsMatch(targetExpr, studentWords, studentRawText.toLowerCase());
+      const hasFuzzy = !hasExact && targetExpr.split("|").some((syn) =>
+        studentWords.some((w) => isFuzzyMatch(w, syn.trim().toLowerCase(), 0.85))
       );
       
       const displayLabel = targetExpr.replace(/\|/g, " / ");
@@ -230,7 +194,7 @@ export async function renderFeedback(marking, currentQ, currentKey, currentMarkP
 
     html += `<hr/>`;
     html += `<div style="margin-bottom: 12px;"><strong>Your Answer Analysis:</strong></div>`;
-    html += `<div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 14px; border-radius: 8px; font-size: 0.95rem; line-height: 1.6; margin-bottom: 15px; color: #0f172a;">${highlightedStudentTokens.join("")}</div>`;
+    html += `<div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 14px; border-radius: 8px; font-size: 0.95rem; line-height: 1.6; margin-bottom: 15px; color: #0f172a;">${highlightedStudentHtml}</div>`;
     
     const targetsLabel = currentKey.key_type === "pick_n" ? "Acceptable Answers" : "Syllabus Target Keywords";
     html += `<div><strong>${targetsLabel}:</strong></div>`;

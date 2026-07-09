@@ -2084,6 +2084,7 @@
           </div>
           <p id="section3Help" style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.4; margin-bottom: 16px;">
             <strong>Short Answer Questions:</strong> Each matched row awards 1 mark (AO-specific). If left blank, grading uses the required/optional keywords in Section 2 instead. Optional feedback diagrams appear when a student misses that checkpoint.<br/>
+            <strong>Keyword syntax:</strong> comma <code>,</code> = all parts required (AND); pipe <code>|</code> = synonyms (OR). Example for one mark: <code>increase, potential difference|voltage|volts</code> needs both “increase” and one of the voltage terms.<br/>
             <strong>Numeric Questions:</strong> Feedback is configured in Section 2 (calculation workflow panels) — this section is not used.<br/>
             <strong>MCQ:</strong> Add one generic remediation row (feedback field only). Shown below any per-option feedback from Section 2 when a student picks a wrong answer.
           </p>
@@ -3224,7 +3225,7 @@
   import * as McqBatchGen from "./src/mcqBatchGenerator.js";
   import * as AiQuestionDraft from "./src/aiQuestionDraft.js";
   import * as CsvImport from "./src/csvQuestionImport.js";
-  import { resolveMcqWrongFeedback, MCQ_FLASHCARD_ADDED_MSG, highlightCommandWordsInPrompt } from "./src/evalEngine.js";
+  import { resolveMcqWrongFeedback, MCQ_FLASHCARD_ADDED_MSG, highlightCommandWordsInPrompt, checkKeywordOrSynonymsMatch, getGradableMarkPoints } from "./src/evalEngine.js";
 
   window.CalcWorkflow = CalcWorkflow;
   window.NumericGen = NumericGen;
@@ -3234,6 +3235,7 @@
   window.supabaseClient = supabaseClient;
   window.resolveMcqWrongFeedback = resolveMcqWrongFeedback;
   window.MCQ_FLASHCARD_ADDED_MSG = MCQ_FLASHCARD_ADDED_MSG;
+  window.checkKeywordOrSynonymsMatch = checkKeywordOrSynonymsMatch;
 
   let currentAuthSessionUser = null;
   let loadedQuestionsCache = [];
@@ -4432,7 +4434,7 @@
     return existingUrl || null;
   }
 
-  async function buildMarkPointPayloadsFromRows(rows, questionId, mode = "creator") {
+  async function buildMarkPointPayloadsFromRows(rows, questionId, mode = "creator", questionType = "") {
     const payloads = [];
     for (const r of rows) {
       const aoSel = mode === "edit" ? ".edit-mp-ao" : ".mp-ao";
@@ -4447,7 +4449,10 @@
         image_url: await resolveMarkPointImageUrl(r, mode)
       });
     }
-    return payloads;
+    if (questionType === "mcq") {
+      return payloads.filter((p) => p.point_text || p.feedback_if_missing);
+    }
+    return payloads.filter((p) => p.point_text);
   }
 
   // ====== SECTION 3: MARK POINTS DYNAMIC LIST (CREATOR) ======
@@ -4465,7 +4470,7 @@
         <option value="AO2" ${selectedAo === "AO2" ? "selected" : ""}>AO2</option>
         <option value="AO3" ${selectedAo === "AO3" ? "selected" : ""}>AO3</option>
       </select>
-      <span class="mp-text-wrap"><input class="mp-text" type="text" placeholder="Point target keyword (e.g. gravity|gravitational)" value="${escapeHtml(ptText)}"/></span>
+      <span class="mp-text-wrap"><input class="mp-text" type="text" placeholder="Keywords: gravity|gravitational, mass" value="${escapeHtml(ptText)}"/></span>
       <button onclick="removeMarkPointRow(${markPointsCounter})" style="background:var(--error); color:white; border:none; border-radius:6px; cursor:pointer; height:38px; font-weight:bold; width: 100%;">&times;</button>
       <textarea class="mp-feedback" rows="2" placeholder="Remediation tips...">${escapeHtml(fbText)}</textarea>
       <div class="mp-image-row">
@@ -4508,7 +4513,7 @@
         <option value="AO2" ${selectedAo === "AO2" ? "selected" : ""}>AO2</option>
         <option value="AO3" ${selectedAo === "AO3" ? "selected" : ""}>AO3</option>
       </select>
-      <span class="edit-mp-text-wrap"><input class="edit-mp-text" type="text" placeholder="Point target keyword (e.g. gravity|gravitational)" value="${escapeHtml(ptText)}"/></span>
+      <span class="edit-mp-text-wrap"><input class="edit-mp-text" type="text" placeholder="Keywords: gravity|gravitational, mass" value="${escapeHtml(ptText)}"/></span>
       <button type="button" onclick="removeEditMarkPointRow(${editMarkPointsCounter})" style="background:var(--error); color:white; border:none; border-radius:6px; cursor:pointer; height:38px; font-weight:bold; width: 100%;">&times;</button>
       <textarea class="edit-mp-feedback" rows="2" placeholder="Remediation tips...">${escapeHtml(fbText)}</textarea>
       <div class="edit-mp-image-row">
@@ -4752,9 +4757,11 @@
       // pool "pick N" marking lives in the answer key, so checkpoints are skipped)
       const rows = Array.from(document.querySelectorAll("#markPointsWrapper .mark-point-row"));
       if (rows.length > 0 && questionType !== "numeric" && keyType !== "pick_n") {
-        const markPayloads = await buildMarkPointPayloadsFromRows(rows, qResult.id, "creator");
-        const { error: mpErr } = await supabaseClient.from("mark_points").insert(markPayloads);
-        if (mpErr) throw mpErr;
+        const markPayloads = await buildMarkPointPayloadsFromRows(rows, qResult.id, "creator", questionType);
+        if (markPayloads.length > 0) {
+          const { error: mpErr } = await supabaseClient.from("mark_points").insert(markPayloads);
+          if (mpErr) throw mpErr;
+        }
       }
 
       if (window.AdminSkills) {
@@ -7988,9 +7995,11 @@
       if (q.question_type !== "numeric" && updatedKeyType !== "pick_n") {
         const editRows = Array.from(document.querySelectorAll("#editMarkPointsWrapper .edit-mp-row, #editMarkPointsWrapper .mark-point-row"));
         if (editRows.length > 0) {
-          const markPayloads = await buildMarkPointPayloadsFromRows(editRows, qId, "edit");
-          const { error: mpErr } = await supabaseClient.from("mark_points").insert(markPayloads);
-          if (mpErr) throw mpErr;
+          const markPayloads = await buildMarkPointPayloadsFromRows(editRows, qId, "edit", q.question_type);
+          if (markPayloads.length > 0) {
+            const { error: mpErr } = await supabaseClient.from("mark_points").insert(markPayloads);
+            if (mpErr) throw mpErr;
+          }
         }
       }
 
@@ -8167,47 +8176,6 @@
     return arr;
   }
 
-  // Fuzzy Levenshtein Match Utility
-  function getLevenshteinDistance(s1, s2) {
-    const track = Array(s2.length + 1).fill(null).map(() => Array(s1.length + 1).fill(null));
-    for (let i = 0; i <= s1.length; i += 1) track[0][i] = i;
-    for (let j = 0; j <= s2.length; j += 1) track[j][0] = j;
-    for (let j = 1; j <= s2.length; j += 1) {
-      for (let i = 1; i <= s1.length; i += 1) {
-        const indicator = s1[i - 1] === s2[j - 1] ? 0 : 1;
-        track[j][i] = Math.min(
-          track[j][i - 1] + 1, 
-          track[j - 1][i] + 1, 
-          track[j - 1][i - 1] + indicator 
-        );
-      }
-    }
-    return track[s2.length][s1.length];
-  }
-
-  // Fuzzy Levenshtein Match Helper
-  function isFuzzyMatch(userWord, targetKeyword, threshold = 0.85) {
-    const w1 = userWord.toLowerCase().trim();
-    const w2 = targetKeyword.toLowerCase().trim();
-    if (w1 === w2) return true; 
-    if (w1.length === 0 || w2.length === 0) return false;
-    const distance = getLevenshteinDistance(w1, w2);
-    const maxLength = Math.max(w1.length, w2.length);
-    const similarity = 1 - (distance / maxLength);
-    return similarity >= threshold;
-  }
-
-  // Fuzzy match logic helper
-  function checkKeywordOrSynonymsMatch(targetExpr, studentWords, rawText) {
-    if (!targetExpr) return false;
-    const synonyms = targetExpr.split('|').map(s => s.trim().toLowerCase());
-    return synonyms.some(syn => {
-      const cleanRaw = rawText.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, " ").replace(/\s+/g, " ").trim();
-      if (cleanRaw.includes(syn)) return true;
-      return studentWords.some(userWord => isFuzzyMatch(userWord, syn, 0.85));
-    });
-  }
-
   // Simulate Sandbox Mark Submission
   document.getElementById("btnSandboxSubmit").onclick = async () => {
     if (!currentSandboxedQ || !currentSandboxedKey) return;
@@ -8378,18 +8346,19 @@
         </ul>
       `;
     }
-    else if (currentSandboxedKey.key_type === "keywords" || currentSandboxedMarkPoints.length > 0) {
+    else if (currentSandboxedKey.key_type === "keywords" || getGradableMarkPoints(currentSandboxedMarkPoints).length > 0) {
       const cleanInputText = (resp.text || "").toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "");
       const studentWords = cleanInputText.split(/\s+/).filter(Boolean);
+      const gradableMarkPoints = getGradableMarkPoints(currentSandboxedMarkPoints);
       
       // Smart Multi-Mark point validation (Checkpoint Engine Mode)
-      if (currentSandboxedMarkPoints && currentSandboxedMarkPoints.length > 0) {
-        max = currentSandboxedMarkPoints.reduce((sum, mp) => sum + (mp.max_marks || 1), 0);
+      if (gradableMarkPoints.length > 0) {
+        max = gradableMarkPoints.reduce((sum, mp) => sum + (mp.max_marks || 1), 0);
         let earned = 0;
         let hitsList = [];
         let missingList = [];
         
-        currentSandboxedMarkPoints.forEach(mp => {
+        gradableMarkPoints.forEach(mp => {
           const hit = checkKeywordOrSynonymsMatch(mp.point_text, studentWords, (resp.text || ""));
           if (hit) {
             earned++;
