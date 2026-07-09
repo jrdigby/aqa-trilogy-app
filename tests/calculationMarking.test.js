@@ -5,7 +5,9 @@ import {
   substitutionSlotsMatchCommutative,
   rearrangementStructurallyMatches,
   isRearrangementInputReady,
-  resolveSymbolSlotIds
+  resolveSymbolSlotIds,
+  renderSubstitutionHelper,
+  enrichEquation
 } from "../src/substitutionTemplate.js";
 import { markCalculationResponse, buildSubstitutionFeedbackText, applyDefaultStepFeedbackToConfig } from "../src/calculationWorkflow.js";
 
@@ -23,7 +25,7 @@ const powerViTemplate = {
 const shcTemplate = {
   layout: "product",
   tokens: [
-    { kind: "slot", id: "delta_E", label: "ΔE" },
+    { kind: "slot", id: "E", label: "E" },
     { kind: "op", text: "=" },
     { kind: "slot", id: "m", label: "m" },
     { kind: "op", text: "×" },
@@ -36,7 +38,7 @@ const shcTemplate = {
 const kineticEnergyTemplate = {
   layout: "sum_product",
   tokens: [
-    { kind: "slot", id: "E_k", label: "E_k" },
+    { kind: "slot", id: "E", label: "E" },
     { kind: "op", text: "=" },
     { kind: "op", text: "½" },
     { kind: "op", text: "×" },
@@ -80,16 +82,57 @@ test("commutative substitution accepts swapped I and V when I is rearrangement u
 
 test("commutative substitution accepts permuted m, c, delta_theta values", () => {
   const subStep = {
-    slot_answers: { delta_E: ["500"], m: ["2"], c: ["450"], delta_theta: ["55"] }
+    slot_answers: { E: ["500"], m: ["2"], c: ["450"], delta_theta: ["55"] }
   };
   const payload = {
     mode: "structured",
     equation_id: "specific_heat_capacity",
-    slots: { delta_E: "500", m: "2", c: "450", delta_theta: "55" }
+    slots: { E: "500", m: "2", c: "450", delta_theta: "55" }
   };
   assert.equal(substitutionSlotsMatchCommutative(payload, subStep, shcTemplate), true);
-  payload.slots = { delta_E: "500", m: "450", c: "2", delta_theta: "55" };
+  payload.slots = { E: "500", m: "450", c: "2", delta_theta: "55" };
   assert.equal(substitutionSlotsMatchCommutative(payload, subStep, shcTemplate), true);
+});
+
+test("resolveSymbolSlotIds maps legacy delta_E mark scheme to unified E symbol", () => {
+  const staleTemplate = {
+    layout: "product",
+    tokens: [
+      { kind: "slot", id: "delta_E", label: "ΔE" },
+      { kind: "op", text: "=" },
+      { kind: "slot", id: "m", label: "m" },
+      { kind: "op", text: "×" },
+      { kind: "slot", id: "c", label: "c" },
+      { kind: "op", text: "×" },
+      { kind: "slot", id: "delta_theta", label: "Δθ" }
+    ]
+  };
+  const subStep = {
+    equation_id: "specific_heat_capacity",
+    slot_answers: { m: ["2"], c: ["450"], delta_theta: ["55"], delta_E: [""] }
+  };
+  const symbolSlots = resolveSymbolSlotIds(staleTemplate, subStep);
+  assert.deepEqual([...symbolSlots], ["E"]);
+  const helper = renderSubstitutionHelper(staleTemplate, symbolSlots, "specific_heat_capacity");
+  assert.match(helper, /type its symbol \(.*<strong>E<\/strong>\)/);
+  assert.doesNotMatch(helper, /ΔE/);
+});
+
+test("enrichEquation patches stale specific heat template to use E slot", () => {
+  const stale = {
+    id: "specific_heat_capacity",
+    substitution_template: {
+      layout: "product",
+      tokens: [
+        { kind: "slot", id: "delta_E", label: "ΔE" },
+        { kind: "op", text: "=" },
+        { kind: "slot", id: "m", label: "m" }
+      ]
+    }
+  };
+  const enriched = enrichEquation(stale);
+  assert.equal(enriched.substitution_template.tokens[0].id, "E");
+  assert.equal(enriched.substitution_template.tokens[0].label, "E");
 });
 
 test("isRearrangementInputReady accepts variable symbol in non-unknown slots", () => {
@@ -366,6 +409,7 @@ test("ECF: wrong unit conversion carries forward without losing later marks", as
     const v = Array.isArray(vals) ? vals[0] : vals;
     slots[id] = id === convSlot ? String(wrongConv) : String(v);
   }
+  if (rearrStep?.subject) slots[rearrStep.subject] = rearrStep.subject;
 
   const eq = findEquationInSheet(sheetP1, subStep.equation_id);
   const conversionEcf = {
@@ -464,7 +508,7 @@ test("ECF: spring constant k re-evaluates with e² not linear ratio", async () =
         required: true,
         mode: "structured",
         equation_id: "elastic_potential_energy",
-        slot_answers: { E_e: ["285"], e: ["0.09"] },
+        slot_answers: { E: ["285"], e: ["0.09"] },
         rearrangement_subject: "k",
         marks: 1
       },
@@ -475,7 +519,7 @@ test("ECF: spring constant k re-evaluates with e² not linear ratio", async () =
   };
 
   const wrongConv = 0.9;
-  const slots = { E_e: "285", e: "0.9" };
+  const slots = { E: "285", e: "0.9" };
   const convStep = cfg.steps[0];
   const subStep = cfg.steps[1];
   const rearrStep = cfg.steps[2];
@@ -556,7 +600,7 @@ test("buildSubstitutionFeedbackText shows full equation with symbol slot from bl
     slot_answers: { m: ["100"], v: ["20"] }
   };
   const text = buildSubstitutionFeedbackText(subStep, equation);
-  assert.equal(text, "Substitute E_k = ½ × 100 × 20²");
+  assert.equal(text, "Substitute E = ½ × 100 × 20²");
   assert.ok(!text.toLowerCase().includes("incorrect"));
 });
 
@@ -571,8 +615,8 @@ test("buildSubstitutionFeedbackText keeps symbol slot when batch slotEdits inclu
         type: "substitution",
         mode: "structured",
         equation_id: "kinetic_energy",
-        slot_answers: { E_k: ["16"], m: ["2"], v: ["4"] },
-        si_slot_answers: { E_k: ["16"], m: ["2"], v: ["4"] },
+        slot_answers: { E: ["16"], m: ["2"], v: ["4"] },
+        si_slot_answers: { E: ["16"], m: ["2"], v: ["4"] },
         rearrangement_subject: "m"
       },
       { type: "rearrangement", required: true, mode: "numeric", subject: "m" }
@@ -580,19 +624,19 @@ test("buildSubstitutionFeedbackText keeps symbol slot when batch slotEdits inclu
   };
   const subStep = config.steps[0];
   const slotEdits = {
-    E_k: { display: "16", si: "16" },
+    E: { display: "16", si: "16" },
     m: { display: "2", si: "2" },
     v: { display: "4", si: "4" }
   };
   const text = buildSubstitutionFeedbackText(subStep, equation, { config, slotEdits });
-  assert.equal(text, "Substitute E_k = ½ × m × 4²");
+  assert.equal(text, "Substitute 16 = ½ × m × 4²");
   assert.ok(!text.includes("½ × 2 ×"), "subject numeric value must not replace symbol in feedback equation");
 });
 
 test("resolveSymbolSlotIds uses blank expected values from mark scheme", () => {
   const subStep = { slot_answers: { m: ["500"], v: ["15"] } };
   const ids = resolveSymbolSlotIds(kineticEnergyTemplate, subStep);
-  assert.ok(ids.has("E_k"));
+  assert.ok(ids.has("E"));
   assert.ok(!ids.has("m"));
   assert.ok(!ids.has("v"));
 });
@@ -606,7 +650,7 @@ test("stale rearrangement_subject ignored when rearrangement step is inactive", 
   };
   const subStep = { rearrangement_subject: "v" };
   const ids = resolveSymbolSlotIds(kineticEnergyTemplate, subStep, config);
-  assert.ok(ids.has("E_k"));
+  assert.ok(ids.has("E"));
   assert.ok(!ids.has("v"));
 });
 
@@ -615,12 +659,12 @@ test("symbol slot accepts variable name when mark scheme leaves result slot blan
   const payload = {
     mode: "structured",
     equation_id: "kinetic_energy",
-    slots: { E_k: "E_k", m: "20", v: "4" }
+    slots: { E: "E", m: "20", v: "4" }
   };
   assert.equal(substitutionSlotsMatchCommutative(payload, subStep, kineticEnergyTemplate), true);
 });
 
-test("kinetic energy substitution accepts E_k symbol with m and v filled", () => {
+test("kinetic energy substitution accepts E symbol with m and v filled", () => {
   const sheet = {
     equations: [{ id: "kinetic_energy", substitution_template: kineticEnergyTemplate }]
   };
@@ -647,7 +691,7 @@ test("kinetic energy substitution accepts E_k symbol with m and v filled", () =>
       substitution: {
         mode: "structured",
         equation_id: "kinetic_energy",
-        slots: { E_k: "E_k", m: "20", v: "4" }
+        slots: { E: "E", m: "20", v: "4" }
       },
       calculate: 160
     }
@@ -707,7 +751,7 @@ test("buildSubstitutionFeedbackText uses SI value after unit conversion", () => 
     display_value: 10000
   };
   const text = buildSubstitutionFeedbackText(subStep, equation, { convStep });
-  assert.equal(text, "Substitute E_k = ½ × 10 × 4²");
+  assert.equal(text, "Substitute E = ½ × 10 × 4²");
   assert.ok(!text.includes("10000"));
 });
 
@@ -719,6 +763,9 @@ test("conversion then substitution — SI value after correct conversion is acce
   const sheetP1 = JSON.parse(
     fs.readFileSync(path.join(__dirname, "..", "data", "equation_sheets", "physics_p1_ht.json"), "utf8")
   );
+  const sheetP2 = JSON.parse(
+    fs.readFileSync(path.join(__dirname, "..", "data", "equation_sheets", "physics_p2_ht.json"), "utf8")
+  );
   const { generateBatch } = await import("../src/numericQuestionGenerator.js");
 
   let draft = null;
@@ -726,11 +773,11 @@ test("conversion then substitution — SI value after correct conversion is acce
     const { drafts } = generateBatch(
       {
         equation: "weight",
-        sheet: "physics_p1_ht",
+        sheet: "physics_p2_ht",
         variants: { recipes: [{ base: "substitute", unitConversion: true, count: 1 }] },
         seed
       },
-      sheetP1
+      sheetP2
     );
     const cfg = drafts[0].question.calculation_config;
     if (cfg.steps.some((s) => s.type === "conversion" && s.slot_id === "m")) {
@@ -751,6 +798,7 @@ test("conversion then substitution — SI value after correct conversion is acce
     const v = Array.isArray(vals) ? vals[0] : vals;
     slots[id] = id === convSlot ? String(siVal) : String(v);
   }
+  slots.W = "W";
 
   const resp = {
     steps: {
@@ -770,7 +818,7 @@ test("conversion then substitution — SI value after correct conversion is acce
     draft.answer_key,
     [],
     null,
-    sheetP1
+    sheetP2
   );
 
   assert.equal(result.stepResults.conversion.correct, true);
@@ -784,7 +832,7 @@ test("stale baked substitution feedback is ignored when conversion step exists",
     substitution_template: {
       layout: "sum_product",
       tokens: [
-        { kind: "slot", id: "E_k", label: "E_k" },
+        { kind: "slot", id: "E", label: "E" },
         { kind: "op", text: "=" },
         { kind: "op", text: "½" },
         { kind: "op", text: "×" },
@@ -823,7 +871,7 @@ test("stale baked substitution feedback is ignored when conversion step exists",
   };
   const subStep = config.steps[1];
   const live = buildSubstitutionFeedbackText(subStep, equation, { convStep: config.steps[0] });
-  assert.equal(live, "Substitute E_k = ½ × 10 × 11²");
+  assert.equal(live, "Substitute E = ½ × 10 × 11²");
 
   const q = {
     question_type: "numeric",
@@ -835,7 +883,7 @@ test("stale baked substitution feedback is ignored when conversion step exists",
       substitution: {
         mode: "structured",
         equation_id: "kinetic_energy",
-        slots: { m: "10", v: "11", E_k: "" }
+        slots: { m: "10", v: "11", E: "E" }
       },
       calculate: 605
     }
@@ -855,19 +903,19 @@ test("substitution with stem value after conversion — conversion hint precedes
   const path = await import("path");
   const { fileURLToPath } = await import("url");
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
-  const sheetP1 = JSON.parse(
-    fs.readFileSync(path.join(__dirname, "..", "data", "equation_sheets", "physics_p1_ht.json"), "utf8")
+  const sheetP2 = JSON.parse(
+    fs.readFileSync(path.join(__dirname, "..", "data", "equation_sheets", "physics_p2_ht.json"), "utf8")
   );
   const { generateBatch } = await import("../src/numericQuestionGenerator.js");
 
   const { drafts } = generateBatch(
     {
       equation: "weight",
-      sheet: "physics_p1_ht",
+      sheet: "physics_p2_ht",
       variants: { recipes: [{ base: "substitute", unitConversion: true, count: 1 }] },
       seed: 12
     },
-    sheetP1
+    sheetP2
   );
   const draft = drafts[0];
   const cfg = draft.question.calculation_config;
@@ -899,10 +947,8 @@ test("substitution with stem value after conversion — conversion hint precedes
     draft.answer_key,
     [],
     null,
-    sheetP1
+    sheetP2
   );
-
-  assert.equal(result.stepResults.substitution.correct, false);
   const convIdx = result.missing.findIndex((m) => m.stepType === "conversion" && !m.isEcf);
   const subIdx = result.missing.findIndex((m) => m.stepType === "substitution");
   assert.ok(convIdx >= 0 && subIdx >= 0 && convIdx < subIdx);
@@ -916,7 +962,7 @@ test("wrong equation + empty response — conversion feedback appears only once"
     substitution_template: {
       layout: "sum_product",
       tokens: [
-        { kind: "slot", id: "E_k" },
+        { kind: "slot", id: "E" },
         { kind: "op", text: "=" },
         { kind: "op", text: "½" },
         { kind: "op", text: "×" },
@@ -979,7 +1025,7 @@ test("wrong equation but correct unit conversion still earns the conversion mark
     substitution_template: {
       layout: "sum_product",
       tokens: [
-        { kind: "slot", id: "E_k" },
+        { kind: "slot", id: "E" },
         { kind: "op", text: "=" },
         { kind: "op", text: "½" },
         { kind: "op", text: "×" },

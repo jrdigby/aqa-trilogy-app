@@ -170,7 +170,7 @@ test("solveForSubject — efficiency energy rearranged for E_useful", () => {
 
 test("solveForSubject — gravitational potential energy rearranged for h", () => {
   const eq = findEq(sheetP1, "gravitational_potential_energy");
-  const slots = { E_p: "200", m: "4", g: "10" };
+  const slots = { E: "200", m: "4", g: "10" };
   const h = solveForSubject(eq, slots, "h");
   assert.ok(Math.abs(h - 5) < 0.001, `expected h=5, got ${h}`);
 });
@@ -226,7 +226,7 @@ test("generateBatch — charge flow rearrangement uses subject unit not result u
 });
 
 test("buildCalculationConfigForVariant — substitute vs optional rearrangement", () => {
-  const slotAnswers = { m: ["2"], v: ["4"], E_k: ["16"] };
+  const slotAnswers = { m: ["2"], v: ["4"], E: ["16"] };
   const sub = buildCalculationConfigForVariant("substitute", {
     equationId: "kinetic_energy",
     sheetId: "physics_p1_ht",
@@ -529,6 +529,7 @@ test("generateBatch — structured substitution marks full marks for kinetic ene
   for (const [id, vals] of Object.entries(subStep.slot_answers || {})) {
     slots[id] = Array.isArray(vals) ? vals[0] : vals;
   }
+  slots.E = "E";
 
   const resp = {
     steps: {
@@ -562,13 +563,13 @@ test("auto rearrangement mixes subjects across drafts", () => {
   assert.ok(subjects.size >= 2, "expected mix of rearrangement unknowns");
 });
 
-test("getDraftGivenSlotIds — rearrange for k includes energy (E_e) and extension", () => {
+test("getDraftGivenSlotIds — rearrange for k includes energy (E) and extension", () => {
   const eq = findEq(sheetP1, "elastic_potential_energy");
   const ids = getDraftGivenSlotIds(
     { variant: { base: "substitute", rearrangement: true }, rearrangement_subject: "k" },
     eq
   );
-  assert.deepEqual(ids.sort(), ["E_e", "e"]);
+  assert.deepEqual(ids.sort(), ["E", "e"]);
 });
 
 test("recomputeBatchDraft — editing given values updates rearrangement prompt", () => {
@@ -584,9 +585,9 @@ test("recomputeBatchDraft — editing given values updates rearrangement prompt"
     sheetP1
   );
   const draft = drafts[0];
-  assert.ok(draft.slot_edits.E_e, "energy slot should be editable when solving for k");
+  assert.ok(draft.slot_edits.E, "energy slot should be editable when solving for k");
   assert.ok(draft.slot_edits.e?.convertible, "extension should offer unit options");
-  assert.ok(draft.slot_edits.E_e?.convertible, "energy should offer kJ/MJ options");
+  assert.ok(draft.slot_edits.E?.convertible, "energy should offer kJ/MJ options");
   draft.slot_edits.e.display = "0.1";
   recomputeBatchDraft(draft, eq, sheetP1);
   assert.ok(draft.question.prompt.includes("0.1"));
@@ -599,7 +600,7 @@ test("parseSlotDisplayInput — typed value with unit", () => {
   assert.equal(parsed.unit, "cm");
   assert.equal(parsed.factor, 0.01);
 
-  const energyOpts = listConversionUnitOptions("E_e");
+  const energyOpts = listConversionUnitOptions("E");
   assert.ok(energyOpts.some((o) => o.fromUnit === "kJ"));
   assert.ok(energyOpts.some((o) => o.fromUnit === "MJ"));
 });
@@ -628,7 +629,7 @@ test("conversion + substitution (no rearrangement) — substitution feedback sho
   const eq = findEq(sheetP1, "kinetic_energy");
   const expected = buildSubstitutionFeedbackText(subStep, eq, { convStep, config: cfg });
   assert.equal(subStep.feedback_if_wrong, expected);
-  assert.match(subStep.feedback_if_wrong, /^Substitute E_k = /);
+  assert.match(subStep.feedback_if_wrong, /^Substitute E = /);
   assert.ok(subStep.feedback_if_wrong.includes(siVal), `feedback should use SI value in equation: ${subStep.feedback_if_wrong}`);
   assert.ok(!subStep.feedback_if_wrong.includes(String(convStep.display_value)), `feedback should not use stem display: ${subStep.feedback_if_wrong}`);
 });
@@ -704,8 +705,8 @@ test("rearrangement for v shows v² on LHS", async () => {
   const { buildNumericRearrangementOptions } = await import("../src/substitutionTemplate.js");
   const eq = findEq(sheetP1, "kinetic_energy");
   const subStep = {
-    slot_answers: { E_k: ["16"], m: ["2"] },
-    si_slot_answers: { E_k: ["16"], m: ["2"] },
+    slot_answers: { E: ["16"], m: ["2"] },
+    si_slot_answers: { E: ["16"], m: ["2"] },
     rearrangement_subject: "v"
   };
   const rearrStep = { mode: "numeric", subject: "v" };
@@ -716,7 +717,7 @@ test("rearrangement for v shows v² on LHS", async () => {
 
 test("buildPrompt appends sig figs instruction", () => {
   const eq = findEq(sheetP1, "kinetic_energy");
-  const prompt = buildPrompt(eq, "substitute", { m: "2", v: "3", E_k: "9" }, {
+  const prompt = buildPrompt(eq, "substitute", { m: "2", v: "3", E: "9" }, {
     equationGiven: true,
     sigFigsCount: 2
   });

@@ -1914,10 +1914,10 @@
                 </div>
                 <div id="CalcSubstitutionFreeTextPanel">
                   <label title="Each line is a valid substitution the student may enter. Include units if your mark scheme expects them.">Accepted substitution lines (one per line)</label>
-                  <textarea id="CalcSubstitutionAccepted" rows="3" placeholder="e.g.&#10;E_k = 0.5 × 2.0 × 4.0²&#10;E_k = 0.5 * 2.0 * 4.0^2" title="One accepted substitution per line"></textarea>
+                  <textarea id="CalcSubstitutionAccepted" rows="3" placeholder="e.g.&#10;E = 0.5 × 2.0 × 4.0²&#10;E = 0.5 * 2.0 * 4.0^2" title="One accepted substitution per line"></textarea>
                 </div>
                 <label style="display:block;margin-top:8px;font-size:0.78rem;color:var(--text-muted);">Feedback if wrong (optional)</label>
-                <textarea id="CalcSubstitutionFeedback" class="calc-step-feedback" rows="2" placeholder="e.g. Substitute E_k = ½ × 2.0 × 4.0²"></textarea>
+                <textarea id="CalcSubstitutionFeedback" class="calc-step-feedback" rows="2" placeholder="e.g. Substitute E = ½ × 2.0 × 4.0²"></textarea>
               </div>
               <div id="CalcPanelConversion" class="hidden" style="border-top:1px solid var(--border);padding-top:10px;margin-bottom:10px;">
                 <h4 class="calc-step-panel-title">Unit conversion step</h4>
@@ -2936,10 +2936,10 @@
               </div>
               <div id="editCalcSubstitutionFreeTextPanel">
                 <label title="One valid substitution per line">Accepted substitution lines (one per line)</label>
-                <textarea id="editCalcSubstitutionAccepted" rows="3" placeholder="e.g.&#10;E_k = 0.5 × 2.0 × 4.0²"></textarea>
+                <textarea id="editCalcSubstitutionAccepted" rows="3" placeholder="e.g.&#10;E = 0.5 × 2.0 × 4.0²"></textarea>
               </div>
               <label style="display:block;margin-top:8px;font-size:0.78rem;color:var(--text-muted);">Feedback if wrong (optional)</label>
-              <textarea id="editCalcSubstitutionFeedback" class="calc-step-feedback" rows="2" placeholder="e.g. Substitute E_k = ½ × 2.0 × 4.0²"></textarea>
+              <textarea id="editCalcSubstitutionFeedback" class="calc-step-feedback" rows="2" placeholder="e.g. Substitute E = ½ × 2.0 × 4.0²"></textarea>
             </div>
             <div id="editCalcPanelConversion" class="hidden" style="border-top:1px solid var(--border);padding-top:8px;margin-bottom:8px;">
               <h4 class="calc-step-panel-title">Unit conversion step</h4>
@@ -3222,6 +3222,7 @@
   import { supabaseClient } from "./src/dbClient.js";
   import * as CalcWorkflow from "./src/calculationWorkflow.js";
   import * as NumericGen from "./src/numericQuestionGenerator.js";
+  import { initSubstitutionTemplateCatalog } from "./src/substitutionTemplate.js";
   import * as McqBatchGen from "./src/mcqBatchGenerator.js";
   import * as AiQuestionDraft from "./src/aiQuestionDraft.js";
   import * as CsvImport from "./src/csvQuestionImport.js";
@@ -3236,6 +3237,10 @@
   window.resolveMcqWrongFeedback = resolveMcqWrongFeedback;
   window.MCQ_FLASHCARD_ADDED_MSG = MCQ_FLASHCARD_ADDED_MSG;
   window.checkKeywordOrSynonymsMatch = checkKeywordOrSynonymsMatch;
+
+  initSubstitutionTemplateCatalog().catch((err) => {
+    console.warn("Substitution template catalog:", err.message);
+  });
 
   let currentAuthSessionUser = null;
   let loadedQuestionsCache = [];
@@ -5655,6 +5660,11 @@
       }
     }
     currentSandboxedEquationSheet = sheet;
+    await initSubstitutionTemplateCatalog();
+    if (currentSandboxedEquationSheet?.equations?.length) {
+      const { enrichEquationSheet } = await import("./src/substitutionTemplate.js");
+      currentSandboxedEquationSheet = enrichEquationSheet(currentSandboxedEquationSheet);
+    }
 
     const stage = document.getElementById("sandboxStage");
     const feedbackCard = document.getElementById("sandboxFeedbackCard");

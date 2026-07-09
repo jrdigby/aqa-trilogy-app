@@ -305,7 +305,7 @@
       "substitution_template": {
         "layout": "product",
         "tokens": [
-          { "kind": "slot", "id": "E_p", "label": "E_p" },
+          { "kind": "slot", "id": "E", "label": "E" },
           { "kind": "op", "text": "=" },
           { "kind": "slot", "id": "m", "label": "m" },
           { "kind": "op", "text": "×" },
@@ -317,7 +317,7 @@
       "rearrangement_forms": {
         "default_subject": "h",
         "variants": [
-          { "subject": "h", "correct": "h = E_p / (m × g)", "distractor_patterns": ["invert_fraction", "multiply_instead"] }
+          { "subject": "h", "correct": "h = E / (m × g)", "distractor_patterns": ["invert_fraction", "multiply_instead"] }
         ]
       }
     },
@@ -345,7 +345,7 @@
       "substitution_template": {
         "layout": "product",
         "tokens": [
-          { "kind": "slot", "id": "delta_E", "label": "ΔE" },
+          { "kind": "slot", "id": "E", "label": "E" },
           { "kind": "op", "text": "=" },
           { "kind": "slot", "id": "m", "label": "m" },
           { "kind": "op", "text": "×" },
@@ -357,21 +357,27 @@
       "rearrangement_forms": {
         "default_subject": "c",
         "variants": [
-          { "subject": "c", "correct": "c = delta_E / (m × delta_theta)", "distractor_patterns": ["invert_fraction", "multiply_instead"] }
+          { "subject": "c", "correct": "c = E / (m × delta_theta)", "distractor_patterns": ["invert_fraction", "multiply_instead"] }
         ]
       }
     },
     "transformer": {
       "substitution_template": {
-        "layout": "product",
-        "tokens": [
+        "layout": "fraction",
+        "lhs": [{ "kind": "slot", "id": "V_s", "label": "V_s" }],
+        "numerator": [
           { "kind": "slot", "id": "V_p", "label": "V_p" },
           { "kind": "op", "text": "×" },
-          { "kind": "slot", "id": "I_p", "label": "I_p" },
-          { "kind": "op", "text": "=" },
-          { "kind": "slot", "id": "V_s", "label": "V_s" },
-          { "kind": "op", "text": "×" },
-          { "kind": "slot", "id": "I_s", "label": "I_s" }
+          { "kind": "slot", "id": "I_p", "label": "I_p" }
+        ],
+        "denominator": [{ "kind": "slot", "id": "I_s", "label": "I_s" }]
+      },
+      "rearrangement_forms": {
+        "default_subject": "I_s",
+        "variants": [
+          { "subject": "V_p", "correct": "V_p = V_s × I_s / I_p", "distractor_patterns": ["invert_fraction", "multiply_instead"] },
+          { "subject": "I_p", "correct": "I_p = V_s × I_s / V_p", "distractor_patterns": ["invert_fraction", "multiply_instead"] },
+          { "subject": "I_s", "correct": "I_s = V_p × I_p / V_s", "distractor_patterns": ["invert_fraction", "multiply_instead"] }
         ]
       }
     },
@@ -444,7 +450,7 @@
         "layout": "fraction",
         "lhs": [{ "kind": "slot", "id": "rho", "label": "ρ" }],
         "numerator": [{ "kind": "slot", "id": "m", "label": "m" }],
-        "denominator": [{ "kind": "slot", "id": "V", "label": "V" }]
+        "denominator": [{ "kind": "slot", "id": "V", "label": "volume" }]
       },
       "rearrangement_forms": {
         "default_subject": "m",
@@ -525,7 +531,7 @@
       "substitution_template": {
         "layout": "sum_product",
         "tokens": [
-          { "kind": "slot", "id": "E_k", "label": "E_k" },
+          { "kind": "slot", "id": "E", "label": "E" },
           { "kind": "op", "text": "=" },
           { "kind": "op", "text": "½" },
           { "kind": "op", "text": "×" },
@@ -538,8 +544,8 @@
       "rearrangement_forms": {
         "default_subject": "v",
         "variants": [
-          { "subject": "v", "correct": "v² = 2 × E_k / m", "distractor_patterns": ["invert_fraction", "multiply_instead"] },
-          { "subject": "m", "correct": "m = 2 × E_k / v²", "distractor_patterns": ["invert_fraction", "multiply_instead"] }
+          { "subject": "v", "correct": "v² = 2 × E / m", "distractor_patterns": ["invert_fraction", "multiply_instead"] },
+          { "subject": "m", "correct": "m = 2 × E / v²", "distractor_patterns": ["invert_fraction", "multiply_instead"] }
         ]
       }
     },
@@ -547,7 +553,7 @@
       "substitution_template": {
         "layout": "sum_product",
         "tokens": [
-          { "kind": "slot", "id": "E_e", "label": "E_e" },
+          { "kind": "slot", "id": "E", "label": "E" },
           { "kind": "op", "text": "=" },
           { "kind": "op", "text": "½" },
           { "kind": "op", "text": "×" },
@@ -560,8 +566,8 @@
       "rearrangement_forms": {
         "default_subject": "e",
         "variants": [
-          { "subject": "e", "correct": "e² = 2 × E_e / k", "distractor_patterns": ["invert_fraction", "multiply_instead"] },
-          { "subject": "k", "correct": "k = 2 × E_e / e²", "distractor_patterns": ["invert_fraction", "multiply_instead"] }
+          { "subject": "e", "correct": "e² = 2 × E / k", "distractor_patterns": ["invert_fraction", "multiply_instead"] },
+          { "subject": "k", "correct": "k = 2 × E / e²", "distractor_patterns": ["invert_fraction", "multiply_instead"] }
         ]
       }
     },

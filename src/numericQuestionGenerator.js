@@ -3,7 +3,10 @@ import {
   getSubstitutionTemplate,
   getSlotIdsFromTemplate,
   findEquationInSheet,
-  listRearrangementSubjectIds
+  listRearrangementSubjectIds,
+  slotLabelFromTemplate,
+  enrichEquationSheet,
+  initSubstitutionTemplateCatalog
 } from "./substitutionTemplate.js";
 import {
   buildCalculationConfigForVariant,
@@ -82,7 +85,12 @@ const SUBJECT_UNITS = {
   E_useful: "J",
   E_in: "J",
   P_useful: "W",
-  P_in: "W"
+  P_in: "W",
+  V_p: "V",
+  V_s: "V",
+  I_p: "A",
+  I_s: "A",
+  vol: "m³"
 };
 
 /** Human-readable names for prompt text. */
@@ -91,6 +99,7 @@ const SLOT_PROMPT_LABELS = {
   m: "mass",
   v: "velocity",
   k: "spring constant",
+  E: "energy",
   E_k: "kinetic energy",
   E_e: "elastic potential energy",
   E_p: "gravitational potential energy",
@@ -119,7 +128,11 @@ const SLOT_PROMPT_LABELS = {
   E_useful: "useful output energy",
   E_in: "total input energy",
   P_useful: "useful power output",
-  P_in: "total power input"
+  P_in: "total power input",
+  V_p: "primary potential difference",
+  V_s: "secondary potential difference",
+  I_p: "primary current",
+  I_s: "secondary current"
 };
 
 /** Default numeric ranges for common slot ids when spec omits ranges. */
@@ -159,7 +172,11 @@ const DEFAULT_SLOT_RANGES = {
   E_in: { min: 5000, max: 12000, step: 100 },
   P_useful: { min: 50, max: 400, step: 10 },
   P_in: { min: 500, max: 2000, step: 50 },
-  efficiency: { min: 0.15, max: 0.85, step: 0.05 }
+  efficiency: { min: 0.15, max: 0.85, step: 0.05 },
+  V_p: { min: 100, max: 25000, step: 100 },
+  V_s: { min: 5, max: 240, step: 1 },
+  I_p: { min: 0.01, max: 5, step: 0.01 },
+  I_s: { min: 0.1, max: 50, step: 0.1 }
 };
 
 const EFFICIENCY_EQUATION_IDS = new Set(["efficiency_energy", "efficiency_power"]);
@@ -215,6 +232,8 @@ const PROMPT_TEMPLATES = {
     "A resistor has resistance {R} Ω and current {I} A. Calculate the potential difference.",
   power_vi: "An appliance operates at {I} A and {V} V. Calculate the power.",
   density: "Calculate the density of a substance of mass {m} kg and volume {V} m³.",
+  transformer:
+    "A transformer has primary voltage {V_p} V, primary current {I_p} A, and secondary current {I_s} A. Calculate the secondary voltage.",
   wave_speed: "A wave has frequency {f} Hz and wavelength {lambda} m. Calculate the wave speed.",
   gravitational_potential_energy:
     "Calculate the gravitational potential energy of a {m} kg object raised {h} m. Use g = {g} N/kg.",
@@ -308,8 +327,15 @@ function slotNumericValue(slots, slotId) {
 }
 
 export function getSlotPromptLabel(slotId, equation = null) {
-  if (SLOT_PROMPT_LABELS[slotId]) return SLOT_PROMPT_LABELS[slotId];
   const template = equation ? getSubstitutionTemplate(equation) : null;
+  if (template) {
+    const tplLabel = slotLabelFromTemplate(template, slotId);
+    if (tplLabel && tplLabel !== slotId && tplLabel.length > 2) {
+      return String(tplLabel).replace(/Δ/g, "change in ");
+    }
+  }
+  if (equation?.id === "density" && slotId === "V") return "volume";
+  if (SLOT_PROMPT_LABELS[slotId]) return SLOT_PROMPT_LABELS[slotId];
   const token = template?.tokens?.find((t) => t.kind === "slot" && t.id === slotId);
   if (token?.label) return String(token.label).replace(/Δ/g, "change in ");
   return slotId;
@@ -450,25 +476,55 @@ export function solveForSubject(equation, slots, subject) {
   }
 
   if (template.layout === "sum_product") {
+    const energy = () => val("E") ?? val("E_k") ?? val("E_e") ?? val("E_p");
     if (subject === "v") {
-      const Ek = val("E_k");
+      const Ek = energy();
       const m = val("m");
       if (Number.isFinite(Ek) && Number.isFinite(m) && m > 0) return Math.sqrt(2 * Ek / m);
     }
     if (subject === "m") {
-      const Ek = val("E_k");
+      const Ek = energy();
       const v = val("v");
       if (Number.isFinite(Ek) && Number.isFinite(v) && v > 0) return (2 * Ek) / (v * v);
     }
     if (subject === "e") {
-      const Ee = val("E_e");
+      const Ee = energy();
       const k = val("k");
       if (Number.isFinite(Ee) && Number.isFinite(k) && k > 0) return Math.sqrt(2 * Ee / k);
     }
     if (subject === "k") {
-      const Ee = val("E_e");
+      const Ee = energy();
       const e = val("e");
       if (Number.isFinite(Ee) && Number.isFinite(e) && e > 0) return (2 * Ee) / (e * e);
+    }
+    if (subject === "I") {
+      const P = val("P");
+      const R = val("R");
+      if (Number.isFinite(P) && Number.isFinite(R) && R > 0) return Math.sqrt(P / R);
+    }
+    if (subject === "R") {
+      const P = val("P");
+      const I = val("I");
+      if (Number.isFinite(P) && Number.isFinite(I) && I > 0) return P / (I * I);
+    }
+  }
+
+  if (equation.id === "transformer") {
+    const Vp = val("V_p");
+    const Ip = val("I_p");
+    const Vs = val("V_s");
+    const Is = val("I_s");
+    if (subject === "V_s" && Number.isFinite(Vp) && Number.isFinite(Ip) && Number.isFinite(Is) && Is !== 0) {
+      return (Vp * Ip) / Is;
+    }
+    if (subject === "V_p" && Number.isFinite(Vs) && Number.isFinite(Is) && Number.isFinite(Ip) && Ip !== 0) {
+      return (Vs * Is) / Ip;
+    }
+    if (subject === "I_p" && Number.isFinite(Vs) && Number.isFinite(Is) && Number.isFinite(Vp) && Vp !== 0) {
+      return (Vs * Is) / Vp;
+    }
+    if (subject === "I_s" && Number.isFinite(Vp) && Number.isFinite(Ip) && Number.isFinite(Vs) && Vs !== 0) {
+      return (Vp * Ip) / Vs;
     }
   }
 
@@ -841,11 +897,12 @@ export function suggestBatchSkills(draft, subject = "physics") {
 }
 
 export async function loadEquationSheet(sheetId, baseUrl = "") {
+  await initSubstitutionTemplateCatalog(baseUrl);
   const prefix = baseUrl.replace(/\/?$/, "/");
   const res = await fetch(`${prefix}data/equation_sheets/${sheetId}.json`);
   if (!res.ok) throw new Error(`Failed to load equation sheet "${sheetId}": ${res.status}`);
   const data = await res.json();
-  return { id: data.id || sheetId, equations: data.equations || [], ...data };
+  return enrichEquationSheet({ id: data.id || sheetId, equations: data.equations || [], ...data });
 }
 
 export function findEquationByTopic(sheet, topic) {
@@ -875,7 +932,8 @@ function slotAnswersForConfig(slot_answers) {
 }
 
 /** SI unit for a template slot (for conversion dropdowns and typed values). */
-export function getSlotSiUnit(slotId) {
+export function getSlotSiUnit(slotId, equation = null) {
+  if (equation?.id === "density" && slotId === "V") return "m³";
   if (SUBJECT_UNITS[slotId]) return SUBJECT_UNITS[slotId];
   if (/^(E_k|E_e|E_p|delta_E|E_useful|E_in)$/.test(slotId)) return "J";
   if (/^(P|P_useful|P_in)$/.test(slotId)) return "W";
@@ -926,7 +984,7 @@ export function parseSlotDisplayInput(raw, slotId, existingEdit = null) {
 }
 
 /** Unit conversion options for a slot (for admin batch editor). */
-export function listConversionUnitOptions(slotId) {
+export function listConversionUnitOptions(slotId, equation = null) {
   const options = [];
   const seen = new Set();
   const add = (rule) => {
@@ -937,7 +995,7 @@ export function listConversionUnitOptions(slotId) {
   for (const rule of CONVERSION_CATALOG) {
     if (rule.slotPattern.test(slotId)) add(rule);
   }
-  const siUnit = getSlotSiUnit(slotId);
+  const siUnit = getSlotSiUnit(slotId, equation);
   if (siUnit && !seen.has(siUnit)) {
     options.unshift({ fromUnit: siUnit, toUnit: siUnit, factor: 1, isSi: true });
   }
@@ -1039,8 +1097,8 @@ export function buildSlotEdits(equation, slots, promptOverrides, conversionMeta,
   const edits = {};
   for (const id of givenSlotIds) {
     const si = slotNumericValue(slots, id);
-    const unitOptions = listConversionUnitOptions(id);
-    const siUnit = getSlotSiUnit(id) || unitOptions.find((o) => o.isSi)?.fromUnit || unitOptions[0]?.toUnit || "";
+    const unitOptions = listConversionUnitOptions(id, equation);
+    const siUnit = getSlotSiUnit(id, equation) || unitOptions.find((o) => o.isSi)?.fromUnit || unitOptions[0]?.toUnit || "";
     const hasAltUnits = unitOptions.some((o) => !o.isSi && o.factor !== 1);
 
     if (conversionMeta?.slotId === id) {

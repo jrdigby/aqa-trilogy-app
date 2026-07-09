@@ -10,6 +10,147 @@ const SLOT_ID_ALIASES = {
   "λ": "lambda"
 };
 
+/** Legacy energy slot ids unified to E in substitution templates. */
+const LEGACY_ENERGY_SLOT_IDS = new Set(["E_k", "E_e", "E_p", "delta_E"]);
+
+/** Equations that use unified E in the central catalog (even if a stored sheet row is stale). */
+const UNIFIED_ENERGY_EQUATION_IDS = new Set([
+  "kinetic_energy",
+  "elastic_potential_energy",
+  "gravitational_potential_energy",
+  "specific_heat_capacity"
+]);
+
+let templateCatalog = null;
+let catalogLoadPromise = null;
+
+function catalogJsonUrl(baseUrl = "") {
+  if (baseUrl) {
+    const prefix = String(baseUrl).replace(/\/?$/, "/");
+    return `${prefix}data/equation_sheets/substitution_templates.json`;
+  }
+  return new URL("../data/equation_sheets/substitution_templates.json", import.meta.url).href;
+}
+
+function ensureCatalogLoadedSync() {
+  return templateCatalog || {};
+}
+
+function loadCatalogFromUrl(baseUrl = "") {
+  return fetch(catalogJsonUrl(baseUrl))
+    .then((res) => {
+      if (!res.ok) throw new Error(`Failed to load substitution templates: ${res.status}`);
+      return res.json();
+    })
+    .then((data) => {
+      templateCatalog = data.templates || {};
+      return templateCatalog;
+    });
+}
+
+/** Load central substitution templates. Call once at app startup (browser or Node). */
+export async function initSubstitutionTemplateCatalog(baseUrl = "") {
+  if (templateCatalog && Object.keys(templateCatalog).length) return templateCatalog;
+  if (!catalogLoadPromise) {
+    catalogLoadPromise = loadCatalogFromUrl(baseUrl);
+  }
+  return catalogLoadPromise;
+}
+
+if (typeof window !== "undefined") {
+  catalogLoadPromise = loadCatalogFromUrl().catch(() => {
+    catalogLoadPromise = null;
+    return {};
+  });
+}
+
+function getCatalogEntry(equationId) {
+  ensureCatalogLoadedSync();
+  return templateCatalog?.[equationId] || null;
+}
+
+function templateUsesEnergyE(template, equationId = null) {
+  if (getSlotIdsFromTemplate(template).includes("E")) return true;
+  if (equationId && UNIFIED_ENERGY_EQUATION_IDS.has(equationId)) return true;
+  const catalogTemplate = equationId ? getCatalogEntry(equationId)?.substitution_template : null;
+  return !!catalogTemplate && getSlotIdsFromTemplate(catalogTemplate).includes("E");
+}
+
+/** Map legacy energy slot ids to canonical E when the equation uses unified energy symbol. */
+export function canonicalSymbolSlotId(template, slotId, equationId = null) {
+  if (!slotId) return slotId;
+  if (templateUsesEnergyE(template, equationId) && (LEGACY_ENERGY_SLOT_IDS.has(slotId) || slotId === "E")) {
+    return "E";
+  }
+  return slotId;
+}
+
+function patchLegacyEnergySlotsInTemplate(template) {
+  if (!template) return template;
+  const patchItems = (items) => (items || []).map((item) => {
+    if (item.kind !== "slot" || !LEGACY_ENERGY_SLOT_IDS.has(item.id)) return item;
+    return { ...item, id: "E", label: "E" };
+  });
+  if (template.layout === "fraction") {
+    return {
+      ...template,
+      lhs: patchItems(template.lhs),
+      numerator: patchItems(template.numerator),
+      denominator: patchItems(template.denominator)
+    };
+  }
+  return { ...template, tokens: patchItems(template.tokens) };
+}
+
+/** Overlay canonical templates from substitution_templates.json onto an equation row. */
+export function enrichEquation(equation) {
+  if (!equation?.id) return equation;
+  const entry = getCatalogEntry(equation.id);
+  if (entry) {
+    return {
+      ...equation,
+      substitution_template: entry.substitution_template || equation.substitution_template,
+      rearrangement_forms: entry.rearrangement_forms ?? equation.rearrangement_forms
+    };
+  }
+  if (UNIFIED_ENERGY_EQUATION_IDS.has(equation.id) && equation.substitution_template) {
+    return {
+      ...equation,
+      substitution_template: patchLegacyEnergySlotsInTemplate(equation.substitution_template)
+    };
+  }
+  return equation;
+}
+
+export function enrichEquationSheet(sheet) {
+  if (!sheet?.equations) return sheet;
+  return { ...sheet, equations: sheet.equations.map(enrichEquation) };
+}
+
+/** Remap legacy energy slot keys in mark-scheme answers to canonical E. */
+export function normalizeLegacySlotAnswers(slotAnswers, template) {
+  if (!slotAnswers || !template) return { ...(slotAnswers || {}) };
+  const ids = new Set(getSlotIdsFromTemplate(template));
+  const usesUnifiedE = ids.has("E")
+    || [...ids].some((id) => LEGACY_ENERGY_SLOT_IDS.has(id));
+  if (!usesUnifiedE) return { ...slotAnswers };
+  const out = { ...slotAnswers };
+  for (const legacy of LEGACY_ENERGY_SLOT_IDS) {
+    if (!(legacy in out)) continue;
+    if (isBlankSlotAnswer(out.E)) {
+      out.E = out[legacy];
+    }
+    delete out[legacy];
+  }
+  return out;
+}
+
+export function symbolLabelForHelper(template, slotId, equationId = null) {
+  const canonical = canonicalSymbolSlotId(template, slotId, equationId);
+  if (canonical === "E") return "E";
+  return slotLabelFromTemplate(template, canonical) || canonical;
+}
+
 export function normalizeSlotValue(text) {
   return String(text ?? "")
     .trim()
@@ -24,9 +165,10 @@ export function normalizeSlotValue(text) {
 export function findEquationInSheet(equationSheet, equationId) {
   const needle = String(equationId || "").trim();
   if (!needle || !equationSheet?.equations) return null;
-  return equationSheet.equations.find(
-    (eq) => eq.id === needle || eq.label === needle
+  const eq = equationSheet.equations.find(
+    (e) => e.id === needle || e.label === needle
   ) || null;
+  return eq ? enrichEquation(eq) : null;
 }
 
 export function resolveEquationIdForSubstitution(config, equationSheet, subStep, options = {}) {
@@ -49,7 +191,8 @@ export function resolveEquationIdForSubstitution(config, equationSheet, subStep,
 }
 
 export function getSubstitutionTemplate(equation) {
-  return equation?.substitution_template || null;
+  const enriched = equation?.id ? enrichEquation(equation) : equation;
+  return enriched?.substitution_template || null;
 }
 
 export function getSlotIdsFromTemplate(template) {
@@ -111,20 +254,28 @@ export function isBlankSlotAnswer(vals) {
   return !String(vals).trim();
 }
 
+function resolveEquationIdForSymbolSlots(subStep, config = null) {
+  return subStep?.equation_id
+    || config?.steps?.find((s) => s.type === "equation_select")?.answer
+    || null;
+}
+
 /** Slots where students type the variable symbol (blank expected value in mark scheme). */
 export function resolveSymbolSlotIds(template, subStep, config = null) {
-  const slotAnswers = subStep?.slot_answers || {};
+  const equationId = resolveEquationIdForSymbolSlots(subStep, config);
+  const slotAnswers = normalizeLegacySlotAnswers(subStep?.slot_answers, template);
   const ids = getSlotIdsFromTemplate(template);
+  const toCanonical = (id) => canonicalSymbolSlotId(template, id, equationId);
   const hasAnyMarkSchemeValue = ids.some((id) => !isBlankSlotAnswer(slotAnswers[id]));
   if (hasAnyMarkSchemeValue) {
     const fromBlanks = ids.filter((id) => isBlankSlotAnswer(slotAnswers[id]));
-    if (fromBlanks.length) return new Set(fromBlanks);
+    if (fromBlanks.length) return new Set(fromBlanks.map(toCanonical));
   }
 
   const subject = resolveSubstitutionRearrangementSubject(subStep, config);
-  if (subject) return new Set([subject]);
+  if (subject) return new Set([toCanonical(subject)]);
   const result = identifyResultSlotFromTemplate(template);
-  return result ? new Set([result]) : new Set();
+  return result ? new Set([toCanonical(result)]) : new Set();
 }
 
 export function slotLabelFromTemplate(template, slotId) {
@@ -145,6 +296,10 @@ function slotValueMatchesSymbol(slotId, studentVal, template = null) {
   const n = normalizeSlotValue(studentVal);
   if (!n) return false;
   if (n === normalizeSlotValue(slotId)) return true;
+  if (slotId === "E") {
+    const energyAliases = ["e", "e_k", "ek", "e_e", "ee", "e_p", "ep", "delta_e", "δe", "δE".toLowerCase()];
+    if (energyAliases.includes(n)) return true;
+  }
   const label = template ? slotLabelFromTemplate(template, slotId) : null;
   if (label && n === normalizeSlotValue(label)) return true;
   for (const [unicode, id] of Object.entries(SLOT_ID_ALIASES)) {
@@ -158,9 +313,9 @@ function slotValueMatchesAccepted(slotId, studentVal, acceptedList, symbolSlotId
   return slotValueMatches(studentVal, acceptedList);
 }
 
-export function renderSubstitutionHelper(template, symbolSlotIds) {
+export function renderSubstitutionHelper(template, symbolSlotIds, equationId = null) {
   if (!symbolSlotIds?.size) return "";
-  const labels = [...symbolSlotIds].map((id) => slotLabelFromTemplate(template, id));
+  const labels = [...symbolSlotIds].map((id) => symbolLabelForHelper(template, id, equationId));
   const symText = labels.length === 1 ? labels[0] : labels.join(" or ");
   return `<p class="calc-sub-hint" style="font-size:0.8rem;color:#64748b;margin:0 0 8px;line-height:1.45;">Enter values from the question in each box. For the quantity you are finding, type its symbol (<strong>${escapeHtml(symText)}</strong>).</p>`;
 }
@@ -225,7 +380,7 @@ function formatSubstitutionTokenSequence(items, slots, template, { latex = false
   return out.trim();
 }
 
-/** Plain-text or LaTeX substitution line, e.g. E_k = ½ × 500 × 15² */
+/** Plain-text or LaTeX substitution line, e.g. E = ½ × 500 × 15² */
 export function formatSubstitutionEquationDisplay(template, slots, { latex = false } = {}) {
   if (!template) return "";
 
@@ -333,7 +488,7 @@ export function renderSubstitutionHtml(template, inputStyle) {
 }
 
 export function renderFreeTextSubstitution(inputStyle) {
-  return `<input id="calc_substitution" type="text" placeholder="e.g. E_k = 0.5 × 2.0 × 4.0²" style="${inputStyle} width:100%;"/>`;
+  return `<input id="calc_substitution" type="text" placeholder="e.g. E = 0.5 × 2.0 × 4.0²" style="${inputStyle} width:100%;"/>`;
 }
 
 export function renderPendingEquationSelectSubstitution() {
@@ -349,7 +504,7 @@ export function renderSubstitutionStepInner(ctx, inputStyle, renderOpts = {}) {
   }
   const symbolSlotIds = renderOpts.symbolSlotIds
     ?? resolveSymbolSlotIds(ctx.template, renderOpts.subStep, renderOpts.config);
-  const helper = renderSubstitutionHelper(ctx.template, symbolSlotIds);
+  const helper = renderSubstitutionHelper(ctx.template, symbolSlotIds, ctx.equationId);
   return `${helper}<div id="calc_substitution_structured" data-equation-id="${escapeHtml(ctx.equationId || "")}">${renderSubstitutionHtml(ctx.template, inputStyle)}</div>`;
 }
 
@@ -902,8 +1057,13 @@ function escapeRegex(s) {
   return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+function lhsSubjectFromExpression(expr) {
+  const parts = String(expr || "").split("=");
+  return parts[0]?.trim() || null;
+}
+
 function applyDistractorPattern(correctExpr, pattern, slotAnswers, subject) {
-  const sub = subject;
+  const sub = lhsSubjectFromExpression(correctExpr) || subject;
   const parts = correctExpr.split("=").map((s) => s.trim());
   if (parts.length < 2) return null;
   const rhs = parts[1];
@@ -1117,21 +1277,36 @@ export function enrichCalculationConfigFromEquationSheet(config, equationSheet) 
   const equation = findEquationInSheet(equationSheet, equationId);
   if (!equation) return config;
 
+  const template = getSubstitutionTemplate(equation);
   const convStep = config.steps.find((s) => s.type === "conversion");
+  const canonicalSubject = (subject) => (
+    subject ? canonicalSymbolSlotId(template, subject, equationId) : subject
+  );
+  const normalizedSub = {
+    ...subStep,
+    slot_answers: normalizeLegacySlotAnswers(subStep.slot_answers, template),
+    si_slot_answers: normalizeLegacySlotAnswers(
+      subStep.si_slot_answers || subStep.slot_answers,
+      template
+    ),
+    rearrangement_subject: canonicalSubject(subStep.rearrangement_subject)
+  };
 
   const steps = config.steps.map((step) => {
-    if (step.type === "substitution" && convStep) {
-      const normalized = resolveSubstitutionMarkScheme(step, convStep);
-      return {
-        ...normalized,
-        si_slot_answers: normalized.slot_answers
-      };
+    if (step.type === "substitution") {
+      if (convStep) {
+        const resolved = resolveSubstitutionMarkScheme(normalizedSub, convStep);
+        return { ...resolved, si_slot_answers: resolved.slot_answers };
+      }
+      return normalizedSub;
     }
     if (step.type !== "rearrangement") return step;
-    if (step.mode === "symbolic") return step;
+    if (step.mode === "symbolic") {
+      return { ...step, subject: canonicalSubject(step.subject) };
+    }
     const subForRearr = convStep
-      ? resolveSubstitutionMarkScheme(subStep, convStep)
-      : subStep;
+      ? resolveSubstitutionMarkScheme(normalizedSub, convStep)
+      : normalizedSub;
     if (!subForRearr.slot_answers) return step;
     const siSlots = buildSiSlotAnswersForRearrangement(subForRearr, convStep);
     const built = buildNumericRearrangementOptions(equation, subForRearr, step, { siSlotAnswers: siSlots });
@@ -1139,7 +1314,7 @@ export function enrichCalculationConfigFromEquationSheet(config, equationSheet) 
     return {
       ...step,
       mode: "numeric",
-      subject: built.subject || step.subject,
+      subject: canonicalSubject(built.subject || step.subject),
       answer: built.answer,
       distractors: built.distractors
     };
