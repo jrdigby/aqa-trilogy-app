@@ -37,7 +37,7 @@ import {
   courseTrackForProfile,
   targetTiersForProfile,
   resolveSpecPointIdForTrack,
-  questionTierMatchesProfile,
+  questionMatchesProfileTier,
   getSubjectTiers,
   resolveQuestionSpecMeta,
   questionLinksToSpecPoint,
@@ -1237,7 +1237,7 @@ async function resolveScheduledSpecPoint(dueItems, { excludeSpecPointId } = {}) 
   try {
     let qQuery = supabaseClient
       .from("questions")
-      .select("spec_point_id, triple_spec_point_id, audience, tier");
+      .select("spec_point_id, triple_spec_point_id, audience, tier, demand_level");
     if (orFilter) qQuery = qQuery.or(orFilter);
 
     const result = await Promise.race([qQuery, timeoutPromise(4000, "Questions resolution query timed out")]);
@@ -1256,7 +1256,7 @@ async function resolveScheduledSpecPoint(dueItems, { excludeSpecPointId } = {}) 
     const hasQuestion = matchingQs.some(
       (q) =>
         questionLinksToSpecPoint(q, item.spec_point_id, track) &&
-        questionTierMatchesProfile(q.tier, targetTiers)
+        questionMatchesProfileTier(q, targetTiers)
     );
     if (hasQuestion) {
       return { specPointId: item.spec_point_id, specMeta: item.spec_points };
@@ -3400,7 +3400,7 @@ async function loadTopics() {
       if (track === "combined") return aud === "both";
       return aud === "both" || aud === "triple_only";
     });
-    questions = questions.filter((q) => questionTierMatchesProfile(q.tier, targetTiers));
+    questions = questions.filter((q) => questionMatchesProfileTier(q, targetTiers));
   } catch (err) {
     console.error("Pipeline failure fetching synchronized syllabus statistics:", err);
     return;
@@ -3425,7 +3425,7 @@ async function loadTopics() {
 
   let totalMatchingQuestions = 0;
   (questions || []).forEach(q => {
-    if (!questionTierMatchesProfile(q.tier, targetTiers)) return;
+    if (!questionMatchesProfileTier(q, targetTiers)) return;
     const matchedTopic = specToTopicMap[specPointIdForQuestion(q)];
     if (matchedTopic !== undefined) {
       topicCounts[matchedTopic] = (topicCounts[matchedTopic] || 0) + 1;
@@ -3459,7 +3459,7 @@ async function loadTopics() {
 
   const validQuestionIds = new Set();
   (questions || []).forEach(q => {
-    if (!questionTierMatchesProfile(q.tier, targetTiers)) return;
+    if (!questionMatchesProfileTier(q, targetTiers)) return;
     const matchedTopic = specToTopicMap[specPointIdForQuestion(q)];
     if (matchedTopic === undefined) return;
     if (topic && matchedTopic !== topic) return;
@@ -3551,7 +3551,7 @@ async function loadTopics() {
         : null;
 
       questions.forEach(q => {
-        if (!questionTierMatchesProfile(q.tier, targetTiers)) return;
+        if (!questionMatchesProfileTier(q, targetTiers)) return;
         const specId = specPointIdForQuestion(q);
         const matchedTopic = specToTopicMap[specId];
         if (matchedTopic === undefined) return;
