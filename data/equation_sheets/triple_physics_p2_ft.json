@@ -637,6 +637,76 @@
       }
     },
     {
+      "label": "Transformer",
+      "latex": "V_p I_p = V_s I_s",
+      "id": "transformer",
+      "topic_tags": [
+        "magnetism"
+      ],
+      "substitution_template": {
+        "layout": "fraction",
+        "lhs": [
+          {
+            "kind": "slot",
+            "id": "V_s",
+            "label": "V_s"
+          }
+        ],
+        "numerator": [
+          {
+            "kind": "slot",
+            "id": "V_p",
+            "label": "V_p"
+          },
+          {
+            "kind": "op",
+            "text": "×"
+          },
+          {
+            "kind": "slot",
+            "id": "I_p",
+            "label": "I_p"
+          }
+        ],
+        "denominator": [
+          {
+            "kind": "slot",
+            "id": "I_s",
+            "label": "I_s"
+          }
+        ]
+      },
+      "rearrangement_forms": {
+        "default_subject": "I_s",
+        "variants": [
+          {
+            "subject": "V_p",
+            "correct": "V_p = V_s × I_s / I_p",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          },
+          {
+            "subject": "I_p",
+            "correct": "I_p = V_s × I_s / V_p",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          },
+          {
+            "subject": "I_s",
+            "correct": "I_s = V_p × I_p / V_s",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          }
+        ]
+      }
+    },
+    {
       "label": "Magnification",
       "latex": "\\text{magnification} = \\frac{\\text{image height}}{\\text{object height}}",
       "id": "magnification",

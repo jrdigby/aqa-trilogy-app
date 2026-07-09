@@ -19,8 +19,8 @@
         "tokens": [
           {
             "kind": "slot",
-            "id": "E_k",
-            "label": "E_k"
+            "id": "E",
+            "label": "E"
           },
           {
             "kind": "op",
@@ -59,7 +59,7 @@
         "variants": [
           {
             "subject": "v",
-            "correct": "v² = 2 × E_k / m",
+            "correct": "v² = 2 × E / m",
             "distractor_patterns": [
               "invert_fraction",
               "multiply_instead"
@@ -67,7 +67,7 @@
           },
           {
             "subject": "m",
-            "correct": "m = 2 × E_k / v²",
+            "correct": "m = 2 × E / v²",
             "distractor_patterns": [
               "invert_fraction",
               "multiply_instead"
@@ -88,8 +88,8 @@
         "tokens": [
           {
             "kind": "slot",
-            "id": "E_e",
-            "label": "E_e"
+            "id": "E",
+            "label": "E"
           },
           {
             "kind": "op",
@@ -128,7 +128,7 @@
         "variants": [
           {
             "subject": "e",
-            "correct": "e² = 2 × E_e / k",
+            "correct": "e² = 2 × E / k",
             "distractor_patterns": [
               "invert_fraction",
               "multiply_instead"
@@ -136,7 +136,7 @@
           },
           {
             "subject": "k",
-            "correct": "k = 2 × E_e / e²",
+            "correct": "k = 2 × E / e²",
             "distractor_patterns": [
               "invert_fraction",
               "multiply_instead"
@@ -157,8 +157,8 @@
         "tokens": [
           {
             "kind": "slot",
-            "id": "E_p",
-            "label": "E_p"
+            "id": "E",
+            "label": "E"
           },
           {
             "kind": "op",
@@ -194,7 +194,7 @@
         "variants": [
           {
             "subject": "h",
-            "correct": "h = E_p / (m × g)",
+            "correct": "h = E / (m × g)",
             "distractor_patterns": [
               "invert_fraction",
               "multiply_instead"
@@ -215,8 +215,8 @@
         "tokens": [
           {
             "kind": "slot",
-            "id": "delta_E",
-            "label": "ΔE"
+            "id": "E",
+            "label": "E"
           },
           {
             "kind": "op",
@@ -252,7 +252,7 @@
         "variants": [
           {
             "subject": "c",
-            "correct": "c = delta_E / (m × delta_theta)",
+            "correct": "c = E / (m × delta_theta)",
             "distractor_patterns": [
               "invert_fraction",
               "multiply_instead"
@@ -701,6 +701,67 @@
       }
     },
     {
+      "label": "Power (current squared x resistance)",
+      "latex": "P = I^2 R",
+      "id": "power_i2r",
+      "topic_tags": [
+        "electricity"
+      ],
+      "substitution_template": {
+        "layout": "sum_product",
+        "tokens": [
+          {
+            "kind": "slot",
+            "id": "P",
+            "label": "P"
+          },
+          {
+            "kind": "op",
+            "text": "="
+          },
+          {
+            "kind": "slot",
+            "id": "I",
+            "label": "I"
+          },
+          {
+            "kind": "op",
+            "text": "²"
+          },
+          {
+            "kind": "op",
+            "text": "×"
+          },
+          {
+            "kind": "slot",
+            "id": "R",
+            "label": "R"
+          }
+        ]
+      },
+      "rearrangement_forms": {
+        "default_subject": "I",
+        "variants": [
+          {
+            "subject": "I",
+            "correct": "I² = P / R",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          },
+          {
+            "subject": "R",
+            "correct": "R = P / I²",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          }
+        ]
+      }
+    },
+    {
       "label": "Energy transferred (power x time)",
       "latex": "E = P t",
       "id": "energy_pt",
@@ -857,7 +918,7 @@
           {
             "kind": "slot",
             "id": "V",
-            "label": "V"
+            "label": "volume"
           }
         ]
       },

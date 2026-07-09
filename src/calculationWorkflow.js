@@ -14,6 +14,8 @@ import {
   collectStructuredSubstitution,
   collectSubstitutionPayload,
   enrichCalculationConfigFromEquationSheet,
+  enrichEquationSheet,
+  initSubstitutionTemplateCatalog,
   findEquationInSheet,
   getSlotIdsFromTemplate,
   getSubstitutionTemplate,
@@ -892,13 +894,15 @@ export function wireStructuredSubstitutionAuthoring(prefix = "", supabaseClient,
 /** Fetch equations array from a shared equation sheet row. */
 export async function loadEquationSheetOptions(supabaseClient, sheetId) {
   if (!sheetId || !supabaseClient) return [];
+  await initSubstitutionTemplateCatalog();
   const { data, error } = await supabaseClient
     .from("equation_sheets")
     .select("equations")
     .eq("id", sheetId)
     .maybeSingle();
   if (error || !data?.equations) return [];
-  return Array.isArray(data.equations) ? data.equations : [];
+  const equations = Array.isArray(data.equations) ? data.equations : [];
+  return enrichEquationSheet({ equations }).equations;
 }
 
 /** Whether a numeric question needs equation sheet data (select step, sheet workflow, or structured substitution). */
@@ -923,6 +927,8 @@ export async function loadEquationSheetForQuestion(supabaseClient, q, profile = 
   }
   if (!sheetId) return null;
 
+  await initSubstitutionTemplateCatalog();
+
   const { data, error } = await supabaseClient
     .from("equation_sheets")
     .select("id, title, equations")
@@ -932,7 +938,7 @@ export async function loadEquationSheetForQuestion(supabaseClient, q, profile = 
     console.warn("loadEquationSheetForQuestion:", error);
     return null;
   }
-  return data;
+  return enrichEquationSheet(data);
 }
 
 /** Plain-text equation for &lt;option&gt; labels (MathJax cannot run inside options). */
