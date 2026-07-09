@@ -17,7 +17,9 @@ import {
   courseTrackForProfile,
   getTierForSubject,
   targetTiersForProfile,
-  questionMatchesStudent
+  questionMatchesStudent,
+  questionTiersForFetch,
+  questionMatchesProfileTier
 } from "./sciencePath.js";
 
 export { fetchUserProfile };
@@ -442,14 +444,15 @@ async function specPointsWithQuestions(specPointIds, targetTiers, courseTrack = 
 
   let qQuery = supabaseClient
     .from("questions")
-    .select("spec_point_id, triple_spec_point_id, audience, tier")
-    .in("tier", targetTiers);
+    .select("spec_point_id, triple_spec_point_id, audience, tier, demand_level")
+    .in("tier", questionTiersForFetch(targetTiers));
 
   const { data: tierMatched, error: tierErr } = await qQuery;
   if (tierErr) throw tierErr;
 
   const matched = new Set();
   for (const q of tierMatched || []) {
+    if (!questionMatchesProfileTier(q, targetTiers)) continue;
     if (courseTrack === "triple") {
       if (q.audience === "triple_only" && specPointIds.includes(q.spec_point_id)) {
         matched.add(q.spec_point_id);

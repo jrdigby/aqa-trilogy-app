@@ -9,7 +9,9 @@ import {
   filterQuestionsForProfile,
   questionMatchesStudent,
   resolveQuestionSpecMeta,
-  questionLinksToSpecPoint
+  questionLinksToSpecPoint,
+  questionTiersForFetch,
+  questionMatchesProfileTier
 } from "./sciencePath.js";
 
 const QUESTION_SKILLS_EMBED =
@@ -73,7 +75,7 @@ async function fetchFilteredPracticePool(context) {
       let qQuery = supabaseClient
         .from("questions")
         .select(selectCols)
-        .in("tier", targetTiers);
+        .in("tier", questionTiersForFetch(targetTiers));
       if (qType) qQuery = qQuery.eq("question_type", qType);
       return qQuery;
     }),
@@ -81,6 +83,7 @@ async function fetchFilteredPracticePool(context) {
   ]);
 
   const activeQs = (rawQs || []).filter((q) => {
+    if (!questionMatchesProfileTier(q, targetTiers)) return false;
     const linkedIds = [q.spec_point_id, q.triple_spec_point_id].filter(Boolean);
     if (!linkedIds.some((id) => matchingSpecPointIds.includes(id))) return false;
     const spMeta =
@@ -234,7 +237,7 @@ export async function startSessionForSpecPoint(specPointId, qType = "", context)
           .from("questions")
           .select(selectCols)
           .or(`spec_point_id.eq.${specPointId},triple_spec_point_id.eq.${specPointId}`)
-          .in("tier", targetTiers);
+          .in("tier", questionTiersForFetch(targetTiers));
         if (qType) query = query.eq("question_type", qType);
         return query.limit(30);
       }),
@@ -246,7 +249,11 @@ export async function startSessionForSpecPoint(specPointId, qType = "", context)
     return;
   }
 
-  qs = (qs || []).filter((q) => questionLinksToSpecPoint(q, specPointId, courseTrack));
+  qs = (qs || []).filter(
+    (q) =>
+      questionLinksToSpecPoint(q, specPointId, courseTrack) &&
+      questionMatchesProfileTier(q, targetTiers)
+  );
 
   if (!qs || qs.length === 0) {
     showToastBanner(`No structural questions found matching your filter rules for this topic folder.`, true);
@@ -332,7 +339,7 @@ export async function startSkillPractice(context, { fullCode }) {
   try {
     rawQs = await Promise.race([
       fetchQuestionsWithFallback(supabaseClient, (selectCols) =>
-        supabaseClient.from("questions").select(selectCols).in("id", questionIds).in("tier", targetTiers)
+        supabaseClient.from("questions").select(selectCols).in("id", questionIds).in("tier", questionTiersForFetch(targetTiers))
       ),
       timeoutPromise(6000, "Skill practice pool timed out")
     ]);
@@ -342,6 +349,7 @@ export async function startSkillPractice(context, { fullCode }) {
   }
 
   const activeQs = (rawQs || []).filter((q) => {
+    if (!questionMatchesProfileTier(q, targetTiers)) return false;
     if (courseTrack === "triple") {
       return q.audience === "both" || q.audience === "triple_only";
     }

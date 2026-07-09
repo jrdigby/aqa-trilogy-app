@@ -38,12 +38,36 @@ export function targetTiersForTier(tier) {
     : ["FT", "ft", "foundation", "both", "Both"];
 }
 
+/** Demand level shared by crossover questions visible to both FT and HT students. */
+export const CROSS_TIER_DEMAND_LEVEL = "standard_45";
+
+/** True when a question is a crossover item (grades 4–5) visible across tiers. */
+export function isCrossTierQuestion(questionOrDemandLevel) {
+  const demand =
+    typeof questionOrDemandLevel === "string"
+      ? questionOrDemandLevel
+      : questionOrDemandLevel?.demand_level;
+  return demand === CROSS_TIER_DEMAND_LEVEL;
+}
+
+/** All stored tiers to include in DB fetches so crossover rows are not pre-filtered out. */
+export function questionTiersForFetch(_targetTiers) {
+  return ["FT", "HT", "both"];
+}
+
 /** True if a question row tier is visible for the student's target tier list. */
-export function questionTierMatchesProfile(qTier, targetTiers) {
+export function questionTierMatchesProfile(qTier, targetTiers, demandLevel) {
+  if (isCrossTierQuestion(demandLevel)) return true;
   if (!qTier) return false;
   if (targetTiers?.includes(qTier)) return true;
   const normalized = normalizeTier(qTier);
   return targetTiers?.some((t) => normalizeTier(t) === normalized);
+}
+
+/** Convenience: check tier visibility on a full question row. */
+export function questionMatchesProfileTier(question, targetTiers) {
+  if (!question) return false;
+  return questionTierMatchesProfile(question.tier, targetTiers, question.demand_level);
 }
 
 export function getSciencePath(profile) {

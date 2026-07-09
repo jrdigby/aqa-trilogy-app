@@ -1,5 +1,6 @@
 // src/dbClient.js
 import { todayISO, addDaysISO } from './utils.js';
+import { questionTiersForFetch } from './sciencePath.js';
 
 const SUPABASE_URL = "https://cbycwfhczyvzzhthpgsw.supabase.co";
 // Legacy JWT anon key — more reliable with supabase-js auth + RLS than publishable-only keys.
@@ -333,20 +334,20 @@ export async function fetchSyllabusPipelineData(userId, subject, paper, targetTi
   }
 
   const questionsSelectWithSkills =
-    "id, spec_point_id, triple_spec_point_id, question_type, tier, image_url, audience, is_maths_skill, max_marks, calculation_config, question_skills(skill_id, skill_framework_items(id, framework, full_code, title, category))";
+    "id, spec_point_id, triple_spec_point_id, question_type, tier, demand_level, image_url, audience, is_maths_skill, max_marks, calculation_config, question_skills(skill_id, skill_framework_items(id, framework, full_code, title, category))";
   const questionsSelectBasic =
-    "id, spec_point_id, triple_spec_point_id, question_type, tier, image_url, audience, is_maths_skill, max_marks, calculation_config";
+    "id, spec_point_id, triple_spec_point_id, question_type, tier, demand_level, image_url, audience, is_maths_skill, max_marks, calculation_config";
 
   let questionsRes;
   try {
     let questionsQuery = supabaseClient
       .from("questions")
       .select(questionsSelectWithSkills)
-      .in("tier", targetTiers);
+      .in("tier", questionTiersForFetch(targetTiers));
     if (qType) questionsQuery = questionsQuery.eq("question_type", qType);
     questionsRes = await Promise.race([questionsQuery, timeoutPromise(4000, "questions lookup timed out")]);
     if (questionsRes.error && /column|relation|question_skills/i.test(questionsRes.error.message || "")) {
-      let fallbackQuery = supabaseClient.from("questions").select(questionsSelectBasic).in("tier", targetTiers);
+      let fallbackQuery = supabaseClient.from("questions").select(questionsSelectBasic).in("tier", questionTiersForFetch(targetTiers));
       if (qType) fallbackQuery = fallbackQuery.eq("question_type", qType);
       questionsRes = await Promise.race([fallbackQuery, timeoutPromise(4000, "questions lookup timed out")]);
     }
