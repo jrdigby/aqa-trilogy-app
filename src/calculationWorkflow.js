@@ -2,6 +2,16 @@
 import { escapeHtml } from "./utils.js";
 import { matchesSigFigs, roundToSigFigs } from "./sigFigs.js";
 import {
+  formatNumberLatexPreview,
+  isStandardFormPresentation,
+  isValidStudentNumber,
+  numericInputPlaceholder,
+  parseStudentNumber,
+  promptRequiresStandardForm,
+  renderStandardFormInputHelper,
+  studentNumericInputStyle
+} from "./parseStudentNumber.js";
+import {
   evaluateEquation,
   solveForSubject,
   getSlotSiUnit,
@@ -1156,6 +1166,7 @@ export function wireStudentEquationSelectPreview(onTypeset, q = null, equationSh
     rerenderStructuredSteps();
     wireSubstitutionSlotInputListener(refreshRearrangementOnly);
     wireConversionInputListener(refreshRearrangementOnly);
+    wireStudentNumericInputPreviews(onTypeset, q);
     return;
   }
 
@@ -1180,6 +1191,7 @@ export function wireStudentEquationSelectPreview(onTypeset, q = null, equationSh
   });
   wireSubstitutionSlotInputListener(refreshRearrangementOnly);
   wireConversionInputListener(refreshRearrangementOnly);
+  wireStudentNumericInputPreviews(onTypeset, q);
   rerenderStructuredSteps();
 }
 
@@ -1673,6 +1685,55 @@ function inputStyle() {
   return "padding:6px; font-size:0.85rem; border-radius:4px; border:1px solid #cbd5e1; box-sizing:border-box;";
 }
 
+function renderNumericInputField(id, { requiresStandardForm = false } = {}) {
+  const placeholder = numericInputPlaceholder(requiresStandardForm);
+  return `
+    <div class="calc-numeric-input-wrap" style="display:inline-flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:0;">
+      <input id="${id}" type="text" inputmode="decimal" autocomplete="off" spellcheck="false"
+        class="calc-numeric-input" data-preview-for="${id}_preview"
+        placeholder="${escapeHtml(placeholder)}"
+        style="${studentNumericInputStyle(inputStyle())}"/>
+      <span id="${id}_preview" class="calc-numeric-preview" aria-live="polite"
+        style="font-size:0.82rem;color:#64748b;min-height:1.15em;padding:0 2px;max-width:100%;overflow-x:auto;"></span>
+    </div>
+  `;
+}
+
+function updateNumericPreview(inputEl, previewEl, onTypeset) {
+  if (!inputEl || !previewEl) return;
+  const latex = formatNumberLatexPreview(inputEl.value);
+  if (!latex) {
+    previewEl.textContent = "";
+    previewEl.innerHTML = "";
+    return;
+  }
+  previewEl.innerHTML = `$${latex}$`;
+  onTypeset?.(previewEl);
+}
+
+/** Wire live LaTeX previews for student numeric inputs (numAns, conversion, sig figs). */
+export function wireStudentNumericInputPreviews(onTypeset, q = null) {
+  const requiresStandardForm = promptRequiresStandardForm(q?.prompt);
+  const inputs = document.querySelectorAll(".calc-numeric-input");
+  for (const input of inputs) {
+    const previewId = input.dataset.previewFor;
+    const preview = previewId ? document.getElementById(previewId) : null;
+    if (!preview) continue;
+
+    if (requiresStandardForm && !input.placeholder.includes("×10")) {
+      input.placeholder = numericInputPlaceholder(true);
+    }
+
+    const refresh = () => updateNumericPreview(input, preview, onTypeset);
+    if (input._calcNumericPreviewHandler) {
+      input.removeEventListener("input", input._calcNumericPreviewHandler);
+    }
+    input._calcNumericPreviewHandler = refresh;
+    input.addEventListener("input", refresh);
+    refresh();
+  }
+}
+
 /** Single answer box: sig figs merged into calculate (legacy, 0-mark sig step only). */
 function usesMergedSigFigsOnCalculate(sigStep) {
   return !!sigStep && sigStep.required !== false && !!sigStep.enforce_on_final && !(Number(sigStep.marks) > 0);
@@ -1697,6 +1758,10 @@ export function renderCalculationWorkflow(q, currentKey, presentation = "practic
   const steps = getActiveSteps(config);
   const simpleMode = isSimpleNumericMode(q, config);
   const unit = currentKey?.key_payload?.unit || "";
+  const requiresStandardForm = promptRequiresStandardForm(q?.prompt);
+  const standardFormNote = requiresStandardForm
+    ? ` <span style="font-weight:600;color:#64748b;">(in standard form)</span>`
+    : "";
   const unitBadge = unit
     ? `<span class="unit-badge" style="font-size:0.85rem;font-weight:700;color:#475569;background:#f1f5f9;border:1px solid #cbd5e1;padding:6px 12px;border-radius:4px;margin-left:8px;">${escapeHtml(unit)}</span>`
     : "";
@@ -1707,10 +1772,14 @@ export function renderCalculationWorkflow(q, currentKey, presentation = "practic
     : "Calculation steps";
 
   let html = renderEquationSheetPanel(config, equationSheet, presentation);
+  const formatHelper = renderStandardFormInputHelper({ requiresStandardForm });
 
   if (hasMultiStep) {
     html += `<div class="calc-workflow-panel item" style="border:1px solid #e2e8f0;padding:15px;border-radius:8px;background:#f8fafc;margin-top:12px;">`;
     html += `<h4 style="margin:0 0 12px;color:var(--primary);font-size:0.9rem;">${escapeHtml(headerText)}</h4>`;
+    html += formatHelper;
+  } else {
+    html += formatHelper;
   }
 
   let stepNum = 0;
@@ -1751,7 +1820,7 @@ export function renderCalculationWorkflow(q, currentKey, presentation = "practic
       html += `
         <div class="calc-step" data-step="conversion" style="margin-bottom:12px;">
           <label style="display:block;font-size:0.82rem;font-weight:700;margin-bottom:4px;">${renderStepLabel(numberedLabel, step)}:</label>
-          <input id="calc_conversion" type="number" step="any" style="${inputStyle()} width:120px;"/>
+          ${renderNumericInputField("calc_conversion")}
         </div>
       `;
     } else if (step.type === "rearrangement") {
@@ -1803,9 +1872,9 @@ export function renderCalculationWorkflow(q, currentKey, presentation = "practic
       const sigBadge = mergedSig && sigStep ? formatStepMarksBadge(sigStep) : "";
       html += `
         <div class="calc-step" data-step="calculate"${sigAttr} style="margin-bottom:${hasMultiStep ? "0" : "12px"};">
-          <label style="display:block;font-size:0.82rem;font-weight:700;margin-bottom:4px;">${calcLabel}${sigBadge}${sfNote}:</label>
-          <div style="display:inline-flex;align-items:center;">
-            <input id="numAns" type="number" step="any" style="${inputStyle()} width:120px;"/>
+          <label style="display:block;font-size:0.82rem;font-weight:700;margin-bottom:4px;">${calcLabel}${sigBadge}${sfNote}${standardFormNote}:</label>
+          <div style="display:inline-flex;align-items:flex-start;gap:8px;flex-wrap:wrap;">
+            ${renderNumericInputField("numAns", { requiresStandardForm })}
             ${unitBadge}
           </div>
         </div>
@@ -1814,7 +1883,7 @@ export function renderCalculationWorkflow(q, currentKey, presentation = "practic
       html += `
         <div class="calc-step" data-step="sig_figs" style="margin-bottom:12px;">
           <label style="display:block;font-size:0.82rem;font-weight:700;margin-bottom:4px;">${renderStepLabel(numberedLabel, step)}:</label>
-          <input id="calc_sig_figs" type="number" step="any" style="${inputStyle()} width:120px;"/>
+          ${renderNumericInputField("calc_sig_figs", { requiresStandardForm })}
         </div>
       `;
     }
@@ -1823,9 +1892,9 @@ export function renderCalculationWorkflow(q, currentKey, presentation = "practic
   if (!steps.some((s) => s.type === "calculate")) {
     html += `
       <div class="calc-step" data-step="calculate">
-        <label style="display:block;font-size:0.82rem;font-weight:700;margin-bottom:4px;">${escapeHtml(getStepLabel("calculate", presentation))}:</label>
-        <div style="display:inline-flex;align-items:center;">
-          <input id="numAns" type="number" step="any" style="${inputStyle()} width:120px;"/>
+        <label style="display:block;font-size:0.82rem;font-weight:700;margin-bottom:4px;">${escapeHtml(getStepLabel("calculate", presentation))}${standardFormNote}:</label>
+        <div style="display:inline-flex;align-items:flex-start;gap:8px;flex-wrap:wrap;">
+          ${renderNumericInputField("numAns", { requiresStandardForm })}
           ${unitBadge}
         </div>
       </div>
@@ -1836,10 +1905,9 @@ export function renderCalculationWorkflow(q, currentKey, presentation = "practic
     html += `</div>`;
   } else if (!html.includes('id="numAns"')) {
     html += `
-      <div class="item" style="display:flex;align-items:center;margin-top:12px;">
-        <label style="font-size:0.9rem;font-weight:600;">Answer:
-          <input id="numAns" type="number" step="any" style="${inputStyle()} width:120px;margin-left:4px;"/>
-        </label>
+      <div class="item" style="display:flex;align-items:flex-start;margin-top:12px;gap:8px;flex-wrap:wrap;">
+        <label style="font-size:0.9rem;font-weight:600;">Answer${standardFormNote}:</label>
+        ${renderNumericInputField("numAns", { requiresStandardForm })}
         ${unitBadge}
       </div>
     `;
@@ -1850,9 +1918,32 @@ export function renderCalculationWorkflow(q, currentKey, presentation = "practic
 
 function readNumericInput(id) {
   const el = document.getElementById(id);
-  if (!el || el.value === "") return null;
-  const val = parseFloat(el.value);
-  return Number.isFinite(val) ? val : null;
+  if (!el || el.value.trim() === "") return { value: null, raw: "" };
+  const parsed = parseStudentNumber(el.value);
+  return {
+    value: parsed.valid ? parsed.value : null,
+    raw: el.value.trim()
+  };
+}
+
+function standardFormPresentationFails(q, resp) {
+  if (!promptRequiresStandardForm(q?.prompt)) return false;
+  const raw = resp?.stepRaw?.calculate ?? "";
+  return !raw || !isStandardFormPresentation(raw);
+}
+
+function buildStandardFormMissing(stepAo, cleanUrl, markPoints, step) {
+  return {
+    ao: stepAo,
+    stepType: "calculate",
+    text: getStepFeedback(
+      step,
+      markPoints,
+      "calculate",
+      "Give your answer in standard form, e.g. 3.2x10^6."
+    ),
+    url: cleanUrl
+  };
 }
 
 function readTextInput(id) {
@@ -1865,6 +1956,7 @@ export function collectCalculationResponse(q, sessionMode, equationSheet = null)
   const config = getCalculationConfig(q);
   const steps = getActiveSteps(config);
   const stepValues = {};
+  const stepRaw = {};
 
   for (const step of steps) {
     if (step.type === "equation_select") {
@@ -1872,24 +1964,33 @@ export function collectCalculationResponse(q, sessionMode, equationSheet = null)
     } else if (step.type === "substitution") {
       stepValues.substitution = collectSubstitutionPayload(config, sheet, step);
     } else if (step.type === "conversion") {
-      stepValues.conversion = readNumericInput("calc_conversion");
+      const conv = readNumericInput("calc_conversion");
+      stepValues.conversion = conv.value;
+      stepRaw.conversion = conv.raw;
     } else if (step.type === "rearrangement") {
       stepValues.rearrangement = readTextInput("calc_rearrangement");
     } else if (step.type === "calculate") {
-      stepValues.calculate = readNumericInput("numAns");
+      const calc = readNumericInput("numAns");
+      stepValues.calculate = calc.value;
+      stepRaw.calculate = calc.raw;
     } else if (step.type === "sig_figs" && usesSeparateSigFigsBox(step)) {
-      stepValues.sig_figs = readNumericInput("calc_sig_figs");
+      const sig = readNumericInput("calc_sig_figs");
+      stepValues.sig_figs = sig.value;
+      stepRaw.sig_figs = sig.raw;
     }
   }
 
   if (stepValues.calculate == null) {
-    stepValues.calculate = readNumericInput("numAns");
+    const calc = readNumericInput("numAns");
+    stepValues.calculate = calc.value;
+    stepRaw.calculate = calc.raw;
   }
 
   return {
     type: "numeric",
     sessionMode: getPresentationMode(sessionMode),
     steps: stepValues,
+    stepRaw,
     value: stepValues.calculate,
     unit: ""
   };
@@ -1903,12 +2004,13 @@ export function validateCalculationResponse(q, resp, sessionMode) {
 
   for (const step of getActiveSteps(config)) {
     const val = resp.steps?.[step.type];
+    const raw = resp.stepRaw?.[step.type] ?? "";
     if (step.type === "calculate" || step.type === "conversion") {
-      if (val == null || val === "") {
+      if (val == null || val === "" || (raw && !isValidStudentNumber(raw))) {
         missing.push(getStepLabel(step.type, presentation, step));
       }
     } else if (step.type === "sig_figs" && usesSeparateSigFigsBox(step)) {
-      if (val == null || val === "") {
+      if (val == null || val === "" || (raw && !isValidStudentNumber(raw))) {
         missing.push(getStepLabel(step.type, presentation, step));
       }
     } else if (step.type === "substitution") {
@@ -2173,11 +2275,17 @@ export function markCalculationResponse(q, resp, key, markPoints, cleanUrl, equa
     const max = q.max_marks || 1;
     const maxAo = resolveSimpleNumericMaxAo(max, markPoints);
     const stepAo = steps[0]?.ao || "AO2";
+    const calcStep = steps.find((s) => s.type === "calculate") || steps[0];
     const studentVal = resp.steps?.calculate ?? resp.value;
-    const isCorrect = studentVal != null && Math.abs(studentVal - exactAnswer) <= ansTol;
+    const valueCorrect = studentVal != null && Math.abs(studentVal - exactAnswer) <= ansTol;
+    const presentationOk = !standardFormPresentationFails(q, resp);
+    const isCorrect = valueCorrect && presentationOk;
     const total = isCorrect ? max : 0;
     const ao = isCorrect ? awardSimpleNumericAo(max, markPoints, stepAo) : { AO1: 0, AO2: 0, AO3: 0 };
     const missing = isCorrect ? [] : buildSimpleNumericMissing(config, markPoints, cleanUrl, key, steps);
+    if (valueCorrect && !presentationOk) {
+      missing.push(buildStandardFormMissing(stepAo, cleanUrl, markPoints, calcStep));
+    }
     stepResults.calculate = {
       earned: total,
       max,
@@ -2368,26 +2476,38 @@ export function markCalculationResponse(q, resp, key, markPoints, cleanUrl, equa
         }
       }
 
+      if (calcCorrect && standardFormPresentationFails(q, resp)) {
+        calcCorrect = false;
+        isCorrect = false;
+      }
+
       if (isCorrect) {
         earned = marks;
       } else if (!wrongEquationPath) {
-        const expectedForFeedback = conversionEcf && workflowAnswer != null
-          ? workflowAnswer
-          : target;
-        const ecfNote = conversionEcf && workflowAnswer != null
-          ? " (based on your substituted values)"
-          : "";
-        missing.push({
-          ao: stepAo,
-          stepType: step.type,
-          text: getStepFeedback(
-            step,
-            markPoints,
-            "calculate",
-            `Final calculation: expected ${formatAnswerForFeedback(expectedForFeedback)}${unit ? " " + unit : ""}${ecfNote}.`
-          ),
-          url: cleanUrl
-        });
+        const valueMatches = studentVal != null
+          && (Math.abs(studentVal - target) <= ansTol
+            || (conversionEcf && workflowAnswer != null && Math.abs(studentVal - workflowAnswer) <= ansTol));
+        if (valueMatches && standardFormPresentationFails(q, resp)) {
+          missing.push(buildStandardFormMissing(stepAo, cleanUrl, markPoints, step));
+        } else {
+          const expectedForFeedback = conversionEcf && workflowAnswer != null
+            ? workflowAnswer
+            : target;
+          const ecfNote = conversionEcf && workflowAnswer != null
+            ? " (based on your substituted values)"
+            : "";
+          missing.push({
+            ao: stepAo,
+            stepType: step.type,
+            text: getStepFeedback(
+              step,
+              markPoints,
+              "calculate",
+              `Final calculation: expected ${formatAnswerForFeedback(expectedForFeedback)}${unit ? " " + unit : ""}${ecfNote}.`
+            ),
+            url: cleanUrl
+          });
+        }
       }
     } else if (step.type === "sig_figs") {
       const sigExpected = conversionEcf && workflowAnswer != null
@@ -2401,11 +2521,14 @@ export function markCalculationResponse(q, resp, key, markPoints, cleanUrl, equa
       const sigValue = mergedSig
         ? (resp.steps?.calculate ?? resp.value)
         : studentVal;
+      const sigRaw = mergedSig
+        ? (resp.stepRaw?.calculate ?? "")
+        : (resp.stepRaw?.sig_figs ?? "");
 
       if (
         sigValue != null
         && sigValue !== ""
-        && matchesSigFigs(sigValue, sigExpected, step.sig_figs, ansTol, { requireSigFigCount: true })
+        && matchesSigFigs(sigRaw || sigValue, sigExpected, step.sig_figs, ansTol, { requireSigFigCount: true })
       ) {
         earned = marks;
         isCorrect = true;

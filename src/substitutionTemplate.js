@@ -1,5 +1,11 @@
 // Structured substitution templates — render, collect, mark, numeric rearrangement
 import { escapeHtml } from "./utils.js";
+import {
+  isValidStudentNumber,
+  numericInputPlaceholder,
+  studentNumberValue,
+  studentSubSlotInputStyle
+} from "./parseStudentNumber.js";
 
 const SLOT_ID_ALIASES = {
   "Δv": "delta_v",
@@ -455,7 +461,7 @@ function renderTokenRow(items, inputStyle) {
   for (const item of items || []) {
     if (item.kind === "slot") {
       const label = item.label || item.id;
-      html += `<input type="text" class="calc-sub-slot" data-slot-id="${escapeHtml(item.id)}" aria-label="Substitute ${escapeHtml(label)}" placeholder="?" title="${escapeHtml(label)}" style="${inputStyle} width:4.5em; min-width:3em; text-align:center;"/>`;
+      html += `<input type="text" class="calc-sub-slot" data-slot-id="${escapeHtml(item.id)}" aria-label="Substitute ${escapeHtml(label)}" placeholder="?" title="${escapeHtml(label)} — ${numericInputPlaceholder()}" style="${studentSubSlotInputStyle(inputStyle)}"/>`;
     } else if (item.kind === "op") {
       html += `<span class="calc-sub-op" style="padding:0 4px;font-weight:600;">${escapeHtml(item.text)}</span>`;
     }
@@ -585,8 +591,8 @@ function slotValueMatches(studentVal, acceptedList) {
   return list.some((a) => {
     const na = normalizeSlotValue(a);
     if (na === normalized) return true;
-    const sNum = parseFloat(normalized);
-    const aNum = parseFloat(na);
+    const sNum = studentNumberValue(normalized);
+    const aNum = studentNumberValue(na);
     if (Number.isFinite(sNum) && Number.isFinite(aNum) && Math.abs(sNum - aNum) < 1e-9) {
       return true;
     }
@@ -887,8 +893,7 @@ function templateSlotIds(equation) {
 }
 
 function isNumericSlotValue(text) {
-  const t = String(text ?? "").trim();
-  return t !== "" && !Number.isNaN(parseFloat(t));
+  return isValidStudentNumber(text);
 }
 
 /**
@@ -934,7 +939,7 @@ function resolveRearrangementSubject(rearrStep, subStep, equation, rawStudentSlo
   for (const [id, val] of Object.entries(rawStudentSlots || {})) {
     if (!subjectIds.has(id)) continue;
     const text = String(val ?? "").trim();
-    if (text && Number.isNaN(parseFloat(text))) {
+    if (text && !isValidStudentNumber(text)) {
       return id;
     }
   }
@@ -1019,7 +1024,7 @@ export function buildSiSlotAnswersForRearrangement(
   if (studentSlots) {
     for (const [id, val] of Object.entries(studentSlots)) {
       const t = String(val ?? "").trim();
-      if (t && !Number.isNaN(parseFloat(t))) out[id] = t;
+      if (t && isValidStudentNumber(t)) out[id] = t;
     }
   }
 
@@ -1182,7 +1187,7 @@ export function isConversionInputComplete(convStep) {
   const el = document.getElementById("calc_conversion");
   if (!el) return true;
   if (String(el.value).trim() === "") return false;
-  return Number.isFinite(parseFloat(el.value));
+  return isValidStudentNumber(el.value);
 }
 
 /** True when conversion (if any) and substitution slot inputs are complete for rearrangement. */
@@ -1236,7 +1241,7 @@ export function refreshRearrangementFromStudentSlots(config, equationSheet, subS
   }
   const convEl = document.getElementById("calc_conversion");
   const convRaw = convEl ? String(convEl.value).trim() : "";
-  const studentConv = convRaw !== "" && Number.isFinite(parseFloat(convRaw)) ? parseFloat(convRaw) : null;
+  const studentConv = convRaw !== "" && isValidStudentNumber(convRaw) ? studentNumberValue(convRaw) : null;
   const resp = Number.isFinite(studentConv) ? { steps: { conversion: studentConv } } : null;
   const siSlots = buildSiSlotAnswersForRearrangement(subStep, convStep, resp, studentSlots);
   const built = buildNumericRearrangementOptions(eq, subStep, rearrStep, { siSlotAnswers: siSlots });

@@ -1084,3 +1084,72 @@ test("wrong equation but correct unit conversion still earns the conversion mark
     "correct conversion should not appear in missing feedback"
   );
 });
+
+test("standard form prompt: ×10^n presentation required for correct mark", () => {
+  const q = {
+    max_marks: 1,
+    prompt: "Calculate the distance. Give your answer in standard form.",
+    calculation_config: {
+      steps: [{ type: "calculate", required: true, marks: 1 }]
+    }
+  };
+  const key = { key_payload: { answer: 320000000, tolerance: 1 } };
+
+  const wrongFormat = markCalculationResponse(
+    q,
+    { steps: { calculate: 320000000 }, stepRaw: { calculate: "320000000" } },
+    key,
+    [],
+    null
+  );
+  assert.equal(wrongFormat.total, 0);
+  assert.ok(wrongFormat.missing.some((m) => m.text.includes("standard form")));
+
+  const correctFormat = markCalculationResponse(
+    q,
+    { steps: { calculate: 320000000 }, stepRaw: { calculate: "3.2×10⁸" } },
+    key,
+    [],
+    null
+  );
+  assert.equal(correctFormat.total, 1);
+});
+
+test("standard form prompt: e-notation value correct but presentation rejected", () => {
+  const q = {
+    max_marks: 1,
+    prompt: "Give your answer in standard form.",
+    calculation_config: {
+      steps: [{ type: "calculate", required: true, marks: 1 }]
+    }
+  };
+  const key = { key_payload: { answer: 4500, tolerance: 0 } };
+  const result = markCalculationResponse(
+    q,
+    { steps: { calculate: 4500 }, stepRaw: { calculate: "4.5e3" } },
+    key,
+    [],
+    null
+  );
+  assert.equal(result.total, 0);
+  assert.ok(result.missing.some((m) => m.text.includes("standard form")));
+});
+
+test("no standard form prompt: plain decimal accepted", () => {
+  const q = {
+    max_marks: 1,
+    prompt: "Calculate the speed.",
+    calculation_config: {
+      steps: [{ type: "calculate", required: true, marks: 1 }]
+    }
+  };
+  const key = { key_payload: { answer: 320000000, tolerance: 1 } };
+  const result = markCalculationResponse(
+    q,
+    { steps: { calculate: 320000000 }, stepRaw: { calculate: "3.2e8" } },
+    key,
+    [],
+    null
+  );
+  assert.equal(result.total, 1);
+});
