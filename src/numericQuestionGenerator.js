@@ -80,6 +80,7 @@ const SUBJECT_UNITS = {
   W: "N",
   g: "N/kg",
   c: "J/(kg °C)",
+  L: "J/kg",
   h: "m",
   T: "s",
   E_useful: "J",
@@ -577,7 +578,7 @@ export function solveForSubject(equation, slots, subject) {
   throw new Error(`Cannot solve for "${subject}" in equation "${equation.id}"`);
 }
 
-function getSubjectUnit(equation, subject) {
+export function getSubjectUnit(equation, subject) {
   if (SUBJECT_UNITS[subject]) return SUBJECT_UNITS[subject];
   return EQUATION_UNITS[equation.id] || "";
 }
@@ -1522,10 +1523,11 @@ export function expandVariantDescriptors(variants = {}) {
     const list = [];
     for (const recipe of variants.recipes) {
       const count = Math.max(0, parseInt(recipe.count, 10) || 0);
+      const rearrangementBase = recipe.base === "rearrangement";
       const base = recipe.base === "recall" || recipe.base === "equation_recall" ? "recall" : "substitute";
       const desc = {
         base,
-        rearrangement: !!(recipe.rearrangement ?? recipe.rearrange),
+        rearrangement: !!(recipe.rearrangement ?? recipe.rearrange ?? rearrangementBase),
         unitConversion: !!(recipe.unitConversion ?? recipe.conversion ?? recipe.convert),
         sigFigs: !!(recipe.sigFigs ?? recipe.sig_figs)
       };

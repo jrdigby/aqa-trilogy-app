@@ -15,6 +15,7 @@ import {
   evaluateEquation,
   solveForSubject,
   getSlotSiUnit,
+  getSubjectUnit,
   identifyResultSlot
 } from "./numericQuestionGenerator.js";
 import { normalizeTier, courseTrackForProfile, resolveQuestionSpecMeta } from "./sciencePath.js";
@@ -31,6 +32,7 @@ import {
   getSubstitutionTemplate,
   listRearrangementSubjectIds,
   getActiveConversionStep,
+  findActiveRearrangementStep,
   isStructuredSubstitutionStep,
   rearrangementStructurallyMatches,
   refreshRearrangementFromStudentSlots,
@@ -48,6 +50,7 @@ import {
   substitutionSlotsMatchCommutative,
   buildMarkSchemeSubstitutionSlots,
   formatSubstitutionEquationDisplay,
+  formatSubstitutionSlotSummary,
   resolveSymbolSlotIds,
   slotLabelFromTemplate
 } from "./substitutionTemplate.js";
@@ -261,17 +264,49 @@ export function buildSubstitutionFeedbackContent(subStep, equation, ctx = {}) {
 
   const plainEq = formatSubstitutionEquationDisplay(template, slots, { latex: false });
   const latexEq = formatSubstitutionEquationDisplay(template, slots, { latex: true });
-  if (!plainEq) {
+  const slotSummary = formatSubstitutionSlotSummary(template, slots, symbolSlotIds);
+  if (!slotSummary && !plainEq) {
     return { text: "Substitute the correct values from the question." };
   }
   return {
-    text: `Substitute ${plainEq}`,
+    text: slotSummary ? `Substitute ${slotSummary}` : `Substitute ${plainEq}`,
     html: latexEq ? equationPreviewMarkup(latexEq) : ""
   };
 }
 
 export function buildSubstitutionFeedbackText(subStep, equation, ctx = {}) {
   return buildSubstitutionFeedbackContent(subStep, equation, ctx).text;
+}
+
+/** Substitution remediation — compares student slot entries to the mark scheme summary. */
+export function buildSubstitutionStepFeedback(studentVal, subStep, equation, ctx = {}) {
+  const content = buildSubstitutionFeedbackContent(subStep, equation, ctx);
+  if (typeof studentVal !== "object" || studentVal?.mode !== "structured" || !studentVal.slots) {
+    return content;
+  }
+  const template = getSubstitutionTemplate(equation);
+  if (!template) return content;
+
+  const symbolSlotIds = resolveSymbolSlotIds(template, subStep, ctx.config);
+  const expectedSlots = buildMarkSchemeSubstitutionSlots(template, subStep, ctx);
+  const expectedSummary = formatSubstitutionSlotSummary(template, expectedSlots, symbolSlotIds);
+  const studentSummary = formatSubstitutionSlotSummary(template, studentVal.slots, symbolSlotIds);
+
+  if (expectedSummary && studentSummary === expectedSummary) {
+    return {
+      text: "Your substitution looks correct — check the rearrangement or final calculation step.",
+      html: content.html
+    };
+  }
+
+  if (expectedSummary && studentSummary) {
+    return {
+      text: `Check substitution — expected ${expectedSummary}. You entered ${studentSummary}.`,
+      html: content.html
+    };
+  }
+
+  return content;
 }
 
 export function buildDefaultStepFeedback(step, config, ctx = {}) {
@@ -1688,13 +1723,13 @@ function inputStyle() {
 function renderNumericInputField(id, { requiresStandardForm = false } = {}) {
   const placeholder = numericInputPlaceholder(requiresStandardForm);
   return `
-    <div class="calc-numeric-input-wrap" style="display:inline-flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:0;">
+    <div class="calc-numeric-input-wrap" style="display:inline-flex;flex-direction:column;align-items:flex-start;gap:2px;">
       <input id="${id}" type="text" inputmode="decimal" autocomplete="off" spellcheck="false"
         class="calc-numeric-input" data-preview-for="${id}_preview"
         placeholder="${escapeHtml(placeholder)}"
         style="${studentNumericInputStyle(inputStyle())}"/>
       <span id="${id}_preview" class="calc-numeric-preview" aria-live="polite"
-        style="font-size:0.82rem;color:#64748b;min-height:1.15em;padding:0 2px;max-width:100%;overflow-x:auto;"></span>
+        style="font-size:0.82rem;color:#64748b;min-height:1.15em;padding:0 2px;min-width:100%;width:max-content;max-width:32ch;overflow:visible;white-space:nowrap;line-height:1.3;"></span>
     </div>
   `;
 }
@@ -1709,6 +1744,14 @@ function updateNumericPreview(inputEl, previewEl, onTypeset) {
   }
   previewEl.innerHTML = `$${latex}$`;
   onTypeset?.(previewEl);
+  const normalizeMjx = () => {
+    previewEl.querySelectorAll("mjx-container").forEach((el) => {
+      el.style.overflow = "visible";
+      el.style.maxWidth = "none";
+    });
+  };
+  setTimeout(normalizeMjx, 100);
+  setTimeout(normalizeMjx, 300);
 }
 
 /** Wire live LaTeX previews for student numeric inputs (numAns, conversion, sig figs). */
@@ -1752,12 +1795,29 @@ function selectStyle() {
   return `${inputStyle()} width:fit-content; max-width:100%; min-width:12ch;`;
 }
 
+/** Answer unit for UI and feedback — rearrangement unknown overrides equation default (e.g. L → J/kg not J). */
+export function resolveAnswerDisplayUnit(config, key, equationSheet) {
+  const keyUnit = key?.key_payload?.unit?.trim() || "";
+  const rearrStep = findActiveRearrangementStep(config);
+  if (!rearrStep) return keyUnit;
+
+  const subStep = (config?.steps || []).find((s) => s.type === "substitution");
+  const subject = rearrStep.subject || subStep?.rearrangement_subject;
+  if (!subject) return keyUnit;
+
+  const eqId = resolveMarkSchemeEquationId(config, subStep) || subStep?.equation_id;
+  const equation = findEquationInSheet(equationSheet, eqId);
+  if (!equation) return keyUnit;
+
+  return getSubjectUnit(equation, subject) || keyUnit;
+}
+
 export function renderCalculationWorkflow(q, currentKey, presentation = "practice", equationSheet = null) {
   const rawConfig = getCalculationConfig(q);
   const config = enrichCalculationConfigFromEquationSheet(rawConfig, equationSheet);
   const steps = getActiveSteps(config);
   const simpleMode = isSimpleNumericMode(q, config);
-  const unit = currentKey?.key_payload?.unit || "";
+  const unit = resolveAnswerDisplayUnit(config, currentKey, equationSheet);
   const requiresStandardForm = promptRequiresStandardForm(q?.prompt);
   const standardFormNote = requiresStandardForm
     ? ` <span style="font-weight:600;color:#64748b;">(in standard form)</span>`
@@ -1951,18 +2011,19 @@ function readTextInput(id) {
   return el ? el.value.trim() : "";
 }
 
-export function collectCalculationResponse(q, sessionMode, equationSheet = null) {
+export function collectCalculationResponse(q, sessionMode, equationSheet = null, workflowRoot = null) {
   const sheet = equationSheet || q?._equationSheet || null;
   const config = getCalculationConfig(q);
   const steps = getActiveSteps(config);
   const stepValues = {};
   const stepRaw = {};
+  const root = workflowRoot ?? resolveCalculationWorkflowRoot();
 
   for (const step of steps) {
     if (step.type === "equation_select") {
       stepValues.equation_select = readTextInput("calc_equation_select");
     } else if (step.type === "substitution") {
-      stepValues.substitution = collectSubstitutionPayload(config, sheet, step);
+      stepValues.substitution = collectSubstitutionPayload(config, sheet, step, root);
     } else if (step.type === "conversion") {
       const conv = readNumericInput("calc_conversion");
       stepValues.conversion = conv.value;
@@ -2069,7 +2130,7 @@ function matchSubstitutionStep(studentVal, step, config, equationSheet, markingC
       resp,
       conversionEcf
     );
-    if (template && substitutionSlotsMatchCommutative(studentVal, subStepForMark, template)) {
+    if (template && substitutionSlotsMatchCommutative(studentVal, subStepForMark, template, config)) {
       return { match: true, ecf: !!conversionEcf };
     }
     return { match: substitutionMatches(studentVal.text, step), ecf: false };
@@ -2107,10 +2168,17 @@ function shouldIgnoreInlineStepFeedback(step, stepType, config) {
   return true;
 }
 
-function buildLiveSubstitutionFeedback(step, config, equationSheet) {
+function buildLiveSubstitutionFeedback(step, config, equationSheet, studentVal = null) {
   const convStep = (config?.steps || []).find((s) => s.type === "conversion");
   const equation = findEquationInSheet(equationSheet, step.equation_id);
-  return buildSubstitutionFeedbackContent(step, equation, { config, convStep });
+  const subStepForMark = resolveSubstitutionMarkScheme(
+    {
+      ...step,
+      rearrangement_subject: resolveSubstitutionRearrangementSubject(step, config)
+    },
+    convStep
+  );
+  return buildSubstitutionStepFeedback(studentVal, subStepForMark, equation, { config, convStep });
 }
 
 function resolveSimpleNumericMaxAo(max, markPoints) {
@@ -2262,7 +2330,7 @@ export function markCalculationResponse(q, resp, key, markPoints, cleanUrl, equa
 
   const exactAnswer = resolveExactAnswer(key);
   const ansTol = parseFloat(key?.key_payload?.tolerance ?? 0);
-  const unit = key?.key_payload?.unit || "";
+  const unit = resolveAnswerDisplayUnit(config, key, equationSheet);
   const stepResults = {};
   const markingCtx = resolveMarkingContext(config, resp, equationSheet, steps);
   const wrongEquationPath = markingCtx.hasEquationSelect && !markingCtx.equationCorrect;
@@ -2369,7 +2437,7 @@ export function markCalculationResponse(q, resp, key, markPoints, cleanUrl, equa
             url: cleanUrl
           });
         }
-        const subFb = buildLiveSubstitutionFeedback(step, config, equationSheet);
+        const subFb = buildLiveSubstitutionFeedback(step, config, equationSheet, studentVal);
         const subText = getStepFeedback(
           step,
           markPoints,

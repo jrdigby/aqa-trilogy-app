@@ -629,8 +629,8 @@ test("conversion + substitution (no rearrangement) — substitution feedback sho
   const eq = findEq(sheetP1, "kinetic_energy");
   const expected = buildSubstitutionFeedbackText(subStep, eq, { convStep, config: cfg });
   assert.equal(subStep.feedback_if_wrong, expected);
-  assert.match(subStep.feedback_if_wrong, /^Substitute E = /);
-  assert.ok(subStep.feedback_if_wrong.includes(siVal), `feedback should use SI value in equation: ${subStep.feedback_if_wrong}`);
+  assert.match(subStep.feedback_if_wrong, /^Substitute E,/);
+  assert.ok(subStep.feedback_if_wrong.includes(`m = ${siVal}`), `feedback should use SI value: ${subStep.feedback_if_wrong}`);
   assert.ok(!subStep.feedback_if_wrong.includes(String(convStep.display_value)), `feedback should not use stem display: ${subStep.feedback_if_wrong}`);
 });
 

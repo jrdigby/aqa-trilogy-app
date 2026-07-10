@@ -386,6 +386,22 @@ function formatSubstitutionTokenSequence(items, slots, template, { latex = false
   return out.trim();
 }
 
+/** Per-slot substitution summary, e.g. "E = 13000, m = 3.5, L" (unknown shown as symbol only). */
+export function formatSubstitutionSlotSummary(template, slots, symbolSlotIds = new Set()) {
+  if (!template) return "";
+  const parts = [];
+  for (const id of getSlotIdsFromTemplate(template)) {
+    const label = slotLabelFromTemplate(template, id);
+    if (symbolSlotIds.has(id)) {
+      parts.push(label);
+      continue;
+    }
+    const val = slots[id] ?? label;
+    parts.push(`${label} = ${val}`);
+  }
+  return parts.join(", ");
+}
+
 /** Plain-text or LaTeX substitution line, e.g. E = ½ × 500 × 15² */
 export function formatSubstitutionEquationDisplay(template, slots, { latex = false } = {}) {
   if (!template) return "";
@@ -550,13 +566,13 @@ export function serializeSubstitutionToText(template, slots) {
   return parts.join(" ").replace(/\s+/g, " ").trim();
 }
 
-export function collectSubstitutionPayload(config, equationSheet, subStep) {
+export function collectSubstitutionPayload(config, equationSheet, subStep, workflowRoot = null) {
   const ctx = resolveSubstitutionContext(config, equationSheet, subStep);
   if (ctx.mode === "pending") {
     return { mode: "structured", equation_id: null, slots: {}, text: "" };
   }
   if (ctx.mode === "structured" && ctx.template) {
-    const root = resolveCalculationWorkflowRoot();
+    const root = workflowRoot ?? resolveCalculationWorkflowRoot();
     const slots = collectStructuredSubstitution(ctx.template, root);
     return {
       mode: "structured",
@@ -723,12 +739,12 @@ function matchCommutativeGroup(groupSlotIds, payload, slotAnswers, symbolSlotIds
 }
 
 /** Template-aware substitution match with commutative × groups. */
-export function substitutionSlotsMatchCommutative(payload, subStep, template) {
+export function substitutionSlotsMatchCommutative(payload, subStep, template, config = null) {
   if (!payload || payload.mode !== "structured" || !subStep?.slot_answers) return false;
   if (!payload.equation_id) return false;
   if (!template) return false;
 
-  const symbolSlotIds = resolveSymbolSlotIds(template, subStep);
+  const symbolSlotIds = resolveSymbolSlotIds(template, subStep, config);
   const { fixedSlots, commutativeGroups } = parseCommutativeGroups(template);
   const allGrouped = new Set([...fixedSlots, ...commutativeGroups.flat()]);
 
@@ -744,7 +760,15 @@ export function substitutionSlotsMatchCommutative(payload, subStep, template) {
       symbolSlotIds.has(id) || normalizeAcceptedSlotValues(subStep.slot_answers[id])?.length
     );
     if (!hasAnswers) return false;
-    if (!matchCommutativeGroup(group, payload, subStep.slot_answers, symbolSlotIds, template)) return false;
+    const positionalOnly = group.some((id) => symbolSlotIds.has(id));
+    if (positionalOnly) {
+      const ok = group.every((id) =>
+        slotValueMatchesAccepted(id, payload.slots?.[id], subStep.slot_answers[id], symbolSlotIds, template)
+      );
+      if (!ok) return false;
+    } else if (!matchCommutativeGroup(group, payload, subStep.slot_answers, symbolSlotIds, template)) {
+      return false;
+    }
   }
 
   for (const id of getSlotIdsFromTemplate(template)) {
@@ -1164,13 +1188,21 @@ export function buildNumericRearrangementOptions(equation, subStep, rearrStep, o
 }
 
 export function resolveCalculationWorkflowRoot() {
+  const sandbox = document.getElementById("sandboxStage");
+  const sandboxOpen = sandbox
+    && !document.getElementById("sandboxModalOverlay")?.classList.contains("hidden");
+  if (sandboxOpen) {
+    const sandboxPanel = sandbox.querySelector(".calc-workflow-panel");
+    if (sandboxPanel) return sandboxPanel;
+    return sandbox;
+  }
+
   const fromSelect = document.getElementById("calc_equation_select")?.closest(".calc-workflow-panel");
   if (fromSelect) return fromSelect;
   const fromStructured = document.getElementById("calc_substitution_structured")?.closest(".calc-workflow-panel");
   if (fromStructured) return fromStructured;
-  const sandboxPanel = document.getElementById("sandboxStage")?.querySelector(".calc-workflow-panel");
+  const sandboxPanel = sandbox?.querySelector(".calc-workflow-panel");
   if (sandboxPanel) return sandboxPanel;
-  const sandbox = document.getElementById("sandboxStage");
   if (sandbox) return sandbox;
   return null;
 }
