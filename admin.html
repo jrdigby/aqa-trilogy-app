@@ -8204,7 +8204,12 @@
       const picked = document.querySelector('input[name="sandbox_mcq"]:checked')?.value || "";
       resp = { type: "mcq", answer: picked };
     } else if (currentSandboxedQ.question_type === "numeric") {
-      resp = CalcWorkflow.collectCalculationResponse(currentSandboxedQ, "any_practice", currentSandboxedEquationSheet);
+      resp = CalcWorkflow.collectCalculationResponse(
+        currentSandboxedQ,
+        "any_practice",
+        currentSandboxedEquationSheet,
+        document.getElementById("sandboxStage")
+      );
       resp.unit = (currentSandboxedKey?.key_payload?.unit) || "";
     } else {
       resp = { type: "short_text", text: document.getElementById("sbTextAns")?.value.trim() };

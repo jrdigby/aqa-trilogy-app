@@ -1,5 +1,11 @@
 // Structured substitution templates — render, collect, mark, numeric rearrangement
 import { escapeHtml } from "./utils.js";
+import {
+  isValidStudentNumber,
+  numericInputPlaceholder,
+  studentNumberValue,
+  studentSubSlotInputStyle
+} from "./parseStudentNumber.js";
 
 const SLOT_ID_ALIASES = {
   "Δv": "delta_v",
@@ -380,6 +386,22 @@ function formatSubstitutionTokenSequence(items, slots, template, { latex = false
   return out.trim();
 }
 
+/** Per-slot substitution summary, e.g. "E = 13000, m = 3.5, L" (unknown shown as symbol only). */
+export function formatSubstitutionSlotSummary(template, slots, symbolSlotIds = new Set()) {
+  if (!template) return "";
+  const parts = [];
+  for (const id of getSlotIdsFromTemplate(template)) {
+    const label = slotLabelFromTemplate(template, id);
+    if (symbolSlotIds.has(id)) {
+      parts.push(label);
+      continue;
+    }
+    const val = slots[id] ?? label;
+    parts.push(`${label} = ${val}`);
+  }
+  return parts.join(", ");
+}
+
 /** Plain-text or LaTeX substitution line, e.g. E = ½ × 500 × 15² */
 export function formatSubstitutionEquationDisplay(template, slots, { latex = false } = {}) {
   if (!template) return "";
@@ -455,7 +477,7 @@ function renderTokenRow(items, inputStyle) {
   for (const item of items || []) {
     if (item.kind === "slot") {
       const label = item.label || item.id;
-      html += `<input type="text" class="calc-sub-slot" data-slot-id="${escapeHtml(item.id)}" aria-label="Substitute ${escapeHtml(label)}" placeholder="?" title="${escapeHtml(label)}" style="${inputStyle} width:4.5em; min-width:3em; text-align:center;"/>`;
+      html += `<input type="text" class="calc-sub-slot" data-slot-id="${escapeHtml(item.id)}" aria-label="Substitute ${escapeHtml(label)}" placeholder="?" title="${escapeHtml(label)} — ${numericInputPlaceholder()}" style="${studentSubSlotInputStyle(inputStyle)}"/>`;
     } else if (item.kind === "op") {
       html += `<span class="calc-sub-op" style="padding:0 4px;font-weight:600;">${escapeHtml(item.text)}</span>`;
     }
@@ -544,13 +566,13 @@ export function serializeSubstitutionToText(template, slots) {
   return parts.join(" ").replace(/\s+/g, " ").trim();
 }
 
-export function collectSubstitutionPayload(config, equationSheet, subStep) {
+export function collectSubstitutionPayload(config, equationSheet, subStep, workflowRoot = null) {
   const ctx = resolveSubstitutionContext(config, equationSheet, subStep);
   if (ctx.mode === "pending") {
     return { mode: "structured", equation_id: null, slots: {}, text: "" };
   }
   if (ctx.mode === "structured" && ctx.template) {
-    const root = resolveCalculationWorkflowRoot();
+    const root = workflowRoot ?? resolveCalculationWorkflowRoot();
     const slots = collectStructuredSubstitution(ctx.template, root);
     return {
       mode: "structured",
@@ -585,8 +607,8 @@ function slotValueMatches(studentVal, acceptedList) {
   return list.some((a) => {
     const na = normalizeSlotValue(a);
     if (na === normalized) return true;
-    const sNum = parseFloat(normalized);
-    const aNum = parseFloat(na);
+    const sNum = studentNumberValue(normalized);
+    const aNum = studentNumberValue(na);
     if (Number.isFinite(sNum) && Number.isFinite(aNum) && Math.abs(sNum - aNum) < 1e-9) {
       return true;
     }
@@ -717,12 +739,12 @@ function matchCommutativeGroup(groupSlotIds, payload, slotAnswers, symbolSlotIds
 }
 
 /** Template-aware substitution match with commutative × groups. */
-export function substitutionSlotsMatchCommutative(payload, subStep, template) {
+export function substitutionSlotsMatchCommutative(payload, subStep, template, config = null) {
   if (!payload || payload.mode !== "structured" || !subStep?.slot_answers) return false;
   if (!payload.equation_id) return false;
   if (!template) return false;
 
-  const symbolSlotIds = resolveSymbolSlotIds(template, subStep);
+  const symbolSlotIds = resolveSymbolSlotIds(template, subStep, config);
   const { fixedSlots, commutativeGroups } = parseCommutativeGroups(template);
   const allGrouped = new Set([...fixedSlots, ...commutativeGroups.flat()]);
 
@@ -738,7 +760,15 @@ export function substitutionSlotsMatchCommutative(payload, subStep, template) {
       symbolSlotIds.has(id) || normalizeAcceptedSlotValues(subStep.slot_answers[id])?.length
     );
     if (!hasAnswers) return false;
-    if (!matchCommutativeGroup(group, payload, subStep.slot_answers, symbolSlotIds, template)) return false;
+    const positionalOnly = group.some((id) => symbolSlotIds.has(id));
+    if (positionalOnly) {
+      const ok = group.every((id) =>
+        slotValueMatchesAccepted(id, payload.slots?.[id], subStep.slot_answers[id], symbolSlotIds, template)
+      );
+      if (!ok) return false;
+    } else if (!matchCommutativeGroup(group, payload, subStep.slot_answers, symbolSlotIds, template)) {
+      return false;
+    }
   }
 
   for (const id of getSlotIdsFromTemplate(template)) {
@@ -887,8 +917,7 @@ function templateSlotIds(equation) {
 }
 
 function isNumericSlotValue(text) {
-  const t = String(text ?? "").trim();
-  return t !== "" && !Number.isNaN(parseFloat(t));
+  return isValidStudentNumber(text);
 }
 
 /**
@@ -934,7 +963,7 @@ function resolveRearrangementSubject(rearrStep, subStep, equation, rawStudentSlo
   for (const [id, val] of Object.entries(rawStudentSlots || {})) {
     if (!subjectIds.has(id)) continue;
     const text = String(val ?? "").trim();
-    if (text && Number.isNaN(parseFloat(text))) {
+    if (text && !isValidStudentNumber(text)) {
       return id;
     }
   }
@@ -1019,7 +1048,7 @@ export function buildSiSlotAnswersForRearrangement(
   if (studentSlots) {
     for (const [id, val] of Object.entries(studentSlots)) {
       const t = String(val ?? "").trim();
-      if (t && !Number.isNaN(parseFloat(t))) out[id] = t;
+      if (t && isValidStudentNumber(t)) out[id] = t;
     }
   }
 
@@ -1159,13 +1188,21 @@ export function buildNumericRearrangementOptions(equation, subStep, rearrStep, o
 }
 
 export function resolveCalculationWorkflowRoot() {
+  const sandbox = document.getElementById("sandboxStage");
+  const sandboxOpen = sandbox
+    && !document.getElementById("sandboxModalOverlay")?.classList.contains("hidden");
+  if (sandboxOpen) {
+    const sandboxPanel = sandbox.querySelector(".calc-workflow-panel");
+    if (sandboxPanel) return sandboxPanel;
+    return sandbox;
+  }
+
   const fromSelect = document.getElementById("calc_equation_select")?.closest(".calc-workflow-panel");
   if (fromSelect) return fromSelect;
   const fromStructured = document.getElementById("calc_substitution_structured")?.closest(".calc-workflow-panel");
   if (fromStructured) return fromStructured;
-  const sandboxPanel = document.getElementById("sandboxStage")?.querySelector(".calc-workflow-panel");
+  const sandboxPanel = sandbox?.querySelector(".calc-workflow-panel");
   if (sandboxPanel) return sandboxPanel;
-  const sandbox = document.getElementById("sandboxStage");
   if (sandbox) return sandbox;
   return null;
 }
@@ -1182,7 +1219,7 @@ export function isConversionInputComplete(convStep) {
   const el = document.getElementById("calc_conversion");
   if (!el) return true;
   if (String(el.value).trim() === "") return false;
-  return Number.isFinite(parseFloat(el.value));
+  return isValidStudentNumber(el.value);
 }
 
 /** True when conversion (if any) and substitution slot inputs are complete for rearrangement. */
@@ -1236,7 +1273,7 @@ export function refreshRearrangementFromStudentSlots(config, equationSheet, subS
   }
   const convEl = document.getElementById("calc_conversion");
   const convRaw = convEl ? String(convEl.value).trim() : "";
-  const studentConv = convRaw !== "" && Number.isFinite(parseFloat(convRaw)) ? parseFloat(convRaw) : null;
+  const studentConv = convRaw !== "" && isValidStudentNumber(convRaw) ? studentNumberValue(convRaw) : null;
   const resp = Number.isFinite(studentConv) ? { steps: { conversion: studentConv } } : null;
   const siSlots = buildSiSlotAnswersForRearrangement(subStep, convStep, resp, studentSlots);
   const built = buildNumericRearrangementOptions(eq, subStep, rearrStep, { siSlotAnswers: siSlots });

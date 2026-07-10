@@ -9,7 +9,14 @@ import {
   renderSubstitutionHelper,
   enrichEquation
 } from "../src/substitutionTemplate.js";
-import { markCalculationResponse, buildSubstitutionFeedbackText, applyDefaultStepFeedbackToConfig } from "../src/calculationWorkflow.js";
+import { markCalculationResponse, buildSubstitutionFeedbackText, buildSubstitutionStepFeedback, applyDefaultStepFeedbackToConfig, resolveAnswerDisplayUnit } from "../src/calculationWorkflow.js";
+import { generateSlotValuesForRearrangement, generateBatch, expandVariantDescriptors } from "../src/numericQuestionGenerator.js";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const sheetP1 = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "data", "equation_sheets", "physics_p1_ht.json"), "utf8"));
 
 const powerViTemplate = {
   layout: "product",
@@ -46,6 +53,17 @@ const kineticEnergyTemplate = {
     { kind: "op", text: "×" },
     { kind: "slot", id: "v", label: "v" },
     { kind: "op", text: "²" }
+  ]
+};
+
+const latentHeatTemplate = {
+  layout: "product",
+  tokens: [
+    { kind: "slot", id: "E", label: "E" },
+    { kind: "op", text: "=" },
+    { kind: "slot", id: "m", label: "m" },
+    { kind: "op", text: "×" },
+    { kind: "slot", id: "L", label: "L" }
   ]
 };
 
@@ -600,7 +618,7 @@ test("buildSubstitutionFeedbackText shows full equation with symbol slot from bl
     slot_answers: { m: ["100"], v: ["20"] }
   };
   const text = buildSubstitutionFeedbackText(subStep, equation);
-  assert.equal(text, "Substitute E = ½ × 100 × 20²");
+  assert.equal(text, "Substitute E, m = 100, v = 20");
   assert.ok(!text.toLowerCase().includes("incorrect"));
 });
 
@@ -629,8 +647,8 @@ test("buildSubstitutionFeedbackText keeps symbol slot when batch slotEdits inclu
     v: { display: "4", si: "4" }
   };
   const text = buildSubstitutionFeedbackText(subStep, equation, { config, slotEdits });
-  assert.equal(text, "Substitute 16 = ½ × m × 4²");
-  assert.ok(!text.includes("½ × 2 ×"), "subject numeric value must not replace symbol in feedback equation");
+  assert.equal(text, "Substitute E = 16, m, v = 4");
+  assert.ok(!text.includes("½ × 2 ×"), "subject numeric value must not replace symbol in feedback");
 });
 
 test("resolveSymbolSlotIds uses blank expected values from mark scheme", () => {
@@ -751,7 +769,7 @@ test("buildSubstitutionFeedbackText uses SI value after unit conversion", () => 
     display_value: 10000
   };
   const text = buildSubstitutionFeedbackText(subStep, equation, { convStep });
-  assert.equal(text, "Substitute E = ½ × 10 × 4²");
+  assert.equal(text, "Substitute E, m = 10, v = 4");
   assert.ok(!text.includes("10000"));
 });
 
@@ -871,7 +889,7 @@ test("stale baked substitution feedback is ignored when conversion step exists",
   };
   const subStep = config.steps[1];
   const live = buildSubstitutionFeedbackText(subStep, equation, { convStep: config.steps[0] });
-  assert.equal(live, "Substitute E = ½ × 10 × 11²");
+  assert.equal(live, "Substitute E, m = 10, v = 11");
 
   const q = {
     question_type: "numeric",
@@ -1083,4 +1101,204 @@ test("wrong equation but correct unit conversion still earns the conversion mark
     !result.missing.some((m) => m.stepType === "conversion" && !m.isEcf),
     "correct conversion should not appear in missing feedback"
   );
+});
+
+test("standard form prompt: ×10^n presentation required for correct mark", () => {
+  const q = {
+    max_marks: 1,
+    prompt: "Calculate the distance. Give your answer in standard form.",
+    calculation_config: {
+      steps: [{ type: "calculate", required: true, marks: 1 }]
+    }
+  };
+  const key = { key_payload: { answer: 320000000, tolerance: 1 } };
+
+  const wrongFormat = markCalculationResponse(
+    q,
+    { steps: { calculate: 320000000 }, stepRaw: { calculate: "320000000" } },
+    key,
+    [],
+    null
+  );
+  assert.equal(wrongFormat.total, 0);
+  assert.ok(wrongFormat.missing.some((m) => m.text.includes("standard form")));
+
+  const correctFormat = markCalculationResponse(
+    q,
+    { steps: { calculate: 320000000 }, stepRaw: { calculate: "3.2×10⁸" } },
+    key,
+    [],
+    null
+  );
+  assert.equal(correctFormat.total, 1);
+});
+
+test("standard form prompt: e-notation value correct but presentation rejected", () => {
+  const q = {
+    max_marks: 1,
+    prompt: "Give your answer in standard form.",
+    calculation_config: {
+      steps: [{ type: "calculate", required: true, marks: 1 }]
+    }
+  };
+  const key = { key_payload: { answer: 4500, tolerance: 0 } };
+  const result = markCalculationResponse(
+    q,
+    { steps: { calculate: 4500 }, stepRaw: { calculate: "4.5e3" } },
+    key,
+    [],
+    null
+  );
+  assert.equal(result.total, 0);
+  assert.ok(result.missing.some((m) => m.text.includes("standard form")));
+});
+
+test("no standard form prompt: plain decimal accepted", () => {
+  const q = {
+    max_marks: 1,
+    prompt: "Calculate the speed.",
+    calculation_config: {
+      steps: [{ type: "calculate", required: true, marks: 1 }]
+    }
+  };
+  const key = { key_payload: { answer: 320000000, tolerance: 1 } };
+  const result = markCalculationResponse(
+    q,
+    { steps: { calculate: 320000000 }, stepRaw: { calculate: "3.2e8" } },
+    key,
+    [],
+    null
+  );
+  assert.equal(result.total, 1);
+});
+
+test("specific latent heat: substitution accepts E=13000, m=3.5, L symbol", () => {
+  const payload = {
+    mode: "structured",
+    equation_id: "specific_latent_heat",
+    slots: { E: "13000", m: "3.5", L: "L" }
+  };
+  const subStep = {
+    slot_answers: { E: ["13000"], m: ["3.5"] },
+    rearrangement_subject: "L"
+  };
+  assert.equal(substitutionSlotsMatchCommutative(payload, subStep, latentHeatTemplate), true);
+});
+
+test("specific latent heat: rejects swapped m and L slot values", () => {
+  const payload = {
+    mode: "structured",
+    equation_id: "specific_latent_heat",
+    slots: { E: "13000", m: "L", L: "3.5" }
+  };
+  const subStep = {
+    slot_answers: { E: ["13000"], m: ["3.5"] },
+    rearrangement_subject: "L"
+  };
+  assert.equal(substitutionSlotsMatchCommutative(payload, subStep, latentHeatTemplate), false);
+});
+
+test("specific latent heat: feedback lists each slot label", () => {
+  const equation = { id: "specific_latent_heat", substitution_template: latentHeatTemplate };
+  const subStep = {
+    slot_answers: { E: ["13000"], m: ["3.5"] },
+    rearrangement_subject: "L"
+  };
+  const text = buildSubstitutionFeedbackText(subStep, equation);
+  assert.equal(text, "Substitute E = 13000, m = 3.5, L");
+});
+
+test("specific latent heat: matching student slots get rearrangement hint not repeat substitute", () => {
+  const equation = { id: "specific_latent_heat", substitution_template: latentHeatTemplate };
+  const config = {
+    steps: [
+      {
+        type: "substitution",
+        required: true,
+        mode: "structured",
+        equation_id: "specific_latent_heat",
+        slot_answers: { E: ["13000"], m: ["3.5"] },
+        rearrangement_subject: "L"
+      },
+      { type: "rearrangement", required: true, mode: "numeric", subject: "L" },
+      { type: "calculate", required: true }
+    ]
+  };
+  const subStep = config.steps[0];
+  const studentVal = {
+    mode: "structured",
+    equation_id: "specific_latent_heat",
+    slots: { E: "13000", m: "3.5", L: "L" }
+  };
+  const fb = buildSubstitutionStepFeedback(studentVal, subStep, equation, { config });
+  assert.match(fb.text, /substitution looks correct/i);
+  assert.ok(!fb.text.startsWith("Substitute E = 13000"));
+});
+
+test("specific latent heat: full workflow marks substitution correct", () => {
+  const { drafts } = generateBatch({
+    equation: "specific_latent_heat",
+    sheet: "physics_p1_ht",
+    rearrangement_subject: "L",
+    ranges: { E: { min: 13000, max: 13000, step: 1 }, m: { min: 3.5, max: 3.5, step: 0.1 } },
+    variants: { recipes: [{ base: "substitute", rearrangement: true, count: 1 }] },
+    seed: 42
+  }, sheetP1);
+  const d = drafts[0];
+  const sub = d.question.calculation_config.steps.find((s) => s.type === "substitution");
+  const rearr = d.question.calculation_config.steps.find((s) => s.type === "rearrangement");
+  const resp = {
+    steps: {
+      substitution: {
+        mode: "structured",
+        equation_id: sub.equation_id,
+        slots: { E: "13000", m: "3.5", L: "L" }
+      },
+      rearrangement: rearr.answer,
+      calculate: d.answer_key.key_payload.answer
+    }
+  };
+  const result = markCalculationResponse(d.question, resp, d.answer_key, [], null, sheetP1);
+  assert.equal(result.stepResults.substitution.correct, true);
+  assert.equal(result.total, result.max);
+});
+
+test("specific latent heat rearrangement answer uses J/kg unit", () => {
+  const equation = enrichEquation({
+    id: "specific_latent_heat",
+    substitution_template: latentHeatTemplate,
+    rearrangement_forms: {
+      default_subject: "L",
+      variants: [{ subject: "L", correct: "L = E / m" }]
+    }
+  });
+  const generated = generateSlotValuesForRearrangement(equation, "L", { E: { min: 13000, max: 13000, step: 1 }, m: { min: 3.5, max: 3.5, step: 0.1 } });
+  assert.equal(generated.unit, "J/kg");
+});
+
+test("resolveAnswerDisplayUnit uses J/kg for latent heat rearrangement even when key says J", () => {
+  const config = {
+    steps: [
+      {
+        type: "substitution",
+        required: true,
+        mode: "structured",
+        equation_id: "specific_latent_heat",
+        rearrangement_subject: "L"
+      },
+      { type: "rearrangement", required: true, mode: "numeric", subject: "L" },
+      { type: "calculate", required: true }
+    ]
+  };
+  const key = { key_payload: { unit: "J", answer: 3714 } };
+  const sheet = {
+    equations: [{ id: "specific_latent_heat", substitution_template: latentHeatTemplate }]
+  };
+  assert.equal(resolveAnswerDisplayUnit(config, key, sheet), "J/kg");
+});
+
+test("expandVariantDescriptors maps rearrangement base recipe to rearrangement flag", () => {
+  const list = expandVariantDescriptors({ recipes: [{ base: "rearrangement", count: 1 }] });
+  assert.equal(list.length, 1);
+  assert.equal(list[0].rearrangement, true);
 });
