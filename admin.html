@@ -1497,6 +1497,202 @@
       display: none;
     }
 
+    .audit-bulk-bar {
+      display: none;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 12px;
+      padding: 10px 12px;
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      border-radius: 8px;
+    }
+
+    .audit-bulk-bar.is-visible {
+      display: flex;
+    }
+
+    .audit-bulk-bar .audit-bulk-count {
+      font-weight: 700;
+      font-size: 0.88rem;
+      color: #1e40af;
+    }
+
+    .audit-select-col {
+      width: 28px;
+      text-align: center;
+      vertical-align: middle;
+    }
+
+    .audit-select-col input[type="checkbox"] {
+      width: 15px;
+      height: 15px;
+      cursor: pointer;
+    }
+
+    #panelAudit .audit-table {
+      margin: 0;
+      min-width: 920px;
+      table-layout: fixed;
+      width: 100%;
+    }
+
+    #panelAudit .audit-table th,
+    #panelAudit .audit-table td {
+      padding: 6px 6px;
+      font-size: 0.8rem;
+      vertical-align: top;
+    }
+
+    #panelAudit .audit-table thead th {
+      padding: 8px 6px;
+      font-size: 0.75rem;
+    }
+
+    #panelAudit .audit-table .audit-col-ref { width: 72px; }
+    #panelAudit .audit-table .audit-col-type { width: 44px; }
+    #panelAudit .audit-table .audit-col-prompt { width: auto; }
+    #panelAudit .audit-table .audit-col-marks { width: 40px; }
+    #panelAudit .audit-table .audit-col-cmd { width: 56px; }
+    #panelAudit .audit-table .audit-col-demand { width: 58px; }
+    #panelAudit .audit-table .audit-col-diff { width: 36px; }
+    #panelAudit .audit-table .audit-col-ao { width: 52px; }
+    #panelAudit .audit-table .audit-col-flags { width: 64px; }
+    #panelAudit .audit-table .audit-col-skills { width: 64px; }
+    #panelAudit .audit-table .audit-col-meta { width: 40px; }
+    #panelAudit .audit-table .audit-col-ops { width: 118px; }
+
+    #panelAudit .audit-type-chip {
+      display: inline-block;
+      background: #e2e8f0;
+      color: #475569;
+      padding: 1px 4px;
+      border-radius: 3px;
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+
+    #panelAudit .audit-prompt-cell {
+      max-width: 0;
+      overflow: hidden;
+    }
+
+    #panelAudit .audit-prompt-text {
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: normal;
+      line-height: 1.35;
+      max-height: calc(1.35em * 2);
+      word-break: break-word;
+    }
+
+    #panelAudit .audit-ops {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 3px;
+      width: 108px;
+      margin-left: auto;
+    }
+
+    #panelAudit .audit-ops .btn {
+      padding: 3px 4px;
+      font-size: 0.68rem;
+      line-height: 1.2;
+      min-height: 0;
+      white-space: nowrap;
+    }
+
+    #panelAudit .audit-ops .audit-ops-spacer {
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    #panelAudit .audit-status-row td {
+      padding: 2px 6px 8px;
+      font-size: 0.75rem;
+    }
+
+    #panelAudit .audit-status-row .audit-status-badge {
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      margin: 0 4px 2px 0;
+    }
+
+    #panelAudit .meta-badge {
+      padding: 1px 4px;
+      font-size: 0.65rem;
+    }
+
+    #panelAudit .row.audit-filters {
+      gap: 6px 10px;
+    }
+
+    #bulkEditModal .bulk-field-block {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 12px;
+      background: #f8fafc;
+    }
+
+    #bulkEditModal .bulk-field-block label.bulk-enable {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 700;
+      font-size: 0.88rem;
+      margin-bottom: 8px;
+      cursor: pointer;
+    }
+
+    #bulkEditModal .bulk-field-body {
+      padding-left: 4px;
+    }
+
+    #bulkEditModal .bulk-field-body.is-disabled {
+      opacity: 0.45;
+      pointer-events: none;
+    }
+
+    #bulkEditModal .bulk-skills-columns {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    @media (max-width: 720px) {
+      #bulkEditModal .bulk-skills-columns {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .creator-draft-banner {
+      display: none;
+      margin-bottom: 12px;
+      padding: 10px 14px;
+      background: #ecfdf5;
+      border: 1px solid #a7f3d0;
+      border-radius: 8px;
+      color: #065f46;
+      font-size: 0.88rem;
+      font-weight: 600;
+    }
+
+    .creator-draft-banner.is-visible {
+      display: block;
+    }
+
     /* Simulated Interactive Testing Playground */
     .mcq-option-wrap {
       display: flex;
@@ -1626,6 +1822,7 @@
 
       <!-- TAB 1: CREATOR PANEL -->
       <div id="panelCreator" class="panel active creator-workspace">
+        <div id="creatorDraftBanner" class="creator-draft-banner" role="status"></div>
         <div class="creator-scroll-window">
         <!-- SECTION 1: CORE -->
         <div class="card creator-section-core">
@@ -1723,6 +1920,12 @@
                 <div>
                   <label>Optional Diagram Attachment / Graphic (JPG/PNG File):</label>
                   <input type="file" id="qImage" accept="image/*" />
+                  <label style="margin-top:8px;">Or diagram image URL:</label>
+                  <input type="text" id="qImageUrl" placeholder="https://… (copied from existing question or manual URL)" />
+                  <div id="creatorImagePreviewContainer" class="hidden" style="margin-top:8px; display:flex; align-items:center; gap:10px; background:#f1f5f9; padding:8px; border-radius:8px;">
+                    <img id="creatorImagePreview" style="max-height:72px; border-radius:4px; border:1px solid var(--border);" alt="Diagram preview"/>
+                    <button type="button" id="btnClearCreatorImage" class="btn btn-danger" style="padding:2px 6px; font-size:0.7rem;">Clear diagram</button>
+                  </div>
                 </div>
                 <div>
                   <label>Walkthrough Resource Video URL (YouTube embed):</label>
@@ -2625,30 +2828,38 @@
 
           <button class="btn btn-primary" id="btnQueryQuestions" style="margin-top: 10px;">Query Active Database</button>
           <button type="button" class="btn btn-secondary" id="btnBulkAutoTagSkills" style="margin-top: 10px; margin-left: 8px;">Auto-tag untagged questions</button>
+          <div id="auditBulkBar" class="audit-bulk-bar" aria-live="polite">
+            <span class="audit-bulk-count" id="auditBulkCount">0 selected</span>
+            <button type="button" class="btn btn-primary btn-compact" id="btnOpenBulkEdit">Bulk edit properties…</button>
+            <button type="button" class="btn btn-secondary btn-compact" id="btnClearAuditSelection">Clear selection</button>
+          </div>
           <p id="auditResultCount" class="audit-result-count hidden" aria-live="polite"></p>
         </div>
 
         <div class="card" style="padding:0; overflow-x:auto;">
-          <table style="margin: 0; min-width: 1100px;">
+          <table class="audit-table">
             <thead>
               <tr>
-                <th class="audit-sort-th" data-sort="ref" style="width: 90px;">Ref<span class="audit-sort-indicator"></span></th>
-                <th class="audit-sort-th" data-sort="type" style="width: 90px;">Type<span class="audit-sort-indicator"></span></th>
-                <th class="audit-sort-th" data-sort="prompt">Prompt<span class="audit-sort-indicator"></span></th>
-                <th class="audit-sort-th" data-sort="marks" style="width: 56px;">Marks<span class="audit-sort-indicator"></span></th>
-                <th class="audit-sort-th" data-sort="cmd" style="width: 72px;">Cmd<span class="audit-sort-indicator"></span></th>
-                <th class="audit-sort-th" data-sort="demand" style="width: 80px;">Demand<span class="audit-sort-indicator"></span></th>
-                <th class="audit-sort-th" data-sort="difficulty" style="width: 48px;" title="Computed difficulty (1–5)">Diff<span class="audit-sort-indicator"></span></th>
-                <th class="audit-sort-th" data-sort="ao" style="width: 64px;">AO<span class="audit-sort-indicator"></span></th>
-                <th style="width: 72px;">M/RP/Aud</th>
-                <th style="width: 88px;">MS/WS</th>
-                <th class="audit-sort-th" data-sort="meta" style="width: 72px;">Meta<span class="audit-sort-indicator"></span></th>
-                <th style="width: 200px; text-align:right;">Operations</th>
+                <th class="audit-select-col">
+                  <input type="checkbox" id="auditSelectAll" title="Select all in results" aria-label="Select all questions" />
+                </th>
+                <th class="audit-sort-th audit-col-ref" data-sort="ref">Ref<span class="audit-sort-indicator"></span></th>
+                <th class="audit-sort-th audit-col-type" data-sort="type">Type<span class="audit-sort-indicator"></span></th>
+                <th class="audit-sort-th audit-col-prompt" data-sort="prompt">Prompt<span class="audit-sort-indicator"></span></th>
+                <th class="audit-sort-th audit-col-marks" data-sort="marks">Mk<span class="audit-sort-indicator"></span></th>
+                <th class="audit-sort-th audit-col-cmd" data-sort="cmd">Cmd<span class="audit-sort-indicator"></span></th>
+                <th class="audit-sort-th audit-col-demand" data-sort="demand">Dem<span class="audit-sort-indicator"></span></th>
+                <th class="audit-sort-th audit-col-diff" data-sort="difficulty" title="Computed difficulty (1–5)">Df<span class="audit-sort-indicator"></span></th>
+                <th class="audit-sort-th audit-col-ao" data-sort="ao">AO<span class="audit-sort-indicator"></span></th>
+                <th class="audit-col-flags">M/RP</th>
+                <th class="audit-col-skills">MS/WS</th>
+                <th class="audit-sort-th audit-col-meta" data-sort="meta">Meta<span class="audit-sort-indicator"></span></th>
+                <th class="audit-col-ops" style="text-align:right;">Ops</th>
               </tr>
             </thead>
             <tbody id="questionsAuditList">
               <tr>
-                <td colspan="12" style="padding:24px; text-align:center; color:var(--text-muted);">Set filters and query active tables.</td>
+                <td colspan="13" style="padding:24px; text-align:center; color:var(--text-muted);">Set filters and query active tables.</td>
               </tr>
             </tbody>
           </table>
@@ -3224,6 +3435,85 @@
     </div>
   </div>
 
+  <!-- BULK EDIT PROPERTIES MODAL -->
+  <div id="bulkEditModal" class="hidden" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(15,23,42,0.6); z-index:2200; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(4px);">
+    <div class="card" style="width:100%; max-width:720px; max-height:90vh; overflow:auto; box-shadow:0 20px 25px -5px rgba(0,0,0,0.1); margin: 0 16px; border-radius:12px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:10px; margin-bottom:12px;">
+        <h3 style="margin:0; font-size:1.1rem; color:var(--primary-dark);">Bulk edit properties</h3>
+        <button type="button" id="btnCloseBulkEdit" style="border:none; background:none; font-size:1.4rem; cursor:pointer; color:var(--text-muted);">&times;</button>
+      </div>
+      <p id="bulkEditSummary" style="font-size:0.85rem; color:var(--text-muted); margin:0 0 14px;"></p>
+
+      <div class="bulk-field-block">
+        <label class="bulk-enable"><input type="checkbox" id="bulkEnableSkills" /> MS / WS skill tags (merge)</label>
+        <div class="bulk-field-body is-disabled" data-bulk-body="skills">
+          <p class="muted" style="font-size:0.78rem; margin:0 0 8px;">Existing tags across the selection are pre-checked. Checked tags are applied to all selected questions; uncheck to remove a tag from all. You can also tick additional MS/WS codes.</p>
+          <div class="bulk-skills-columns">
+            <details id="bulkWsSkillsPanel" class="skills-panel-block skills-details" open>
+              <summary>Working Scientifically (WS)</summary>
+              <div class="skills-details-body"><div id="bulkWsSkillsWrap"></div></div>
+            </details>
+            <details id="bulkMsSkillsPanel" class="skills-panel-block skills-details" open>
+              <summary>Maths Skills (MS)</summary>
+              <div class="skills-details-body"><div id="bulkMsSkillsWrap"></div></div>
+            </details>
+          </div>
+        </div>
+      </div>
+
+      <div class="bulk-field-block">
+        <label class="bulk-enable"><input type="checkbox" id="bulkEnableVideo" /> Video / walkthrough link</label>
+        <div class="bulk-field-body is-disabled" data-bulk-body="video">
+          <input type="text" id="bulkVideoUrl" placeholder="https://www.youtube.com/embed/…" style="width:100%;" />
+          <label style="margin-top:8px; font-weight:500; font-size:0.8rem;"><input type="checkbox" id="bulkClearVideo" /> Clear video link on selected</label>
+        </div>
+      </div>
+
+      <div class="bulk-field-block">
+        <label class="bulk-enable"><input type="checkbox" id="bulkEnableDiagram" /> Diagram / image</label>
+        <div class="bulk-field-body is-disabled" data-bulk-body="diagram">
+          <input type="text" id="bulkImageUrl" placeholder="Image URL…" style="width:100%;" />
+          <input type="file" id="bulkImageFile" accept="image/*" style="margin-top:8px;" />
+          <label style="margin-top:8px; font-weight:500; font-size:0.8rem;"><input type="checkbox" id="bulkClearDiagram" /> Clear diagram on selected</label>
+        </div>
+      </div>
+
+      <div class="bulk-field-block">
+        <label class="bulk-enable"><input type="checkbox" id="bulkEnableRp" /> Required practical</label>
+        <div class="bulk-field-body is-disabled" data-bulk-body="rp">
+          <label style="font-weight:500; font-size:0.82rem;"><input type="checkbox" id="bulkChkRequiredPractical" /> Tag as required practical</label>
+          <div id="bulkRequiredPracticalRow" class="hidden" style="margin-top:8px;">
+            <label for="bulkRequiredPracticalSelect" style="font-size:0.8rem;">Which required practical?</label>
+            <select id="bulkRequiredPracticalSelect" class="select-fit" style="width:100%; max-width:100%;"></select>
+          </div>
+        </div>
+      </div>
+
+      <div class="bulk-field-block">
+        <label class="bulk-enable"><input type="checkbox" id="bulkEnableDemand" /> Demand level</label>
+        <div class="bulk-field-body is-disabled" data-bulk-body="demand">
+          <select id="bulkDemandLevel" class="select-fit" style="width:100%; max-width:280px;"></select>
+        </div>
+      </div>
+
+      <div class="bulk-field-block">
+        <label class="bulk-enable"><input type="checkbox" id="bulkEnableTier" /> Tier</label>
+        <div class="bulk-field-body is-disabled" data-bulk-body="tier">
+          <select id="bulkTier" class="select-fit" style="width:100%; max-width:280px;">
+            <option value="both">Both (Standard Common Core)</option>
+            <option value="higher">Higher (Trilogy Level 5–9)</option>
+            <option value="foundation">Foundation (Trilogy Level 1–5)</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:8px; border-top:1px solid var(--border); padding-top:14px;">
+        <button type="button" class="btn btn-secondary" id="btnCancelBulkEdit">Cancel</button>
+        <button type="button" class="btn btn-primary" id="btnApplyBulkEdit">Apply to selected</button>
+      </div>
+    </div>
+  </div>
+
 <!-- Supabase Script Integrations & Business Logic -->
 <script type="module">
   import { supabaseClient } from "./src/dbClient.js";
@@ -3234,6 +3524,7 @@
   import * as AiQuestionDraft from "./src/aiQuestionDraft.js";
   import * as CsvImport from "./src/csvQuestionImport.js";
   import { resolveMcqWrongFeedback, MCQ_FLASHCARD_ADDED_MSG, highlightCommandWordsInPrompt, checkKeywordOrSynonymsMatch, getGradableMarkPoints } from "./src/evalEngine.js";
+  import { normalizeQuestionTierForDb } from "./src/sciencePath.js";
 
   window.CalcWorkflow = CalcWorkflow;
   window.NumericGen = NumericGen;
@@ -3241,6 +3532,7 @@
   window.AiQuestionDraft = AiQuestionDraft;
   window.CsvImport = CsvImport;
   window.supabaseClient = supabaseClient;
+  window.normalizeQuestionTierForDb = normalizeQuestionTierForDb;
   window.resolveMcqWrongFeedback = resolveMcqWrongFeedback;
   window.MCQ_FLASHCARD_ADDED_MSG = MCQ_FLASHCARD_ADDED_MSG;
   window.checkKeywordOrSynonymsMatch = checkKeywordOrSynonymsMatch;
@@ -4610,7 +4902,7 @@
         await window.AdminSkills.assertDeveloperForSkillSave(supabaseClient);
       }
       showAdminToast("Uploading attachments and parsing payloads...");
-      let finalImageUrl = null;
+      let finalImageUrl = document.getElementById("qImageUrl")?.value.trim() || null;
       
       // Image File Stream Attachment Loader
       if (imageInput && imageInput.files.length > 0) {
@@ -4789,10 +5081,49 @@
     }
   };
 
+  function syncCreatorImagePreview() {
+    const url = document.getElementById("qImageUrl")?.value.trim() || "";
+    const preview = document.getElementById("creatorImagePreview");
+    const container = document.getElementById("creatorImagePreviewContainer");
+    if (!preview || !container) return;
+    if (url) {
+      preview.src = url;
+      container.classList.remove("hidden");
+    } else {
+      preview.removeAttribute("src");
+      container.classList.add("hidden");
+    }
+  }
+
+  function setCreatorDraftBanner(message) {
+    const el = document.getElementById("creatorDraftBanner");
+    if (!el) return;
+    if (message) {
+      el.textContent = message;
+      el.classList.add("is-visible");
+    } else {
+      el.textContent = "";
+      el.classList.remove("is-visible");
+    }
+  }
+
+  document.getElementById("qImageUrl")?.addEventListener("input", syncCreatorImagePreview);
+  document.getElementById("btnClearCreatorImage")?.addEventListener("click", () => {
+    const urlEl = document.getElementById("qImageUrl");
+    const fileEl = document.getElementById("qImage");
+    if (urlEl) urlEl.value = "";
+    if (fileEl) fileEl.value = "";
+    syncCreatorImagePreview();
+  });
+
   function clearQuestionCreatorForm() {
     document.getElementById("qPrompt").value = "";
     document.getElementById("qVideo").value = "";
     document.getElementById("qImage").value = "";
+    const qImageUrl = document.getElementById("qImageUrl");
+    if (qImageUrl) qImageUrl.value = "";
+    syncCreatorImagePreview();
+    setCreatorDraftBanner("");
     
     document.getElementById("mcqOptA").value = "";
     document.getElementById("mcqOptB").value = "";
@@ -7142,7 +7473,9 @@
   const btnQueryQuestions = document.getElementById("btnQueryQuestions");
   const auditList = document.getElementById("questionsAuditList");
 
-  const AUDIT_COLSPAN = 12;
+  const AUDIT_COLSPAN = 13;
+  const auditSelectedIds = new Set();
+  let bulkSkillBaselineCodes = new Set();
 
   function dedupeQuestionsById(rows) {
     const seen = new Set();
@@ -7378,6 +7711,13 @@
   }
 
   function buildAuditRowsHtml(filtered, checkPointsCounterMap, specMap) {
+    const typeLabel = (t) => ({
+      mcq: "MCQ",
+      short_text: "SA",
+      numeric: "NUM",
+      extended_response: "ER"
+    }[t] || String(t || "").toUpperCase());
+
     return filtered.map((q) => {
       const ref = getAuditQuestionSpecRef(q, specMap);
       const topic = getAuditQuestionTopic(q, specMap);
@@ -7408,45 +7748,58 @@
           const bg = isError ? "#fef2f2" : "#fef3c7";
           const textCol = isError ? "#991b1b" : "#92400e";
           const borderCol = isError ? "#fca5a5" : "#fcd34d";
-          return `<span style="background:${bg}; color:${textCol}; border:1px solid ${borderCol}; padding:4px 10px; border-radius:6px; font-size:0.78rem; font-weight:600; display:inline-flex; align-items:center; gap:4px; margin-right:6px; margin-bottom:4px;">${w.text}</span>`;
+          return `<span class="audit-status-badge" style="background:${bg}; color:${textCol}; border:1px solid ${borderCol};">${w.text}</span>`;
         }).join("");
       }
 
       if (q.question_type === "short_text") {
         if (hasCheckpoints) {
-          warningsHtml += `<span style="background:#eff6ff; color:#1e40af; border:1px solid #bfdbfe; padding:4px 10px; border-radius:6px; font-size:0.78rem; font-weight:600; display:inline-flex; align-items:center; gap:4px; margin-right:6px; margin-bottom:4px;">🎯 Grading: Checkpoints Active</span>`;
+          warningsHtml += `<span class="audit-status-badge" style="background:#eff6ff; color:#1e40af; border:1px solid #bfdbfe;">🎯 Checkpoints</span>`;
         } else {
-          warningsHtml += `<span style="background:#f0fdf4; color:#166534; border:1px solid #bbf7d0; padding:4px 10px; border-radius:6px; font-size:0.78rem; font-weight:600; display:inline-flex; align-items:center; gap:4px; margin-right:6px; margin-bottom:4px;">🔑 Grading: Keyword Engine</span>`;
+          warningsHtml += `<span class="audit-status-badge" style="background:#f0fdf4; color:#166534; border:1px solid #bbf7d0;">🔑 Keywords</span>`;
         }
       } else if (q._warningsList.length === 0) {
-        warningsHtml = `<span style="background:#d1fae5; color:#065f46; border:1px solid #a7f3d0; padding:4px 10px; border-radius:6px; font-size:0.78rem; font-weight:600; display:inline-flex; align-items:center; gap:4px;">🟢 Audit Passed: Question fully configured</span>`;
+        warningsHtml = `<span class="audit-status-badge" style="background:#d1fae5; color:#065f46; border:1px solid #a7f3d0;">🟢 OK</span>`;
       }
 
       const topicHint = topic ? ` title="${escapeHtml(topic)}"` : "";
+      const checked = auditSelectedIds.has(q.id) ? " checked" : "";
+      const isMcq = q.question_type === "mcq";
+      const opsBottomLeft = isMcq
+        ? `<button type="button" onclick="draftMcqAsShortAnswer('${q.id}')" class="btn btn-secondary" style="background:#059669; color:white;" title="Copy to short-answer draft on Create tab">→ SA</button>`
+        : `<button type="button" onclick="requestSafeSystemDeletion('${q.id}')" class="btn btn-danger">Del</button>`;
+      const opsBottomRight = isMcq
+        ? `<button type="button" onclick="requestSafeSystemDeletion('${q.id}')" class="btn btn-danger">Del</button>`
+        : `<span class="audit-ops-spacer btn" aria-hidden="true">·</span>`;
 
       return `
-          <tr style="border-top:1px solid var(--border); transition: background 0.15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='none'">
-            <td style="padding:12px 16px 4px 16px; font-weight:700; color:#1e293b;"${topicHint}>${escapeHtml(ref)}</td>
-            <td style="padding:12px 16px 4px 16px;"><span class="chip" style="background:#e2e8f0; color:#475569; padding:2px 6px; border-radius:4px; font-size:0.76rem; font-weight:700;">${q.question_type.toUpperCase()}</span></td>
-            <td style="padding:12px 16px 4px 16px; max-width:240px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(q.prompt)}">${escapeHtml(q.prompt)}</td>
-            <td style="padding:12px 16px 4px 16px; font-weight:700;">${q.max_marks}</td>
-            <td style="padding:12px 16px 4px 16px; font-size:0.8rem;">${escapeHtml(cmd)}</td>
-            <td style="padding:12px 16px 4px 16px; font-size:0.78rem;">${escapeHtml(demand)}</td>
-            <td style="padding:12px 16px 4px 16px; text-align:center;"><span class="difficulty-badge difficulty-badge--compact" title="Computed difficulty (1–5)">${computedDiff}</span></td>
-            <td style="padding:12px 16px 4px 16px; font-size:0.78rem; font-family:monospace;">${escapeHtml(aoSplit)}</td>
-            <td style="padding:12px 16px 4px 16px; font-size:0.78rem;">${flags}</td>
-            <td style="padding:12px 16px 4px 16px; font-size:0.72rem;font-family:monospace;max-width:88px;overflow:hidden;text-overflow:ellipsis;" title="${escapeHtml(skillsBadge)}">${escapeHtml(skillsBadge)}</td>
-            <td style="padding:12px 16px 4px 16px;">${metaBadge}</td>
-            <td style="padding:12px 16px 4px 16px; text-align:right; display:flex; gap:6px; justify-content:flex-end;">
-              <button onclick="launchSandboxTest('${q.id}')" class="btn btn-secondary" style="padding:6px 10px; font-size:0.75rem; background:#3b82f6; color:white;">Test</button>
-              <button onclick="requestInteractiveEdit('${q.id}')" class="btn btn-secondary" style="padding:6px 10px; font-size:0.75rem;">Modify</button>
-              <button onclick="requestSafeSystemDeletion('${q.id}')" class="btn btn-danger" style="padding:6px 10px; font-size:0.75rem;">Remove</button>
+          <tr class="audit-main-row" style="border-top:1px solid var(--border);">
+            <td class="audit-select-col">
+              <input type="checkbox" class="audit-row-select" data-qid="${q.id}"${checked} aria-label="Select question" />
+            </td>
+            <td class="audit-col-ref" style="font-weight:700; color:#1e293b;"${topicHint}>${escapeHtml(ref)}</td>
+            <td class="audit-col-type"><span class="audit-type-chip" title="${escapeHtml(q.question_type)}">${typeLabel(q.question_type)}</span></td>
+            <td class="audit-col-prompt audit-prompt-cell" title="${escapeHtml(q.prompt)}"><div class="audit-prompt-text">${escapeHtml(q.prompt)}</div></td>
+            <td class="audit-col-marks" style="font-weight:700;">${q.max_marks}</td>
+            <td class="audit-col-cmd">${escapeHtml(cmd)}</td>
+            <td class="audit-col-demand">${escapeHtml(demand)}</td>
+            <td class="audit-col-diff" style="text-align:center;"><span class="difficulty-badge difficulty-badge--compact" title="Computed difficulty (1–5)">${computedDiff}</span></td>
+            <td class="audit-col-ao" style="font-family:monospace;">${escapeHtml(aoSplit)}</td>
+            <td class="audit-col-flags">${flags}</td>
+            <td class="audit-col-skills" style="font-family:monospace; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(skillsBadge)}">${escapeHtml(skillsBadge)}</td>
+            <td class="audit-col-meta">${metaBadge}</td>
+            <td class="audit-col-ops">
+              <div class="audit-ops">
+                <button type="button" onclick="launchSandboxTest('${q.id}')" class="btn btn-secondary" style="background:#3b82f6; color:white;">Test</button>
+                <button type="button" onclick="requestInteractiveEdit('${q.id}')" class="btn btn-secondary">Edit</button>
+                ${opsBottomLeft}
+                ${opsBottomRight}
+              </div>
             </td>
           </tr>
-          <tr style="border-bottom:1px solid var(--border); background: none;">
-            <td colspan="${AUDIT_COLSPAN}" style="padding: 4px 16px 12px 16px; font-size: 0.8rem; line-height: 1.45;">
-              <div style="display:flex; flex-wrap:wrap; gap:6px; align-items:center;">
-                <span style="font-weight:700; color:var(--text-muted); margin-right:6px;">Status / Audit Details:</span>
+          <tr class="audit-status-row" style="border-bottom:1px solid var(--border);">
+            <td colspan="${AUDIT_COLSPAN}">
+              <div style="display:flex; flex-wrap:wrap; gap:2px; align-items:center;">
                 ${warningsHtml}
               </div>
             </td>
@@ -7481,13 +7834,457 @@
       auditList.innerHTML = `<tr><td colspan="${AUDIT_COLSPAN}" style="padding:24px; text-align:center; color:var(--text-muted);">No records found in active tables matching your search rules.</td></tr>`;
       updateAuditSortHeaders();
       updateAuditResultCount(0);
+      syncAuditSelectAllCheckbox();
+      updateAuditBulkBar();
       return;
     }
     const sorted = sortAuditQuestions(loadedQuestionsCache, auditSpecMap);
     auditList.innerHTML = buildAuditRowsHtml(sorted, auditCheckPointsCounterMap, auditSpecMap);
     updateAuditSortHeaders();
     updateAuditResultCount(loadedQuestionsCache.length);
+    syncAuditSelectAllCheckbox();
+    updateAuditBulkBar();
   }
+
+  function updateAuditBulkBar() {
+    const bar = document.getElementById("auditBulkBar");
+    const countEl = document.getElementById("auditBulkCount");
+    const n = auditSelectedIds.size;
+    if (countEl) countEl.textContent = n === 1 ? "1 selected" : `${n} selected`;
+    if (bar) bar.classList.toggle("is-visible", n > 0);
+  }
+
+  function syncAuditSelectAllCheckbox() {
+    const selectAll = document.getElementById("auditSelectAll");
+    if (!selectAll) return;
+    const ids = loadedQuestionsCache.map((q) => q.id);
+    if (!ids.length) {
+      selectAll.checked = false;
+      selectAll.indeterminate = false;
+      return;
+    }
+    const selectedCount = ids.filter((id) => auditSelectedIds.has(id)).length;
+    selectAll.checked = selectedCount === ids.length;
+    selectAll.indeterminate = selectedCount > 0 && selectedCount < ids.length;
+  }
+
+  function clearAuditSelection() {
+    auditSelectedIds.clear();
+    document.querySelectorAll(".audit-row-select").forEach((cb) => { cb.checked = false; });
+    syncAuditSelectAllCheckbox();
+    updateAuditBulkBar();
+  }
+
+  auditList?.addEventListener("change", (event) => {
+    const cb = event.target.closest(".audit-row-select");
+    if (!cb) return;
+    const id = cb.dataset.qid;
+    if (!id) return;
+    if (cb.checked) auditSelectedIds.add(id);
+    else auditSelectedIds.delete(id);
+    syncAuditSelectAllCheckbox();
+    updateAuditBulkBar();
+  });
+
+  document.getElementById("auditSelectAll")?.addEventListener("change", (event) => {
+    const checked = !!event.target.checked;
+    loadedQuestionsCache.forEach((q) => {
+      if (checked) auditSelectedIds.add(q.id);
+      else auditSelectedIds.delete(q.id);
+    });
+    document.querySelectorAll(".audit-row-select").forEach((cb) => { cb.checked = checked; });
+    syncAuditSelectAllCheckbox();
+    updateAuditBulkBar();
+  });
+
+  document.getElementById("btnClearAuditSelection")?.addEventListener("click", clearAuditSelection);
+
+  function setBulkFieldEnabled(key, enabled) {
+    const body = document.querySelector(`#bulkEditModal [data-bulk-body="${key}"]`);
+    if (body) body.classList.toggle("is-disabled", !enabled);
+  }
+
+  [
+    ["bulkEnableSkills", "skills"],
+    ["bulkEnableVideo", "video"],
+    ["bulkEnableDiagram", "diagram"],
+    ["bulkEnableRp", "rp"],
+    ["bulkEnableDemand", "demand"],
+    ["bulkEnableTier", "tier"]
+  ].forEach(([chkId, key]) => {
+    document.getElementById(chkId)?.addEventListener("change", (e) => {
+      setBulkFieldEnabled(key, e.target.checked);
+    });
+  });
+
+  document.getElementById("bulkChkRequiredPractical")?.addEventListener("change", () => {
+    const row = document.getElementById("bulkRequiredPracticalRow");
+    const checked = document.getElementById("bulkChkRequiredPractical")?.checked;
+    if (row) row.classList.toggle("hidden", !checked);
+    if (checked) {
+      fillRequiredPracticalSelect(
+        document.getElementById("bulkRequiredPracticalSelect"),
+        document.getElementById("auditSubject")?.value,
+        document.getElementById("auditCourseTrack")?.value || "combined"
+      );
+    }
+  });
+
+  function populateBulkDemandSelect(tier = "both", selected = "") {
+    const sel = document.getElementById("bulkDemandLevel");
+    if (!sel || !window.AdminMetadata) return;
+    const options = window.AdminMetadata.getDemandOptionsForTier(tier);
+    sel.innerHTML = options.map((o) =>
+      `<option value="${o.value}"${o.value === selected ? " selected" : ""}>${o.label}</option>`
+    ).join("");
+  }
+
+  document.getElementById("bulkTier")?.addEventListener("change", () => {
+    const tier = document.getElementById("bulkTier")?.value || "both";
+    const cur = document.getElementById("bulkDemandLevel")?.value || "";
+    populateBulkDemandSelect(tier, cur);
+  });
+
+  function closeBulkEditModal() {
+    document.getElementById("bulkEditModal")?.classList.add("hidden");
+  }
+
+  function openBulkEditModal() {
+    const ids = [...auditSelectedIds];
+    if (!ids.length) {
+      showAdminToast("Select at least one question first.", true);
+      return;
+    }
+    const questions = loadedQuestionsCache.filter((q) => auditSelectedIds.has(q.id));
+    document.getElementById("bulkEditSummary").textContent =
+      `Editing ${questions.length} question${questions.length === 1 ? "" : "s"}. Enable only the fields you want to change.`;
+
+    ["bulkEnableSkills", "bulkEnableVideo", "bulkEnableDiagram", "bulkEnableRp", "bulkEnableDemand", "bulkEnableTier"]
+      .forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.checked = false;
+      });
+    ["skills", "video", "diagram", "rp", "demand", "tier"].forEach((key) => setBulkFieldEnabled(key, false));
+
+    document.getElementById("bulkVideoUrl").value = "";
+    document.getElementById("bulkClearVideo").checked = false;
+    document.getElementById("bulkImageUrl").value = "";
+    document.getElementById("bulkImageFile").value = "";
+    document.getElementById("bulkClearDiagram").checked = false;
+    document.getElementById("bulkChkRequiredPractical").checked = false;
+    document.getElementById("bulkRequiredPracticalRow")?.classList.add("hidden");
+    document.getElementById("bulkTier").value = "both";
+    populateBulkDemandSelect("both", "standard");
+
+    if (window.AdminSkills?.renderBulkSkillPanels) {
+      bulkSkillBaselineCodes = window.AdminSkills.renderBulkSkillPanels(questions);
+    } else {
+      bulkSkillBaselineCodes = new Set();
+    }
+
+    document.getElementById("bulkEditModal")?.classList.remove("hidden");
+  }
+
+  document.getElementById("btnOpenBulkEdit")?.addEventListener("click", openBulkEditModal);
+  document.getElementById("btnCloseBulkEdit")?.addEventListener("click", closeBulkEditModal);
+  document.getElementById("btnCancelBulkEdit")?.addEventListener("click", closeBulkEditModal);
+
+  document.getElementById("btnApplyBulkEdit")?.addEventListener("click", async () => {
+    const ids = [...auditSelectedIds];
+    if (!ids.length) {
+      showAdminToast("No questions selected.", true);
+      return;
+    }
+
+    const enableSkills = document.getElementById("bulkEnableSkills")?.checked;
+    const enableVideo = document.getElementById("bulkEnableVideo")?.checked;
+    const enableDiagram = document.getElementById("bulkEnableDiagram")?.checked;
+    const enableRp = document.getElementById("bulkEnableRp")?.checked;
+    const enableDemand = document.getElementById("bulkEnableDemand")?.checked;
+    const enableTier = document.getElementById("bulkEnableTier")?.checked;
+
+    if (!enableSkills && !enableVideo && !enableDiagram && !enableRp && !enableDemand && !enableTier) {
+      showAdminToast("Enable at least one property to change.", true);
+      return;
+    }
+
+    const btn = document.getElementById("btnApplyBulkEdit");
+    if (btn) btn.disabled = true;
+
+    try {
+      if (enableSkills && window.AdminSkills?.assertDeveloperForSkillSave) {
+        await window.AdminSkills.assertDeveloperForSkillSave(supabaseClient);
+      }
+
+      let imageUrl = document.getElementById("bulkImageUrl")?.value.trim() || null;
+      if (enableDiagram && !document.getElementById("bulkClearDiagram")?.checked) {
+        const fileInput = document.getElementById("bulkImageFile");
+        if (fileInput?.files?.length) {
+          const file = fileInput.files[0];
+          const ext = file.name.split(".").pop();
+          const randName = `${Math.random().toString(36).substring(2)}.${ext}`;
+          const path = `${document.getElementById("auditSubject")?.value || "physics"}/${randName}`;
+          const { error: uploadError } = await supabaseClient.storage
+            .from("question-images")
+            .upload(path, file);
+          if (uploadError) throw uploadError;
+          const { data } = supabaseClient.storage.from("question-images").getPublicUrl(path);
+          imageUrl = data.publicUrl;
+        }
+        if (!document.getElementById("bulkClearDiagram")?.checked && !imageUrl) {
+          showAdminToast("Provide a diagram URL or upload a file.", true);
+          return;
+        }
+      }
+
+      const sharedPatch = {};
+      if (enableVideo) {
+        sharedPatch.resource_links = document.getElementById("bulkClearVideo")?.checked
+          ? null
+          : (document.getElementById("bulkVideoUrl")?.value.trim() || null);
+      }
+      if (enableDiagram) {
+        sharedPatch.image_url = document.getElementById("bulkClearDiagram")?.checked ? null : imageUrl;
+      }
+      if (enableRp) {
+        const isRp = !!document.getElementById("bulkChkRequiredPractical")?.checked;
+        sharedPatch.is_required_practical = isRp;
+        sharedPatch.required_practical_id = isRp
+          ? (document.getElementById("bulkRequiredPracticalSelect")?.value || null)
+          : null;
+        if (isRp && !sharedPatch.required_practical_id) {
+          showAdminToast("Select which required practical to assign.", true);
+          return;
+        }
+      }
+
+      const tierUi = document.getElementById("bulkTier")?.value || "both";
+      if (enableTier) {
+        sharedPatch.tier = window.normalizeQuestionTierForDb
+          ? window.normalizeQuestionTierForDb(tierUi)
+          : tierUi;
+      }
+      if (enableDemand) {
+        sharedPatch.demand_level = document.getElementById("bulkDemandLevel")?.value || null;
+      }
+
+      if (enableTier && enableDemand && window.AdminMetadata) {
+        const opts = window.AdminMetadata.getDemandOptionsForTier(tierUi).map((o) => o.value);
+        if (sharedPatch.demand_level && !opts.includes(sharedPatch.demand_level)) {
+          showAdminToast(`Demand "${sharedPatch.demand_level}" is not valid for the selected tier.`, true);
+          return;
+        }
+      }
+
+      const questions = loadedQuestionsCache.filter((q) => auditSelectedIds.has(q.id));
+      const selectedSkillCodes = enableSkills
+        ? (window.AdminSkills?.collectSelectedFullCodes("bulk") || [])
+        : [];
+      let updated = 0;
+
+      for (const q of questions) {
+        const rowPatch = { ...sharedPatch };
+
+        if (enableTier && !enableDemand && window.AdminMetadata) {
+          const opts = window.AdminMetadata.getDemandOptionsForTier(tierUi).map((o) => o.value);
+          if (q.demand_level && !opts.includes(q.demand_level)) {
+            rowPatch.demand_level = opts[0] || null;
+          }
+        }
+
+        if (enableSkills && window.AdminSkills) {
+          const current = window.AdminSkills.extractQuestionSkillCodes(q);
+          const merged = window.AdminSkills.mergeSkillCodesForQuestion(
+            current,
+            bulkSkillBaselineCodes,
+            selectedSkillCodes
+          );
+          const skillIds = window.AdminSkills.resolveSkillIdsFromFullCodes(merged);
+          await window.AdminSkills.saveQuestionSkills(supabaseClient, q.id, skillIds);
+
+          const baselineArr = [...bulkSkillBaselineCodes];
+          const addedMs = merged.some((c) => String(c).startsWith("MS") && !baselineArr.includes(c));
+          if (addedMs && !q.is_maths_skill) {
+            rowPatch.is_maths_skill = true;
+          }
+        }
+
+        if (Object.keys(rowPatch).length) {
+          if (window.AdminMetadata?.computeQuestionDifficulty) {
+            rowPatch.difficulty = window.AdminMetadata.computeQuestionDifficulty({
+              ...q,
+              ...rowPatch
+            });
+          }
+          const { error } = await supabaseClient.from("questions").update(rowPatch).eq("id", q.id);
+          if (error) throw error;
+        }
+
+        updated += 1;
+      }
+
+      closeBulkEditModal();
+      clearAuditSelection();
+      showAdminToast(`Bulk update applied to ${updated} question${updated === 1 ? "" : "s"}.`);
+      btnQueryQuestions.click();
+    } catch (err) {
+      console.error(err);
+      showAdminToast("Bulk update failed: " + err.message, true);
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  });
+
+  window.draftMcqAsShortAnswer = async function(id) {
+    const q = loadedQuestionsCache.find((x) => x.id === id);
+    if (!q || q.question_type !== "mcq") {
+      showAdminToast("Only MCQ questions can be copied to short-answer.", true);
+      return;
+    }
+
+    try {
+      showAdminToast("Preparing short-answer draft…");
+
+      const keyRelation = q.answer_keys;
+      const key = Array.isArray(keyRelation) && keyRelation.length > 0 ? keyRelation[0] : keyRelation;
+      let correctText = (key?.key_payload?.correct || key?.key_payload?.answer || "").trim();
+      if (!correctText) {
+        const { data: keyRow } = await supabaseClient
+          .from("answer_keys")
+          .select("key_payload")
+          .eq("question_id", q.id)
+          .maybeSingle();
+        correctText = (keyRow?.key_payload?.correct || keyRow?.key_payload?.answer || "").trim();
+      }
+
+      const { data: mps } = await supabaseClient
+        .from("mark_points")
+        .select("ao, point_text, feedback_if_missing, image_url")
+        .eq("question_id", q.id);
+
+      let remediation = "";
+      let remediationImage = "";
+      const mpList = mps || [];
+      const feedbackMp = mpList.find((mp) => (mp.feedback_if_missing || "").trim());
+      if (feedbackMp) {
+        remediation = (feedbackMp.feedback_if_missing || "").trim();
+        remediationImage = feedbackMp.image_url || "";
+      } else if (key?.key_payload?.feedback) {
+        remediation = String(key.key_payload.feedback).trim();
+      }
+
+      const { data: sp } = await supabaseClient
+        .from("spec_points")
+        .select("subject, paper, course_track, spec_ref")
+        .eq("id", q.spec_point_id)
+        .maybeSingle();
+
+      if (!window.AdminMetadata?.bumpDemandLevel) {
+        throw new Error("Demand bump helper not loaded — refresh the page.");
+      }
+      const bumped = window.AdminMetadata.bumpDemandLevel(q.demand_level, q.tier);
+
+      clearQuestionCreatorForm();
+      switchPanel("creator");
+
+      if (sp) {
+        document.getElementById("subjectSelect").value = sp.subject;
+        document.getElementById("paperSelect").value = sp.paper;
+        const trackSel = document.getElementById("courseTrackSelect");
+        if (trackSel) {
+          trackSel.value = q.audience === "triple_only"
+            ? "triple"
+            : (sp.course_track || "combined");
+        }
+      } else {
+        document.getElementById("subjectSelect").value = document.getElementById("auditSubject")?.value || "physics";
+        document.getElementById("paperSelect").value = document.getElementById("auditPaper")?.value || "paper1";
+      }
+
+      const audienceSel = document.getElementById("audienceSelect");
+      if (audienceSel) audienceSel.value = q.audience === "triple_only" ? "triple_only" : "both";
+
+      document.getElementById("tierSelect").value = bumped.tier;
+
+      await loadSyllabusReferenceSelects();
+      const specSel = document.getElementById("specPointSelect");
+      if (specSel && q.spec_point_id) {
+        const hasOpt = [...specSel.options].some((o) => o.value === q.spec_point_id);
+        if (hasOpt) {
+          specSel.value = q.spec_point_id;
+          await autoFillLinkedSpecFromPrimary(q.spec_point_id);
+        }
+      }
+      syncSpecLinkUi();
+
+      document.getElementById("qType").value = "short_text";
+      qType.onchange();
+
+      document.getElementById("qPrompt").value = q.prompt || "";
+      document.getElementById("qVideo").value = q.resource_links || "";
+      document.getElementById("maxMarks").value = "1";
+
+      const qImageUrl = document.getElementById("qImageUrl");
+      if (qImageUrl) qImageUrl.value = q.image_url || "";
+      syncCreatorImagePreview();
+
+      populateHintsEditor("creatorHintsList", Array.isArray(q.hints) ? q.hints : []);
+
+      const shortModeSel = document.getElementById("shortMarkMode");
+      if (shortModeSel) shortModeSel.value = "keywords";
+      if (window._syncShortMarkMode) window._syncShortMarkMode("");
+      document.getElementById("shortReqKeywords").value = "";
+      document.getElementById("shortOptKeywords").value = "";
+      document.getElementById("shortMinOptional").value = "0";
+
+      document.getElementById("markPointsWrapper").innerHTML = "";
+      markPointsCounter = 0;
+      const aoForMp = (q.ao1_marks > 0 && !(q.ao2_marks > 0) && !(q.ao3_marks > 0))
+        ? "AO1"
+        : (q.ao2_marks > 0 && !(q.ao1_marks > 0) ? "AO2" : (q.ao3_marks > 0 && !(q.ao1_marks > 0) ? "AO3" : "AO1"));
+      window.addMarkPointRow(correctText, aoForMp, remediation, remediationImage);
+
+      if (window.AdminMetadata) {
+        window.AdminMetadata.syncCreatorMetadataFromForm({ autoDemand: false });
+        const cmdSel = document.getElementById("commandWordSelect");
+        if (cmdSel && q.command_word) cmdSel.value = q.command_word;
+        window.AdminMetadata.syncCreatorMetadataFromForm({ autoDemand: false });
+        const demandSel = document.getElementById("demandLevelSelect");
+        if (demandSel) demandSel.value = bumped.demand_level;
+
+        document.getElementById("ao1Marks").value = q.ao1_marks ?? 1;
+        document.getElementById("ao2Marks").value = q.ao2_marks ?? 0;
+        document.getElementById("ao3Marks").value = q.ao3_marks ?? 0;
+        document.getElementById("chkMathsSkill").checked = q.is_maths_skill === true;
+        document.getElementById("chkRequiredPractical").checked = q.is_required_practical === true;
+        const rpRow = document.getElementById("requiredPracticalRow");
+        if (rpRow) rpRow.classList.toggle("hidden", q.is_required_practical !== true);
+        fillRequiredPracticalSelect(
+          document.getElementById("requiredPracticalSelect"),
+          document.getElementById("subjectSelect")?.value,
+          getAuthoringCourseTrack(),
+          q.required_practical_id || ""
+        );
+        window.AdminMetadata.updateAoValidationLabel("creator", 1);
+        window.AdminMetadata.refreshCreatorDifficultyBadge?.();
+      }
+
+      if (window.AdminSkills) {
+        await window.AdminSkills.ensureSkillCatalogLoaded?.(supabaseClient);
+        window.AdminSkills.renderSkillPanels("creator", q);
+        window.AdminSkills.syncSkillPanelsVisibility?.("creator");
+      }
+
+      setCreatorDraftBanner(
+        `Draft from MCQ → short-answer (demand ${bumped.demand_level}, tier ${bumped.tier}). Review Section 3 keywords & metadata, then Commit.`
+      );
+      showAdminToast("Short-answer draft ready on Create tab — review and commit when ready.");
+      document.getElementById("qPrompt")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    } catch (err) {
+      console.error(err);
+      showAdminToast("Could not draft short-answer: " + err.message, true);
+    }
+  };
 
   async function refreshAuditFilterDatalists() {
     const sub = document.getElementById("auditSubject")?.value;
@@ -7645,6 +8442,10 @@
 
       loadedQuestionsCache = filtered;
       window.loadedQuestionsCache = filtered;
+      const validIds = new Set(filtered.map((q) => q.id));
+      for (const id of [...auditSelectedIds]) {
+        if (!validIds.has(id)) auditSelectedIds.delete(id);
+      }
       renderAuditTable();
     } catch (err) {
       console.error(err);
