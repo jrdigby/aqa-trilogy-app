@@ -12,6 +12,8 @@ import {
 import { collectCreatorMarkPoints } from "./adminMetadata.js";
 import { escapeHtml } from "./utils.js";
 
+export { extractQuestionSkillCodes };
+
 let skillCatalog = [];
 let catalogByFullCode = new Map();
 let catalogById = new Map();
@@ -19,6 +21,7 @@ let catalogById = new Map();
 const PANEL_IDS = {
   creator: { ms: "msSkillsPanel", ws: "wsSkillsPanel", msWrap: "msSkillsWrap", wsWrap: "wsSkillsWrap" },
   edit: { ms: "editMsSkillsPanel", ws: "editWsSkillsPanel", msWrap: "editMsSkillsWrap", wsWrap: "editWsSkillsWrap" },
+  bulk: { ms: "bulkMsSkillsPanel", ws: "bulkWsSkillsPanel", msWrap: "bulkMsSkillsWrap", wsWrap: "bulkWsSkillsWrap" },
 };
 
 export function getSkillCatalog() {
@@ -79,6 +82,9 @@ function resolveSkillIdFromCheckbox(cb) {
 }
 
 function getSubjectForMode(mode) {
+  if (mode === "bulk") {
+    return document.getElementById("auditSubject")?.value || null;
+  }
   if (mode === "edit") {
     const editSubj = document.getElementById("editSpecSubjectSelect")?.value;
     if (editSubj) return editSubj;
@@ -89,6 +95,7 @@ function getSubjectForMode(mode) {
 }
 
 function isMsPanelVisible(mode) {
+  if (mode === "bulk") return true;
   const qTypeEl = mode === "edit" ? null : document.getElementById("qType");
   const qType = mode === "edit"
     ? loadedEditQuestionType()
@@ -171,8 +178,14 @@ export function renderSkillPanels(mode = "creator", question = null, options = {
   renderSkillCheckboxes(document.getElementById(ids.wsWrap), "WS", mode, selected, autoCodes);
 }
 
+function skillsRootForMode(mode) {
+  if (mode === "edit") return document.getElementById("editForm");
+  if (mode === "bulk") return document.getElementById("bulkEditModal");
+  return document.getElementById("panelCreator");
+}
+
 export function collectSelectedSkillIds(mode = "creator") {
-  const root = mode === "edit" ? document.getElementById("editForm") : document.getElementById("panelCreator");
+  const root = skillsRootForMode(mode);
   if (!root) return [];
   const ids = [];
   root.querySelectorAll(".skill-cb:checked").forEach((cb) => {
@@ -183,14 +196,58 @@ export function collectSelectedSkillIds(mode = "creator") {
 }
 
 export function collectSelectedFullCodes(mode = "creator") {
-  const root = mode === "edit" ? document.getElementById("editForm") : document.getElementById("panelCreator");
+  const root = skillsRootForMode(mode);
   if (!root) return [];
   return [...root.querySelectorAll(".skill-cb:checked")].map((cb) => cb.dataset.fullCode).filter(Boolean);
 }
 
+/** Union of skill full_codes across questions (for bulk merge baseline). */
+export function unionSkillCodesFromQuestions(questions = []) {
+  const codes = new Set();
+  for (const q of questions) {
+    for (const code of extractQuestionSkillCodes(q)) codes.add(code);
+  }
+  return codes;
+}
+
+/**
+ * Merge skill edits onto a question's current codes.
+ * baseline = codes pre-checked when bulk modal opened (union across selection).
+ * selectedNow = codes checked at apply time.
+ * Unchecked baseline codes are removed; every checked code is ensured on the question.
+ */
+export function mergeSkillCodesForQuestion(currentCodes, baselineCodes, selectedNowCodes) {
+  const current = new Set(currentCodes || []);
+  const baseline = new Set(baselineCodes || []);
+  const selected = new Set(selectedNowCodes || []);
+  for (const code of baseline) {
+    if (!selected.has(code)) current.delete(code);
+  }
+  for (const code of selected) {
+    current.add(code);
+  }
+  return [...current];
+}
+
+export function resolveSkillIdsFromFullCodes(fullCodes = []) {
+  return [...new Set(
+    (fullCodes || [])
+      .map((fc) => catalogByFullCode.get(fc)?.id)
+      .filter(Boolean)
+  )];
+}
+
+export function renderBulkSkillPanels(questions = []) {
+  const selected = unionSkillCodesFromQuestions(questions);
+  renderSkillPanels("bulk", {
+    question_skills: [...selected].map((fc) => ({ skill_framework_items: { full_code: fc } }))
+  });
+  return selected;
+}
+
 /** Checked skills the author picked manually (excludes prior auto-detect selections). */
 function collectManualSelectedFullCodes(mode = "creator") {
-  const root = mode === "edit" ? document.getElementById("editForm") : document.getElementById("panelCreator");
+  const root = skillsRootForMode(mode);
   if (!root) return [];
   return [...root.querySelectorAll(".skill-cb:checked:not([data-auto])")]
     .map((cb) => cb.dataset.fullCode)

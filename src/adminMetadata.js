@@ -6,7 +6,9 @@ import {
   suggestAoMarks,
   getDemandOptionsForTier,
   formatDemandLabel,
-  getAuthoringGuidelinesHtml
+  getAuthoringGuidelinesHtml,
+  bumpDemandLevel,
+  DEMAND_LADDER
 } from "./examRules.js";
 import { normalizeQuestionTierForDb } from "./sciencePath.js";
 
@@ -18,7 +20,9 @@ export {
   suggestAoMarks,
   getDemandOptionsForTier,
   formatDemandLabel,
-  getAuthoringGuidelinesHtml
+  getAuthoringGuidelinesHtml,
+  bumpDemandLevel,
+  DEMAND_LADDER
 };
 
 export function validateAoMarksSum(ao1, ao2, ao3, maxMarks) {

@@ -263,6 +263,33 @@ export function formatDemandLabel(demand) {
   return labels[demand] || demand || "—";
 }
 
+/** Full demand ladder used when converting / bulk-bumping difficulty. */
+export const DEMAND_LADDER = ["low", "standard", "standard_45", "standard_67", "high_89"];
+
+/**
+ * Bump demand one step. Returns admin-select tier (`foundation` | `higher` | `both`).
+ * Foundation-only sources are promoted to `both` so HT demand bands remain selectable.
+ */
+export function bumpDemandLevel(demandLevel, tier = "both") {
+  const idx = DEMAND_LADDER.indexOf(demandLevel);
+  const nextDemand = idx < 0
+    ? "standard"
+    : DEMAND_LADDER[Math.min(idx + 1, DEMAND_LADDER.length - 1)];
+
+  const normalized = normalizeQuestionTier(tier);
+  const raw = String(tier || "both").toLowerCase();
+  let nextTier = "both";
+  if (normalized === "FT" || raw === "foundation" || raw === "ft") {
+    nextTier = "both";
+  } else if (normalized === "HT" || raw === "higher" || raw === "ht") {
+    nextTier = "higher";
+  } else {
+    nextTier = "both";
+  }
+
+  return { demand_level: nextDemand, tier: nextTier };
+}
+
 export function getAuthoringGuidelinesHtml() {
   return `
     <p><strong>AO weighting (per paper):</strong> AO1 40% · AO2 40% · AO3 20%. Align Section 3 mark points with AO fields below.</p>
