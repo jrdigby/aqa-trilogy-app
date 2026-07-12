@@ -9,6 +9,7 @@ const MAX_QUESTIONS = 12;
 const GEMINI_CALL_TIMEOUT_MS = 50_000;
 const FUNCTION_BUDGET_MS = 130_000;
 const SPEC_TEXT_MAX_CHARS = 1200;
+const AUTHOR_PROMPT_MAX_CHARS = 800;
 const RECIPE_GAP_MS = 600;
 const RETRYABLE_STATUSES = new Set([429, 500, 503, 504]);
 const RETRY_BACKOFF_MS = [1200, 2500, 5000, 8000, 12000];
@@ -32,6 +33,20 @@ function truncateSpecText(text) {
   return `${raw.slice(0, SPEC_TEXT_MAX_CHARS)}… [truncated for generation]`;
 }
 
+function truncateAuthorPrompt(text) {
+  const raw = String(text || "").trim();
+  if (!raw) return "";
+  if (raw.length <= AUTHOR_PROMPT_MAX_CHARS) return raw;
+  return `${raw.slice(0, AUTHOR_PROMPT_MAX_CHARS)}… [truncated]`;
+}
+
+function recipeMaxMarks(recipe) {
+  const type = recipe?.question_type;
+  if (type === "short_text") return Number(recipe?.max_marks) === 1 ? 1 : 2;
+  if (type === "extended_response") return Number(recipe?.max_marks) === 4 ? 4 : 6;
+  return 1;
+}
+
 const MCQ_FOCUS_ANGLES = [
   "Core recall — key term, symbol, unit, or single fact from the spec.",
   "Applied scenario — short unfamiliar context; student applies knowledge.",
@@ -46,6 +61,14 @@ const SHORT_TEXT_FOCUS_ANGLES = [
   "Compare or link — relationship between two spec ideas.",
   "Apply — short novel context requiring spec knowledge in an answer.",
   "Evaluate evidence — use a described observation to justify a conclusion."
+];
+
+const EXTENDED_FOCUS_ANGLES = [
+  "Explain a process or mechanism in a structured extended answer.",
+  "Apply ideas to an unfamiliar practical or real-world context.",
+  "Compare options or evaluate a claim using scientific reasoning.",
+  "Link several related ideas from the spec into a coherent argument.",
+  "Interpret given information and justify a conclusion at length."
 ];
 
 function buildRecipeContexts(recipes) {
@@ -70,6 +93,9 @@ function summarizeQuestionKey(question) {
       .filter(Boolean)
       .join("; ");
     return kws || "—";
+  }
+  if (question.question_type === "extended_response") {
+    return String(question.marking_guidelines || "").slice(0, 40) || "rubric";
   }
   return question.correct || "—";
 }
@@ -97,26 +123,57 @@ function isNearDuplicateQuestion(candidate, priorSameType) {
     if (!prevPrompt) continue;
     if (prompt === prevPrompt) return true;
     if (tokenOverlapRatio(prompt, prevPrompt) >= 0.72) return true;
-    if (candidate.question_type !== "short_text" && prev.correct && candidate.correct) {
-      if (normalizeForCompare(candidate.correct) === normalizeForCompare(prev.correct)) {
-        return true;
-      }
+    if (
+      candidate.question_type === "mcq"
+      && prev.correct
+      && candidate.correct
+      && normalizeForCompare(candidate.correct) === normalizeForCompare(prev.correct)
+    ) {
+      return true;
     }
   }
   return false;
 }
 
 function buildAvoidByType(avoidQuestions) {
-  const out = { mcq: [], short_text: [] };
+  const out = { mcq: [], short_text: [], extended_response: [] };
   for (const q of avoidQuestions || []) {
-    const t = q?.question_type === "short_text" ? "short_text" : "mcq";
+    const t = q?.question_type === "short_text"
+      ? "short_text"
+      : q?.question_type === "extended_response"
+        ? "extended_response"
+        : "mcq";
     out[t].push(q);
   }
   return out;
 }
 
+function typeHintForRecipe(recipe) {
+  const marks = recipeMaxMarks(recipe);
+  if (recipe.question_type === "short_text") {
+    const aoHint = marks === 1
+      ? "max_marks 1, ao1=1 ao2=0 ao3=0"
+      : "max_marks 2, ao1=1 ao2=1 ao3=0";
+    return `short_text: exactly ${marks} mark_point(s) with keyword strings suitable for keyword marking (use | for synonyms within a point), brief feedback per point, ${aoHint}. Feedback max 12 words each. Word the question so answers can be marked by keyword checkpoints.`;
+  }
+  if (recipe.question_type === "extended_response") {
+    const levelHint = marks === 6
+      ? "Fill level_3_descriptor, level_2_descriptor, and level_1_descriptor for a 6-mark response."
+      : "Fill level_2_descriptor and level_1_descriptor fully for a 4-mark response; set level_3_descriptor to \"N/A for 4-mark\".";
+    return `extended_response: max_marks ${marks}. Provide marking_guidelines plus level descriptors. ${levelHint} AO marks must sum to ${marks}.`;
+  }
+  return "mcq: exactly 4 options, one correct answer, three distractors based on common science misconceptions for the topic, option_feedback for each wrong option only (3 entries), max_marks 1, ao1=1. Wrong-option feedback max 12 words each.";
+}
+
+function focusAnglesForType(questionType) {
+  if (questionType === "short_text") return SHORT_TEXT_FOCUS_ANGLES;
+  if (questionType === "extended_response") return EXTENDED_FOCUS_ANGLES;
+  return MCQ_FOCUS_ANGLES;
+}
+
 function buildSingleQuestionPrompt(payload, recipe, context = {}) {
   const { spec_ref, topic_name, spec_text, subject, paper, tier } = payload;
+  const authorPrompt = truncateAuthorPrompt(payload.author_prompt);
   const {
     batchIndex = 0,
     sameTypeIndex = 0,
@@ -128,12 +185,10 @@ function buildSingleQuestionPrompt(payload, recipe, context = {}) {
   } = context;
 
   const allPrior = [...avoidSameType, ...priorSameType];
+  const marks = recipeMaxMarks(recipe);
+  const typeHint = typeHintForRecipe(recipe);
 
-  const typeHint = recipe.question_type === "short_text"
-    ? "short_text: exactly 2 mark_points (keywords + brief feedback), max_marks 2, ao1=1 ao2=1. Feedback max 12 words each."
-    : "mcq: exactly 4 options, option_feedback for each wrong option only (3 entries), max_marks 1, ao1=1. Wrong-option feedback max 12 words each.";
-
-  const angles = recipe.question_type === "short_text" ? SHORT_TEXT_FOCUS_ANGLES : MCQ_FOCUS_ANGLES;
+  const angles = focusAnglesForType(recipe.question_type);
   const focusAngle = angles[(avoidSameType.length + sameTypeIndex + focusOffset) % angles.length];
 
   const usedCommands = [...new Set(allPrior.map((q) => q.command_word).filter(Boolean))];
@@ -153,22 +208,36 @@ function buildSingleQuestionPrompt(payload, recipe, context = {}) {
     ? "\nCRITICAL: Your last attempt duplicated an existing question. Pick a completely different sub-topic and scenario.\n"
     : "";
 
-  const varietyNote = sameTypeTotal > 1
-    ? `\nThis is ${recipe.question_type} ${sameTypeIndex + 1} of ${sameTypeTotal} in the batch. It MUST test a different aspect of the spec than the others.\nFocus angle for this question: ${focusAngle}\n${avoidCommands}`
+  const varietyWithinFocus = authorPrompt
+    ? `\nThis is ${recipe.question_type} ${sameTypeIndex + 1} of ${sameTypeTotal} in the batch. Stay on the AUTHOR FOCUS below; vary only the example, scenario, or misconception within that focus — do NOT switch to a different sub-topic from the wider spec.\nAngle within the focus: ${focusAngle}\n${avoidCommands}`
+    : `\nThis is ${recipe.question_type} ${sameTypeIndex + 1} of ${sameTypeTotal} in the batch. It MUST test a different aspect of the spec than the others.\nFocus angle for this question: ${focusAngle}\n${avoidCommands}`;
+
+  const varietyNote = sameTypeTotal > 1 ? varietyWithinFocus : "";
+
+  const authorBlock = authorPrompt
+    ? `\nAUTHOR FOCUS (MANDATORY — this overrides picking a random idea from the full spec):\n"""\n${authorPrompt}\n"""\nThe question stem, correct answer, and distractors MUST be about this focus only. The spec text is context and constraint — do not write a question whose main idea is outside the focus (e.g. if the focus is non-contact forces, do not ask about Hooke's law, spring extension, weight vs mass definitions, or the unit of force unless that is explicitly the focus).\n`
     : "";
 
-  return `AQA GCSE Combined Science (8464) question author. Write ONE original exam-style question from the spec below. British English.
-${distinctNote}${varietyNote}
+  const promptLineRule = recipe.question_type === "extended_response"
+    ? "Prompt may use short paragraphs if needed, but prefer a clear exam-style stem."
+    : "Single-line prompt (no line breaks).";
+
+  const closingRequirements = authorPrompt
+    ? `Requirements: ${typeHint} · appropriate AQA command_word · ON-FOCUS for the AUTHOR FOCUS above · genuinely distinct from any listed above.`
+    : `Requirements: ${typeHint} · appropriate AQA command_word · genuinely distinct from any listed above.`;
+
+  return `AQA GCSE Combined Science (8464) question author. Write ONE original exam-style question. British English.
+${distinctNote}${varietyNote}${authorBlock}
 Subject: ${subject} · Paper: ${paper} · Spec: ${spec_ref} · Topic: ${topic_name} · Tier: ${tier}
-Batch item: ${batchIndex + 1} · Type: ${recipe.question_type} · demand_level: ${recipe.demand_level}
-Spec text:
+Batch item: ${batchIndex + 1} · Type: ${recipe.question_type} · demand_level: ${recipe.demand_level} · max_marks: ${marks}
+Spec text (syllabus constraint — use only as needed to stay accurate; when AUTHOR FOCUS is set, do not roam the whole spec):
 """
 ${truncateSpecText(spec_text)}
 """
 ${avoidBlock}
 
-Requirements: ${typeHint} · appropriate AQA command_word · genuinely distinct from any listed above.
-Single-line prompt (no line breaks). Be concise — no preamble or explanation outside the JSON schema.`;
+${authorPrompt ? `FINAL CHECK: Does this question directly address: "${authorPrompt}"? If not, rewrite so it does.\n` : ""}${closingRequirements}
+${promptLineRule} Be concise — no preamble or explanation outside the JSON schema.`;
 }
 
 const MCQ_SCHEMA = {
@@ -213,44 +282,79 @@ const MCQ_SCHEMA = {
   ]
 };
 
-const SHORT_TEXT_SCHEMA = {
+const MARK_POINT_ITEM = {
   type: "OBJECT",
   properties: {
-    question_type: { type: "STRING", enum: ["short_text"] },
+    ao: { type: "STRING", maxLength: 4 },
+    keywords: { type: "STRING", maxLength: 120 },
+    feedback: { type: "STRING", maxLength: 80 }
+  },
+  required: ["ao", "keywords", "feedback"]
+};
+
+function shortTextSchema(maxMarks = 2) {
+  const n = Number(maxMarks) === 1 ? 1 : 2;
+  return {
+    type: "OBJECT",
+    properties: {
+      question_type: { type: "STRING", enum: ["short_text"] },
+      demand_level: { type: "STRING" },
+      command_word: { type: "STRING", maxLength: 24 },
+      prompt: { type: "STRING", maxLength: 280 },
+      max_marks: { type: "INTEGER" },
+      ao1_marks: { type: "INTEGER" },
+      ao2_marks: { type: "INTEGER" },
+      ao3_marks: { type: "INTEGER" },
+      mark_points: {
+        type: "ARRAY",
+        minItems: n,
+        maxItems: n,
+        items: MARK_POINT_ITEM
+      }
+    },
+    required: [
+      "question_type", "demand_level", "command_word", "prompt", "max_marks",
+      "ao1_marks", "ao2_marks", "ao3_marks", "mark_points"
+    ],
+    propertyOrdering: [
+      "question_type", "demand_level", "command_word", "prompt", "max_marks",
+      "ao1_marks", "ao2_marks", "ao3_marks", "mark_points"
+    ]
+  };
+}
+
+const EXTENDED_RESPONSE_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    question_type: { type: "STRING", enum: ["extended_response"] },
     demand_level: { type: "STRING" },
     command_word: { type: "STRING", maxLength: 24 },
-    prompt: { type: "STRING", maxLength: 280 },
+    prompt: { type: "STRING", maxLength: 800 },
     max_marks: { type: "INTEGER" },
     ao1_marks: { type: "INTEGER" },
     ao2_marks: { type: "INTEGER" },
     ao3_marks: { type: "INTEGER" },
-    mark_points: {
-      type: "ARRAY",
-      minItems: 2,
-      maxItems: 2,
-      items: {
-        type: "OBJECT",
-        properties: {
-          ao: { type: "STRING", maxLength: 4 },
-          keywords: { type: "STRING", maxLength: 120 },
-          feedback: { type: "STRING", maxLength: 80 }
-        },
-        required: ["ao", "keywords", "feedback"]
-      }
-    }
+    marking_guidelines: { type: "STRING", maxLength: 1200 },
+    level_3_descriptor: { type: "STRING", maxLength: 600 },
+    level_2_descriptor: { type: "STRING", maxLength: 600 },
+    level_1_descriptor: { type: "STRING", maxLength: 600 }
   },
   required: [
     "question_type", "demand_level", "command_word", "prompt", "max_marks",
-    "ao1_marks", "ao2_marks", "ao3_marks", "mark_points"
+    "ao1_marks", "ao2_marks", "ao3_marks",
+    "marking_guidelines", "level_3_descriptor", "level_2_descriptor", "level_1_descriptor"
   ],
   propertyOrdering: [
     "question_type", "demand_level", "command_word", "prompt", "max_marks",
-    "ao1_marks", "ao2_marks", "ao3_marks", "mark_points"
+    "ao1_marks", "ao2_marks", "ao3_marks",
+    "marking_guidelines", "level_3_descriptor", "level_2_descriptor", "level_1_descriptor"
   ]
 };
 
-function schemaForQuestionType(questionType) {
-  return questionType === "short_text" ? SHORT_TEXT_SCHEMA : MCQ_SCHEMA;
+function schemaForQuestionType(questionType, maxMarks) {
+  if (questionType === "short_text") return shortTextSchema(maxMarks ?? 2);
+  if (questionType === "extended_response") return EXTENDED_RESPONSE_SCHEMA;
+  return MCQ_SCHEMA;
 }
 
 function stripTrailingCommas(json) {
@@ -341,7 +445,8 @@ class GeminiApiError extends Error {
 }
 
 function formatRecipeWarning(index, recipe, err) {
-  const label = `Question ${index} (${recipe.question_type} · ${recipe.demand_level})`;
+  const marks = recipe.max_marks != null ? ` · ${recipe.max_marks}m` : "";
+  const label = `Question ${index} (${recipe.question_type} · ${recipe.demand_level}${marks})`;
   const msg = err?.message || String(err);
   if (/503|high demand|UNAVAILABLE/i.test(msg)) {
     return `${label}: Gemini busy — auto-retried; click Generate again if still missing`;
@@ -395,8 +500,8 @@ async function callGeminiOnce(prompt, model, timeoutMs, responseSchema, requestI
   return extractJson(text);
 }
 
-async function callGemini(prompt, model, timeoutMs, requestId, index, questionType, temperature = 0.4) {
-  const responseSchema = schemaForQuestionType(questionType);
+async function callGemini(prompt, model, timeoutMs, requestId, index, questionType, maxMarks, temperature = 0.4) {
+  const responseSchema = schemaForQuestionType(questionType, maxMarks);
   let lastErr = null;
 
   for (let attempt = 0; attempt < RETRY_BACKOFF_MS.length; attempt++) {
@@ -425,24 +530,35 @@ async function callGemini(prompt, model, timeoutMs, requestId, index, questionTy
   throw lastErr || new Error("Gemini call failed");
 }
 
-async function generateOneQuestion(prompt, requestId, index, timeoutMs, questionType, temperature = 0.4) {
+async function generateOneQuestion(prompt, requestId, index, timeoutMs, questionType, maxMarks, temperature = 0.4) {
   console.log(JSON.stringify({
     requestId,
     event: "gemini_call",
     index,
     model: GEMINI_MODEL,
     question_type: questionType,
+    max_marks: maxMarks,
     timeoutMs,
     temperature
   }));
-  return await callGemini(prompt, GEMINI_MODEL, timeoutMs, requestId, index, questionType, temperature);
+  return await callGemini(prompt, GEMINI_MODEL, timeoutMs, requestId, index, questionType, maxMarks, temperature);
+}
+
+function stampRecipeOntoQuestion(question, recipe) {
+  const marks = recipeMaxMarks(recipe);
+  return {
+    ...question,
+    question_type: recipe.question_type,
+    demand_level: recipe.demand_level || question.demand_level,
+    max_marks: marks
+  };
 }
 
 async function generateQuestionsForRecipes(payload, recipes, requestId) {
   const questions = [];
   const warnings = [];
   const startedAt = Date.now();
-  const generatedByType = { mcq: [], short_text: [] };
+  const generatedByType = { mcq: [], short_text: [], extended_response: [] };
   const avoidByType = buildAvoidByType(payload.avoid_questions);
   const focusOffset = Number(payload.focus_offset) || 0;
   const recipeContexts = buildRecipeContexts(recipes);
@@ -450,6 +566,7 @@ async function generateQuestionsForRecipes(payload, recipes, requestId) {
   for (const ctx of recipeContexts) {
     const { batchIndex, recipe, sameTypeIndex, sameTypeTotal } = ctx;
     const i = batchIndex;
+    const maxMarks = recipeMaxMarks(recipe);
 
     if (i > 0) await sleep(RECIPE_GAP_MS);
 
@@ -474,6 +591,7 @@ async function generateQuestionsForRecipes(payload, recipes, requestId) {
       total: recipes.length,
       question_type: recipe.question_type,
       demand_level: recipe.demand_level,
+      max_marks: maxMarks,
       sameTypeIndex: sameTypeIndex + 1,
       sameTypeTotal,
       timeoutMs
@@ -497,8 +615,10 @@ async function generateQuestionsForRecipes(payload, recipes, requestId) {
           i + 1,
           timeoutMs,
           recipe.question_type,
+          maxMarks,
           diversityAttempt > 0 ? 0.72 : temperature
         );
+        question = stampRecipeOntoQuestion(question, recipe);
         if (!isNearDuplicateQuestion(question, allPrior)) break;
         console.warn(JSON.stringify({
           requestId,

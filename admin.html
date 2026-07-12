@@ -2493,16 +2493,23 @@
           </div>
 
           <div class="batch-form-section" style="margin-top:4px;">
+            <label style="margin:0;font-weight:600;font-size:0.8rem;" for="batchMcqAuthorPrompt">Generation instructions</label>
+            <p class="muted" style="font-size:0.72rem;margin:4px 0 6px;">Shared focus for this Generate run — e.g. “provide a question on examples of contact forces”.</p>
+            <textarea id="batchMcqAuthorPrompt" rows="2" placeholder="Optional: topic or scenario instructions for the AI…" style="width:100%;font-size:0.8rem;padding:6px 8px;resize:vertical;"></textarea>
+          </div>
+
+          <div class="batch-form-section" style="margin-top:4px;">
             <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;">
               <label style="margin:0;font-weight:600;font-size:0.8rem;">Question recipes</label>
               <button type="button" class="btn btn-secondary btn-compact" id="btnBatchMcqAddRecipe" style="padding:2px 8px;font-size:0.72rem;">+ Add recipe</button>
             </div>
-            <p class="muted" style="font-size:0.72rem;margin:0 0 8px;">Each row: question type, demand band, and count — e.g. MCQ Low ×3, Short text Standard ×2.</p>
+            <p class="muted" style="font-size:0.72rem;margin:0 0 8px;">Each row: type, demand, marks (short text / extended), and count. Marks apply to short text (1–2) and extended response (4 or 6).</p>
             <table id="batchMcqRecipes" style="width:100%;font-size:0.76rem;border-collapse:collapse;">
               <thead>
                 <tr style="text-align:left;color:var(--text-muted);">
                   <th style="padding:4px 6px;">Type</th>
                   <th style="padding:4px 6px;">Demand level</th>
+                  <th style="padding:4px 6px;">Marks</th>
                   <th style="padding:4px 6px;">Count</th>
                   <th style="padding:4px 6px;"></th>
                 </tr>
@@ -2524,7 +2531,7 @@
 
         <div class="card" style="padding:0; overflow-x:auto;">
           <div style="padding:12px 16px 0;">
-            <h4 style="margin:0;">Preview — edit prompts, options &amp; feedback before commit</h4>
+            <h4 style="margin:0;">Preview — edit demand, marks, prompts, options &amp; feedback before commit</h4>
             <p id="batchMcqPreviewCount" class="muted" style="font-size:0.82rem;margin:8px 0 0;"></p>
           </div>
           <table style="margin:0;min-width:1100px;font-size:0.8rem;">
@@ -5872,11 +5879,17 @@
     rows.forEach((row) => {
       const count = parseInt(row.querySelector(".batch-mcq-recipe-count")?.value, 10) || 0;
       if (count <= 0) return;
-      recipes.push({
-        question_type: row.querySelector(".batch-mcq-recipe-type")?.value || "mcq",
+      const question_type = row.querySelector(".batch-mcq-recipe-type")?.value || "mcq";
+      const entry = {
+        question_type,
         demand_level: row.querySelector(".batch-mcq-recipe-demand")?.value || "low",
         count
-      });
+      };
+      if (question_type === "short_text" || question_type === "extended_response") {
+        entry.max_marks = parseInt(row.querySelector(".batch-mcq-recipe-marks")?.value, 10)
+          || (question_type === "extended_response" ? 6 : 2);
+      }
+      recipes.push(entry);
     });
     return recipes;
   }
@@ -5888,19 +5901,52 @@
     ).join("");
   }
 
+  function batchMcqRecipeMarksOptionsHtml(questionType, selected) {
+    if (questionType === "short_text") {
+      const marks = Number(selected) === 1 ? 1 : 2;
+      return `
+        <option value="1"${marks === 1 ? " selected" : ""}>1</option>
+        <option value="2"${marks === 2 ? " selected" : ""}>2</option>`;
+    }
+    if (questionType === "extended_response") {
+      const marks = Number(selected) === 4 ? 4 : 6;
+      return `
+        <option value="4"${marks === 4 ? " selected" : ""}>4</option>
+        <option value="6"${marks === 6 ? " selected" : ""}>6</option>`;
+    }
+    return `<option value="1" selected>1</option>`;
+  }
+
+  function syncBatchMcqRecipeMarksSelect(row) {
+    const typeSel = row.querySelector(".batch-mcq-recipe-type");
+    const marksSel = row.querySelector(".batch-mcq-recipe-marks");
+    if (!typeSel || !marksSel) return;
+    const qType = typeSel.value || "mcq";
+    const prev = parseInt(marksSel.value, 10);
+    const needsMarks = qType === "short_text" || qType === "extended_response";
+    marksSel.disabled = !needsMarks;
+    marksSel.style.opacity = needsMarks ? "1" : "0.45";
+    const fallback = qType === "extended_response" ? 6 : qType === "short_text" ? 2 : 1;
+    marksSel.innerHTML = batchMcqRecipeMarksOptionsHtml(qType, needsMarks ? (prev || fallback) : 1);
+    if (!needsMarks) marksSel.value = "1";
+  }
+
   function addBatchMcqRecipeRow(recipe = {}) {
     const tbody = document.getElementById("batchMcqRecipesBody");
     if (!tbody) return;
     const tier = document.getElementById("batchMcqTier")?.value || "both";
     const demand = recipe.demand_level || "low";
     const qType = recipe.question_type || "mcq";
+    const marksDefault = qType === "extended_response" ? 6 : qType === "short_text" ? 2 : 1;
+    const marks = recipe.max_marks ?? marksDefault;
     const tr = document.createElement("tr");
     tr.dataset.mcqRecipeRow = "1";
     tr.innerHTML = `
       <td style="padding:4px 6px;">
-        <select class="batch-mcq-recipe-type batch-recipe-opt select-fit" style="min-width:7rem;">
+        <select class="batch-mcq-recipe-type batch-recipe-opt select-fit" style="min-width:8rem;">
           <option value="mcq"${qType === "mcq" ? " selected" : ""}>MCQ</option>
           <option value="short_text"${qType === "short_text" ? " selected" : ""}>Short text</option>
+          <option value="extended_response"${qType === "extended_response" ? " selected" : ""}>Extended response</option>
         </select>
       </td>
       <td style="padding:4px 6px;">
@@ -5909,11 +5955,18 @@
         </select>
       </td>
       <td style="padding:4px 6px;">
+        <select class="batch-mcq-recipe-marks batch-recipe-opt select-fit" style="min-width:3.5rem;">
+          ${batchMcqRecipeMarksOptionsHtml(qType, marks)}
+        </select>
+      </td>
+      <td style="padding:4px 6px;">
         <input type="number" class="batch-mcq-recipe-count input-compact" min="0" value="${recipe.count ?? 1}" style="width:3.5rem;" />
       </td>
       <td style="padding:4px 6px;">
         <button type="button" class="btn btn-danger batch-mcq-recipe-remove" style="padding:2px 6px;font-size:0.7rem;">×</button>
       </td>`;
+    tr.querySelector(".batch-mcq-recipe-type")?.addEventListener("change", () => syncBatchMcqRecipeMarksSelect(tr));
+    syncBatchMcqRecipeMarksSelect(tr);
     tr.querySelector(".batch-mcq-recipe-remove")?.addEventListener("click", () => {
       tr.remove();
       if (!tbody.querySelector("tr[data-mcq-recipe-row]")) {
@@ -5951,6 +6004,7 @@
       tier: document.getElementById("batchMcqTier")?.value || "both",
       courseTrack: document.getElementById("batchMcqCourseTrack")?.value || "combined",
       audience: document.getElementById("batchMcqAudience")?.value || "both",
+      author_prompt: document.getElementById("batchMcqAuthorPrompt")?.value?.trim() || "",
       recipes: readBatchMcqRecipes()
     };
   }
@@ -6238,7 +6292,7 @@
     }
 
     if (draft.question.question_type === "short_text") {
-      const maxMp = Math.max(2, draft.question.max_marks || 2);
+      const maxMp = draft.question.max_marks || 2;
       const mark_points = [...(draft.mark_points || [])];
       for (let mpIdx = 0; mpIdx < maxMp; mpIdx++) {
         const mpRow = detail.querySelector(`.batch-ai-image-row[data-mp-idx="${mpIdx}"]`);
@@ -6250,7 +6304,7 @@
         };
       }
       draft.mark_points = mark_points;
-    } else {
+    } else if (draft.question.question_type === "mcq") {
       const fbRow = detail.querySelector('.batch-ai-image-row[data-image-role="mcq-feedback"]');
       if (fbRow && draft.mark_points?.length) {
         draft.mark_points[0] = {
@@ -6296,6 +6350,10 @@
       const n = draft.mark_points?.length || 0;
       return n ? `${n} mark point${n === 1 ? "" : "s"}` : "—";
     }
+    if (q?.question_type === "extended_response") {
+      const g = draft.answer_key?.key_payload?.marking_guidelines || "";
+      return g ? (g.length > 36 ? `${g.slice(0, 36)}…` : g) : "rubric";
+    }
     const correct = draft.answer_key?.key_payload?.correct || "";
     return correct.length > 36 ? `${correct.slice(0, 36)}…` : correct;
   }
@@ -6325,6 +6383,18 @@
           imageUrl: mp.image_url || "",
           subfolder: "mark-points"
         })}
+      </div>`;
+  }
+
+  function renderBatchAoInputs(idx, q, aoMax = 6) {
+    return `
+      <div style="margin-top:8px;">
+        <label style="font-size:0.72rem;font-weight:600;">AO marks (must total ${q.max_marks || 1})</label>
+        <div style="display:flex;gap:8px;margin-top:4px;align-items:center;">
+          <span style="font-size:0.72rem;">AO1 <input type="number" class="batch-mcq-ao1 input-compact" data-batch-mcq-idx="${idx}" min="0" max="${aoMax}" value="${q.ao1_marks ?? 0}" style="width:2.5rem;" /></span>
+          <span style="font-size:0.72rem;">AO2 <input type="number" class="batch-mcq-ao2 input-compact" data-batch-mcq-idx="${idx}" min="0" max="${aoMax}" value="${q.ao2_marks ?? 0}" style="width:2.5rem;" /></span>
+          <span style="font-size:0.72rem;">AO3 <input type="number" class="batch-mcq-ao3 input-compact" data-batch-mcq-idx="${idx}" min="0" max="${aoMax}" value="${q.ao3_marks ?? 0}" style="width:2.5rem;" /></span>
+        </div>
       </div>`;
   }
 
@@ -6362,14 +6432,7 @@
                 subfolder: "mark-points",
                 role: "mcq-feedback"
               })}
-              <div style="margin-top:8px;">
-                <label style="font-size:0.72rem;font-weight:600;">AO marks (must total ${q.max_marks || 1})</label>
-                <div style="display:flex;gap:8px;margin-top:4px;align-items:center;">
-                  <span style="font-size:0.72rem;">AO1 <input type="number" class="batch-mcq-ao1 input-compact" data-batch-mcq-idx="${i}" min="0" max="3" value="${q.ao1_marks ?? 1}" style="width:2.5rem;" /></span>
-                  <span style="font-size:0.72rem;">AO2 <input type="number" class="batch-mcq-ao2 input-compact" data-batch-mcq-idx="${i}" min="0" max="3" value="${q.ao2_marks ?? 0}" style="width:2.5rem;" /></span>
-                  <span style="font-size:0.72rem;">AO3 <input type="number" class="batch-mcq-ao3 input-compact" data-batch-mcq-idx="${i}" min="0" max="3" value="${q.ao3_marks ?? 0}" style="width:2.5rem;" /></span>
-                </div>
-              </div>
+              ${renderBatchAoInputs(i, { ...q, ao1_marks: q.ao1_marks ?? 1 }, 3)}
             </div>
           </div>
         </td>
@@ -6378,7 +6441,7 @@
 
   function renderBatchShortTextDetailRow(d, i) {
     const q = d.question;
-    const maxMp = Math.max(2, q.max_marks || 2);
+    const maxMp = q.max_marks || 2;
     const blocks = [];
     for (let mpIdx = 0; mpIdx < maxMp; mpIdx++) {
       blocks.push(renderBatchShortTextMarkBlock(d, i, mpIdx));
@@ -6388,17 +6451,73 @@
         <td colspan="10" style="padding:8px 12px 10px;">
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px 14px;">
             ${blocks.join("")}
-            <div>
-              <label style="font-size:0.72rem;font-weight:600;">AO marks (must total ${q.max_marks || 2})</label>
-              <div style="display:flex;gap:8px;margin-top:4px;align-items:center;">
-                <span style="font-size:0.72rem;">AO1 <input type="number" class="batch-mcq-ao1 input-compact" data-batch-mcq-idx="${i}" min="0" max="3" value="${q.ao1_marks ?? 1}" style="width:2.5rem;" /></span>
-                <span style="font-size:0.72rem;">AO2 <input type="number" class="batch-mcq-ao2 input-compact" data-batch-mcq-idx="${i}" min="0" max="3" value="${q.ao2_marks ?? 1}" style="width:2.5rem;" /></span>
-                <span style="font-size:0.72rem;">AO3 <input type="number" class="batch-mcq-ao3 input-compact" data-batch-mcq-idx="${i}" min="0" max="3" value="${q.ao3_marks ?? 0}" style="width:2.5rem;" /></span>
-              </div>
-            </div>
+            <div>${renderBatchAoInputs(i, q, 3)}</div>
           </div>
         </td>
       </tr>`;
+  }
+
+  function renderBatchExtendedDetailRow(d, i) {
+    const q = d.question;
+    const payload = d.answer_key?.key_payload || {};
+    const levels = payload.level_descriptors || {};
+    const lvl3 = levels[AiQuestionDraft.LEVEL_3_KEY] || "";
+    const lvl2 = levels[AiQuestionDraft.LEVEL_2_KEY] || "";
+    const lvl1 = levels[AiQuestionDraft.LEVEL_1_KEY] || "";
+    return `
+      <tr style="border-bottom:1px solid var(--border);background:#f8fafc;" data-batch-mcq-detail="${i}">
+        <td colspan="10" style="padding:8px 12px 10px;">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px 14px;">
+            <div style="grid-column:1/-1;">
+              <label style="font-size:0.72rem;font-weight:600;">Marking guidelines</label>
+              <textarea class="batch-ai-er-guidelines batch-ai-textarea-compact" data-batch-mcq-idx="${i}" rows="3" style="width:100%;font-size:0.78rem;padding:6px;margin-top:4px;">${escapeHtml(payload.marking_guidelines || "")}</textarea>
+            </div>
+            <div>
+              <label style="font-size:0.72rem;font-weight:600;">${escapeHtml(AiQuestionDraft.LEVEL_3_KEY)}</label>
+              <textarea class="batch-ai-er-lvl3 batch-ai-textarea-compact" data-batch-mcq-idx="${i}" rows="3" style="width:100%;font-size:0.76rem;padding:6px;margin-top:4px;">${escapeHtml(lvl3)}</textarea>
+            </div>
+            <div>
+              <label style="font-size:0.72rem;font-weight:600;">${escapeHtml(AiQuestionDraft.LEVEL_2_KEY)}</label>
+              <textarea class="batch-ai-er-lvl2 batch-ai-textarea-compact" data-batch-mcq-idx="${i}" rows="3" style="width:100%;font-size:0.76rem;padding:6px;margin-top:4px;">${escapeHtml(lvl2)}</textarea>
+            </div>
+            <div>
+              <label style="font-size:0.72rem;font-weight:600;">${escapeHtml(AiQuestionDraft.LEVEL_1_KEY)}</label>
+              <textarea class="batch-ai-er-lvl1 batch-ai-textarea-compact" data-batch-mcq-idx="${i}" rows="3" style="width:100%;font-size:0.76rem;padding:6px;margin-top:4px;">${escapeHtml(lvl1)}</textarea>
+            </div>
+            <div>${renderBatchAoInputs(i, q, 6)}</div>
+          </div>
+        </td>
+      </tr>`;
+  }
+
+  function renderBatchPreviewDetailRow(d, i) {
+    const type = d.question?.question_type;
+    if (type === "short_text") return renderBatchShortTextDetailRow(d, i);
+    if (type === "extended_response") return renderBatchExtendedDetailRow(d, i);
+    return renderBatchMcqDetailRow(d, i);
+  }
+
+  function batchPreviewMarksCell(d, i) {
+    const q = d.question;
+    if (q.question_type === "mcq") {
+      return `<td style="padding:6px 8px;font-weight:700;vertical-align:top;">1</td>`;
+    }
+    if (q.question_type === "short_text") {
+      const m = Number(q.max_marks) === 1 ? 1 : 2;
+      return `<td style="padding:6px 8px;vertical-align:top;">
+        <select class="batch-mcq-marks select-fit" data-batch-mcq-idx="${i}" style="font-size:0.72rem;min-width:3rem;">
+          <option value="1"${m === 1 ? " selected" : ""}>1</option>
+          <option value="2"${m === 2 ? " selected" : ""}>2</option>
+        </select>
+      </td>`;
+    }
+    const m = Number(q.max_marks) === 4 ? 4 : 6;
+    return `<td style="padding:6px 8px;vertical-align:top;">
+      <select class="batch-mcq-marks select-fit" data-batch-mcq-idx="${i}" style="font-size:0.72rem;min-width:3rem;">
+        <option value="4"${m === 4 ? " selected" : ""}>4</option>
+        <option value="6"${m === 6 ? " selected" : ""}>6</option>
+      </select>
+    </td>`;
   }
 
   function renderBatchMcqPreviewTable(drafts, errors) {
@@ -6413,22 +6532,26 @@
       return;
     }
 
+    const tier = document.getElementById("batchMcqTier")?.value || "both";
+
     tbody.innerHTML = drafts.map((d, i) => {
       const q = d.question;
-      const isShort = q.question_type === "short_text";
       const diff = window.AdminMetadata
         ? window.AdminMetadata.computeQuestionDifficulty(q)
         : (q.difficulty ?? 2);
-      const demand = AiQuestionDraft.demandRecipeLabel(d.variant);
-      const typeLabel = isShort ? "Short text" : "MCQ";
+      const typeLabel = AiQuestionDraft.questionTypeLabel(q.question_type);
       const promptEsc = escapeHtml(q.prompt || "");
       const summary = batchDraftSummary(d);
+      const demandSel = `
+        <select class="batch-mcq-demand select-fit" data-batch-mcq-idx="${i}" style="font-size:0.72rem;min-width:6.5rem;">
+          ${batchMcqDemandOptionsHtml(q.demand_level || "low", tier)}
+        </select>`;
 
       return `
         <tr style="border-top:1px solid var(--border);" data-batch-mcq-idx="${i}">
           <td style="padding:6px 8px;font-weight:700;vertical-align:top;">${i + 1}</td>
           <td style="padding:6px 8px;font-size:0.72rem;vertical-align:top;">${escapeHtml(typeLabel)}</td>
-          <td style="padding:6px 8px;font-size:0.72rem;vertical-align:top;">${escapeHtml(demand)}</td>
+          <td style="padding:6px 8px;font-size:0.72rem;vertical-align:top;">${demandSel}</td>
           <td style="padding:6px 8px;min-width:340px;vertical-align:top;">
             <textarea class="batch-mcq-prompt-edit" data-batch-mcq-idx="${i}" rows="4" style="width:100%;font-family:inherit;padding:6px;border:1px solid #cbd5e1;border-radius:4px;">${promptEsc}</textarea>
             ${renderBatchAiImageRow({
@@ -6438,7 +6561,7 @@
               role: "stem"
             })}
           </td>
-          <td style="padding:6px 8px;font-weight:700;vertical-align:top;">${q.max_marks}</td>
+          ${batchPreviewMarksCell(d, i)}
           <td style="padding:6px 8px;vertical-align:top;">
             <select class="batch-mcq-cmd select-fit" data-batch-mcq-idx="${i}" style="font-size:0.72rem;min-width:4.5rem;">
               ${batchMcqCommandWordOptions(q.command_word || "")}
@@ -6454,7 +6577,7 @@
             </div>
           </td>
         </tr>
-        ${isShort ? renderBatchShortTextDetailRow(d, i) : renderBatchMcqDetailRow(d, i)}`;
+        ${renderBatchPreviewDetailRow(d, i)}`;
     }).join("");
 
     if (countEl) {
@@ -6486,12 +6609,15 @@
       ao1_marks: parseInt(detail.querySelector(".batch-mcq-ao1")?.value, 10) || 0,
       ao2_marks: parseInt(detail.querySelector(".batch-mcq-ao2")?.value, 10) || 0,
       ao3_marks: parseInt(detail.querySelector(".batch-mcq-ao3")?.value, 10) || 0,
-      command_word: main.querySelector(".batch-mcq-cmd")?.value || draft.question.command_word
+      command_word: main.querySelector(".batch-mcq-cmd")?.value || draft.question.command_word,
+      demand_level: main.querySelector(".batch-mcq-demand")?.value || draft.question.demand_level
     };
 
     let updated;
     if (draft.question.question_type === "short_text") {
-      const maxMp = Math.max(2, draft.question.max_marks || 2);
+      const maxMp = parseInt(main.querySelector(".batch-mcq-marks")?.value, 10)
+        || draft.question.max_marks
+        || 2;
       const mark_points = [];
       for (let mpIdx = 0; mpIdx < maxMp; mpIdx++) {
         mark_points.push({
@@ -6502,7 +6628,24 @@
           max_marks: 1
         });
       }
-      updated = AiQuestionDraft.syncDraftFromPreviewEdits(draft, { ...baseEdits, mark_points });
+      updated = AiQuestionDraft.syncDraftFromPreviewEdits(draft, {
+        ...baseEdits,
+        max_marks: maxMp,
+        mark_points,
+        keepEmptyMarkPoints: true
+      });
+    } else if (draft.question.question_type === "extended_response") {
+      const maxMarks = parseInt(main.querySelector(".batch-mcq-marks")?.value, 10)
+        || draft.question.max_marks
+        || 6;
+      updated = AiQuestionDraft.syncDraftFromPreviewEdits(draft, {
+        ...baseEdits,
+        max_marks: maxMarks,
+        marking_guidelines: detail.querySelector(".batch-ai-er-guidelines")?.value || "",
+        level_3: detail.querySelector(".batch-ai-er-lvl3")?.value || "",
+        level_2: detail.querySelector(".batch-ai-er-lvl2")?.value || "",
+        level_1: detail.querySelector(".batch-ai-er-lvl1")?.value || ""
+      });
     } else {
       const options = [0, 1, 2, 3].map((oi) =>
         detail.querySelector(`.batch-mcq-opt[data-opt-idx="${oi}"]`)?.value?.trim() || ""
@@ -6602,7 +6745,7 @@
   }
 
   function wireBatchMcqPreviewEditors() {
-    document.querySelectorAll(".batch-mcq-prompt-edit, .batch-mcq-cmd").forEach((el) => {
+    document.querySelectorAll(".batch-mcq-prompt-edit, .batch-mcq-cmd, .batch-mcq-demand").forEach((el) => {
       el.addEventListener("input", () => {
         const idx = parseInt(el.dataset.batchMcqIdx, 10);
         syncBatchMcqDraftFromDom(idx);
@@ -6612,6 +6755,14 @@
         const idx = parseInt(el.dataset.batchMcqIdx, 10);
         syncBatchMcqDraftFromDom(idx);
         updateBatchMcqDraftRowDom(idx);
+      });
+    });
+
+    document.querySelectorAll(".batch-mcq-marks").forEach((el) => {
+      el.addEventListener("change", () => {
+        const idx = parseInt(el.dataset.batchMcqIdx, 10);
+        syncBatchMcqDraftFromDom(idx);
+        renderBatchMcqPreviewTable(batchMcqPreviewDrafts, []);
       });
     });
 
@@ -6633,7 +6784,9 @@
       });
     });
 
-    document.querySelectorAll(".batch-mcq-opt-fb, .batch-mcq-overall-fb, .batch-mcq-ao1, .batch-mcq-ao2, .batch-mcq-ao3, .batch-ai-mp-keywords, .batch-ai-mp-feedback, .batch-ai-mp-ao").forEach((el) => {
+    document.querySelectorAll(
+      ".batch-mcq-opt-fb, .batch-mcq-overall-fb, .batch-mcq-ao1, .batch-mcq-ao2, .batch-mcq-ao3, .batch-ai-mp-keywords, .batch-ai-mp-feedback, .batch-ai-mp-ao, .batch-ai-er-guidelines, .batch-ai-er-lvl3, .batch-ai-er-lvl2, .batch-ai-er-lvl1"
+    ).forEach((el) => {
       el.addEventListener("input", () => {
         const idx = parseInt(el.dataset.batchMcqIdx, 10);
         syncBatchMcqDraftFromDom(idx);
@@ -6925,7 +7078,11 @@
             .single();
           if (qErr) throw qErr;
 
-          const keyType = q.question_type === "mcq" ? "mcq" : "keywords";
+          const keyType = q.question_type === "mcq"
+            ? "mcq"
+            : q.question_type === "extended_response"
+              ? "ai_rubric"
+              : "keywords";
           const { error: kErr } = await supabaseClient
             .from("answer_keys")
             .insert({
@@ -6935,7 +7092,10 @@
             });
           if (kErr) throw kErr;
 
-          if (resolvedDraft.mark_points?.length) {
+          if (
+            q.question_type !== "extended_response"
+            && resolvedDraft.mark_points?.length
+          ) {
             const markPayloads = resolvedDraft.mark_points.map((mp) => ({
               question_id: qResult.id,
               ao: mp.ao || "AO1",
