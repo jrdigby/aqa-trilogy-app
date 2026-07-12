@@ -6,12 +6,16 @@ import {
   expandRecipes,
   demandRecipeLabel,
   syncShortTextDraftFromPreviewEdits,
+  syncExtendedDraftFromPreviewEdits,
   computeGapFillRecipes,
   splitTemplateAndAiRecipes,
   draftsToAvoidQuestions,
   recipeKey,
   parseImportedDraftBundle,
-  prepareImportedDrafts
+  prepareImportedDrafts,
+  LEVEL_3_KEY,
+  LEVEL_2_KEY,
+  LEVEL_1_KEY
 } from "../src/aiQuestionDraft.js";
 
 test("normalizeAiQuestions — MCQ with option feedback", () => {
@@ -57,6 +61,69 @@ test("normalizeAiQuestions — short text mark points", () => {
   assert.equal(draft.answer_key.key_type, "keywords");
 });
 
+test("normalizeAiQuestions — short text 1 mark", () => {
+  const [draft] = normalizeAiQuestions([{
+    question_type: "short_text",
+    demand_level: "low",
+    prompt: "Name one contact force.",
+    max_marks: 1,
+    ao1_marks: 1,
+    ao2_marks: 0,
+    ao3_marks: 0,
+    mark_points: [
+      { ao: "AO1", keywords: "friction|air resistance", feedback: "Name a contact force." }
+    ]
+  }]);
+
+  assert.equal(draft.question.max_marks, 1);
+  assert.equal(draft.mark_points.length, 1);
+  assert.equal(validateDraftForCommit(draft, 0), null);
+});
+
+test("normalizeAiQuestions — extended response ai_rubric", () => {
+  const [draft] = normalizeAiQuestions([{
+    question_type: "extended_response",
+    demand_level: "high_89",
+    prompt: "Explain how contact forces act in a braking bicycle.",
+    max_marks: 6,
+    ao1_marks: 2,
+    ao2_marks: 2,
+    ao3_marks: 2,
+    command_word: "explain",
+    marking_guidelines: "Award marks for clear science of friction and force pairs.",
+    level_3_descriptor: "Detailed linked explanation with correct force pairs.",
+    level_2_descriptor: "Some correct ideas with partial links.",
+    level_1_descriptor: "Simple statements with limited science."
+  }]);
+
+  assert.equal(draft.question.question_type, "extended_response");
+  assert.equal(draft.question.marking_method, "ai_rubric");
+  assert.equal(draft.answer_key.key_type, "ai_rubric");
+  assert.equal(draft.question.max_marks, 6);
+  assert.match(draft.answer_key.key_payload.marking_guidelines, /friction/);
+  assert.ok(draft.answer_key.key_payload.level_descriptors[LEVEL_3_KEY]);
+  assert.equal(validateDraftForCommit(draft, 0), null);
+});
+
+test("normalizeAiQuestions — extended 4-mark allows N/A level 3", () => {
+  const [draft] = normalizeAiQuestions([{
+    question_type: "extended_response",
+    demand_level: "standard",
+    prompt: "Describe contact forces on a book resting on a table.",
+    max_marks: 4,
+    ao1_marks: 1,
+    ao2_marks: 2,
+    ao3_marks: 1,
+    marking_guidelines: "Look for weight and normal contact force.",
+    level_3_descriptor: "N/A for 4-mark",
+    level_2_descriptor: "Clear description of both forces.",
+    level_1_descriptor: "Names one force only."
+  }]);
+
+  assert.equal(draft.question.max_marks, 4);
+  assert.equal(validateDraftForCommit(draft, 0), null);
+});
+
 test("validateDraftForCommit — short text requires mark points", () => {
   const [draft] = normalizeAiQuestions([{
     question_type: "short_text",
@@ -69,13 +136,18 @@ test("validateDraftForCommit — short text requires mark points", () => {
   assert.match(validateDraftForCommit(draft, 0), /mark checkpoint/);
 });
 
-test("expandRecipes — flattens counts", () => {
+test("expandRecipes — flattens counts and max_marks", () => {
   const expanded = expandRecipes([
     { question_type: "mcq", demand_level: "low", count: 2 },
-    { question_type: "short_text", demand_level: "standard", count: 1 }
+    { question_type: "short_text", demand_level: "standard", count: 1, max_marks: 1 },
+    { question_type: "extended_response", demand_level: "high_89", count: 1, max_marks: 4 }
   ]);
-  assert.equal(expanded.length, 3);
+  assert.equal(expanded.length, 4);
   assert.equal(expanded[2].question_type, "short_text");
+  assert.equal(expanded[2].max_marks, 1);
+  assert.equal(expanded[3].question_type, "extended_response");
+  assert.equal(expanded[3].max_marks, 4);
+  assert.equal(expanded[0].max_marks, undefined);
 });
 
 test("syncShortTextDraftFromPreviewEdits — updates mark points", () => {
@@ -104,10 +176,73 @@ test("syncShortTextDraftFromPreviewEdits — updates mark points", () => {
   assert.equal(updated.mark_points[0].image_url, "https://x.png");
 });
 
-test("demandRecipeLabel — includes type", () => {
+test("syncShortTextDraftFromPreviewEdits — resize to 1 mark", () => {
+  const [draft] = normalizeAiQuestions([{
+    question_type: "short_text",
+    prompt: "Old",
+    max_marks: 2,
+    ao1_marks: 1,
+    ao2_marks: 1,
+    mark_points: [
+      { ao: "AO1", keywords: "a", feedback: "fb1" },
+      { ao: "AO2", keywords: "b", feedback: "fb2" }
+    ]
+  }]);
+
+  const updated = syncShortTextDraftFromPreviewEdits(draft, {
+    max_marks: 1,
+    mark_points: draft.mark_points,
+    keepEmptyMarkPoints: true
+  });
+
+  assert.equal(updated.question.max_marks, 1);
+  assert.equal(updated.mark_points.length, 1);
+  assert.equal(updated.question.ao1_marks, 1);
+  assert.equal(updated.question.ao2_marks, 0);
+});
+
+test("syncExtendedDraftFromPreviewEdits — updates rubric fields", () => {
+  const [draft] = normalizeAiQuestions([{
+    question_type: "extended_response",
+    prompt: "Explain forces.",
+    max_marks: 6,
+    ao1_marks: 2,
+    ao2_marks: 2,
+    ao3_marks: 2,
+    marking_guidelines: "Old",
+    level_3_descriptor: "L3",
+    level_2_descriptor: "L2",
+    level_1_descriptor: "L1"
+  }]);
+
+  const updated = syncExtendedDraftFromPreviewEdits(draft, {
+    demand_level: "standard_67",
+    max_marks: 4,
+    marking_guidelines: "New guidelines",
+    level_3: "N/A for 4-mark",
+    level_2: "Solid",
+    level_1: "Basic"
+  });
+
+  assert.equal(updated.question.max_marks, 4);
+  assert.equal(updated.question.demand_level, "standard_67");
+  assert.equal(updated.answer_key.key_payload.marking_guidelines, "New guidelines");
+  assert.equal(updated.answer_key.key_payload.level_descriptors[LEVEL_2_KEY], "Solid");
+  assert.equal(updated.answer_key.key_payload.level_descriptors[LEVEL_1_KEY], "Basic");
+});
+
+test("demandRecipeLabel — includes type and marks", () => {
   assert.equal(
     demandRecipeLabel({ question_type: "mcq", demand_level: "low" }),
     "MCQ · Low"
+  );
+  assert.equal(
+    demandRecipeLabel({ question_type: "short_text", demand_level: "standard", max_marks: 1 }),
+    "Short text · Standard · 1 mark"
+  );
+  assert.equal(
+    demandRecipeLabel({ question_type: "extended_response", demand_level: "high_89", max_marks: 6 }),
+    "Extended · High 8–9 · 6 marks"
   );
 });
 
@@ -125,6 +260,25 @@ test("computeGapFillRecipes — only returns missing recipe slots", () => {
   const gap = computeGapFillRecipes(target, [existing, existing, existing]);
   assert.equal(gap.length, 2);
   assert.equal(gap.every((r) => r.question_type === "mcq" && r.demand_level === "low"), true);
+});
+
+test("computeGapFillRecipes — distinguishes short text mark counts", () => {
+  const target = expandRecipes([
+    { question_type: "short_text", demand_level: "standard", count: 2, max_marks: 1 },
+    { question_type: "short_text", demand_level: "standard", count: 1, max_marks: 2 }
+  ]);
+  const [oneMark] = normalizeAiQuestions([{
+    question_type: "short_text",
+    demand_level: "standard",
+    prompt: "One mark Q",
+    max_marks: 1,
+    ao1_marks: 1,
+    mark_points: [{ ao: "AO1", keywords: "friction", feedback: "fb" }]
+  }]);
+  const gap = computeGapFillRecipes(target, [oneMark]);
+  assert.equal(gap.length, 2);
+  assert.equal(gap.filter((r) => r.max_marks === 1).length, 1);
+  assert.equal(gap.filter((r) => r.max_marks === 2).length, 1);
 });
 
 test("splitTemplateAndAiRecipes — all recipes use AI path", () => {
@@ -151,8 +305,16 @@ test("draftsToAvoidQuestions — maps preview drafts for AI avoid list", () => {
   assert.equal(avoid[0].correct, "A");
 });
 
-test("recipeKey — stable type|demand key", () => {
+test("recipeKey — includes marks for short text and extended", () => {
   assert.equal(recipeKey({ question_type: "mcq", demand_level: "low" }), "mcq|low");
+  assert.equal(
+    recipeKey({ question_type: "short_text", demand_level: "standard", max_marks: 1 }),
+    "short_text|standard|1"
+  );
+  assert.equal(
+    recipeKey({ question_type: "extended_response", demand_level: "high_89", max_marks: 6 }),
+    "extended_response|high_89|6"
+  );
 });
 
 test("parseImportedDraftBundle — reads meta and drafts", () => {

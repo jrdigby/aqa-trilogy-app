@@ -156,7 +156,12 @@ function buildBatchRequests(specPoints, { subject, paper, courseTrack, tier, mod
         recipe.demand_level,
         batchIndex
       ]);
-      const request = buildGeminiGenerateRequest(prompt, recipe.question_type, temperature);
+      const request = buildGeminiGenerateRequest(
+        prompt,
+        recipe.question_type,
+        temperature,
+        recipe.max_marks
+      );
       lines.push({ key, request });
       keyMeta.set(key, {
         specPoint: sp,
