@@ -546,12 +546,17 @@ async function generateOneQuestion(prompt, requestId, index, timeoutMs, question
 
 function stampRecipeOntoQuestion(question, recipe) {
   const marks = recipeMaxMarks(recipe);
-  return {
+  const stamped = {
     ...question,
     question_type: recipe.question_type,
     demand_level: recipe.demand_level || question.demand_level,
     max_marks: marks
   };
+  // 4-mark extended responses only use Levels 1–2; never keep a filled Level 3 band.
+  if (recipe.question_type === "extended_response" && marks === 4) {
+    stamped.level_3_descriptor = "N/A for 4-mark";
+  }
+  return stamped;
 }
 
 async function generateQuestionsForRecipes(payload, recipes, requestId) {

@@ -231,10 +231,21 @@ function normalizeShortTextQuestion(raw, context, demandLevel) {
   };
 }
 
+function sanitizeLevelDescriptorsForMarks(levelDescriptors, maxMarks) {
+  if (maxMarks !== 4) return levelDescriptors;
+  return {
+    ...levelDescriptors,
+    [LEVEL_3_KEY]: "N/A for 4-mark"
+  };
+}
+
 function normalizeExtendedQuestion(raw, context, demandLevel) {
   const tier = normalizeQuestionTierForDb(context.tier || raw?.tier || "both");
   const maxMarks = normalizeRecipeMaxMarks("extended_response", raw?.max_marks ?? 6);
-  const levelDescriptors = readLevelDescriptors(raw);
+  const levelDescriptors = sanitizeLevelDescriptorsForMarks(
+    readLevelDescriptors(raw),
+    maxMarks
+  );
   const ao1 = Number(raw?.ao1_marks ?? 0) || 0;
   const ao2 = Number(raw?.ao2_marks ?? Math.min(2, maxMarks)) || 0;
   const ao3 = Number(raw?.ao3_marks ?? Math.max(0, maxMarks - ao1 - ao2)) || 0;
@@ -402,7 +413,7 @@ export function syncExtendedDraftFromPreviewEdits(draft, edits) {
 
   const prevPayload = draft.answer_key?.key_payload || {};
   const prevLevels = prevPayload.level_descriptors || {};
-  const levelDescriptors = {
+  const levelDescriptors = sanitizeLevelDescriptorsForMarks({
     [LEVEL_3_KEY]: edits.level_3 != null
       ? String(edits.level_3).trim()
       : (prevLevels[LEVEL_3_KEY] || ""),
@@ -412,7 +423,7 @@ export function syncExtendedDraftFromPreviewEdits(draft, edits) {
     [LEVEL_1_KEY]: edits.level_1 != null
       ? String(edits.level_1).trim()
       : (prevLevels[LEVEL_1_KEY] || "")
-  };
+  }, q.max_marks);
 
   return {
     ...draft,
