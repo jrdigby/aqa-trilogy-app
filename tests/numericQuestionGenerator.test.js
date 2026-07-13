@@ -723,3 +723,74 @@ test("buildPrompt appends sig figs instruction", () => {
   });
   assert.ok(prompt.includes("Give your answer to 2 significant figures"));
 });
+
+test("buildPrompt — conversion keeps English template without equals signs", () => {
+  const eq = findEq(sheetP2, "work_done");
+  const prompt = buildPrompt(eq, "recall", { F: "360", s: "75", W: "27000" }, {
+    equationGiven: false,
+    promptOverrides: { s: "7500 cm" }
+  });
+  assert.equal(
+    prompt,
+    "Calculate the work done when a force of 360 N acts over a distance of 7500 cm."
+  );
+  assert.ok(!prompt.includes("="));
+  assert.ok(!/Calculate the Work/.test(prompt));
+});
+
+test("buildPrompt — rearrangement uses English sentences and work-done label", () => {
+  const eq = findEq(sheetP2, "work_done");
+  const prompt = buildPrompt(eq, "recall", { F: "?", s: "100", W: "310" }, {
+    equationGiven: false,
+    includeRearrangement: true,
+    rearrangementSubject: "F"
+  });
+  assert.equal(prompt, "Calculate the force when the work done is 310 J and the distance is 100 m.");
+  assert.ok(!prompt.includes("="));
+  assert.ok(!prompt.toLowerCase().includes("weight"));
+});
+
+test("buildPrompt — rearrangement with conversion stays English", () => {
+  const eq = findEq(sheetP2, "work_done");
+  const prompt = buildPrompt(eq, "recall", { F: "?", s: "100", W: "310" }, {
+    equationGiven: false,
+    includeRearrangement: true,
+    rearrangementSubject: "F",
+    promptOverrides: { s: "10000 cm" }
+  });
+  assert.equal(
+    prompt,
+    "Calculate the force when the work done is 310 J and the distance is 10000 cm."
+  );
+  assert.ok(!prompt.includes("="));
+});
+
+test("generateBatch — recall+conversion and rearrange prompts are English sentences", () => {
+  for (const recipe of [
+    { base: "recall", unitConversion: true, count: 1 },
+    { base: "recall", rearrangement: true, count: 1 },
+    { base: "recall", rearrangement: true, unitConversion: true, count: 1 }
+  ]) {
+    const { drafts, errors } = generateBatch(
+      {
+        equation: "work_done",
+        subject: "physics",
+        paper: "paper2",
+        tier: "higher",
+        seed: 11,
+        rearrangement_subject: "F",
+        variants: { recipes: [recipe] }
+      },
+      sheetP2
+    );
+    assert.equal(errors.length, 0, errors.map((e) => e.message).join("; "));
+    const prompt = drafts[0].question.prompt.split("\n\n")[0];
+    assert.ok(prompt.startsWith("Calculate the "), prompt);
+    assert.ok(!prompt.includes("="), `unexpected equals in: ${prompt}`);
+    assert.ok(/^Calculate the [a-z]/.test(prompt), `expected lowercase label: ${prompt}`);
+    if (recipe.rearrangement) {
+      assert.ok(prompt.includes("work done"), prompt);
+      assert.ok(!prompt.toLowerCase().includes("weight"), prompt);
+    }
+  }
+});

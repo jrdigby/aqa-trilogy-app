@@ -136,6 +136,23 @@ const SLOT_PROMPT_LABELS = {
   I_s: "secondary current"
 };
 
+/** Per-equation overrides when a slot id means different quantities (e.g. W = weight vs work). */
+const EQUATION_SLOT_PROMPT_LABELS = {
+  work_done: { W: "work done" },
+  power_work: { W: "work done" },
+  weight: { W: "weight" },
+  density: { V: "volume" },
+  kinetic_energy: { E: "kinetic energy" },
+  gravitational_potential_energy: { E: "gravitational potential energy" },
+  elastic_potential_energy: { E: "elastic potential energy" }
+};
+
+const EQUATION_SLOT_UNITS = {
+  work_done: { W: "J" },
+  power_work: { W: "J" },
+  density: { V: "m³", vol: "m³" }
+};
+
 /** Default numeric ranges for common slot ids when spec omits ranges. */
 const DEFAULT_SLOT_RANGES = {
   m: { min: 1, max: 10, step: 0.5 },
@@ -226,7 +243,8 @@ const DEFAULT_CONSTANTS = { g: 10, c: 4200 };
 const PROMPT_TEMPLATES = {
   kinetic_energy:
     "Calculate the kinetic energy of an object of mass {m} kg moving at {v} m/s.",
-  weight: "Calculate the weight of an object of mass {m} kg. Use g = {g} N/kg.",
+  weight:
+    "Calculate the weight of an object of mass {m} kg. Use a gravitational field strength of {g} N/kg.",
   work_done: "Calculate the work done when a force of {F} N acts over a distance of {s} m.",
   force: "Calculate the force needed to accelerate a mass of {m} kg at {a} m/s².",
   potential_difference:
@@ -237,7 +255,7 @@ const PROMPT_TEMPLATES = {
     "A transformer has primary voltage {V_p} V, primary current {I_p} A, and secondary current {I_s} A. Calculate the secondary voltage.",
   wave_speed: "A wave has frequency {f} Hz and wavelength {lambda} m. Calculate the wave speed.",
   gravitational_potential_energy:
-    "Calculate the gravitational potential energy of a {m} kg object raised {h} m. Use g = {g} N/kg.",
+    "Calculate the gravitational potential energy of a {m} kg object raised {h} m. Use a gravitational field strength of {g} N/kg.",
   speed: "Calculate the speed of an object that travels {s} m in {t} s.",
   acceleration:
     "Calculate the acceleration when velocity changes by {delta_v} m/s in {t} s.",
@@ -246,7 +264,10 @@ const PROMPT_TEMPLATES = {
   efficiency_energy:
     "A device transfers {E_useful} J of useful energy from a total input of {E_in} J. Calculate the efficiency.",
   efficiency_power:
-    "An appliance delivers {P_useful} W of useful power from a total power input of {P_in} W. Calculate the efficiency."
+    "An appliance delivers {P_useful} W of useful power from a total power input of {P_in} W. Calculate the efficiency.",
+  momentum: "Calculate the momentum of an object of mass {m} kg moving at {v} m/s.",
+  spring_force:
+    "Calculate the force on a spring with spring constant {k} N/m and extension {e} m."
 };
 
 const CONVERSION_CATALOG = [
@@ -328,6 +349,9 @@ function slotNumericValue(slots, slotId) {
 }
 
 export function getSlotPromptLabel(slotId, equation = null) {
+  const eqOverride = equation?.id ? EQUATION_SLOT_PROMPT_LABELS[equation.id]?.[slotId] : null;
+  if (eqOverride) return eqOverride;
+
   const template = equation ? getSubstitutionTemplate(equation) : null;
   if (template) {
     const tplLabel = slotLabelFromTemplate(template, slotId);
@@ -335,11 +359,25 @@ export function getSlotPromptLabel(slotId, equation = null) {
       return String(tplLabel).replace(/Δ/g, "change in ");
     }
   }
-  if (equation?.id === "density" && slotId === "V") return "volume";
   if (SLOT_PROMPT_LABELS[slotId]) return SLOT_PROMPT_LABELS[slotId];
   const token = template?.tokens?.find((t) => t.kind === "slot" && t.id === slotId);
   if (token?.label) return String(token.label).replace(/Δ/g, "change in ");
   return slotId;
+}
+
+/** SI (or equation-specific) unit for a slot in prompt / answer text. */
+export function resolveSlotUnit(equation, slotId) {
+  const eqUnit = equation?.id ? EQUATION_SLOT_UNITS[equation.id]?.[slotId] : null;
+  if (eqUnit) return eqUnit;
+  if (SUBJECT_UNITS[slotId]) return SUBJECT_UNITS[slotId];
+  return "";
+}
+
+/** Lowercase equation label for use after "Calculate the …". */
+export function getEquationPromptLabel(equation) {
+  const raw = String(equation?.label || equation?.id || "value").trim();
+  if (!raw) return "value";
+  return raw.charAt(0).toLowerCase() + raw.slice(1);
 }
 
 export function formatEquationLatexBlock(latex) {
@@ -579,7 +617,8 @@ export function solveForSubject(equation, slots, subject) {
 }
 
 export function getSubjectUnit(equation, subject) {
-  if (SUBJECT_UNITS[subject]) return SUBJECT_UNITS[subject];
+  const slotUnit = resolveSlotUnit(equation, subject);
+  if (slotUnit) return slotUnit;
   return EQUATION_UNITS[equation.id] || "";
 }
 
@@ -799,20 +838,41 @@ export function buildConversionStep(equation, slots, slotAnswers, rng = Math.ran
   return { slots, slot_answers: slotAnswers, conversion: null, promptOverrides: {}, conversionMeta: null };
 }
 
-function formatSlotForPrompt(id, value, overrides) {
-  if (overrides?.[id]) return overrides[id];
-  return value;
+/**
+ * Fill a prompt template. Overrides may include alternate units and replace any
+ * trailing SI unit token after the placeholder (e.g. "{s} m" → "7500 cm").
+ */
+function fillPromptTemplate(template, slots, promptOverrides = {}) {
+  return template.replace(/\{(\w+)\}(?:\s+([^\s.,;!?]+))?/g, (match, key, unit) => {
+    if (promptOverrides?.[key]) return String(promptOverrides[key]).trim();
+    const value = slots[key] ?? "?";
+    return unit != null ? `${value} ${unit}` : String(value);
+  });
 }
 
-function formatGivenSlotForPrompt(id, slots, promptOverrides, ctx = {}) {
-  const slotLabel = getSlotPromptLabel(id, ctx.equation);
-  const val = formatSlotForPrompt(id, slots[id], promptOverrides);
-  if (promptOverrides?.[id]) return `${slotLabel} = ${val}`;
+/** Value + unit for a given slot (uses conversion override when present). */
+function formatSlotQuantity(id, slots, promptOverrides, ctx = {}) {
+  if (promptOverrides?.[id]) return String(promptOverrides[id]).trim();
   if (id === "efficiency" && ctx.efficiencyAsPercentage) {
-    return `${slotLabel} = ${efficiencyDecimalToDisplay(slots[id])}%`;
+    return `${efficiencyDecimalToDisplay(slots[id])}%`;
   }
-  const unit = SUBJECT_UNITS[id] || "";
-  return unit ? `${slotLabel} = ${val} ${unit}` : `${slotLabel} = ${val}`;
+  const unit = resolveSlotUnit(ctx.equation, id);
+  const val = slots[id] ?? "?";
+  return unit ? `${val} ${unit}` : String(val);
+}
+
+/** Natural-English clause for a given quantity, e.g. "the force is 65 N". */
+function formatGivenSlotPhrase(id, slots, promptOverrides, ctx = {}) {
+  const slotLabel = getSlotPromptLabel(id, ctx.equation);
+  const quantity = formatSlotQuantity(id, slots, promptOverrides, ctx);
+  return `the ${slotLabel} is ${quantity}`;
+}
+
+function joinEnglishList(parts) {
+  if (!parts.length) return "the values given";
+  if (parts.length === 1) return parts[0];
+  if (parts.length === 2) return `${parts[0]} and ${parts[1]}`;
+  return `${parts.slice(0, -1).join(", ")}, and ${parts[parts.length - 1]}`;
 }
 
 function buildRearrangementPrompt(equation, subject, slots, promptOverrides, ctx = {}) {
@@ -820,10 +880,17 @@ function buildRearrangementPrompt(equation, subject, slots, promptOverrides, ctx
   const template = getSubstitutionTemplate(equation);
   const parts = getSlotIdsFromTemplate(template)
     .filter((id) => id !== subject)
-    .map((id) => formatGivenSlotForPrompt(id, slots, promptOverrides, { ...ctx, equation }))
-    .join(", ");
+    .map((id) => formatGivenSlotPhrase(id, slots, promptOverrides, { ...ctx, equation }));
 
-  return `Calculate the ${label} when ${parts}.`;
+  return `Calculate the ${label} when ${joinEnglishList(parts)}.`;
+}
+
+function buildFallbackPrompt(equation, slots, promptOverrides, ctx = {}) {
+  const subTemplate = getSubstitutionTemplate(equation);
+  const parts = getSlotIdsFromTemplate(subTemplate)
+    .filter((id) => id !== identifyResultSlot(subTemplate))
+    .map((id) => formatGivenSlotPhrase(id, slots, promptOverrides, ctx));
+  return `Calculate the ${getEquationPromptLabel(equation)} when ${joinEnglishList(parts)}.`;
 }
 
 export function buildPrompt(equation, baseVariant, slots, ctx = {}) {
@@ -842,22 +909,13 @@ export function buildPrompt(equation, baseVariant, slots, ctx = {}) {
 
   let text;
   if (customTemplate) {
-    text = customTemplate.replace(/\{(\w+)\}/g, (_, key) =>
-      formatSlotForPrompt(key, slots[key] ?? "?", promptOverrides)
-    );
+    text = fillPromptTemplate(customTemplate, slots, promptOverrides);
   } else if (solvingForUnknown && rearrangementSubject) {
     text = buildRearrangementPrompt(equation, rearrangementSubject, slots, promptOverrides, promptCtx);
-  } else if (PROMPT_TEMPLATES[equation.id] && !Object.keys(promptOverrides).length) {
-    text = PROMPT_TEMPLATES[equation.id].replace(/\{(\w+)\}/g, (_, key) =>
-      formatSlotForPrompt(key, slots[key] ?? "?", promptOverrides)
-    );
+  } else if (PROMPT_TEMPLATES[equation.id]) {
+    text = fillPromptTemplate(PROMPT_TEMPLATES[equation.id], slots, promptOverrides);
   } else {
-    const subTemplate = getSubstitutionTemplate(equation);
-    const parts = getSlotIdsFromTemplate(subTemplate)
-      .filter((id) => id !== identifyResultSlot(subTemplate))
-      .map((id) => formatGivenSlotForPrompt(id, slots, promptOverrides, promptCtx))
-      .join(", ");
-    text = `Calculate the ${equation.label || equation.id} using ${parts || "the values given"}.`;
+    text = buildFallbackPrompt(equation, slots, promptOverrides, promptCtx);
   }
 
   const showLatex = equationGiven && equation.latex && baseVariant !== "equation_recall" && baseVariant !== "recall";
