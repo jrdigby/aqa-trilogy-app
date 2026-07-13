@@ -197,6 +197,42 @@ test("generateBatch — gravitational potential energy rearrangement for h", () 
   assert.equal(drafts[0].answer_key.key_payload.unit, "m");
 });
 
+test("generateBatch — distance travelled uses metres and natural prompt", () => {
+  const { drafts, errors } = generateBatch(
+    {
+      equation: "distance_speed",
+      sheet: "physics_p2_ht",
+      constants: { v: "15", t: "14" },
+      variants: { recipes: [{ base: "substitute", count: 1 }] },
+      seed: 1
+    },
+    sheetP2
+  );
+  assert.equal(errors.length, 0, errors.map((e) => e.message).join("; "));
+  assert.equal(drafts.length, 1);
+  assert.equal(drafts[0].answer_key.key_payload.unit, "m");
+  assert.equal(drafts[0].answer_key.key_payload.answer, 210);
+  assert.equal(
+    drafts[0].question.prompt.split("\n\n")[0],
+    "Calculate the distance an object travels in 14 s at a speed of 15 m/s."
+  );
+});
+
+test("generateBatch — distance rearranged for speed uses m/s", () => {
+  const { drafts, errors } = generateBatch(
+    {
+      equation: "distance_speed",
+      sheet: "physics_p2_ht",
+      rearrangement_subject: "v",
+      variants: { recipes: [{ base: "recall", rearrangement: true, count: 1 }] },
+      seed: 5
+    },
+    sheetP2
+  );
+  assert.equal(errors.length, 0, errors.map((e) => e.message).join("; "));
+  assert.equal(drafts[0].answer_key.key_payload.unit, "m/s");
+});
+
 test("generateBatch — charge flow rearrangement uses subject unit not result unit", () => {
   const { drafts: forI, errors: errI } = generateBatch(
     {

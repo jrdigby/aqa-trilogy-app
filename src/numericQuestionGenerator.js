@@ -50,7 +50,7 @@ const EQUATION_UNITS = {
   period: "s",
   pressure: "Pa",
   force_momentum: "N",
-  distance_speed: "m/s",
+  distance_speed: "m",
   frequency: "Hz"
 };
 
@@ -257,6 +257,8 @@ const PROMPT_TEMPLATES = {
   gravitational_potential_energy:
     "Calculate the gravitational potential energy of a {m} kg object raised {h} m. Use a gravitational field strength of {g} N/kg.",
   speed: "Calculate the speed of an object that travels {s} m in {t} s.",
+  distance_speed:
+    "Calculate the distance an object travels in {t} s at a speed of {v} m/s.",
   acceleration:
     "Calculate the acceleration when velocity changes by {delta_v} m/s in {t} s.",
   elastic_potential_energy:
