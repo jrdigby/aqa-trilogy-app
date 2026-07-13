@@ -121,6 +121,33 @@ test("normalizeAiQuestions — extended 4-mark allows N/A level 3", () => {
   }]);
 
   assert.equal(draft.question.max_marks, 4);
+  assert.equal(
+    draft.answer_key.key_payload.level_descriptors[LEVEL_3_KEY],
+    "N/A for 4-mark"
+  );
+  assert.equal(validateDraftForCommit(draft, 0), null);
+});
+
+test("normalizeAiQuestions — extended 4-mark clears filled level 3", () => {
+  const [draft] = normalizeAiQuestions([{
+    question_type: "extended_response",
+    demand_level: "standard",
+    prompt: "Describe contact forces on a book resting on a table.",
+    max_marks: 4,
+    ao1_marks: 1,
+    ao2_marks: 2,
+    ao3_marks: 1,
+    marking_guidelines: "Look for weight and normal contact force.",
+    level_3_descriptor: "Detailed linked explanation spanning 5–6 marks.",
+    level_2_descriptor: "Clear description of both forces.",
+    level_1_descriptor: "Names one force only."
+  }]);
+
+  assert.equal(draft.question.max_marks, 4);
+  assert.equal(
+    draft.answer_key.key_payload.level_descriptors[LEVEL_3_KEY],
+    "N/A for 4-mark"
+  );
   assert.equal(validateDraftForCommit(draft, 0), null);
 });
 
@@ -227,8 +254,40 @@ test("syncExtendedDraftFromPreviewEdits — updates rubric fields", () => {
   assert.equal(updated.question.max_marks, 4);
   assert.equal(updated.question.demand_level, "standard_67");
   assert.equal(updated.answer_key.key_payload.marking_guidelines, "New guidelines");
+  assert.equal(
+    updated.answer_key.key_payload.level_descriptors[LEVEL_3_KEY],
+    "N/A for 4-mark"
+  );
   assert.equal(updated.answer_key.key_payload.level_descriptors[LEVEL_2_KEY], "Solid");
   assert.equal(updated.answer_key.key_payload.level_descriptors[LEVEL_1_KEY], "Basic");
+});
+
+test("syncExtendedDraftFromPreviewEdits — switching to 4 clears level 3 even if edit keeps it", () => {
+  const [draft] = normalizeAiQuestions([{
+    question_type: "extended_response",
+    prompt: "Explain forces.",
+    max_marks: 6,
+    ao1_marks: 2,
+    ao2_marks: 2,
+    ao3_marks: 2,
+    marking_guidelines: "Old",
+    level_3_descriptor: "Full L3 band",
+    level_2_descriptor: "L2",
+    level_1_descriptor: "L1"
+  }]);
+
+  const updated = syncExtendedDraftFromPreviewEdits(draft, {
+    max_marks: 4,
+    level_3: "Still a detailed Level 3 descriptor",
+    level_2: "Solid",
+    level_1: "Basic"
+  });
+
+  assert.equal(updated.question.max_marks, 4);
+  assert.equal(
+    updated.answer_key.key_payload.level_descriptors[LEVEL_3_KEY],
+    "N/A for 4-mark"
+  );
 });
 
 test("demandRecipeLabel — includes type and marks", () => {

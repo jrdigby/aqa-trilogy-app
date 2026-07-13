@@ -6792,9 +6792,20 @@
     const q = d.question;
     const payload = d.answer_key?.key_payload || {};
     const levels = payload.level_descriptors || {};
-    const lvl3 = levels[AiQuestionDraft.LEVEL_3_KEY] || "";
+    const isFourMark = Number(q.max_marks) === 4;
+    const lvl3 = isFourMark ? "N/A for 4-mark" : (levels[AiQuestionDraft.LEVEL_3_KEY] || "");
     const lvl2 = levels[AiQuestionDraft.LEVEL_2_KEY] || "";
     const lvl1 = levels[AiQuestionDraft.LEVEL_1_KEY] || "";
+    const lvl3Block = isFourMark
+      ? `<div>
+              <label style="font-size:0.72rem;font-weight:600;color:var(--text-muted);">${escapeHtml(AiQuestionDraft.LEVEL_3_KEY)}</label>
+              <p style="font-size:0.76rem;color:var(--text-muted);margin:6px 0 0;">Not used for 4-mark extended responses (Levels 1–2 only).</p>
+              <input type="hidden" class="batch-ai-er-lvl3" data-batch-mcq-idx="${i}" value="N/A for 4-mark" />
+            </div>`
+      : `<div>
+              <label style="font-size:0.72rem;font-weight:600;">${escapeHtml(AiQuestionDraft.LEVEL_3_KEY)}</label>
+              <textarea class="batch-ai-er-lvl3 batch-ai-textarea-compact" data-batch-mcq-idx="${i}" rows="3" style="width:100%;font-size:0.76rem;padding:6px;margin-top:4px;">${escapeHtml(lvl3)}</textarea>
+            </div>`;
     return `
       <tr style="border-bottom:1px solid var(--border);background:#f8fafc;" data-batch-mcq-detail="${i}">
         <td colspan="10" style="padding:8px 12px 10px;">
@@ -6803,10 +6814,7 @@
               <label style="font-size:0.72rem;font-weight:600;">Marking guidelines</label>
               <textarea class="batch-ai-er-guidelines batch-ai-textarea-compact" data-batch-mcq-idx="${i}" rows="3" style="width:100%;font-size:0.78rem;padding:6px;margin-top:4px;">${escapeHtml(payload.marking_guidelines || "")}</textarea>
             </div>
-            <div>
-              <label style="font-size:0.72rem;font-weight:600;">${escapeHtml(AiQuestionDraft.LEVEL_3_KEY)}</label>
-              <textarea class="batch-ai-er-lvl3 batch-ai-textarea-compact" data-batch-mcq-idx="${i}" rows="3" style="width:100%;font-size:0.76rem;padding:6px;margin-top:4px;">${escapeHtml(lvl3)}</textarea>
-            </div>
+            ${lvl3Block}
             <div>
               <label style="font-size:0.72rem;font-weight:600;">${escapeHtml(AiQuestionDraft.LEVEL_2_KEY)}</label>
               <textarea class="batch-ai-er-lvl2 batch-ai-textarea-compact" data-batch-mcq-idx="${i}" rows="3" style="width:100%;font-size:0.76rem;padding:6px;margin-top:4px;">${escapeHtml(lvl2)}</textarea>
@@ -6815,7 +6823,7 @@
               <label style="font-size:0.72rem;font-weight:600;">${escapeHtml(AiQuestionDraft.LEVEL_1_KEY)}</label>
               <textarea class="batch-ai-er-lvl1 batch-ai-textarea-compact" data-batch-mcq-idx="${i}" rows="3" style="width:100%;font-size:0.76rem;padding:6px;margin-top:4px;">${escapeHtml(lvl1)}</textarea>
             </div>
-            <div>${renderBatchAoInputs(i, q, 6)}</div>
+            <div>${renderBatchAoInputs(i, q, Number(q.max_marks) === 4 ? 4 : 6)}</div>
           </div>
         </td>
       </tr>`;
