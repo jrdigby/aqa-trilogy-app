@@ -830,3 +830,168 @@ test("generateBatch — recall+conversion and rearrange prompts are English sent
     }
   }
 });
+
+test("suvat — evaluateEquation and solveForSubject for all four variables", () => {
+  const eq = findEq(sheetP2, "suvat");
+  assert.ok(eq?.substitution_template, "suvat should have a substitution template");
+
+  // v² − u² = 2as → 5² − 3² = 16 = 2×2×4
+  const slots = { u: "3", a: "2", s: "4", v: "5" };
+  const { answer, unit } = evaluateEquation(eq, slots);
+  assert.equal(unit, "m/s");
+  assert.ok(Math.abs(answer - 5) < 1e-9);
+
+  assert.ok(Math.abs(solveForSubject(eq, slots, "v") - 5) < 1e-9);
+  assert.ok(Math.abs(solveForSubject(eq, { v: "5", a: "2", s: "4" }, "u") - 3) < 1e-9);
+  assert.ok(Math.abs(solveForSubject(eq, { v: "5", u: "3", s: "4" }, "a") - 2) < 1e-9);
+  assert.ok(Math.abs(solveForSubject(eq, { v: "5", u: "3", a: "2" }, "s") - 4) < 1e-9);
+});
+
+test("suvat — generateSlotValues yields nice final velocity", () => {
+  const eq = findEq(sheetP2, "suvat");
+  let t = 0;
+  const rng = () => {
+    t += 0.17;
+    return t % 1;
+  };
+  const { slots, slot_answers } = generateSlotValues(eq, {}, {}, rng);
+  assert.ok(slot_answers.u);
+  assert.ok(slot_answers.a);
+  assert.ok(slot_answers.s);
+  assert.equal(slot_answers.v, undefined, "result v omitted from slot_answers");
+  const v = Number(slots.v);
+  const u = Number(slots.u);
+  const a = Number(slots.a);
+  const s = Number(slots.s);
+  assert.ok(Math.abs(v * v - (u * u + 2 * a * s)) < 1e-6);
+  assert.ok(Number.isInteger(v) || Math.abs(v * 10 - Math.round(v * 10)) < 1e-9);
+});
+
+test("suvat — subject-specific prompts for each unknown", () => {
+  const eq = findEq(sheetP2, "suvat");
+  const cases = [
+    {
+      subject: "v",
+      slots: { u: "3", a: "2", s: "4", v: "?" },
+      expect: "Calculate the final velocity of an object that starts at 3 m/s and accelerates at 2 m/s² for 4 m."
+    },
+    {
+      subject: "u",
+      slots: { v: "5", a: "2", s: "4", u: "?" },
+      expect: "Calculate the initial velocity of an object that accelerated at 2 m/s² for 4 m and finished at 5 m/s."
+    },
+    {
+      subject: "a",
+      slots: { u: "3", v: "5", s: "4", a: "?" },
+      expect: "Calculate the acceleration of an object that started at 3 m/s and finished at 5 m/s after travelling 4 m."
+    },
+    {
+      subject: "s",
+      slots: { u: "3", a: "2", v: "5", s: "?" },
+      expect: "Calculate the distance an object travels when starting at 3 m/s, accelerating at 2 m/s² and finishing at 5 m/s."
+    }
+  ];
+  for (const { subject, slots, expect } of cases) {
+    const prompt = buildPrompt(eq, "recall", slots, {
+      equationGiven: false,
+      includeRearrangement: true,
+      rearrangementSubject: subject
+    });
+    assert.equal(prompt, expect);
+  }
+});
+
+test("suvat — rearrangement options keep v² and include sign-flip distractor", async () => {
+  const { buildNumericRearrangementOptions } = await import("../src/substitutionTemplate.js");
+  const eq = findEq(sheetP2, "suvat");
+  const subStep = {
+    slot_answers: { u: ["3"], a: ["2"], s: ["4"] },
+    si_slot_answers: { u: ["3"], a: ["2"], s: ["4"] },
+    rearrangement_subject: "v"
+  };
+  const rearrStep = { mode: "numeric", subject: "v" };
+  const built = buildNumericRearrangementOptions(eq, subStep, rearrStep);
+  assert.match(built.answer, /^v²\s*=/);
+  assert.ok(built.answer.includes("+"), `expected + in correct: ${built.answer}`);
+  assert.ok(
+    built.distractors.some((d) => /^v²\s*=/.test(d) && d.includes("-")),
+    `expected sign-flip distractor among ${JSON.stringify(built.distractors)}`
+  );
+});
+
+test("generateBatch — suvat rearrange for each subject", () => {
+  for (const subject of ["v", "u", "a", "s"]) {
+    const { drafts, errors } = generateBatch(
+      {
+        equation: "suvat",
+        subject: "physics",
+        paper: "paper2",
+        tier: "higher",
+        seed: 17,
+        rearrangement_subject: subject,
+        variants: { recipes: [{ base: "recall", rearrangement: true, count: 1 }] }
+      },
+      sheetP2
+    );
+    assert.equal(errors.length, 0, `${subject}: ${errors.map((e) => e.message).join("; ")}`);
+    assert.equal(drafts.length, 1);
+    const prompt = drafts[0].question.prompt.split("\n\n")[0];
+    assert.ok(prompt.startsWith("Calculate the "), prompt);
+    assert.ok(!prompt.includes("="), prompt);
+    const rearr = drafts[0].question.calculation_config.steps.find((s) => s.type === "rearrangement");
+    assert.ok(rearr, "expected rearrangement step");
+    assert.equal(rearr.subject, subject);
+    if (subject === "v" || subject === "u") {
+      assert.match(String(rearr.answer || ""), new RegExp(`^${subject}²\\s*=`));
+    }
+  }
+});
+
+test("generateBatch — suvat recall+rearrange+conversion works for distance unknown", () => {
+  const { drafts, errors } = generateBatch(
+    {
+      equation: "suvat",
+      subject: "physics",
+      paper: "paper2",
+      tier: "higher",
+      seed: 9,
+      rearrangement_subject: "s",
+      variants: {
+        recipes: [{ base: "recall", rearrangement: true, unitConversion: true, sigFigs: true, count: 1 }]
+      }
+    },
+    sheetP2
+  );
+  assert.equal(errors.length, 0, errors.map((e) => e.message).join("; "));
+  assert.equal(drafts.length, 1);
+  const prompt = drafts[0].question.prompt.split("\n\n")[0];
+  assert.ok(/km\/h/.test(prompt), `expected velocity conversion in prompt: ${prompt}`);
+  const conv = drafts[0].question.calculation_config.steps.find((s) => s.type === "conversion");
+  assert.ok(conv, "expected conversion step");
+});
+
+test("suvat is available on FT paper 2 sheet", () => {
+  const sheetFt = JSON.parse(
+    fs.readFileSync(path.join(__dirname, "..", "data", "equation_sheets", "physics_p2_ft.json"), "utf8")
+  );
+  const eq = findEq(sheetFt, "suvat");
+  assert.ok(eq, "suvat should be on physics_p2_ft");
+  assert.ok(eq.substitution_template, "suvat FT entry needs substitution template");
+  assert.notEqual(eq.ht_only, true);
+
+  const { drafts, errors } = generateBatch(
+    {
+      equation: "suvat",
+      subject: "physics",
+      paper: "paper2",
+      tier: "foundation",
+      seed: 4,
+      rearrangement_subject: "v",
+      variants: { recipes: [{ base: "substitute", rearrangement: true, count: 1 }] }
+    },
+    sheetFt
+  );
+  assert.equal(errors.length, 0, errors.map((e) => e.message).join("; "));
+  assert.equal(drafts.length, 1);
+  assert.ok(drafts[0].question.prompt.includes("final velocity"));
+});

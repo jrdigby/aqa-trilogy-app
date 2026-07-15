@@ -332,7 +332,97 @@
       "id": "suvat",
       "topic_tags": [
         "forces"
-      ]
+      ],
+      "substitution_template": {
+        "layout": "sum_product",
+        "tokens": [
+          {
+            "kind": "slot",
+            "id": "v",
+            "label": "v"
+          },
+          {
+            "kind": "op",
+            "text": "²"
+          },
+          {
+            "kind": "op",
+            "text": "="
+          },
+          {
+            "kind": "slot",
+            "id": "u",
+            "label": "u"
+          },
+          {
+            "kind": "op",
+            "text": "²"
+          },
+          {
+            "kind": "op",
+            "text": "+"
+          },
+          {
+            "kind": "op",
+            "text": "2"
+          },
+          {
+            "kind": "op",
+            "text": "×"
+          },
+          {
+            "kind": "slot",
+            "id": "a",
+            "label": "a"
+          },
+          {
+            "kind": "op",
+            "text": "×"
+          },
+          {
+            "kind": "slot",
+            "id": "s",
+            "label": "s"
+          }
+        ]
+      },
+      "rearrangement_forms": {
+        "default_subject": "v",
+        "variants": [
+          {
+            "subject": "v",
+            "correct": "v² = 2 × a × s + u²",
+            "distractor_patterns": [
+              "flip_sign",
+              "multiply_instead"
+            ]
+          },
+          {
+            "subject": "u",
+            "correct": "u² = v² - 2 × a × s",
+            "distractor_patterns": [
+              "flip_sign"
+            ]
+          },
+          {
+            "subject": "a",
+            "correct": "a = (v² - u²) / (2 × s)",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          },
+          {
+            "subject": "s",
+            "correct": "s = (v² - u²) / (2 × a)",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          }
+        ]
+      },
+      "ht_only": false
     },
     {
       "label": "Resultant force",

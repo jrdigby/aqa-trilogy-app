@@ -51,12 +51,14 @@ const EQUATION_UNITS = {
   pressure: "Pa",
   force_momentum: "N",
   distance_speed: "m",
-  frequency: "Hz"
+  frequency: "Hz",
+  suvat: "m/s"
 };
 
 /** Units when solving for a specific variable (rearrangement). */
 const SUBJECT_UNITS = {
   v: "m/s",
+  u: "m/s",
   e: "m",
   m: "kg",
   s: "m",
@@ -99,6 +101,7 @@ const SLOT_PROMPT_LABELS = {
   e: "extension",
   m: "mass",
   v: "velocity",
+  u: "initial velocity",
   k: "spring constant",
   E: "energy",
   E_k: "kinetic energy",
@@ -144,7 +147,13 @@ const EQUATION_SLOT_PROMPT_LABELS = {
   density: { V: "volume" },
   kinetic_energy: { E: "kinetic energy" },
   gravitational_potential_energy: { E: "gravitational potential energy" },
-  elastic_potential_energy: { E: "elastic potential energy" }
+  elastic_potential_energy: { E: "elastic potential energy" },
+  suvat: {
+    v: "final velocity",
+    u: "initial velocity",
+    a: "acceleration",
+    s: "distance"
+  }
 };
 
 const EQUATION_SLOT_UNITS = {
@@ -175,6 +184,7 @@ const DEFAULT_SLOT_RANGES = {
   f: { min: 50, max: 2000, step: 10 },
   lambda: { min: 0.1, max: 2, step: 0.1 },
   a: { min: 1, max: 10, step: 0.5 },
+  u: { min: 0, max: 20, step: 1 },
   delta_v: { min: 2, max: 20, step: 1 },
   delta_theta: { min: 10, max: 80, step: 5 },
   delta_E: { min: 100, max: 5000, step: 50 },
@@ -269,13 +279,26 @@ const PROMPT_TEMPLATES = {
     "An appliance delivers {P_useful} W of useful power from a total power input of {P_in} W. Calculate the efficiency.",
   momentum: "Calculate the momentum of an object of mass {m} kg moving at {v} m/s.",
   spring_force:
-    "Calculate the force on a spring with spring constant {k} N/m and extension {e} m."
+    "Calculate the force on a spring with spring constant {k} N/m and extension {e} m.",
+  suvat:
+    "Calculate the final velocity of an object that starts at {u} m/s and accelerates at {a} m/s² for {s} m."
+};
+
+/** Per-equation rearrange stems keyed by unknown subject slot. */
+const REARRANGEMENT_PROMPT_TEMPLATES = {
+  suvat: {
+    v: "Calculate the final velocity of an object that starts at {u} m/s and accelerates at {a} m/s² for {s} m.",
+    u: "Calculate the initial velocity of an object that accelerated at {a} m/s² for {s} m and finished at {v} m/s.",
+    a: "Calculate the acceleration of an object that started at {u} m/s and finished at {v} m/s after travelling {s} m.",
+    s: "Calculate the distance an object travels when starting at {u} m/s, accelerating at {a} m/s² and finishing at {v} m/s."
+  }
 };
 
 const CONVERSION_CATALOG = [
   { slotPattern: /^(s|h|d|e|lambda)$/, fromUnit: "km", toUnit: "m", factor: 1000 },
   { slotPattern: /^(s|h|d|e|lambda)$/, fromUnit: "cm", toUnit: "m", factor: 0.01 },
   { slotPattern: /^(s|h|d|e|lambda)$/, fromUnit: "mm", toUnit: "m", factor: 0.001 },
+  { slotPattern: /^(v|u|delta_v)$/, fromUnit: "km/h", toUnit: "m/s", factor: 1000 / 3600 },
   { slotPattern: /^m$/, fromUnit: "g", toUnit: "kg", factor: 0.001 },
   { slotPattern: /^m$/, fromUnit: "t", toUnit: "kg", factor: 1000 },
   { slotPattern: /^t$|^T$/, fromUnit: "min", toUnit: "s", factor: 60 },
@@ -320,6 +343,7 @@ const UNIT_ALIASES = {
   mm: "mm",
   cm: "cm",
   km: "km",
+  "km/h": "km/h",
   min: "min",
   ms: "ms"
 };
@@ -469,7 +493,19 @@ export function evaluateEquation(equation, slots) {
   }
 
   let answer;
-  if (template.layout === "fraction") {
+  if (equation.id === "suvat") {
+    const u = slotNumericValue(slots, "u");
+    const a = slotNumericValue(slots, "a");
+    const s = slotNumericValue(slots, "s");
+    if (!Number.isFinite(u) || !Number.isFinite(a) || !Number.isFinite(s)) {
+      throw new Error(`Cannot evaluate suvat — missing u, a, or s`);
+    }
+    const radicand = u * u + 2 * a * s;
+    if (radicand < 0) {
+      throw new Error(`Cannot evaluate suvat — negative radicand`);
+    }
+    answer = Math.sqrt(radicand);
+  } else if (template.layout === "fraction") {
     const num = evalFractionPart(template.numerator, slots);
     const den = evalFractionPart(template.denominator, slots);
     if (!Number.isFinite(num) || !Number.isFinite(den) || den === 0) {
@@ -511,6 +547,33 @@ export function solveForSubject(equation, slots, subject) {
   const template = getSubstitutionTemplate(equation);
   const resultSlot = identifyResultSlot(template);
   const val = (id) => slotNumericValue(slots, id);
+
+  if (equation.id === "suvat") {
+    const u = val("u");
+    const v = val("v");
+    const a = val("a");
+    const s = val("s");
+    if (subject === "v") {
+      if (Number.isFinite(u) && Number.isFinite(a) && Number.isFinite(s)) {
+        const radicand = u * u + 2 * a * s;
+        if (radicand >= 0) return Math.sqrt(radicand);
+      }
+    } else if (subject === "u") {
+      if (Number.isFinite(v) && Number.isFinite(a) && Number.isFinite(s)) {
+        const radicand = v * v - 2 * a * s;
+        if (radicand >= 0) return Math.sqrt(radicand);
+      }
+    } else if (subject === "a") {
+      if (Number.isFinite(v) && Number.isFinite(u) && Number.isFinite(s) && s !== 0) {
+        return (v * v - u * u) / (2 * s);
+      }
+    } else if (subject === "s") {
+      if (Number.isFinite(v) && Number.isFinite(u) && Number.isFinite(a) && a !== 0) {
+        return (v * v - u * u) / (2 * a);
+      }
+    }
+    throw new Error(`Cannot solve for "${subject}" in equation "suvat"`);
+  }
 
   if (subject === resultSlot) {
     return evaluateEquation(equation, slots).answer;
@@ -641,10 +704,148 @@ function fillSlotValue(id, ranges, constants, rng, slotAnswers, slots) {
   slotAnswers[id] = [String(val)];
 }
 
+/** GCSE-friendly: integer or one decimal place, non-negative. */
+function isSuvatNice(n) {
+  if (!Number.isFinite(n) || n < 0) return false;
+  const rounded = Math.round(n * 10) / 10;
+  return Math.abs(n - rounded) < 1e-9;
+}
+
+function formatSuvatValue(n) {
+  const rounded = Math.round(n * 10) / 10;
+  return Number.isInteger(rounded) ? String(rounded) : String(rounded);
+}
+
+function assignSuvatSlot(id, value, slots, slotAnswers, asGiven) {
+  const text = formatSuvatValue(value);
+  slots[id] = text;
+  if (asGiven) slotAnswers[id] = [text];
+}
+
+/**
+ * Generate positive suvat values with a clean unknown (integer or 1 d.p.).
+ * subject null → solving for final velocity v (default result).
+ */
+function generateSuvatSlotBundle(subject, ranges = {}, constants = {}, rng = Math.random) {
+  const pickInt = (id, lo, hi) => {
+    if (constants[id] != null) return Math.round(Number(constants[id]));
+    const range = ranges[id] || DEFAULT_SLOT_RANGES[id];
+    const min = Math.max(lo, Math.ceil(range?.min ?? lo));
+    const max = Math.min(hi, Math.floor(range?.max ?? hi));
+    if (max < min) return min;
+    return min + Math.floor(rng() * (max - min + 1));
+  };
+
+  const target = subject || "v";
+  const MAX = 120;
+
+  for (let attempt = 0; attempt < MAX; attempt++) {
+    let u;
+    let v;
+    let a;
+    let s;
+
+    if (target === "v" || target === "u") {
+      // Build from integer speeds so √(…) is exact, then factor 2as = |v² − u²|.
+      u = pickInt("u", 0, 16);
+      v = pickInt("v", u + 1, 20);
+      if (v <= u) continue;
+      const diff = v * v - u * u; // = 2 a s
+      if (diff <= 0 || diff % 2 !== 0) continue;
+      const half = diff / 2;
+      // Pick positive integer factor a of half within a sensible range
+      const aMin = Math.max(1, Math.ceil((ranges.a || DEFAULT_SLOT_RANGES.a)?.min ?? 1));
+      const aMax = Math.floor((ranges.a || DEFAULT_SLOT_RANGES.a)?.max ?? 10);
+      const factors = [];
+      for (let candidate = aMin; candidate <= aMax; candidate++) {
+        if (half % candidate === 0) {
+          const distance = half / candidate;
+          if (distance > 0 && isSuvatNice(distance)) factors.push(candidate);
+        }
+      }
+      if (!factors.length) continue;
+      a = factors[Math.floor(rng() * factors.length)];
+      s = half / a;
+    } else if (target === "a" || target === "s") {
+      u = pickInt("u", 0, 16);
+      v = pickInt("v", u + 1, 20);
+      if (v <= u) continue;
+      const diff = v * v - u * u;
+      if (diff <= 0 || diff % 2 !== 0) continue;
+      const half = diff / 2;
+      if (target === "a") {
+        s = pickInt("s", 1, 100);
+        if (s <= 0 || half % s !== 0) {
+          const sMin = Math.max(1, Math.ceil((ranges.s || DEFAULT_SLOT_RANGES.s)?.min ?? 1));
+          const sMax = Math.floor((ranges.s || DEFAULT_SLOT_RANGES.s)?.max ?? 100);
+          const sFactors = [];
+          for (let candidate = sMin; candidate <= Math.min(sMax, half); candidate++) {
+            if (half % candidate === 0) {
+              const acc = half / candidate;
+              if (isSuvatNice(acc) && acc > 0) sFactors.push(candidate);
+            }
+          }
+          if (!sFactors.length) continue;
+          s = sFactors[Math.floor(rng() * sFactors.length)];
+        }
+        a = half / s;
+        if (!isSuvatNice(a) || !(a > 0)) continue;
+      } else {
+        a = pickInt("a", 1, 10);
+        if (a <= 0 || half % a !== 0) {
+          const aMin = Math.max(1, Math.ceil((ranges.a || DEFAULT_SLOT_RANGES.a)?.min ?? 1));
+          const aMax = Math.floor((ranges.a || DEFAULT_SLOT_RANGES.a)?.max ?? 10);
+          const aFactors = [];
+          for (let candidate = aMin; candidate <= aMax; candidate++) {
+            if (half % candidate === 0) {
+              const distance = half / candidate;
+              if (isSuvatNice(distance) && distance > 0) aFactors.push(candidate);
+            }
+          }
+          if (!aFactors.length) continue;
+          a = aFactors[Math.floor(rng() * aFactors.length)];
+        }
+        s = half / a;
+        if (!isSuvatNice(s) || !(s > 0)) continue;
+      }
+    } else {
+      break;
+    }
+
+    if (!isSuvatNice(u) || !isSuvatNice(v) || !isSuvatNice(a) || !isSuvatNice(s)) continue;
+    if (!(a > 0 && s > 0 && v >= 0 && u >= 0)) continue;
+
+    const slots = {};
+    const slotAnswers = {};
+    const given = new Set(["u", "v", "a", "s"]);
+    given.delete(target);
+
+    assignSuvatSlot("u", u, slots, slotAnswers, given.has("u"));
+    assignSuvatSlot("v", v, slots, slotAnswers, given.has("v"));
+    assignSuvatSlot("a", a, slots, slotAnswers, given.has("a"));
+    assignSuvatSlot("s", s, slots, slotAnswers, given.has("s"));
+
+    return {
+      slots,
+      slot_answers: slotAnswers,
+      answer: Number(slots[target]),
+      unit: getSubjectUnit({ id: "suvat" }, target),
+      rearrangement_subject: subject || null
+    };
+  }
+
+  throw new Error(`Could not generate GCSE-friendly suvat values for subject "${target}"`);
+}
+
 export function generateSlotValues(equation, ranges = {}, constants = {}, rng = Math.random) {
   const template = getSubstitutionTemplate(equation);
   if (!template) {
     throw new Error(`No substitution template for "${equation?.id}" — batch v1 requires structured templates`);
+  }
+
+  if (equation.id === "suvat") {
+    const bundle = generateSuvatSlotBundle(null, ranges, constants, rng);
+    return { slots: bundle.slots, slot_answers: bundle.slot_answers };
   }
 
   const slotIds = getSlotIdsFromTemplate(template);
@@ -675,6 +876,17 @@ export function generateSlotValuesForRearrangement(
 ) {
   const template = getSubstitutionTemplate(equation);
   if (!template) throw new Error(`No template for "${equation?.id}"`);
+
+  if (equation.id === "suvat") {
+    const bundle = generateSuvatSlotBundle(subject, ranges, constants, rng);
+    return {
+      slots: bundle.slots,
+      slot_answers: bundle.slot_answers,
+      answer: bundle.answer,
+      unit: bundle.unit,
+      rearrangement_subject: subject
+    };
+  }
 
   const resultSlot = identifyResultSlot(template);
   const slotIds = getSlotIdsFromTemplate(template).filter((id) => id !== subject);
@@ -913,7 +1125,12 @@ export function buildPrompt(equation, baseVariant, slots, ctx = {}) {
   if (customTemplate) {
     text = fillPromptTemplate(customTemplate, slots, promptOverrides);
   } else if (solvingForUnknown && rearrangementSubject) {
-    text = buildRearrangementPrompt(equation, rearrangementSubject, slots, promptOverrides, promptCtx);
+    const rearrTpl = REARRANGEMENT_PROMPT_TEMPLATES[equation.id]?.[rearrangementSubject];
+    if (rearrTpl) {
+      text = fillPromptTemplate(rearrTpl, slots, promptOverrides);
+    } else {
+      text = buildRearrangementPrompt(equation, rearrangementSubject, slots, promptOverrides, promptCtx);
+    }
   } else if (PROMPT_TEMPLATES[equation.id]) {
     text = fillPromptTemplate(PROMPT_TEMPLATES[equation.id], slots, promptOverrides);
   } else {

@@ -1097,6 +1097,15 @@ function applyDistractorPattern(correctExpr, pattern, slotAnswers, subject) {
   if (parts.length < 2) return null;
   const rhs = parts[1];
 
+  if (pattern === "flip_sign") {
+    if (!/[+\-−]/.test(rhs)) return null;
+    const flipped = rhs
+      .replace(/\+/g, "\u0000")
+      .replace(/−|-/g, "+")
+      .replace(/\u0000/g, "-");
+    return `${sub} = ${flipped}`;
+  }
+
   if (pattern === "multiply_instead") {
     const nums = Object.keys(slotAnswers || {})
       .filter((k) => k !== subject)
