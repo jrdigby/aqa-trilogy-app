@@ -2,10 +2,10 @@
 import { todayISO, addDaysISO } from './utils.js';
 import { questionTiersForFetch } from './sciencePath.js';
 
-const SUPABASE_URL = "https://cbycwfhczyvzzhthpgsw.supabase.co";
+const SUPABASE_URL = "https://hemcttqmhptwgxxrtolh.supabase.co";
 // Legacy JWT anon key — more reliable with supabase-js auth + RLS than publishable-only keys.
 const SUPABASE_ANON_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNieWN3Zmhjenl2enpodGhwZ3N3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1MTM3NzAsImV4cCI6MjA5NTA4OTc3MH0.XLbSXXwJXAbw7-92WD03B2wg2UWRzfDpI76Q650iU5U";
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhlbWN0dHFtaHB0d2d4eHJ0b2xoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzMjE5MDQsImV4cCI6MjA5OTg5NzkwNH0.ccaN15zKmOHkuDIqLLYUOakxlJkrHHEV7QAZWGTUwuY";
 
 export const SRS_DUE_SELECT =
   "spec_point_id,due_date,interval_days,ease_factor,repetitions,lapses,last_quality, spec_points(id,subject,topic_name,spec_ref,spec_text)";
@@ -43,7 +43,7 @@ export function isAuthGraceActive() {
   return Date.now() < authGraceUntil;
 }
 
-const AUTH_STORAGE_KEY = `sb-cbycwfhczyvzzhthpgsw-auth-token`;
+const AUTH_STORAGE_KEY = `sb-hemcttqmhptwgxxrtolh-auth-token`;
 
 function readStoredAuthSession() {
   try {

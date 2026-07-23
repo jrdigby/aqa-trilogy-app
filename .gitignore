@@ -6,6 +6,9 @@
 .env.*
 !.env.example
 
+# Local DB migration dumps (may contain user data)
+supabase/migration-dump/
+
 # Gemini batch job artefacts (regenerate locally)
 batch-output/
 batch-work/
