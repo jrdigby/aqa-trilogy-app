@@ -9,6 +9,9 @@
 # Local DB migration dumps (may contain user data)
 supabase/migration-dump/
 
+# Supabase CLI local link/cache metadata
+supabase/.temp/
+
 # Gemini batch job artefacts (regenerate locally)
 batch-output/
 batch-work/
