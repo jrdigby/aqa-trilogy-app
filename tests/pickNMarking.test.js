@@ -48,6 +48,19 @@ test("pick_n — no correct answers scores 0 with acceptable-answer hint", async
   assert.equal(result.quality, 0);
   assert.equal(result.missing.length, 1);
   assert.match(result.missing[0].text, /Acceptable answers include/);
+  assert.match(result.missing[0].flashcard_text, /Give 2 more correct responses for full marks/);
+  assert.doesNotMatch(result.missing[0].flashcard_text, /Acceptable answers include/);
+});
+
+test("pick_n — partial credit flashcard_text omits pool spoilers", async () => {
+  const result = await markResponse(q, { text: "coal" }, poolKey, []);
+  assert.equal(result.total, 1);
+  assert.match(result.missing[0].text, /Acceptable answers include/);
+  assert.equal(
+    result.missing[0].flashcard_text,
+    "You correctly named 1. Give 1 more correct response for full marks."
+  );
+  assert.doesNotMatch(result.missing[0].flashcard_text, /oil|petroleum|gas|nuclear/i);
 });
 
 test("pick_n — marks_per_hit > 1 caps at max marks", async () => {

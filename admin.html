@@ -2219,8 +2219,12 @@
             <!-- Mode A: keyword match -->
             <div id="shortKeywordsFields">
               <p style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.4; margin-bottom: 12px;">
-                <strong>Note:</strong> If you leave the "Section 3: Step-by-Step Mark Checkpoints" completely blank below, this question will grade automatically using basic Required/Optional keyword algorithms.
+                <strong>Fallback only:</strong> Prefer <strong>Section 3 checkpoints</strong> below for short answers that need examiner-style remediation and useful flashcards.
+                Required/optional keywords here are a simple all-or-nothing fallback (0 or full marks) with <em>no</em> authored tips — flashcards will only list missing terms.
               </p>
+              <div id="shortKeywordsFallbackNote" class="hidden" style="font-size:0.78rem;line-height:1.4;margin:0 0 12px;padding:10px 12px;border-radius:8px;background:#fffbeb;border:1px solid #fcd34d;color:#92400e;">
+                <strong>Flashcard tip:</strong> No Section 3 checkpoints with keywords yet. Add mark checkpoints below so missed concepts get remedial feedback on flashcard backs. Leave this panel empty if you only use Section 3.
+              </div>
               <div class="row">
                 <div>
                   <label>Required Keywords (Comma-separated, supports synonyms using pipe "|"):</label>
@@ -2240,7 +2244,7 @@
             <!-- Mode B: pick N from pool -->
             <div id="shortPoolFields" class="hidden">
               <p style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.4; margin-bottom: 12px;">
-                <strong>Pool marking:</strong> the student earns the marks-per-item value for each <em>distinct</em> acceptable answer they name, capped at the question's max marks. Ideal for "State two…", "Name three…" style questions. Set <strong>AO1 = max marks</strong> in the metadata below. Leave Section 3 checkpoints blank.
+                <strong>Pool marking (recommended for “State/Name N…”):</strong> the student earns the marks-per-item value for each <em>distinct</em> acceptable answer they name, capped at the question's max marks. Set <strong>AO1 = max marks</strong> in the metadata below. Leave Section 3 checkpoints blank.
               </p>
               <div class="row">
                 <div style="flex: 2 1 320px;">
@@ -2286,9 +2290,9 @@
             <button class="btn btn-secondary" id="btnAddMarkPoint" style="padding:4px 10px; font-size:0.75rem;">+ Add Criteria Step</button>
           </div>
           <p id="section3Help" style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.4; margin-bottom: 16px;">
-            <strong>Short Answer Questions:</strong> Each matched row awards 1 mark (AO-specific). If left blank, grading uses the required/optional keywords in Section 2 instead. Optional feedback diagrams appear when a student misses that checkpoint.<br/>
+            <strong>Short answers (preferred):</strong> Use checkpoints here for examiner-style remediation and flashcards. Each matched row awards marks (AO-specific); missed rows use your remediation tip (and optional diagram) on practice feedback and flashcard backs. Section 2 required/optional keywords are ignored when any checkpoint has keywords filled in.<br/>
             <strong>Keyword syntax:</strong> comma <code>,</code> = all parts required (AND); pipe <code>|</code> = synonyms (OR). Example for one mark: <code>increase, potential difference|voltage|volts</code> needs both “increase” and one of the voltage terms.<br/>
-            <strong>Numeric Questions:</strong> Feedback is configured in Section 2 (calculation workflow panels) — this section is not used.<br/>
+            <strong>Numeric:</strong> Feedback is configured in Section 2 (calculation workflow panels) — this section is not used.<br/>
             <strong>MCQ:</strong> Add one generic remediation row (feedback field only). Shown below any per-option feedback from Section 2 when a student picks a wrong answer.
           </p>
           <div id="markPointsWrapper"></div>
@@ -2382,11 +2386,11 @@
             <summary>Column template &amp; field guide</summary>
             <div class="guidelines-body" style="font-size:0.82rem;line-height:1.45;">
               <p style="margin-top:0;"><strong>Delimiter:</strong> Tab (<code>.tsv</code>) recommended for Google Sheets. Comma (<code>.csv</code>) also works when fields are quoted.</p>
-              <p><strong>Keywords:</strong> <code>keywords_required</code> / <code>keywords_optional</code> — comma separates mark groups; pipe <code>|</code> = synonyms within a group (e.g. <code>gravity|gravitational, mass</code>).</p>
+              <p><strong>Short text (preferred):</strong> Use Section&nbsp;3 <code>mp1_ao</code>, <code>mp1_keywords</code>, <code>mp1_feedback</code>, <code>mp1_image_url</code> … up to <code>mp6</code> for checkpoint marking and flashcard remediation. When any <code>mp*_keywords</code> cell is filled, grading uses checkpoints (Section&nbsp;2 <code>keywords_*</code> are ignored).</p>
+              <p><strong>Section 2 keyword fallback:</strong> <code>keywords_required</code> / <code>keywords_optional</code> — only when Section&nbsp;3 keyword cells are empty. All-or-nothing; no authored tips on flashcards. Comma separates mark groups; pipe <code>|</code> = synonyms (e.g. <code>gravity|gravitational, mass</code>).</p>
               <p><strong>Pick N pool (partial credit):</strong> <code>keyword_pool</code> — comma-separated acceptable answers (<code>|</code> = synonyms), e.g. <code>coal, oil|petroleum, gas, nuclear|uranium</code>. Awards <code>pool_marks_per_hit</code> (default 1) per distinct answer, capped at <code>max_marks</code>. Ideal for "State two…". When set, keyword/Section&nbsp;3 fields are ignored.</p>
               <p><strong>Hints:</strong> Separate multiple hints with <code>|||</code> (revealed one at a time in practice).</p>
-              <p><strong>MCQ feedback:</strong> <code>mcq_feedback_a</code>…<code>d</code> map to <code>option_a</code>…<code>d</code> text (shown when that wrong option is chosen).</p>
-              <p><strong>Section 3:</strong> <code>mp1_ao</code>, <code>mp1_keywords</code>, <code>mp1_feedback</code>, <code>mp1_image_url</code> … up to <code>mp6</code>. When any mark-point row is present, grading uses checkpoints (Section&nbsp;2 keywords are ignored).</p>
+              <p><strong>MCQ feedback:</strong> <code>mcq_feedback_a</code>…<code>d</code> map to <code>option_a</code>…<code>d</code> text (shown when that wrong option is chosen). Generic remediation uses Section&nbsp;3 <code>mp1_feedback</code>.</p>
               <p style="margin-bottom:0;"><strong>Images:</strong> <code>image_url</code> = question stem diagram; <code>mpN_image_url</code> = feedback diagram when that checkpoint is missed (public HTTPS URL).</p>
             </div>
           </details>
@@ -3252,6 +3256,13 @@
             </select>
           </div>
           <div id="editShortKeywordsFields">
+            <p style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.4; margin-bottom: 12px;">
+              <strong>Fallback only:</strong> Prefer <strong>Section 3 checkpoints</strong> below for remediation and flashcards.
+              Required/optional here are all-or-nothing with no authored tips — ignored when any Section 3 checkpoint has keywords.
+            </p>
+            <div id="editShortKeywordsFallbackNote" class="hidden" style="font-size:0.78rem;line-height:1.4;margin:0 0 12px;padding:10px 12px;border-radius:8px;background:#fffbeb;border:1px solid #fcd34d;color:#92400e;">
+              <strong>Flashcard tip:</strong> No Section 3 checkpoints with keywords yet. Add mark checkpoints below so missed concepts get remedial feedback on flashcard backs.
+            </div>
             <div class="row">
               <div>
                 <label>Required Keywords (Supports Synonyms |):</label>
@@ -3269,7 +3280,7 @@
           </div>
           <div id="editShortPoolFields" class="hidden">
             <p style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.4; margin-bottom: 12px;">
-              <strong>Pool marking:</strong> 1 mark (or the value below) per distinct acceptable answer, capped at max marks. Set AO1 = max marks; leave Section 3 checkpoints blank.
+              <strong>Pool marking (recommended for “State/Name N…”):</strong> 1 mark (or the value below) per distinct acceptable answer, capped at max marks. Set AO1 = max marks; leave Section 3 checkpoints blank.
             </p>
             <div class="row">
               <div style="flex: 2 1 320px;">
@@ -3314,7 +3325,7 @@
               <button type="button" class="btn btn-secondary" id="btnEditAddMarkPoint" style="padding:3px 8px; font-size:0.75rem;">+ Add Criteria Step</button>
             </div>
             <p id="editSection3Help" class="hidden" style="font-size: 0.78rem; color: var(--text-muted); line-height: 1.4; margin: 0 0 12px;">
-              <strong>MCQ:</strong> One generic remediation row (feedback only). Shown below per-option feedback from Section 2. Optional feedback diagrams appear when a student picks a wrong answer.
+              <strong>Short answers (preferred):</strong> Checkpoints here drive marking, remediation, and flashcard backs. Section 2 required/optional keywords are ignored when any row has keywords filled in.
             </p>
             <div id="editMarkPointsWrapper"></div>
           </div>
@@ -4363,12 +4374,68 @@
     });
   }
 
+  const SECTION3_HELP_SHORT = `<strong>Short answers (preferred):</strong> Use checkpoints here for examiner-style remediation and flashcards. Each matched row awards marks (AO-specific); missed rows use your remediation tip (and optional diagram) on practice feedback and flashcard backs. Section 2 required/optional keywords are ignored when any checkpoint has keywords filled in.<br/>
+            <strong>Keyword syntax:</strong> comma <code>,</code> = all parts required (AND); pipe <code>|</code> = synonyms (OR). Example for one mark: <code>increase, potential difference|voltage|volts</code> needs both “increase” and one of the voltage terms.`;
+  const SECTION3_HELP_MCQ = `<strong>MCQ:</strong> One generic remediation row (feedback field only). Shown below any per-option feedback from Section 2 when a student picks a wrong answer. Optional feedback diagrams appear on the wrong-answer path.`;
+
+  function countGradableMarkPointRows(wrapId) {
+    const wrap = document.getElementById(wrapId);
+    if (!wrap) return 0;
+    return Array.from(wrap.querySelectorAll(".mark-point-row")).filter((row) => {
+      const textSel = wrapId.startsWith("edit") ? ".edit-mp-text" : ".mp-text";
+      return String(row.querySelector(textSel)?.value || "").trim().length > 0;
+    }).length;
+  }
+
+  function syncShortKeywordsFallbackNote(prefix = "") {
+    const noteId = prefix === "edit" ? "editShortKeywordsFallbackNote" : "shortKeywordsFallbackNote";
+    const note = document.getElementById(noteId);
+    if (!note) return;
+    const modeSel = document.getElementById(shortFieldId(prefix, "MarkMode"));
+    const qTypeEl = document.getElementById(prefix === "edit" ? "editQuestionType" : "qType");
+    const isShort = (qTypeEl?.value || "short_text") === "short_text";
+    const isKeywords = (modeSel?.value || "keywords") === "keywords";
+    const wrapId = prefix === "edit" ? "editMarkPointsWrapper" : "markPointsWrapper";
+    const hasCheckpoints = countGradableMarkPointRows(wrapId) > 0;
+    const show = isShort && isKeywords && !hasCheckpoints;
+    note.classList.toggle("hidden", !show);
+  }
+
+  function shouldWarnShortKeywordsFallback(prefix = "") {
+    const modeSel = document.getElementById(shortFieldId(prefix, "MarkMode"));
+    if ((modeSel?.value || "keywords") !== "keywords") return false;
+    const wrapId = prefix === "edit" ? "editMarkPointsWrapper" : "markPointsWrapper";
+    if (countGradableMarkPointRows(wrapId) > 0) return false;
+    const reqId = prefix === "edit" ? "editShortReqKeywords" : "shortReqKeywords";
+    return String(document.getElementById(reqId)?.value || "").trim().length > 0;
+  }
+
+  function confirmShortKeywordsFallbackIfNeeded(prefix = "") {
+    if (!shouldWarnShortKeywordsFallback(prefix)) return true;
+    return window.confirm(
+      "This short-text question uses Section 2 required keywords with no Section 3 checkpoints.\n\n"
+      + "Flashcards will only list missing terms (no authored remediation). Prefer adding Section 3 mark checkpoints for examiner-style tips.\n\n"
+      + "Save anyway?"
+    );
+  }
+
   function syncSection3McqMode(questionType, mode = "creator") {
     const isMcq = questionType === "mcq";
+    const isShort = questionType === "short_text";
     const wrapId = mode === "edit" ? "editMarkPointsWrapper" : "markPointsWrapper";
     const helpId = mode === "edit" ? "editSection3Help" : "section3Help";
     const helpEl = document.getElementById(helpId);
-    if (helpEl) helpEl.classList.toggle("hidden", !isMcq);
+    if (helpEl) {
+      if (isMcq) {
+        helpEl.classList.remove("hidden");
+        helpEl.innerHTML = SECTION3_HELP_MCQ;
+      } else if (isShort) {
+        helpEl.classList.remove("hidden");
+        helpEl.innerHTML = SECTION3_HELP_SHORT;
+      } else {
+        helpEl.classList.add("hidden");
+      }
+    }
 
     document.querySelectorAll(`#${wrapId} .mark-point-row`).forEach((row) => {
       row.classList.toggle("mcq-mode", isMcq);
@@ -4377,6 +4444,7 @@
     if (isMcq) {
       ensureMcqGenericMarkPoint(mode);
     }
+    syncShortKeywordsFallbackNote(mode === "edit" ? "edit" : "");
   }
 
   function ensureMcqGenericMarkPoint(mode = "creator") {
@@ -4553,6 +4621,7 @@
     const isPool = modeSel.value === "pick_n";
     document.getElementById(shortFieldId(prefix, "KeywordsFields"))?.classList.toggle("hidden", isPool);
     document.getElementById(shortFieldId(prefix, "PoolFields"))?.classList.toggle("hidden", !isPool);
+    syncShortKeywordsFallbackNote(prefix);
   }
   document.getElementById("shortMarkMode")?.addEventListener("change", () => syncShortMarkMode(""));
   document.getElementById("editShortMarkMode")?.addEventListener("change", () => syncShortMarkMode("edit"));
@@ -4794,6 +4863,8 @@
     wireMarkPointImageRow(row, "creator");
     if (document.getElementById("qType")?.value === "mcq") row.classList.add("mcq-mode");
     if (window.AdminMetadata) window.AdminMetadata.autoSizeAdminSelects(wrap);
+    row.querySelector(".mp-text")?.addEventListener("input", () => syncShortKeywordsFallbackNote(""));
+    syncShortKeywordsFallbackNote("");
   };
   
   document.getElementById("btnAddMarkPoint").onclick = () => window.addMarkPointRow();
@@ -4801,6 +4872,7 @@
   window.removeMarkPointRow = function(id) {
     const row = document.getElementById(`mp_row_${id}`);
     if (row) row.remove();
+    syncShortKeywordsFallbackNote("");
   };
 
   // ====== SECTION 3: MARK POINTS DYNAMIC LIST (EDIT WINDOW) ======
@@ -4836,6 +4908,8 @@
     wrap.appendChild(row);
     wireMarkPointImageRow(row, "edit");
     if (document.getElementById("editQuestionType")?.value === "mcq") row.classList.add("mcq-mode");
+    row.querySelector(".edit-mp-text")?.addEventListener("input", () => syncShortKeywordsFallbackNote("edit"));
+    syncShortKeywordsFallbackNote("edit");
   };
 
   document.getElementById("btnEditAddMarkPoint").onclick = () => window.addEditMarkPointRow();
@@ -4843,6 +4917,7 @@
   window.removeEditMarkPointRow = function(id) {
     const row = document.getElementById(`edit_mp_row_${id}`);
     if (row) row.remove();
+    syncShortKeywordsFallbackNote("edit");
   };
 
   window.removeEditImage = function() {
@@ -4867,6 +4942,10 @@
     
     if (!specIds.spec_point_id || !prompt) {
       showAdminToast("Validation Alert: Please set prompt details and select specification target point.", true);
+      return;
+    }
+
+    if (questionType === "short_text" && !confirmShortKeywordsFallbackIfNeeded("")) {
       return;
     }
 
@@ -8828,18 +8907,27 @@
     if (indicator) {
       indicator.style.display = "block";
       if (q.question_type === "short_text") {
-        if (mps && mps.length > 0) {
+        const isPickN = (keyData?.key_type === "pick_n")
+          || (document.getElementById("editShortMarkMode")?.value === "pick_n");
+        const gradableMps = (mps || []).filter((mp) => String(mp.point_text || "").trim());
+        if (isPickN) {
           indicator.style.background = "#eff6ff";
           indicator.style.color = "#1e40af";
           indicator.style.borderColor = "#bfdbfe";
-          indicator.innerHTML = `🎯 <strong>Active Grading Mode: Step-by-Step Checkpoints</strong><br/>
-            The student is evaluated against the checkpoints listed in Section 3 below. The basic required/optional keywords in the Section 2 keywords panel are currently ignored by the grading engine.`;
+          indicator.innerHTML = `<strong>Active Grading Mode: Pick from pool</strong><br/>
+            Partial credit from the Section 2 acceptable-answer pool. Leave Section 3 checkpoints blank for this mode.`;
+        } else if (gradableMps.length > 0) {
+          indicator.style.background = "#eff6ff";
+          indicator.style.color = "#1e40af";
+          indicator.style.borderColor = "#bfdbfe";
+          indicator.innerHTML = `<strong>Active Grading Mode: Step-by-Step Checkpoints</strong> (preferred)<br/>
+            The student is marked against Section 3 checkpoints. Missed checkpoints supply authored remediation on practice feedback and flashcard backs. Section 2 required/optional keywords are ignored.`;
         } else {
-          indicator.style.background = "#f0fdf4";
-          indicator.style.color = "#166534";
-          indicator.style.borderColor = "#bbf7d0";
-          indicator.innerHTML = `🔑 <strong>Active Grading Mode: Basic Keyword Matching</strong><br/>
-            The student is evaluated dynamically using the Required/Optional keywords defined in the Section 2 keywords panel below.`;
+          indicator.style.background = "#fffbeb";
+          indicator.style.color = "#92400e";
+          indicator.style.borderColor = "#fcd34d";
+          indicator.innerHTML = `<strong>Active Grading Mode: Keyword fallback</strong><br/>
+            Section 2 required/optional keywords only (all-or-nothing). Flashcards will list missing terms with no authored remediation — add Section 3 checkpoints for examiner-style tips.`;
         }
       } else if (q.question_type === "numeric") {
         indicator.style.background = "#fafbfc";
@@ -8897,6 +8985,10 @@
     const tier = document.getElementById("editTier").value;
     let marks = q.question_type === "mcq" ? 1 : (parseInt(document.getElementById("editMaxMarks").value) || 1);
     const btnSave = document.getElementById("btnSaveEdits");
+
+    if (q.question_type === "short_text" && !confirmShortKeywordsFallbackIfNeeded("edit")) {
+      return;
+    }
 
     try {
       clearEditSaveError();

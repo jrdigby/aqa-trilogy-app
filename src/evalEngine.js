@@ -652,10 +652,12 @@ export async function markResponse(q, resp, key, markPoints) {
       const foundNote = matched.length > 0
         ? `You correctly named ${matched.length}. `
         : "";
+      const coreText = `${foundNote}Give ${moreNeeded} more correct response${moreNeeded === 1 ? "" : "s"} for full marks.`;
       const acceptableNote = acceptable ? ` Acceptable answers include: ${acceptable}.` : "";
       missing.push({
         ao: targetAo,
-        text: `${foundNote}Give ${moreNeeded} more correct response${moreNeeded === 1 ? "" : "s"} for full marks.${acceptableNote}`,
+        text: `${coreText}${acceptableNote}`,
+        flashcard_text: coreText.trim(),
         url: cleanUrl
       });
     }
