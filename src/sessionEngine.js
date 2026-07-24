@@ -194,6 +194,45 @@ export async function startAnyPractice(context, questionCount = 10) {
   await beginSession(context, localizedQs, { mode: "any_practice" });
 }
 
+/** Re-practise specific questions chosen from the flashcard gap deck. */
+export async function startFlashcardPractice(context, questionIds) {
+  const { supabaseClient, timeoutPromise, showToastBanner } = context;
+  const ids = [...new Set((questionIds || []).filter(Boolean))];
+  if (!ids.length) {
+    showToastBanner("Select at least one flashcard to practise.", true);
+    return;
+  }
+
+  let questions;
+  try {
+    questions = await Promise.race([
+      fetchQuestionsWithFallback(supabaseClient, (selectCols) =>
+        supabaseClient.from("questions").select(selectCols).in("id", ids)
+      ),
+      timeoutPromise(4000, "Flashcard practice questions timed out")
+    ]);
+  } catch (err) {
+    console.error("DEBUG startFlashcardPractice:", err);
+    showToastBanner("Could not load selected questions: " + (err.message || err), true);
+    return;
+  }
+
+  const byId = new Map((questions || []).map((q) => [q.id, q]));
+  const ordered = ids.map((id) => byId.get(id)).filter(Boolean);
+  if (!ordered.length) {
+    showToastBanner("None of the selected flashcards could be loaded for practice.", true);
+    return;
+  }
+  if (ordered.length < ids.length) {
+    showToastBanner(
+      `Loaded ${ordered.length} of ${ids.length} selected questions — starting with those.`,
+      false
+    );
+  }
+
+  await beginSession(context, ordered, { mode: "flashcard_practice" });
+}
+
 export async function startSessionForSpecPoint(specPointId, qType = "", context) {
   const {
     supabaseClient,

@@ -1,4 +1,4 @@
-import { startAnyPractice, startExamPrep, startSessionForSpecPoint, startSkillPractice, previewExamPaper, upsertSRS as importUpsertSRS } from './sessionEngine.js';
+import { startAnyPractice, startExamPrep, startFlashcardPractice, startSessionForSpecPoint, startSkillPractice, previewExamPaper, upsertSRS as importUpsertSRS } from './sessionEngine.js';
 import { formatPaperPreviewSummary } from './paperBuilder.js';
 import { showToastBanner, renderQuestionLayout, renderFeedback, renderLiveAIFeedback, renderAQAExtendedResponseFeedback, renderMasteryHeatmap, renderSessionContext, renderSessionCompleteSummary, renderExamPaperFeedbackSummary, renderSelfRatingPrompt, renderAdaptiveFeedback, renderHintsPanel, normalizeQuestionHints, mountNumericQuestionWorkflow } from './uiComponents.js';
 import {
@@ -107,7 +107,7 @@ const btnSubmit = el("btnSubmit");
 const btnNext = el("btnNext");
 const btnExitPractice = el("btnExitPractice");
 
-const PRACTICE_SESSION_MODES = new Set(["any_practice", "spec_point", "skill_practice"]);
+const PRACTICE_SESSION_MODES = new Set(["any_practice", "spec_point", "skill_practice", "flashcard_practice"]);
 
 const HIDE_COMMAND_WORD_TIPS_KEY = "hide_command_word_tips";
 function isCommandWordTipsHidden() {
@@ -144,6 +144,10 @@ const dashboardTabs = document.querySelector(".dashboard-tabs");
 const DASHBOARD_TAB_KEY = "dashboard_active_tab";
 const DASHBOARD_TABS = ["practice", "analytics", "flashcards"];
 let activeDashboardTab = "practice";
+const flashcardSelectedIds = new Set();
+let flashcardSelectionMode = false;
+let currentFlashcardDeck = [];
+let flashcardLongPressTimer = null;
 let settingsOpen = false;
 let tabBeforeSettings = "practice";
 
@@ -194,6 +198,10 @@ function switchDashboardTab(tab, { loadData = true } = {}) {
   try {
     localStorage.setItem(DASHBOARD_TAB_KEY, active);
   } catch (_) { /* storage unavailable */ }
+  if (previousTab === "flashcards" && active !== "flashcards") {
+    clearFlashcardSelection();
+    void loadTopics();
+  }
   if (active === "flashcards" && currentUser) {
     loadRevisionCards();
   }
@@ -1028,6 +1036,183 @@ function compileFlashcardDeck(attempts, { subject, paper, topic }, profile = nul
   return deck;
 }
 
+/** Gap counts per topic for Subject+Paper (topic filter ignored). */
+function countFlashcardGapsByTopic(attempts, { subject, paper }, profile = null) {
+  const deck = compileFlashcardDeck(attempts, { subject, paper, topic: "" }, profile);
+  const byTopic = {};
+  let total = 0;
+  for (const att of deck) {
+    const spec = resolveQuestionSpecMeta(att.questions || {}, profile);
+    const topicName = spec?.topic_name;
+    if (!topicName) continue;
+    byTopic[topicName] = (byTopic[topicName] || 0) + 1;
+    total += 1;
+  }
+  return { total, byTopic };
+}
+
+function applyFlashcardTopicGapCounts(gapCounts) {
+  if (!topicFilter || !gapCounts) return;
+  const { total, byTopic } = gapCounts;
+  const currentSelectedTopic = topicFilter.value;
+  const options = [...topicFilter.options];
+  for (const opt of options) {
+    const raw = opt.value;
+    const labelBase = (opt.textContent || "").replace(/\s*\(\d+\)\s*$/, "").trim();
+    if (!raw) {
+      opt.textContent = `${labelBase || "All topics"} (${total})`;
+    } else {
+      opt.textContent = `${labelBase || raw} (${byTopic[raw] || 0})`;
+    }
+  }
+  topicFilter.value = currentSelectedTopic;
+  autoSizeFilterSelects();
+}
+
+function clearFlashcardSelection() {
+  flashcardSelectedIds.clear();
+  flashcardSelectionMode = false;
+  if (flashcardLongPressTimer) {
+    clearTimeout(flashcardLongPressTimer);
+    flashcardLongPressTimer = null;
+  }
+  updateFlashcardSelectionUI();
+}
+
+function pruneFlashcardSelectionToDeck(deck) {
+  const valid = new Set((deck || []).map((att) => att.question_id).filter(Boolean));
+  for (const id of [...flashcardSelectedIds]) {
+    if (!valid.has(id)) flashcardSelectedIds.delete(id);
+  }
+  if (!flashcardSelectedIds.size) flashcardSelectionMode = false;
+}
+
+function updateFlashcardSelectionUI() {
+  const bar = el("flashcardSelectionBar");
+  const countEl = el("flashcardSelectionCount");
+  const wrapper = el("revisionCardsWrapper");
+  const n = flashcardSelectedIds.size;
+  if (countEl) countEl.textContent = `${n} selected`;
+  if (bar) bar.classList.toggle("hidden", n === 0 && !flashcardSelectionMode);
+  if (wrapper) wrapper.classList.toggle("revision-cards-selecting", flashcardSelectionMode || n > 0);
+
+  wrapper?.querySelectorAll(".revision-card[data-question-id]").forEach((card) => {
+    const qid = card.getAttribute("data-question-id");
+    const selected = flashcardSelectedIds.has(qid);
+    card.classList.toggle("is-selected", selected);
+    const btn = card.querySelector(".revision-card-select");
+    if (btn) {
+      btn.setAttribute("aria-pressed", selected ? "true" : "false");
+      btn.setAttribute("aria-label", selected ? "Deselect flashcard" : "Select flashcard");
+    }
+  });
+}
+
+function toggleFlashcardSelection(questionId, { enterMode = false } = {}) {
+  if (!questionId) return;
+  if (enterMode) flashcardSelectionMode = true;
+  if (flashcardSelectedIds.has(questionId)) {
+    flashcardSelectedIds.delete(questionId);
+  } else {
+    flashcardSelectedIds.add(questionId);
+  }
+  if (!flashcardSelectedIds.size) flashcardSelectionMode = false;
+  updateFlashcardSelectionUI();
+}
+
+function selectAllVisibleFlashcards() {
+  flashcardSelectionMode = true;
+  for (const att of currentFlashcardDeck) {
+    if (att.question_id) flashcardSelectedIds.add(att.question_id);
+  }
+  updateFlashcardSelectionUI();
+}
+
+function wireFlashcardSelectionBar(deck) {
+  const btnSelectAll = el("btnFlashcardSelectAll");
+  const btnClear = el("btnFlashcardClearSelection");
+  const btnExamPrep = el("btnFlashcardExamPrep");
+
+  if (btnSelectAll) {
+    btnSelectAll.onclick = () => selectAllVisibleFlashcards();
+  }
+  if (btnClear) {
+    btnClear.onclick = () => clearFlashcardSelection();
+  }
+  if (btnExamPrep) {
+    btnExamPrep.onclick = async () => {
+      const selected = (deck || [])
+        .map((att) => att.question_id)
+        .filter((id) => id && flashcardSelectedIds.has(id));
+      // Preserve visible deck order for selected cards.
+      const uniqueOrdered = [...new Set(selected)];
+      if (!uniqueOrdered.length) {
+        showToastBanner("Select at least one flashcard to practise.", true);
+        return;
+      }
+      await startFlashcardPractice(engineContext, uniqueOrdered);
+    };
+  }
+}
+
+function wireFlashcardCardInteractions(element, questionId) {
+  if (!element || !questionId) return;
+  const inner = element.querySelector(".card-inner");
+  const selectBtn = element.querySelector(".revision-card-select");
+  let flipped = false;
+  let suppressClick = false;
+
+  const flip = () => {
+    if (!inner || flashcardSelectionMode || flashcardSelectedIds.size > 0) return;
+    flipped = !flipped;
+    inner.style.transform = flipped ? "rotateY(180deg)" : "rotateY(0deg)";
+  };
+
+  if (selectBtn) {
+    selectBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleFlashcardSelection(questionId, { enterMode: true });
+    });
+  }
+
+  const LONG_PRESS_MS = 450;
+  const clearLongPress = () => {
+    if (flashcardLongPressTimer) {
+      clearTimeout(flashcardLongPressTimer);
+      flashcardLongPressTimer = null;
+    }
+  };
+
+  element.addEventListener("pointerdown", (e) => {
+    if (e.target.closest(".revision-card-select")) return;
+    clearLongPress();
+    flashcardLongPressTimer = setTimeout(() => {
+      flashcardLongPressTimer = null;
+      suppressClick = true;
+      toggleFlashcardSelection(questionId, { enterMode: true });
+    }, LONG_PRESS_MS);
+  });
+  element.addEventListener("pointerup", clearLongPress);
+  element.addEventListener("pointerleave", clearLongPress);
+  element.addEventListener("pointercancel", clearLongPress);
+
+  element.addEventListener("click", (e) => {
+    if (e.target.closest(".revision-card-select")) return;
+    if (suppressClick) {
+      suppressClick = false;
+      e.preventDefault();
+      return;
+    }
+    if (flashcardSelectionMode || flashcardSelectedIds.size > 0) {
+      e.preventDefault();
+      toggleFlashcardSelection(questionId);
+      return;
+    }
+    flip();
+  });
+}
+
 // ====== "MISSING INFO" REVISION FLASHCARD COMPILER ======
 async function loadRevisionCards() {
   const container = el("revisionCardsWrapper");
@@ -1036,7 +1221,14 @@ async function loadRevisionCards() {
   try {
     const filters = getSelectedFilters();
     const attempts = await fetchConceptGapAttempts(currentUser.id);
+    const gapCounts = countFlashcardGapsByTopic(attempts, filters, currentUserProfile);
+    if (activeDashboardTab === "flashcards") {
+      applyFlashcardTopicGapCounts(gapCounts);
+    }
+
     const failedAttempts = compileFlashcardDeck(attempts, filters, currentUserProfile);
+    currentFlashcardDeck = failedAttempts;
+    pruneFlashcardSelectionToDeck(failedAttempts);
     const filterLabel = flashcardFilterLabel(filters);
 
     if (failedAttempts.length === 0) {
@@ -1049,6 +1241,9 @@ async function loadRevisionCards() {
       `;
       const btnDl = el("btnDownloadStudyGuide");
       if (btnDl) btnDl.style.display = "none";
+      clearFlashcardSelection();
+      const bar = el("flashcardSelectionBar");
+      if (bar) bar.classList.add("hidden");
       return;
     }
 
@@ -1064,19 +1259,24 @@ async function loadRevisionCards() {
       };
     }
 
+    wireFlashcardSelectionBar(failedAttempts);
+
     const cardHtmlParts = [];
     for (let idx = 0; idx < failedAttempts.length; idx++) {
       const att = failedAttempts[idx];
       const q = att.questions || {};
+      const qid = att.question_id;
       const spec = resolveQuestionSpecMeta(q, currentUserProfile) || {};
       const headerMeta = formatFlashcardHeaderMeta(spec, currentUserProfile);
       const insights = await extractFlashcardInsights(att);
       const questionImageUrl = (q.image_url || "").trim();
       const hasQuestionImg = !!questionImageUrl;
+      const selectedClass = flashcardSelectedIds.has(qid) ? " is-selected" : "";
 
       const uid = `card_${idx}`;
       cardHtmlParts.push(`
-        <div id="${uid}" class="${revisionCardClassNames(q, hasQuestionImg)}">
+        <div id="${uid}" class="${revisionCardClassNames(q, hasQuestionImg)}${selectedClass}" data-question-id="${escapeHtml(qid)}">
+          <button type="button" class="revision-card-select" aria-label="Select flashcard" aria-pressed="${flashcardSelectedIds.has(qid) ? "true" : "false"}"></button>
           <div class="card-inner">
             <div class="card-front">
               ${renderFlashcardHeader(headerMeta, "Tap for answer")}
@@ -1101,31 +1301,21 @@ async function loadRevisionCards() {
     }
     container.innerHTML = cardHtmlParts.join("");
 
-    // Wire up CSS perspective animations safely
-    failedAttempts.forEach((_, idx) => {
-      const uid = `card_${idx}`;
-      const element = el(uid);
-      if (element) {
-        const inner = element.querySelector(".card-inner");
-        let flipped = false;
-        element.onclick = () => {
-          flipped = !flipped;
-          inner.style.transform = flipped ? "rotateY(180deg)" : "rotateY(0deg)";
-        };
-      }
+    failedAttempts.forEach((att, idx) => {
+      wireFlashcardCardInteractions(el(`card_${idx}`), att.question_id);
     });
+    updateFlashcardSelectionUI();
     triggerMathTypeset();
   } catch (err) {
     console.error("Failed to compile revision flashcards:", err);
   }
 }
 
-// Upgraded: Replaced raw string coordinate writing with a visual element layout compiler
+// Dense portrait fold sheet: Q left | dotted fold | A right, multiple cards per page
 async function downloadStudyGuideText(attempts) {
   showToastBanner("Compiling your typeset study guide PDF...", false);
 
   try {
-    // Dynamically fetch the complete HTML-to-PDF conversion engine bundle
     await import("https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js");
   } catch (err) {
     console.error("Failed to load PDF rendering bundle:", err);
@@ -1133,22 +1323,20 @@ async function downloadStudyGuideText(attempts) {
     return;
   }
 
-  // ====== STEP 1: CREATE A HIDDEN PRINT TEMPLATE ELEMENT ======
   const printArea = document.createElement("div");
-  printArea.style.padding = "24px";
+  printArea.style.padding = "0";
   printArea.style.background = "#ffffff";
   printArea.style.fontFamily = "Helvetica, Arial, sans-serif";
   printArea.style.color = "#334155";
+  printArea.style.width = "100%";
 
-  // Build the stylized report title block header matching your specs
   printArea.innerHTML = `
-    <div style="margin-bottom: 24px; border-bottom: 2px solid #e2e8f0; padding-bottom: 12px;">
-      <h1 style="color: #4f46e5; margin: 0 0 4px 0; font-size: 1.6rem; font-weight: 700;">AQA GCSE SCIENCE PERSONAL STUDY COMPANION</h1>
-      <p style="color: #64748b; margin: 0; font-size: 0.9rem; font-style: italic;">Generated dynamically from your active concept gaps on ${todayISO()}</p>
+    <div style="margin:0 0 6px 0; padding:0 0 4px 0; border-bottom:1px solid #cbd5e1;">
+      <div style="color:#1e293b; margin:0; font-size:11pt; font-weight:700; line-height:1.2;">AQA GCSE Science — Fold revision cards</div>
+      <div style="color:#64748b; margin:2px 0 0 0; font-size:7.5pt;">Fold on the dotted line to hide answers · ${todayISO()}</div>
     </div>
   `;
 
-  // ====== STEP 2: COMPILE THE DYNAMIC GAP LOG BLOCKS ======
   for (let i = 0; i < attempts.length; i++) {
     const att = attempts[i];
     const q = att.questions || {};
@@ -1157,59 +1345,65 @@ async function downloadStudyGuideText(attempts) {
     const insights = await extractFlashcardInsights(att);
     const questionImageUrl = (q.image_url || "").trim();
     const questionImgHtml = questionImageUrl
-      ? `<img src="${escapeHtml(questionImageUrl)}" style="max-width:100%; max-height:160px; object-fit:contain; border-radius:8px; border:1px solid #e2e8f0; margin:0 0 10px 0; display:block;" alt=""/>`
+      ? `<img src="${escapeHtml(questionImageUrl)}" style="max-width:100%; max-height:48px; object-fit:contain; margin:0 0 3px 0; display:block;" alt=""/>`
       : "";
     const mcqOpts = Array.isArray(q.options) ? q.options : [];
     const mcqHtml =
       q.question_type === "mcq" && mcqOpts.length
-        ? `<ul style="margin:0 0 12px 0; padding-left:20px; font-size:0.9rem; color:#475569; line-height:1.5;">${mcqOpts
+        ? `<ul style="margin:2px 0 0 0; padding-left:12px; font-size:7.5pt; color:#475569; line-height:1.25;">${mcqOpts
             .map(
-              (option, i) =>
-                `<li style="margin-bottom:4px;"><strong>${String.fromCharCode(65 + i)}.</strong> ${escapeHtml(option)}</li>`
+              (option, oi) =>
+                `<li style="margin:0 0 1px 0;"><strong>${String.fromCharCode(65 + oi)}.</strong> ${escapeHtml(option)}</li>`
             )
             .join("")}</ul>`
         : "";
 
-    const itemBlock = document.createElement("div");
-    itemBlock.style.marginBottom = "24px";
-    itemBlock.style.pageBreakInside = "avoid";
-    itemBlock.innerHTML = `
-      <h3 style="color: #1e293b; margin: 0 0 6px 0; font-size: 1.1rem; font-weight: 700;">${i + 1}. ${escapeHtml(heading)}</h3>
-      <p style="margin: 0 0 4px 0; font-size: 0.8rem; font-weight: 700; color: #64748b; text-transform: uppercase;">Question Context:</p>
-      ${questionImgHtml}
-      <p style="margin: 0 0 8px 0; font-size: 0.92rem; color: #475569; font-style: italic; line-height: 1.4;">"${escapeHtml(q.prompt)}"</p>
-      ${mcqHtml}
-      <p style="margin: 0 0 4px 0; font-size: 0.8rem; font-weight: 700; color: #991b1b; text-transform: uppercase;">Target Examiner Criteria Missed:</p>
-      <ul style="margin: 0; padding-left: 20px; font-size: 0.92rem; color: #78350f; line-height: 1.5; font-weight: 500;">
-        ${insights
-          .map(({ text, imageUrl }) => {
-            const img = (imageUrl || "").trim()
-              ? `<br/><img src="${escapeHtml(imageUrl)}" style="max-height:120px; max-width:100%; object-fit:contain; margin-top:6px; border-radius:6px; border:1px solid #fcd34d;" alt=""/>`
-              : "";
-            return `<li style="margin-bottom: 6px;">${escapeHtml(text)}${img}</li>`;
-          })
-          .join("")}
-      </ul>
-    `;
+    const insightHtml = insights
+      .map(({ text, imageUrl }) => {
+        const img = (imageUrl || "").trim()
+          ? `<br/><img src="${escapeHtml(imageUrl)}" style="max-height:40px; max-width:100%; object-fit:contain; margin-top:2px;" alt=""/>`
+          : "";
+        return `<li style="margin:0 0 2px 0;">${escapeHtml(text)}${img}</li>`;
+      })
+      .join("");
 
+    const itemBlock = document.createElement("div");
+    itemBlock.style.pageBreakInside = "avoid";
+    itemBlock.style.breakInside = "avoid";
+    itemBlock.style.margin = "0 0 4px 0";
+    itemBlock.style.borderBottom = "1px solid #e2e8f0";
+    itemBlock.style.paddingBottom = "4px";
+    itemBlock.innerHTML = `
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:0; position:relative; min-height:52px;">
+        <div style="padding:3px 8px 3px 2px; border-right:1.5px dotted #94a3b8; box-sizing:border-box;">
+          <div style="font-size:6.5pt; font-weight:700; color:#4f46e5; text-transform:uppercase; letter-spacing:0.02em; margin:0 0 2px 0; line-height:1.2;">${i + 1}. ${escapeHtml(heading)}</div>
+          ${questionImgHtml}
+          <div style="font-size:8pt; color:#1e293b; font-weight:600; line-height:1.25; margin:0;">${escapeHtml(q.prompt || "")}</div>
+          ${mcqHtml}
+        </div>
+        <div style="padding:3px 2px 3px 8px; box-sizing:border-box;">
+          <div style="font-size:6.5pt; font-weight:700; color:#991b1b; text-transform:uppercase; margin:0 0 2px 0;">Answer / examiner insight</div>
+          <ul style="margin:0; padding-left:12px; font-size:7.5pt; color:#78350f; line-height:1.25; font-weight:500;">
+            ${insightHtml}
+          </ul>
+        </div>
+      </div>
+    `;
     printArea.appendChild(itemBlock);
   }
 
-  // Temporarily mount the print block to the hidden DOM body workspace so MathJax can see and target it
   document.body.appendChild(printArea);
 
-  // ====== STEP 3: RUN THE SYMBOLS TYPESET ENGINE OVER THE PRINT AREA ======
   if (window.MathJax && typeof window.MathJax.typesetPromise === "function") {
     await window.MathJax.typesetPromise([printArea]);
   }
 
-  // ====== STEP 4: GENERATE THE HIGH-FIDELITY VECTOR SHEET ======
   const options = {
-    margin: 15,
+    margin: 5,
     filename: `AQA_Science_Gaps_Guide_${todayISO()}.pdf`,
-    image: { type: 'jpeg', quality: 0.98 },
+    image: { type: "jpeg", quality: 0.98 },
     html2canvas: { scale: 2, useCORS: true, logging: false },
-    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    jsPDF: { unit: "mm", format: "a4", orientation: "portrait" }
   };
 
   try {
@@ -1769,6 +1963,8 @@ async function exitSessionToDashboard() {
   sessionQualityLog = [];
   idx = 0;
 
+  clearFlashcardSelection();
+
   await loadDashboard();
   await loadWeeklyForecast();
   if (activeDashboardTab === "analytics") {
@@ -1777,6 +1973,9 @@ async function exitSessionToDashboard() {
     } catch (topicErr) {
       console.warn("Background syllabus metric reload bypassed during session reset:", topicErr);
     }
+  }
+  if (activeDashboardTab === "flashcards" && currentUser) {
+    await loadRevisionCards();
   }
 }
 
@@ -1923,7 +2122,7 @@ async function showSessionSummary() {
   if (progress) progress.textContent = "Session complete";
   updateExitPracticeVisibility();
 
-  const isPracticeMode = sessionMode === "any_practice" || sessionMode === "spec_point" || sessionMode === "skill_practice";
+  const isPracticeMode = isPracticeSessionMode();
   const examFeedback = sessionMode === "paper_practice"
     ? renderExamPaperFeedbackSummary(sessionAttemptLog)
     : "";
@@ -1931,10 +2130,15 @@ async function showSessionSummary() {
   const skillBanner = sessionSkillCode
     ? `<div style="margin-bottom:12px;padding:10px 14px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;font-size:0.88rem;"><strong>Skill practice:</strong> ${escapeHtml(sessionSkillCode)} — questions drawn from all topics tagged with this criterion.</div>`
     : "";
+  const flashcardBanner =
+    sessionMode === "flashcard_practice"
+      ? `<div style="margin-bottom:12px;padding:10px 14px;background:#fef3c7;border:1px solid #fde68a;border-radius:8px;font-size:0.88rem;"><strong>Flashcard exam prep:</strong> you re-practised selected concept-gap questions.</div>`
+      : "";
 
   if (summaryContent) {
     summaryContent.innerHTML =
       skillBanner +
+      flashcardBanner +
       renderSessionCompleteSummary(getSessionSummaryMeta(), sessionAttemptLog) +
       examFeedback +
       (isPracticeMode ? `<div id="sessionAdaptiveFeedback"></div>${renderSelfRatingPrompt()}` : "");
@@ -3442,6 +3646,17 @@ async function loadTopics() {
   topicFilter.value = currentSelectedTopic;
   autoSizeFilterSelects();
 
+  if (activeDashboardTab === "flashcards" && currentUser) {
+    try {
+      const gapAttempts = await fetchConceptGapAttempts(currentUser.id);
+      applyFlashcardTopicGapCounts(
+        countFlashcardGapsByTopic(gapAttempts, { subject, paper }, currentUserProfile)
+      );
+    } catch (gapErr) {
+      console.warn("Flashcard topic gap counts unavailable:", gapErr);
+    }
+  }
+
   const summaryDiv = el("topicCountSummary");
   if (summaryDiv) {
     const displayCount = topic ? (topicCounts[topic] || 0) : totalMatchingQuestions;
@@ -3672,6 +3887,7 @@ if (subjectFilter) {
     console.log("DEBUG EVENT: Subject changed ->", subjectFilter.value);
     if (!currentUser) return;
     if (topicFilter) topicFilter.value = "";
+    clearFlashcardSelection();
     syncExamPrepModeOptions();
     loadTopics();
     loadRevisionCards();
@@ -3683,6 +3899,7 @@ if (paperFilter) {
     console.log("DEBUG EVENT: Paper changed ->", paperFilter.value);
     if (!currentUser) return;
     if (topicFilter) topicFilter.value = "";
+    clearFlashcardSelection();
     syncExamPrepModeOptions();
     loadTopics();
     loadRevisionCards();
@@ -3694,6 +3911,7 @@ if (topicFilter) {
     console.log("DEBUG EVENT: Topic changed ->", topicFilter.value);
     syncExamPrepModeOptions();
     if (!currentUser) return;
+    clearFlashcardSelection();
     loadTopics();
     loadRevisionCards();
   });
