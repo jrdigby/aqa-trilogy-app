@@ -793,7 +793,15 @@
             </h3>
             <button id="btnDownloadStudyGuide" class="btn-secondary btn-download-guide" style="display: none;">📥 Download PDF Guide</button>
           </div>
-          <p class="muted flashcards-intro">This revision deck aggregates key concepts you missed in recent practice, filtered by the Subject, Paper, and Topic selectors above. Flip cards to self-test.</p>
+          <p class="muted flashcards-intro">This revision deck aggregates key concepts you missed in recent practice, filtered by the Subject, Paper, and Topic selectors above. Flip cards to self-test. Use the circles to select cards for Exam prep practice.</p>
+          <div id="flashcardSelectionBar" class="flashcard-selection-bar hidden" aria-live="polite">
+            <span id="flashcardSelectionCount" class="flashcard-selection-count">0 selected</span>
+            <div class="flashcard-selection-actions">
+              <button type="button" id="btnFlashcardSelectAll" class="btn-secondary flashcard-selection-btn">Select all</button>
+              <button type="button" id="btnFlashcardClearSelection" class="btn-secondary flashcard-selection-btn">Clear</button>
+              <button type="button" id="btnFlashcardExamPrep" class="btn-primary flashcard-selection-btn flashcard-selection-btn--primary">Exam prep</button>
+            </div>
+          </div>
           <div id="revisionCardsWrapper" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;">
             <div class="muted" style="grid-column: 1/-1; text-align: center; padding: 24px;">Loading revision flashcards…</div>
           </div>
