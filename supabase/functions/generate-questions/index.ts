@@ -497,7 +497,11 @@ async function callGeminiOnce(prompt, model, timeoutMs, responseSchema, requestI
 
   const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
   if (!text) throw new Error("Empty response from Gemini");
-  return extractJson(text);
+  return {
+    parsed: extractJson(text),
+    rawText: text,
+    usage: usage || null
+  };
 }
 
 async function callGemini(prompt, model, timeoutMs, requestId, index, questionType, maxMarks, temperature = 0.4) {
@@ -604,6 +608,8 @@ async function generateQuestionsForRecipes(payload, recipes, requestId) {
 
     try {
       let question = null;
+      let usedPrompt = "";
+      let geminiMeta = null;
       for (let diversityAttempt = 0; diversityAttempt < 2; diversityAttempt++) {
         const prompt = buildSingleQuestionPrompt(payload, recipe, {
           batchIndex,
@@ -614,7 +620,8 @@ async function generateQuestionsForRecipes(payload, recipes, requestId) {
           focusOffset,
           forceDistinct: diversityAttempt > 0
         });
-        question = await generateOneQuestion(
+        usedPrompt = prompt;
+        const geminiResult = await generateOneQuestion(
           prompt,
           requestId,
           i + 1,
@@ -623,7 +630,8 @@ async function generateQuestionsForRecipes(payload, recipes, requestId) {
           maxMarks,
           diversityAttempt > 0 ? 0.72 : temperature
         );
-        question = stampRecipeOntoQuestion(question, recipe);
+        geminiMeta = geminiResult;
+        question = stampRecipeOntoQuestion(geminiResult.parsed, recipe);
         if (!isNearDuplicateQuestion(question, allPrior)) break;
         console.warn(JSON.stringify({
           requestId,
@@ -637,7 +645,29 @@ async function generateQuestionsForRecipes(payload, recipes, requestId) {
         }
       }
 
-      questions.push(question);
+      questions.push({
+        ...question,
+        _provenance: {
+          source: "ai_studio",
+          prompt: usedPrompt,
+          raw_response: geminiMeta?.rawText || null,
+          model: GEMINI_MODEL,
+          request_id: requestId,
+          usage: geminiMeta?.usage || null,
+          original_prompt: question?.prompt || null,
+          input_meta: {
+            question_type: recipe.question_type,
+            demand_level: recipe.demand_level,
+            max_marks: maxMarks,
+            spec_ref: payload.spec_ref || null,
+            subject: payload.subject || null,
+            paper: payload.paper || null,
+            tier: payload.tier || null,
+            author_prompt: truncateAuthorPrompt(payload.author_prompt || ""),
+            recipe_index: i
+          }
+        }
+      });
       generatedByType[recipe.question_type] = [...priorSameType, question];
       console.log(JSON.stringify({
         requestId,

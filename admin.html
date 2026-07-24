@@ -3522,6 +3522,7 @@
   import { initSubstitutionTemplateCatalog } from "./src/substitutionTemplate.js";
   import * as McqBatchGen from "./src/mcqBatchGenerator.js";
   import * as AiQuestionDraft from "./src/aiQuestionDraft.js";
+  import * as GenerationLogs from "./src/generationLogs.js";
   import * as CsvImport from "./src/csvQuestionImport.js";
   import { resolveMcqWrongFeedback, MCQ_FLASHCARD_ADDED_MSG, highlightCommandWordsInPrompt, checkKeywordOrSynonymsMatch, getGradableMarkPoints } from "./src/evalEngine.js";
   import { normalizeQuestionTierForDb } from "./src/sciencePath.js";
@@ -5071,6 +5072,44 @@
       if (window.AdminSkills) {
         await window.AdminSkills.saveSkillsFromForm(supabaseClient, qResult.id, "creator");
       }
+
+      try {
+        const markPointsForLog = (questionType !== "numeric" && keyType !== "pick_n")
+          ? Array.from(document.querySelectorAll("#markPointsWrapper .mark-point-row")).map((row) => ({
+              ao: row.querySelector(".mp-ao")?.value || "AO1",
+              point_text: row.querySelector(".mp-text")?.value?.trim() || "",
+              feedback_if_missing: row.querySelector(".mp-feedback")?.value?.trim() || ""
+            }))
+          : [];
+        await GenerationLogs.recordQuestionIngestion(supabaseClient, {
+          source: GenerationLogs.GENERATION_SOURCES.MANUAL_CREATE,
+          questionId: qResult.id,
+          draft: {
+            question: insertPayload,
+            answer_key: { key_type: keyType, key_payload: keyPayload },
+            mark_points: markPointsForLog
+          },
+          provenance: {
+            source: "manual_create",
+            prompt_text: prompt,
+            raw_response: JSON.stringify({
+              question: insertPayload,
+              answer_key: { key_type: keyType, key_payload: keyPayload }
+            }),
+            original_prompt: prompt,
+            input_meta: {
+              path: "admin_manual_create",
+              question_type: questionType,
+              spec_point_id: insertPayload.spec_point_id,
+              audience: insertPayload.audience
+            }
+          },
+          humanEdited: true
+        });
+      } catch (logErr) {
+        console.warn("generation_logs (manual_create):", logErr);
+        showAdminToast(`Question saved, but provenance log failed: ${logErr.message}`, true);
+      }
       
       showAdminToast("Question committed successfully! ✅");
       clearQuestionCreatorForm();
@@ -5300,6 +5339,45 @@
       if (skillIds.length) {
         await window.AdminSkills.saveQuestionSkills(supabaseClient, qNode.id, skillIds);
       }
+    }
+
+    try {
+      await GenerationLogs.recordQuestionIngestion(supabaseClient, {
+        source: GenerationLogs.GENERATION_SOURCES.CSV_IMPORT,
+        questionId: qNode.id,
+        draft: {
+          question: insertPayload,
+          answer_key: bundle.answerKey,
+          mark_points: bundle.markPoints || []
+        },
+        provenance: {
+          source: "csv_import",
+          prompt_text: insertPayload.prompt || null,
+          raw_response: JSON.stringify({
+            question: insertPayload,
+            answer_key: bundle.answerKey,
+            mark_points: bundle.markPoints || [],
+            spec_ref: bundle.specRef,
+            subject: bundle.subject,
+            paper: bundle.paper
+          }),
+          original_prompt: insertPayload.prompt || null,
+          input_meta: {
+            path: "admin_csv_import",
+            spec_ref: bundle.specRef || null,
+            triple_spec_ref: bundle.tripleSpecRef || null,
+            subject: bundle.subject || null,
+            paper: bundle.paper || null,
+            audience,
+            ms_skill_codes: bundle.msSkillCodes || null,
+            ws_skill_codes: bundle.wsSkillCodes || null,
+            warnings: bundle.warnings || []
+          }
+        },
+        humanEdited: false
+      });
+    } catch (logErr) {
+      logArea.textContent += `\n⚠️ ${qNode.id} provenance log failed: ${logErr.message}`;
     }
 
     return qNode.id;
@@ -6166,6 +6244,17 @@
             if (skillIds.length) {
               await window.AdminSkills.saveQuestionSkills(supabaseClient, qResult.id, skillIds);
             }
+          }
+
+          try {
+            await GenerationLogs.recordQuestionIngestion(supabaseClient, {
+              source: GenerationLogs.GENERATION_SOURCES.BATCH_NUMERIC,
+              questionId: qResult.id,
+              draft,
+              provenance: draft.provenance || null
+            });
+          } catch (logErr) {
+            logLines.push(`⚠ ${qResult.id} logged with warning: ${logErr.message}`);
           }
 
           ok++;
@@ -7358,6 +7447,7 @@
 
     let ok = 0;
     let fail = 0;
+    let logFail = 0;
     const logLines = [];
 
     try {
@@ -7447,6 +7537,25 @@
             if (mpErr) throw mpErr;
           }
 
+          const logSource = (
+            resolvedDraft.provenance?.source === "ai_studio_import"
+            || !!resolvedDraft.import_meta?.spec_ref
+          )
+            ? GenerationLogs.GENERATION_SOURCES.AI_STUDIO_IMPORT
+            : GenerationLogs.GENERATION_SOURCES.AI_STUDIO;
+          try {
+            await GenerationLogs.recordQuestionIngestion(supabaseClient, {
+              source: logSource,
+              questionId: qResult.id,
+              draft: resolvedDraft,
+              provenance: resolvedDraft.provenance || null
+            });
+          } catch (logErr) {
+            logFail++;
+            console.warn("generation_logs failed:", logErr);
+            logLines.push(`⚠ ${qResult.id} provenance log failed: ${logErr?.message || logErr}`);
+          }
+
           ok++;
           logLines.push(`✓ ${qResult.id} — ${AiQuestionDraft.demandRecipeLabel(resolvedDraft.variant)}`);
         } catch (err) {
@@ -7459,8 +7568,19 @@
         logEl.classList.remove("hidden");
         logEl.textContent = logLines.join("\n");
       }
-      if (status) status.textContent = `Committed ${ok} question(s), ${fail} failed.`;
-      showAdminToast(fail ? `Batch done with ${fail} failure(s).` : `Successfully committed ${ok} question(s).`, fail > 0);
+      if (status) {
+        status.textContent = `Committed ${ok} question(s), ${fail} failed`
+          + (logFail ? `, ${logFail} provenance log failure(s)` : ok ? `, provenance logged` : "")
+          + ".";
+      }
+      if (logFail) {
+        showAdminToast(
+          `Saved ${ok} question(s), but ${logFail} provenance log(s) failed — check the log panel.`,
+          true
+        );
+      } else {
+        showAdminToast(fail ? `Batch done with ${fail} failure(s).` : `Successfully committed ${ok} question(s).`, fail > 0);
+      }
       if (ok > 0) {
         batchMcqPreviewDrafts = [];
         renderBatchMcqPreviewTable([], []);

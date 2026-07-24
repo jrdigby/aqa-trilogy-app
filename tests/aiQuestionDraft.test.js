@@ -390,4 +390,68 @@ test("parseImportedDraftBundle — reads meta and drafts", () => {
   assert.equal(parsed.drafts.length, 1);
   const prepared = prepareImportedDrafts(bundle);
   assert.equal(prepared.drafts[0].import_meta.spec_ref, "6.2.1");
+  assert.equal(prepared.drafts[0].provenance.source, "ai_studio_import");
+  assert.ok(prepared.drafts[0].provenance.raw_response);
+});
+
+test("normalizeAiQuestions — preserves _provenance on draft", () => {
+  const [draft] = normalizeAiQuestions([{
+    question_type: "mcq",
+    demand_level: "low",
+    prompt: "What is current?",
+    options: ["A", "B", "C", "D"],
+    correct: "A",
+    ao1_marks: 1,
+    ao2_marks: 0,
+    ao3_marks: 0,
+    _provenance: {
+      source: "ai_studio",
+      prompt: "FULL SYSTEM PROMPT",
+      raw_response: "{\"prompt\":\"What is current?\"}",
+      model: "gemini-2.5-flash-lite",
+      request_id: "abc123",
+      original_prompt: "What is current?",
+      input_meta: { spec_ref: "6.2.1" }
+    }
+  }], { tier: "both" });
+
+  assert.equal(draft.provenance.source, "ai_studio");
+  assert.equal(draft.provenance.prompt_text, "FULL SYSTEM PROMPT");
+  assert.equal(draft.provenance.model, "gemini-2.5-flash-lite");
+  assert.equal(draft.provenance.input_meta.spec_ref, "6.2.1");
+});
+
+test("prepareImportedDrafts — keeps embedded provenance from batch export", () => {
+  const bundle = {
+    meta: { spec_ref: "6.2.1", model: "gemini-2.5-flash-lite" },
+    drafts: [{
+      question: {
+        question_type: "mcq",
+        prompt: "Imported?",
+        demand_level: "low",
+        tier: "both",
+        max_marks: 1,
+        ao1_marks: 1,
+        ao2_marks: 0,
+        ao3_marks: 0,
+        options: ["A", "B", "C", "D"],
+        marking_method: "mcq",
+        command_word: "state",
+        is_maths_skill: false,
+        is_required_practical: false
+      },
+      answer_key: { key_type: "mcq", key_payload: { correct: "A" } },
+      mark_points: [],
+      provenance: {
+        source: "ai_studio_import",
+        prompt_text: "BATCH PROMPT",
+        raw_response: "{\"prompt\":\"Imported?\"}",
+        model: "gemini-2.5-flash-lite",
+        original_prompt: "Imported?"
+      }
+    }]
+  };
+  const { drafts } = prepareImportedDrafts(bundle);
+  assert.equal(drafts[0].provenance.source, "ai_studio_import");
+  assert.equal(drafts[0].provenance.prompt_text, "BATCH PROMPT");
 });

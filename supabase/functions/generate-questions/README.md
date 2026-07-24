@@ -22,6 +22,8 @@ supabase secrets set GEMINI_MODEL=gemini-2.5-flash-lite
 
 Keep prompt/schema logic in sync with `src/geminiQuestionCore.js`.
 
+Each returned question may include `_provenance` (prompt, raw model text, model, request id). Admin commit writes this into `generation_logs` and sets `questions.source_generation_log_id`.
+
 ## Deploy
 
 After changing this function, redeploy:
@@ -31,3 +33,5 @@ supabase functions deploy generate-questions
 ```
 
 Requires caller JWT with `profiles.role = developer`.
+
+Also apply the DB migration `20250724_generation_logs.sql` (creates `generation_logs` and `questions.source_generation_log_id`).

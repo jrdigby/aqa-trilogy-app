@@ -1792,6 +1792,35 @@ export function generateNumericQuestion(spec, variantDesc, sheet, rng = Math.ran
   );
   draft.question.max_marks = computeMaxMarksFromConfig(draft.question.calculation_config);
 
+  draft.provenance = {
+    source: "batch_numeric",
+    prompt_text: [
+      "numericQuestionGenerator",
+      `equation=${equation.id}`,
+      `variant=${JSON.stringify(variantDesc)}`,
+      rearrangementSubject ? `rearrangement_subject=${rearrangementSubject}` : null,
+      `stem=${prompt}`
+    ].filter(Boolean).join("\n"),
+    raw_response: JSON.stringify({
+      question: draft.question,
+      answer_key: draft.answer_key,
+      variant: variantDesc,
+      slots,
+      exact_answer: answer
+    }),
+    model: null,
+    request_id: null,
+    usage: null,
+    original_prompt: prompt,
+    input_meta: {
+      generator: "numericQuestionGenerator",
+      equation_id: equation.id,
+      variant: variantDesc,
+      rearrangement_subject: rearrangementSubject || null,
+      ...(draft._sourceSpec || {})
+    }
+  };
+
   return draft;
 }
 
@@ -1874,6 +1903,12 @@ export function generateBatch(spec, preloadedSheet = null) {
       drafts.push(generateNumericQuestion(spec, desc, sheet, rng));
     } catch (err) {
       errors.push({ variant: desc, message: err.message || String(err) });
+    }
+  }
+
+  for (const draft of drafts) {
+    if (draft?.provenance?.input_meta) {
+      draft.provenance.input_meta = { ...draft.provenance.input_meta, seed };
     }
   }
 

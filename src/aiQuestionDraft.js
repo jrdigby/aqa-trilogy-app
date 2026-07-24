@@ -298,7 +298,34 @@ function normalizeSingleQuestion(raw, context = {}) {
 
 export function normalizeAiQuestions(rawList, context = {}) {
   const list = Array.isArray(rawList) ? rawList : [];
-  return list.map((raw) => normalizeSingleQuestion(raw, context)).filter((d) => d.question.prompt);
+  return list.map((raw) => {
+    const draft = normalizeSingleQuestion(raw, context);
+    if (!draft.question.prompt) return null;
+    const prov = raw?._provenance || raw?.provenance || null;
+    const originalSnapshot = {
+      question: structuredClone
+        ? structuredClone(draft.question)
+        : JSON.parse(JSON.stringify(draft.question)),
+      answer_key: structuredClone
+        ? structuredClone(draft.answer_key)
+        : JSON.parse(JSON.stringify(draft.answer_key)),
+      mark_points: structuredClone
+        ? structuredClone(draft.mark_points || [])
+        : JSON.parse(JSON.stringify(draft.mark_points || []))
+    };
+    draft.provenance = {
+      source: prov?.source || "ai_studio",
+      prompt_text: prov?.prompt_text ?? prov?.prompt ?? null,
+      raw_response: prov?.raw_response ?? null,
+      model: prov?.model ?? null,
+      request_id: prov?.request_id ?? null,
+      usage: prov?.usage ?? prov?.usage_meta ?? null,
+      original_prompt: prov?.original_prompt ?? draft.question.prompt,
+      original_snapshot: prov?.original_snapshot || originalSnapshot,
+      input_meta: prov?.input_meta && typeof prov.input_meta === "object" ? prov.input_meta : {}
+    };
+    return draft;
+  }).filter(Boolean);
 }
 
 export function syncDraftFromPreviewEdits(draft, edits) {
@@ -708,7 +735,54 @@ export function prepareImportedDrafts(bundle, computeDifficulty = null) {
   const parsed = parseImportedDraftBundle(bundle);
   const drafts = parsed.drafts.map((d) => {
     const withMeta = ensureDraftImportMeta(d, parsed.meta);
-    return withDraftDifficulty(withMeta, computeDifficulty);
+    const draft = withDraftDifficulty(withMeta, computeDifficulty);
+    const existingProv = draft.provenance || d.provenance || d._provenance || null;
+    const originalSnapshot = existingProv?.original_snapshot || {
+      question: draft.question,
+      answer_key: draft.answer_key,
+      mark_points: draft.mark_points || []
+    };
+    if (existingProv) {
+      draft.provenance = {
+        source: "ai_studio_import",
+        prompt_text: existingProv.prompt_text ?? existingProv.prompt ?? null,
+        raw_response: existingProv.raw_response ?? null,
+        model: existingProv.model ?? parsed.meta?.model ?? null,
+        request_id: existingProv.request_id ?? null,
+        usage: existingProv.usage ?? existingProv.usage_meta ?? null,
+        original_prompt: existingProv.original_prompt ?? draft.question?.prompt ?? null,
+        original_snapshot: originalSnapshot,
+        input_meta: {
+          ...(parsed.meta || {}),
+          ...(existingProv.input_meta && typeof existingProv.input_meta === "object"
+            ? existingProv.input_meta
+            : {}),
+          import_meta: draft.import_meta || null
+        }
+      };
+    } else {
+      draft.provenance = {
+        source: "ai_studio_import",
+        prompt_text: null,
+        raw_response: JSON.stringify({
+          question: draft.question,
+          answer_key: draft.answer_key,
+          mark_points: draft.mark_points || [],
+          variant: draft.variant || null
+        }),
+        model: parsed.meta?.model || null,
+        request_id: null,
+        usage: null,
+        original_prompt: draft.question?.prompt || null,
+        original_snapshot: originalSnapshot,
+        input_meta: {
+          ...(parsed.meta || {}),
+          import_meta: draft.import_meta || null,
+          note: "Import file had no embedded AI prompt; logged committed draft snapshot."
+        }
+      };
+    }
+    return draft;
   });
   return { ...parsed, drafts };
 }

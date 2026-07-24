@@ -168,7 +168,8 @@ function buildBatchRequests(specPoints, { subject, paper, courseTrack, tier, mod
         recipe,
         batchIndex,
         sameTypeIndex,
-        model
+        model,
+        prompt
       });
     }
   }
@@ -233,6 +234,26 @@ function processResults({ results, errors, keyMeta }, runMeta) {
         topic_name: sp.topic_name,
         topic_number: sp.topic_number
       });
+      enriched.provenance = {
+        source: "ai_studio_import",
+        prompt_text: meta.prompt || null,
+        raw_response: rawText,
+        model: runMeta.model || meta.model || null,
+        request_id: key,
+        usage: null,
+        original_prompt: draft.question?.prompt || null,
+        input_meta: {
+          recipe: meta.recipe || null,
+          batch_index: meta.batchIndex,
+          same_type_index: meta.sameTypeIndex,
+          spec_ref: sp.spec_ref,
+          subject: runMeta.subject,
+          paper: runMeta.paper,
+          course_track: runMeta.course_track,
+          tier: runMeta.tier,
+          audience: runMeta.audience
+        }
+      };
       if (!bySpecRef.has(sp.spec_ref)) bySpecRef.set(sp.spec_ref, []);
       bySpecRef.get(sp.spec_ref).push(enriched);
     } catch (err) {
