@@ -28,12 +28,21 @@ Do not merge the two models or add per-term remediation fields to Section 2 keyw
 ## Product implications
 
 - Prefer Section 3 for multi-mark / concept short answers so flashcard backs carry authored remediation.
-- Use Section 2 `pick_n` for “State two… / Name three…” style questions; leave Section 3 blank.
+- Use Section 2 `pick_n` for “State two… / Name three…” style questions; leave Section 3 blank. **Create form defaults to `pick_n`.**
 - Use Section 2 keywords only as a simple fallback, with admin warnings that flashcards will lack remedial tips.
 - Practice feedback for `pick_n` may still list acceptable answers; flashcard backs use a non-spoiler summary.
+
+## Admin audit flags
+
+On the Database Audit page, short-text questions (excluding `pick_n`) are flagged when:
+
+- **Keyword fallback** — Section 2 required/optional keywords exist and there are no gradable Section 3 checkpoints (`point_text` non-empty).
+- **Checkpoints missing remediation** — one or more gradable checkpoints lack `feedback_if_missing`.
+
+Empty Section 3 rows do not count as checkpoints. Use the **Remediation filter** to list only these issues.
 
 ## Key files
 
 - `src/evalEngine.js` — marking + feedback payloads
 - `src/app.js` — `extractFlashcardInsights` (prefers `flashcard_text`)
-- `admin.html` — Section 2/3 authoring copy and grading-mode indicator
+- `admin.html` — Section 2/3 authoring, grading-mode indicator, audit remediation flags
