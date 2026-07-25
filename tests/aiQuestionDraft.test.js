@@ -13,10 +13,20 @@ import {
   recipeKey,
   parseImportedDraftBundle,
   prepareImportedDrafts,
+  normalizeKeyScientificPoints,
+  getExtendedResponseDetailGaps,
+  levelDescriptorLabel,
   LEVEL_3_KEY,
   LEVEL_2_KEY,
   LEVEL_1_KEY
 } from "../src/aiQuestionDraft.js";
+
+const SAMPLE_SCIENTIFIC_POINTS = [
+  "Weight acts downwards from the centre of mass",
+  "Normal contact force from the surface",
+  "Forces are equal in size",
+  "Forces act in opposite directions"
+];
 
 test("normalizeAiQuestions — MCQ with option feedback", () => {
   const [draft] = normalizeAiQuestions([{
@@ -91,6 +101,7 @@ test("normalizeAiQuestions — extended response ai_rubric", () => {
     ao3_marks: 2,
     command_word: "explain",
     marking_guidelines: "Award marks for clear science of friction and force pairs.",
+    key_scientific_points: SAMPLE_SCIENTIFIC_POINTS,
     level_3_descriptor: "Detailed linked explanation with correct force pairs.",
     level_2_descriptor: "Some correct ideas with partial links.",
     level_1_descriptor: "Simple statements with limited science."
@@ -101,6 +112,7 @@ test("normalizeAiQuestions — extended response ai_rubric", () => {
   assert.equal(draft.answer_key.key_type, "ai_rubric");
   assert.equal(draft.question.max_marks, 6);
   assert.match(draft.answer_key.key_payload.marking_guidelines, /friction/);
+  assert.deepEqual(draft.answer_key.key_payload.key_scientific_points, SAMPLE_SCIENTIFIC_POINTS);
   assert.ok(draft.answer_key.key_payload.level_descriptors[LEVEL_3_KEY]);
   assert.equal(validateDraftForCommit(draft, 0), null);
 });
@@ -115,8 +127,9 @@ test("normalizeAiQuestions — extended 4-mark allows N/A level 3", () => {
     ao2_marks: 2,
     ao3_marks: 1,
     marking_guidelines: "Look for weight and normal contact force.",
+    key_scientific_points: SAMPLE_SCIENTIFIC_POINTS,
     level_3_descriptor: "N/A for 4-mark",
-    level_2_descriptor: "Clear description of both forces.",
+    level_2_descriptor: "Clear description of both forces — complete answer worth full marks.",
     level_1_descriptor: "Names one force only."
   }]);
 
@@ -124,6 +137,10 @@ test("normalizeAiQuestions — extended 4-mark allows N/A level 3", () => {
   assert.equal(
     draft.answer_key.key_payload.level_descriptors[LEVEL_3_KEY],
     "N/A for 4-mark"
+  );
+  assert.match(
+    draft.answer_key.key_payload.level_descriptors[LEVEL_2_KEY],
+    /full marks/i
   );
   assert.equal(validateDraftForCommit(draft, 0), null);
 });
@@ -138,6 +155,7 @@ test("normalizeAiQuestions — extended 4-mark clears filled level 3", () => {
     ao2_marks: 2,
     ao3_marks: 1,
     marking_guidelines: "Look for weight and normal contact force.",
+    key_scientific_points: SAMPLE_SCIENTIFIC_POINTS,
     level_3_descriptor: "Detailed linked explanation spanning 5–6 marks.",
     level_2_descriptor: "Clear description of both forces.",
     level_1_descriptor: "Names one force only."
@@ -149,6 +167,68 @@ test("normalizeAiQuestions — extended 4-mark clears filled level 3", () => {
     "N/A for 4-mark"
   );
   assert.equal(validateDraftForCommit(draft, 0), null);
+});
+
+test("normalizeKeyScientificPoints — trims, dedupes, caps at 8", () => {
+  assert.deepEqual(
+    normalizeKeyScientificPoints("  Alpha \n Beta \n alpha \n"),
+    ["Alpha", "Beta"]
+  );
+  assert.equal(
+    normalizeKeyScientificPoints(Array.from({ length: 12 }, (_, i) => `Point ${i}`)).length,
+    8
+  );
+});
+
+test("levelDescriptorLabel — 4-mark Level 2 is full marks", () => {
+  assert.match(levelDescriptorLabel(LEVEL_2_KEY, 4), /full marks/i);
+  assert.match(levelDescriptorLabel(LEVEL_1_KEY, 4), /partial/i);
+  assert.equal(levelDescriptorLabel(LEVEL_2_KEY, 6), LEVEL_2_KEY);
+});
+
+test("getExtendedResponseDetailGaps — reports missing local-feedback detail", () => {
+  const gaps = getExtendedResponseDetailGaps({
+    marking_guidelines: "Use the force-pair rubric.",
+    key_scientific_points: [],
+    level_descriptors: {
+      [LEVEL_3_KEY]: "L3",
+      [LEVEL_2_KEY]: "L2",
+      [LEVEL_1_KEY]: "L1"
+    }
+  }, 6);
+
+  assert.deepEqual(gaps, ["key scientific points"]);
+});
+
+test("getExtendedResponseDetailGaps — 4-mark questions do not require Level 3", () => {
+  const gaps = getExtendedResponseDetailGaps({
+    marking_guidelines: "Use the force-pair rubric.",
+    key_scientific_points: SAMPLE_SCIENTIFIC_POINTS,
+    level_descriptors: {
+      [LEVEL_3_KEY]: "N/A for 4-mark",
+      [LEVEL_2_KEY]: "Complete full-mark response",
+      [LEVEL_1_KEY]: "Partial response"
+    }
+  }, 4);
+
+  assert.deepEqual(gaps, []);
+});
+
+test("validateDraftForCommit — extended needs scientific points", () => {
+  const [draft] = normalizeAiQuestions([{
+    question_type: "extended_response",
+    prompt: "Explain forces.",
+    max_marks: 6,
+    ao1_marks: 2,
+    ao2_marks: 2,
+    ao3_marks: 2,
+    marking_guidelines: "Guidelines",
+    key_scientific_points: [],
+    level_3_descriptor: "L3",
+    level_2_descriptor: "L2",
+    level_1_descriptor: "L1"
+  }]);
+  assert.match(validateDraftForCommit(draft, 0), /scientific points/i);
 });
 
 test("validateDraftForCommit — short text requires mark points", () => {
@@ -237,6 +317,7 @@ test("syncExtendedDraftFromPreviewEdits — updates rubric fields", () => {
     ao2_marks: 2,
     ao3_marks: 2,
     marking_guidelines: "Old",
+    key_scientific_points: ["old point"],
     level_3_descriptor: "L3",
     level_2_descriptor: "L2",
     level_1_descriptor: "L1"
@@ -246,6 +327,7 @@ test("syncExtendedDraftFromPreviewEdits — updates rubric fields", () => {
     demand_level: "standard_67",
     max_marks: 4,
     marking_guidelines: "New guidelines",
+    key_scientific_points: "Weight downwards\nNormal contact force\nEqual size",
     level_3: "N/A for 4-mark",
     level_2: "Solid",
     level_1: "Basic"
@@ -254,6 +336,10 @@ test("syncExtendedDraftFromPreviewEdits — updates rubric fields", () => {
   assert.equal(updated.question.max_marks, 4);
   assert.equal(updated.question.demand_level, "standard_67");
   assert.equal(updated.answer_key.key_payload.marking_guidelines, "New guidelines");
+  assert.deepEqual(
+    updated.answer_key.key_payload.key_scientific_points,
+    ["Weight downwards", "Normal contact force", "Equal size"]
+  );
   assert.equal(
     updated.answer_key.key_payload.level_descriptors[LEVEL_3_KEY],
     "N/A for 4-mark"
@@ -271,6 +357,7 @@ test("syncExtendedDraftFromPreviewEdits — switching to 4 clears level 3 even i
     ao2_marks: 2,
     ao3_marks: 2,
     marking_guidelines: "Old",
+    key_scientific_points: SAMPLE_SCIENTIFIC_POINTS,
     level_3_descriptor: "Full L3 band",
     level_2_descriptor: "L2",
     level_1_descriptor: "L1"

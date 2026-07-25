@@ -2858,7 +2858,13 @@ async function runLocalExtendedMarking(response) {
     studentWords.some(userWord => isFuzzyMatch(userWord, targetKeyword, 0.85))
   );
 
-  feedback.innerHTML = renderAQAExtendedResponseFeedback(studentTextRaw, customPayload, localKeywords, matchedKeywords);
+  feedback.innerHTML = renderAQAExtendedResponseFeedback(
+    studentTextRaw,
+    customPayload,
+    localKeywords,
+    matchedKeywords,
+    currentQ.max_marks || 6
+  );
   triggerMathTypeset();
   sessionQualityLog.push({ specPointId: srsSpecPointIdForQuestion(), quality: 3 });
 

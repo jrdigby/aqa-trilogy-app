@@ -24,6 +24,71 @@ export const LEVEL_3_KEY = "Level 3 (5-6 marks)";
 export const LEVEL_2_KEY = "Level 2 (3-4 marks)";
 export const LEVEL_1_KEY = "Level 1 (1-2 marks)";
 
+/** Display labels for studio preview — storage keys stay LEVEL_*_KEY. */
+export function levelDescriptorLabel(levelKey, maxMarks) {
+  const marks = Number(maxMarks) === 4 ? 4 : 6;
+  if (marks === 4) {
+    if (levelKey === LEVEL_3_KEY) return "Level 3 — not used (4-mark)";
+    if (levelKey === LEVEL_2_KEY) return "Level 2 (3–4 marks) — full marks for this question";
+    if (levelKey === LEVEL_1_KEY) return "Level 1 (1–2 marks) — partial";
+  }
+  return levelKey;
+}
+
+export function normalizeKeyScientificPoints(raw) {
+  let list = [];
+  if (Array.isArray(raw)) {
+    list = raw;
+  } else if (typeof raw === "string") {
+    list = raw.split(/\r?\n|;/).map((s) => s.replace(/^\s*[-•*\d.)]+\s*/, ""));
+  }
+  const out = [];
+  const seen = new Set();
+  for (const item of list) {
+    const text = String(item || "").trim();
+    if (!text) continue;
+    const key = text.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(text.slice(0, 200));
+    if (out.length >= 8) break;
+  }
+  return out;
+}
+
+/** Return missing rubric fields used by AI marking and local fallback feedback. */
+export function getExtendedResponseDetailGaps(payload, maxMarks = 6) {
+  const rubric = payload && typeof payload === "object" ? payload : {};
+  const levels = rubric.level_descriptors && typeof rubric.level_descriptors === "object"
+    ? rubric.level_descriptors
+    : {};
+  const gaps = [];
+
+  if (!String(rubric.marking_guidelines || "").trim()) {
+    gaps.push("marking guidelines");
+  }
+  if (normalizeKeyScientificPoints(rubric.key_scientific_points).length < 2) {
+    gaps.push("key scientific points");
+  }
+  if (!String(levels[LEVEL_1_KEY] || "").trim()) {
+    gaps.push("Level 1 descriptor");
+  }
+  if (!String(levels[LEVEL_2_KEY] || "").trim()) {
+    gaps.push("Level 2 descriptor");
+  }
+  if (
+    Number(maxMarks) !== 4
+    && (
+      !String(levels[LEVEL_3_KEY] || "").trim()
+      || /^n\/?a\b/i.test(String(levels[LEVEL_3_KEY]).trim())
+    )
+  ) {
+    gaps.push("Level 3 descriptor");
+  }
+
+  return gaps;
+}
+
 export function questionTypeLabel(questionType) {
   if (questionType === "mcq") return "MCQ";
   if (questionType === "short_text") return "Short text";
@@ -249,6 +314,10 @@ function normalizeExtendedQuestion(raw, context, demandLevel) {
   const ao1 = Number(raw?.ao1_marks ?? 0) || 0;
   const ao2 = Number(raw?.ao2_marks ?? Math.min(2, maxMarks)) || 0;
   const ao3 = Number(raw?.ao3_marks ?? Math.max(0, maxMarks - ao1 - ao2)) || 0;
+  const keyScientificPoints = normalizeKeyScientificPoints(
+    raw?.key_scientific_points
+    ?? raw?.answer_key?.key_payload?.key_scientific_points
+  );
 
   return {
     variant: {
@@ -276,6 +345,7 @@ function normalizeExtendedQuestion(raw, context, demandLevel) {
       key_type: "ai_rubric",
       key_payload: {
         marking_guidelines: String(raw?.marking_guidelines || "").trim(),
+        key_scientific_points: keyScientificPoints,
         level_descriptors: levelDescriptors
       }
     },
@@ -452,6 +522,10 @@ export function syncExtendedDraftFromPreviewEdits(draft, edits) {
       : (prevLevels[LEVEL_1_KEY] || "")
   }, q.max_marks);
 
+  const keyScientificPoints = edits.key_scientific_points != null
+    ? normalizeKeyScientificPoints(edits.key_scientific_points)
+    : normalizeKeyScientificPoints(prevPayload.key_scientific_points);
+
   return {
     ...draft,
     variant: {
@@ -466,6 +540,7 @@ export function syncExtendedDraftFromPreviewEdits(draft, edits) {
         marking_guidelines: edits.marking_guidelines != null
           ? String(edits.marking_guidelines).trim()
           : String(prevPayload.marking_guidelines || "").trim(),
+        key_scientific_points: keyScientificPoints,
         level_descriptors: levelDescriptors
       }
     },
@@ -495,6 +570,10 @@ export function validateDraftForCommit(draft, index = 0) {
     const payload = draft.answer_key?.key_payload || {};
     if (!String(payload.marking_guidelines || "").trim()) {
       return `${label}: extended response needs marking guidelines`;
+    }
+    const points = normalizeKeyScientificPoints(payload.key_scientific_points);
+    if (points.length < 2) {
+      return `${label}: extended response needs at least 2 key scientific points (for local feedback)`;
     }
     const levels = payload.level_descriptors || {};
     const level2 = String(levels[LEVEL_2_KEY] || "").trim();
