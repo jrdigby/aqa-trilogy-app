@@ -2259,23 +2259,28 @@
             </div>
           </div>
 
-          <!-- Sub Panel: 6-Mark AI Extended Rubric -->
+          <!-- Sub Panel: AI Extended Rubric -->
           <div id="extendedPanel" class="hidden" style="margin-top: 16px;">
             <div>
               <label>AI Marking Guidelines (Specify scientific requirements for Gemini's grading engine):</label>
               <textarea id="guidelines" rows="4" placeholder="e.g., Candidates must mention energy transfers..."></textarea>
             </div>
+            <div style="margin-top: 12px;">
+              <label>Key scientific points (local feedback checklist — one per line):</label>
+              <textarea id="scientificPoints" rows="5" placeholder="Weight acts downwards from the centre of mass&#10;Normal contact force from the surface&#10;Forces are equal in size and opposite in direction"></textarea>
+              <p style="font-size:0.75rem;color:var(--text-muted);margin:4px 0 0;">Used for local fallback keyword matching and the student self-assessment checklist when AI marking is unavailable.</p>
+            </div>
             <div class="row" style="margin-top: 12px;">
               <div>
-                <label>Level 3 Descriptor (5-6 marks):</label>
+                <label>Level 3 Descriptor (5-6 marks — top band for 6-mark):</label>
                 <textarea id="lvl3" rows="3" placeholder="Clear, logical explanation..."></textarea>
               </div>
               <div>
-                <label>Level 2 Descriptor (3-4 marks):</label>
-                <textarea id="lvl2" rows="3" placeholder="Partial logic..."></textarea>
+                <label>Level 2 Descriptor (3-4 marks — full marks when question is worth 4):</label>
+                <textarea id="lvl2" rows="3" placeholder="Complete coherent answer covering key points (full marks on a 4-mark question)..."></textarea>
               </div>
               <div>
-                <label>Level 1 Descriptor (1-2 marks):</label>
+                <label>Level 1 Descriptor (1-2 marks — partial):</label>
                 <textarea id="lvl1" rows="3" placeholder="Isolated ideas..."></textarea>
               </div>
             </div>
@@ -2817,6 +2822,7 @@
                 <option value="missing">Missing Section 3 remediation</option>
                 <option value="keyword_fallback">Keyword fallback only</option>
                 <option value="checkpoint_gap">Checkpoints missing remediation</option>
+                <option value="extended_detail_gap">Extended responses missing detailed rubric</option>
               </select>
             </div>
             <div>
@@ -3309,17 +3315,21 @@
             <label>AI Marking Guidelines / Target points:</label>
             <textarea id="editGuidelines" rows="3" style="font-family:inherit;"></textarea>
           </div>
+          <div style="margin-bottom:10px;">
+            <label>Key scientific points (local feedback — one per line):</label>
+            <textarea id="editScientificPoints" rows="4" style="font-family:inherit;" placeholder="One scientific content point per line"></textarea>
+          </div>
           <div class="row">
             <div>
               <label>Level 3 Descriptor (5-6 marks):</label>
               <textarea id="editLvl3" rows="2"></textarea>
             </div>
             <div>
-              <label>Level 2 Descriptor (3-4 marks):</label>
+              <label>Level 2 Descriptor (3-4 marks — full marks if question is 4 marks):</label>
               <textarea id="editLvl2" rows="2"></textarea>
             </div>
             <div>
-              <label>Level 1 Descriptor (1-2 marks):</label>
+              <label>Level 1 Descriptor (1-2 marks — partial):</label>
               <textarea id="editLvl1" rows="2"></textarea>
             </div>
           </div>
@@ -5128,8 +5138,12 @@
       }
       else if (questionType === "extended_response") {
         keyType = "ai_rubric";
+        const scientificPointsRaw = document.getElementById("scientificPoints")?.value || "";
         keyPayload = {
           marking_guidelines: document.getElementById("guidelines").value,
+          key_scientific_points: (typeof AiQuestionDraft !== "undefined" && AiQuestionDraft.normalizeKeyScientificPoints)
+            ? AiQuestionDraft.normalizeKeyScientificPoints(scientificPointsRaw)
+            : scientificPointsRaw.split(/\r?\n/).map((s) => s.trim()).filter(Boolean),
           level_descriptors: {
             "Level 3 (5-6 marks)": document.getElementById("lvl3").value,
             "Level 2 (3-4 marks)": document.getElementById("lvl2").value,
@@ -5286,6 +5300,8 @@
     }
     
     document.getElementById("guidelines").value = "";
+    const sciPoints = document.getElementById("scientificPoints");
+    if (sciPoints) sciPoints.value = "";
     document.getElementById("lvl3").value = "";
     document.getElementById("lvl2").value = "";
     document.getElementById("lvl1").value = "";
@@ -6861,6 +6877,8 @@
       return n ? `${n} mark point${n === 1 ? "" : "s"}` : "—";
     }
     if (q?.question_type === "extended_response") {
+      const points = draft.answer_key?.key_payload?.key_scientific_points || [];
+      if (points.length) return `${points.length} sci. points`;
       const g = draft.answer_key?.key_payload?.marking_guidelines || "";
       return g ? (g.length > 36 ? `${g.slice(0, 36)}…` : g) : "rubric";
     }
@@ -6975,14 +6993,21 @@
     const lvl3 = isFourMark ? "N/A for 4-mark" : (levels[AiQuestionDraft.LEVEL_3_KEY] || "");
     const lvl2 = levels[AiQuestionDraft.LEVEL_2_KEY] || "";
     const lvl1 = levels[AiQuestionDraft.LEVEL_1_KEY] || "";
+    const scientificPoints = (payload.key_scientific_points || []).join("\n");
+    const lvl2Label = AiQuestionDraft.levelDescriptorLabel(AiQuestionDraft.LEVEL_2_KEY, q.max_marks);
+    const lvl1Label = AiQuestionDraft.levelDescriptorLabel(AiQuestionDraft.LEVEL_1_KEY, q.max_marks);
+    const lvl3Label = AiQuestionDraft.levelDescriptorLabel(AiQuestionDraft.LEVEL_3_KEY, q.max_marks);
+    const lvl2Hint = isFourMark
+      ? `<p style="font-size:0.72rem;color:var(--text-muted);margin:4px 0 0;">Top band for a 4-mark question — describe a complete answer worth full marks.</p>`
+      : "";
     const lvl3Block = isFourMark
       ? `<div>
-              <label style="font-size:0.72rem;font-weight:600;color:var(--text-muted);">${escapeHtml(AiQuestionDraft.LEVEL_3_KEY)}</label>
-              <p style="font-size:0.76rem;color:var(--text-muted);margin:6px 0 0;">Not used for 4-mark extended responses (Levels 1–2 only).</p>
+              <label style="font-size:0.72rem;font-weight:600;color:var(--text-muted);">${escapeHtml(lvl3Label)}</label>
+              <p style="font-size:0.76rem;color:var(--text-muted);margin:6px 0 0;">Not used for 4-mark extended responses (Levels 1–2 only; Level 2 = full marks).</p>
               <input type="hidden" class="batch-ai-er-lvl3" data-batch-mcq-idx="${i}" value="N/A for 4-mark" />
             </div>`
       : `<div>
-              <label style="font-size:0.72rem;font-weight:600;">${escapeHtml(AiQuestionDraft.LEVEL_3_KEY)}</label>
+              <label style="font-size:0.72rem;font-weight:600;">${escapeHtml(lvl3Label)}</label>
               <textarea class="batch-ai-er-lvl3 batch-ai-textarea-compact" data-batch-mcq-idx="${i}" rows="3" style="width:100%;font-size:0.76rem;padding:6px;margin-top:4px;">${escapeHtml(lvl3)}</textarea>
             </div>`;
     return `
@@ -6993,13 +7018,19 @@
               <label style="font-size:0.72rem;font-weight:600;">Marking guidelines</label>
               <textarea class="batch-ai-er-guidelines batch-ai-textarea-compact" data-batch-mcq-idx="${i}" rows="3" style="width:100%;font-size:0.78rem;padding:6px;margin-top:4px;">${escapeHtml(payload.marking_guidelines || "")}</textarea>
             </div>
+            <div style="grid-column:1/-1;">
+              <label style="font-size:0.72rem;font-weight:600;">Key scientific points (local feedback checklist)</label>
+              <p style="font-size:0.72rem;color:var(--text-muted);margin:4px 0 0;">One point per line. Used for local fallback keyword matching and the student self-assessment checklist.</p>
+              <textarea class="batch-ai-er-scientific-points batch-ai-textarea-compact" data-batch-mcq-idx="${i}" rows="5" style="width:100%;font-size:0.78rem;padding:6px;margin-top:4px;" placeholder="e.g. Weight acts downwards from the centre of mass">${escapeHtml(scientificPoints)}</textarea>
+            </div>
             ${lvl3Block}
             <div>
-              <label style="font-size:0.72rem;font-weight:600;">${escapeHtml(AiQuestionDraft.LEVEL_2_KEY)}</label>
-              <textarea class="batch-ai-er-lvl2 batch-ai-textarea-compact" data-batch-mcq-idx="${i}" rows="3" style="width:100%;font-size:0.76rem;padding:6px;margin-top:4px;">${escapeHtml(lvl2)}</textarea>
+              <label style="font-size:0.72rem;font-weight:600;">${escapeHtml(lvl2Label)}</label>
+              ${lvl2Hint}
+              <textarea class="batch-ai-er-lvl2 batch-ai-textarea-compact" data-batch-mcq-idx="${i}" rows="3" style="width:100%;font-size:0.76rem;padding:6px;margin-top:4px;" placeholder="${isFourMark ? "Complete, coherent answer covering all key points…" : "Most ideas present but incomplete links…"}">${escapeHtml(lvl2)}</textarea>
             </div>
             <div>
-              <label style="font-size:0.72rem;font-weight:600;">${escapeHtml(AiQuestionDraft.LEVEL_1_KEY)}</label>
+              <label style="font-size:0.72rem;font-weight:600;">${escapeHtml(lvl1Label)}</label>
               <textarea class="batch-ai-er-lvl1 batch-ai-textarea-compact" data-batch-mcq-idx="${i}" rows="3" style="width:100%;font-size:0.76rem;padding:6px;margin-top:4px;">${escapeHtml(lvl1)}</textarea>
             </div>
             <div>${renderBatchAoInputs(i, q, Number(q.max_marks) === 4 ? 4 : 6)}</div>
@@ -7160,6 +7191,7 @@
         ...baseEdits,
         max_marks: maxMarks,
         marking_guidelines: detail.querySelector(".batch-ai-er-guidelines")?.value || "",
+        key_scientific_points: detail.querySelector(".batch-ai-er-scientific-points")?.value || "",
         level_3: detail.querySelector(".batch-ai-er-lvl3")?.value || "",
         level_2: detail.querySelector(".batch-ai-er-lvl2")?.value || "",
         level_1: detail.querySelector(".batch-ai-er-lvl1")?.value || ""
@@ -7303,7 +7335,7 @@
     });
 
     document.querySelectorAll(
-      ".batch-mcq-opt-fb, .batch-mcq-overall-fb, .batch-mcq-ao1, .batch-mcq-ao2, .batch-mcq-ao3, .batch-ai-mp-keywords, .batch-ai-mp-feedback, .batch-ai-mp-ao, .batch-ai-er-guidelines, .batch-ai-er-lvl3, .batch-ai-er-lvl2, .batch-ai-er-lvl1"
+      ".batch-mcq-opt-fb, .batch-mcq-overall-fb, .batch-mcq-ao1, .batch-mcq-ao2, .batch-mcq-ao3, .batch-ai-mp-keywords, .batch-ai-mp-feedback, .batch-ai-mp-ao, .batch-ai-er-guidelines, .batch-ai-er-scientific-points, .batch-ai-er-lvl3, .batch-ai-er-lvl2, .batch-ai-er-lvl1"
     ).forEach((el) => {
       el.addEventListener("input", () => {
         const idx = parseInt(el.dataset.batchMcqIdx, 10);
@@ -7839,6 +7871,17 @@
                 text: `⚠️ ${mpStats.missingFeedback} checkpoint(s) missing remediation`
               });
             }
+          }
+        } else if (q.question_type === "extended_response") {
+          const detailGaps = window.AiQuestionDraft?.getExtendedResponseDetailGaps
+            ? window.AiQuestionDraft.getExtendedResponseDetailGaps(payload, q.max_marks)
+            : [];
+          if (detailGaps.length > 0) {
+            warnings.push({
+              type: "warning",
+              code: "extended_detail_gap",
+              text: `⚠️ Extended rubric missing: ${detailGaps.join(", ")}`
+            });
           }
         }
       }
@@ -8899,6 +8942,8 @@
       else if (q.question_type === "extended_response") {
         document.getElementById("editExtendedPanel").classList.remove("hidden");
         document.getElementById("editGuidelines").value = keyData?.key_payload?.marking_guidelines || "";
+        const points = keyData?.key_payload?.key_scientific_points || [];
+        document.getElementById("editScientificPoints").value = Array.isArray(points) ? points.join("\n") : "";
         document.getElementById("editLvl3").value = keyData?.key_payload?.level_descriptors?.["Level 3 (5-6 marks)"] || "";
         document.getElementById("editLvl2").value = keyData?.key_payload?.level_descriptors?.["Level 2 (3-4 marks)"] || "";
         document.getElementById("editLvl1").value = keyData?.key_payload?.level_descriptors?.["Level 1 (1-2 marks)"] || "";
@@ -9220,8 +9265,12 @@
           };
         }
       } else if (q.question_type === "extended_response") {
+        const scientificPointsRaw = document.getElementById("editScientificPoints")?.value || "";
         updatedPayload = {
           marking_guidelines: document.getElementById("editGuidelines").value,
+          key_scientific_points: (typeof AiQuestionDraft !== "undefined" && AiQuestionDraft.normalizeKeyScientificPoints)
+            ? AiQuestionDraft.normalizeKeyScientificPoints(scientificPointsRaw)
+            : scientificPointsRaw.split(/\r?\n/).map((s) => s.trim()).filter(Boolean),
           level_descriptors: {
             "Level 3 (5-6 marks)": document.getElementById("editLvl3").value,
             "Level 2 (3-4 marks)": document.getElementById("editLvl2").value,

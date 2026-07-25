@@ -55,6 +55,7 @@ export const CSV_IMPORT_COLUMNS = [
   "numeric_unit",
   // Extended response
   "extended_guidelines",
+  "extended_scientific_points",
   "extended_level_3",
   "extended_level_2",
   "extended_level_1",
@@ -310,10 +311,15 @@ export function buildAnswerKey(record, questionType, options = []) {
   }
 
   if (type === "extended_response") {
+    const pointsRaw = record.extended_scientific_points?.trim() || "";
+    const keyScientificPoints = pointsRaw
+      ? pointsRaw.split(/;|\r?\n/).map((s) => s.trim()).filter(Boolean).slice(0, 8)
+      : [];
     return {
-      key_type: "extended_response",
+      key_type: "ai_rubric",
       key_payload: {
         marking_guidelines: record.extended_guidelines?.trim() || "",
+        key_scientific_points: keyScientificPoints,
         level_descriptors: {
           "Level 3 (5-6 marks)": record.extended_level_3?.trim() || "",
           "Level 2 (3-4 marks)": record.extended_level_2?.trim() || "",

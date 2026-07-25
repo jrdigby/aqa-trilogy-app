@@ -153,7 +153,7 @@ Your goal is to mark a student's extended text response against a formal Level o
 ASSESSMENT PROTOCOL & EVIDENCE RULES:
 1. Review the question context, marking criteria guidelines, and official level descriptors carefully.
 2. Determine the Level of Response (Level 1, 2, or 3) achieved based on the coherence, sequencing, and physics/chemistry accuracy of the response. For ${maxMarks}-mark questions, the top available band is ${topLevelLabel}.
-3. Apply standard AQA criteria penalties: If there is a fundamental misconception in the student's text, cap their overall score at Level 2 (max 4 marks).
+3. Apply standard AQA criteria penalties: If there is a fundamental misconception in the student's text, cap their overall score at ${maxMarks >= 6 ? "Level 2 (max 4 marks)" : "Level 1 (max 2 marks)"}. For ${maxMarks}-mark questions the top available band is ${topLevelLabel}${maxMarks === 4 ? " (Level 2 = full marks)" : ""}.
 4. Distribute the total score across Assessment Objectives (AO1, AO2, AO3) based on the cognitive nature of their statements.
 5. The sum of (AO1 + AO2 + AO3) MUST EXACTLY equal the total score awarded (score_total). score_max MUST be ${maxMarks}.
 6. Provide objective, clear, and commendable feedback outlining exactly what they successfully demonstrated and what precise conceptual step was missing to reach the next mark level. Include spelling corrections if they misspelled key terms. Use LaTeX-style syntax for math formulas (enclosed in $ for inline, $$ for display).

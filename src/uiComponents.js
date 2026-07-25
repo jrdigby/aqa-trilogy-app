@@ -329,14 +329,26 @@ export function renderLiveAIFeedback(evaluation, hasImprovedCurrentQ) {
 }
 
 // ====== LOCAL COGNITIVE FALLBACK RUBRIC VIEW COMPILER ======
-export function renderAQAExtendedResponseFeedback(studentText, rubric, localKeywords, matchedKeywords) {
+export function renderAQAExtendedResponseFeedback(studentText, rubric, localKeywords, matchedKeywords, maxMarks = 6) {
   const keywordHits = matchedKeywords.length;
+  const max = Number(maxMarks) === 4 ? 4 : 6;
   let level = "Level 1";
   let score = 1;
   let summary = "isolated scientific points made. Strategy lacks clear experimental cohesion.";
 
   const hitFraction = localKeywords.length > 0 ? (keywordHits / localKeywords.length) : 0;
-  if (hitFraction >= 0.5) {
+  if (max === 4) {
+    // For 4-mark questions, Level 2 is the top/full-marks band.
+    if (hitFraction >= 0.5) {
+      level = "Level 2";
+      score = 4;
+      summary = "coherent explanation covering the key scientific points expected for full marks.";
+    } else if (hitFraction > 0) {
+      level = "Level 1";
+      score = 2;
+      summary = "some relevant ideas, but the response is incomplete or lacks clear links.";
+    }
+  } else if (hitFraction >= 0.5) {
     level = "Level 3";
     score = 6;
     summary = "coherent, detailed, logically structured explanation covering key scientific steps with precise physical context.";
@@ -358,7 +370,7 @@ export function renderAQAExtendedResponseFeedback(studentText, rubric, localKeyw
     <div style="background: #fafbfc; padding: 18px; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
         <span style="font-size: 1.1rem; font-weight: 800; color: #1e293b;">📊 GCSE Level of Response Evaluation (Local Fallback)</span>
-        <span style="background: #3b82f6; color: white; padding: 4px 10px; border-radius: 6px; font-weight: 700; font-size: 0.85rem;">${level} (${score}/6 Marks)</span>
+        <span style="background: #3b82f6; color: white; padding: 4px 10px; border-radius: 6px; font-weight: 700; font-size: 0.85rem;">${level} (${score}/${max} Marks)</span>
       </div>
       
       <p style="font-size: 0.85rem; color: #475569; line-height: 1.4; margin-bottom: 14px;">

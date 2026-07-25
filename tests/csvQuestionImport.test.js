@@ -208,3 +208,23 @@ test("legacyPositionalToRecord — backward compatible MCQ row", () => {
   assert.equal(rec.mcq_correct, "B");
   assert.equal(rec.option_a, "A");
 });
+
+test("buildAnswerKey — extended response includes scientific points", () => {
+  const key = buildAnswerKey(
+    {
+      extended_guidelines: "Look for force pairs.",
+      extended_scientific_points: "Weight downwards; Normal contact force; Equal and opposite",
+      extended_level_3: "Full linked explanation",
+      extended_level_2: "Complete answer for 4 marks",
+      extended_level_1: "Isolated ideas"
+    },
+    "extended_response"
+  );
+  assert.equal(key.key_type, "ai_rubric");
+  assert.deepEqual(key.key_payload.key_scientific_points, [
+    "Weight downwards",
+    "Normal contact force",
+    "Equal and opposite"
+  ]);
+  assert.match(key.key_payload.marking_guidelines, /force pairs/);
+});
