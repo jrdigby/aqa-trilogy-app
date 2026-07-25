@@ -2297,6 +2297,7 @@
           <p id="section3Help" style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.4; margin-bottom: 16px;">
             <strong>Short answers (preferred):</strong> Use checkpoints here for examiner-style remediation and flashcards. Each matched row awards marks (AO-specific); missed rows use your remediation tip (and optional diagram) on practice feedback and flashcard backs. Section 2 required/optional keywords are ignored when any checkpoint has keywords filled in.<br/>
             <strong>Keyword syntax:</strong> comma <code>,</code> = all parts required (AND); pipe <code>|</code> = synonyms (OR). Example for one mark: <code>increase, potential difference|voltage|volts</code> needs both “increase” and one of the voltage terms.<br/>
+            <strong>Remediation tip:</strong> Practice feedback already lists the checkpoint keywords as badges. Write remediation that <em>expands</em> the idea (why it earns the mark / how to remember it) — don’t just repeat the keywords. Flashcard backs use this remediation only. Example: keywords <code>chlorophyll</code> → remediation <em>“Chlorophyll absorbs light energy for photosynthesis.”</em><br/>
             <strong>Numeric:</strong> Feedback is configured in Section 2 (calculation workflow panels) — this section is not used.<br/>
             <strong>MCQ:</strong> Add one generic remediation row (feedback field only). Shown below any per-option feedback from Section 2 when a student picks a wrong answer.
           </p>
@@ -3344,7 +3345,8 @@
               <button type="button" class="btn btn-secondary" id="btnEditAddMarkPoint" style="padding:3px 8px; font-size:0.75rem;">+ Add Criteria Step</button>
             </div>
             <p id="editSection3Help" class="hidden" style="font-size: 0.78rem; color: var(--text-muted); line-height: 1.4; margin: 0 0 12px;">
-              <strong>Short answers (preferred):</strong> Checkpoints here drive marking, remediation, and flashcard backs. Section 2 required/optional keywords are ignored when any row has keywords filled in.
+              <strong>Short answers (preferred):</strong> Checkpoints here drive marking, remediation, and flashcard backs. Section 2 required/optional keywords are ignored when any row has keywords filled in.<br/>
+              <strong>Remediation tip:</strong> Practice feedback already lists the checkpoint keywords as badges. Write remediation that <em>expands</em> the idea — don’t just repeat the keywords. Flashcard backs use this remediation only.
             </p>
             <div id="editMarkPointsWrapper"></div>
           </div>
@@ -4396,7 +4398,8 @@
   }
 
   const SECTION3_HELP_SHORT = `<strong>Short answers (preferred):</strong> Use checkpoints here for examiner-style remediation and flashcards. Each matched row awards marks (AO-specific); missed rows use your remediation tip (and optional diagram) on practice feedback and flashcard backs. Section 2 required/optional keywords are ignored when any checkpoint has keywords filled in.<br/>
-            <strong>Keyword syntax:</strong> comma <code>,</code> = all parts required (AND); pipe <code>|</code> = synonyms (OR). Example for one mark: <code>increase, potential difference|voltage|volts</code> needs both “increase” and one of the voltage terms.`;
+            <strong>Keyword syntax:</strong> comma <code>,</code> = all parts required (AND); pipe <code>|</code> = synonyms (OR). Example for one mark: <code>increase, potential difference|voltage|volts</code> needs both “increase” and one of the voltage terms.<br/>
+            <strong>Remediation tip:</strong> Practice feedback already lists the checkpoint keywords as badges. Write remediation that <em>expands</em> the idea (why it earns the mark / how to remember it) — don’t just repeat the keywords. Flashcard backs use this remediation only. Example: keywords <code>chlorophyll</code> → remediation <em>“Chlorophyll absorbs light energy for photosynthesis.”</em>`;
   const SECTION3_HELP_MCQ = `<strong>MCQ:</strong> One generic remediation row (feedback field only). Shown below any per-option feedback from Section 2 when a student picks a wrong answer. Optional feedback diagrams appear on the wrong-answer path.`;
 
   function countGradableMarkPointRows(wrapId) {
@@ -4867,7 +4870,7 @@
       </select>
       <span class="mp-text-wrap"><input class="mp-text" type="text" placeholder="Keywords: gravity|gravitational, mass" value="${escapeHtml(ptText)}"/></span>
       <button onclick="removeMarkPointRow(${markPointsCounter})" style="background:var(--error); color:white; border:none; border-radius:6px; cursor:pointer; height:38px; font-weight:bold; width: 100%;">&times;</button>
-      <textarea class="mp-feedback" rows="2" placeholder="Remediation tips...">${escapeHtml(fbText)}</textarea>
+      <textarea class="mp-feedback" rows="2" placeholder="Expand the idea — don’t just repeat the keywords…">${escapeHtml(fbText)}</textarea>
       <div class="mp-image-row">
         <span class="mp-image-label">Feedback diagram (optional — shown when this checkpoint is missed)</span>
         <div class="mp-image-controls">
@@ -4913,7 +4916,7 @@
       </select>
       <span class="edit-mp-text-wrap"><input class="edit-mp-text" type="text" placeholder="Keywords: gravity|gravitational, mass" value="${escapeHtml(ptText)}"/></span>
       <button type="button" onclick="removeEditMarkPointRow(${editMarkPointsCounter})" style="background:var(--error); color:white; border:none; border-radius:6px; cursor:pointer; height:38px; font-weight:bold; width: 100%;">&times;</button>
-      <textarea class="edit-mp-feedback" rows="2" placeholder="Remediation tips...">${escapeHtml(fbText)}</textarea>
+      <textarea class="edit-mp-feedback" rows="2" placeholder="Expand the idea — don’t just repeat the keywords…">${escapeHtml(fbText)}</textarea>
       <div class="edit-mp-image-row">
         <span class="edit-mp-image-label">Feedback diagram (optional — shown when this checkpoint is missed)</span>
         <div class="edit-mp-image-controls">
