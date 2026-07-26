@@ -760,13 +760,8 @@ export function substitutionSlotsMatchCommutative(payload, subStep, template, co
       symbolSlotIds.has(id) || normalizeAcceptedSlotValues(subStep.slot_answers[id])?.length
     );
     if (!hasAnswers) return false;
-    const positionalOnly = group.some((id) => symbolSlotIds.has(id));
-    if (positionalOnly) {
-      const ok = group.every((id) =>
-        slotValueMatchesAccepted(id, payload.slots?.[id], subStep.slot_answers[id], symbolSlotIds, template)
-      );
-      if (!ok) return false;
-    } else if (!matchCommutativeGroup(group, payload, subStep.slot_answers, symbolSlotIds, template)) {
+    // Always allow × factors in any order (AQA), including when one factor is the unknown symbol.
+    if (!matchCommutativeGroup(group, payload, subStep.slot_answers, symbolSlotIds, template)) {
       return false;
     }
   }

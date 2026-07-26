@@ -620,6 +620,77 @@ export const QUESTION_TYPE_LABELS = {
   extended_response: "Extended Response"
 };
 
+export const QUESTION_TYPE_ORDER = ["mcq", "numeric", "short_text", "extended_response"];
+
+function masteryColorTheme(percentage, hasAttempts) {
+  if (!hasAttempts) return "#bdc3c7";
+  if (percentage < 50) return "var(--error)";
+  if (percentage < 75) return "#f39c12";
+  return "var(--success)";
+}
+
+export function aggregateMarksByQuestionType(log) {
+  const byType = {};
+  for (const entry of log || []) {
+    const type = entry.questionType || "unknown";
+    if (!byType[type]) byType[type] = { earned: 0, max: 0 };
+    byType[type].earned += entry.scoreTotal || 0;
+    byType[type].max += entry.scoreMax || 0;
+  }
+  return byType;
+}
+
+/**
+ * @param {Record<string, { earned: number, max: number }>} typeTallies
+ * @param {{ onlyWithAttempts?: boolean }} [options]
+ */
+export function renderQuestionTypeMasteryBars(typeTallies, options = {}) {
+  const onlyWithAttempts = Boolean(options.onlyWithAttempts);
+  const knownTypes = new Set(QUESTION_TYPE_ORDER);
+  const extraTypes = Object.keys(typeTallies || {}).filter((t) => !knownTypes.has(t));
+  const ordered = [...QUESTION_TYPE_ORDER, ...extraTypes];
+
+  const cards = ordered
+    .map((type) => {
+      const tally = typeTallies?.[type] || { earned: 0, max: 0 };
+      const hasAttempts = tally.max > 0;
+      if (onlyWithAttempts && !hasAttempts) return "";
+
+      const percentage = hasAttempts
+        ? Math.min(100, Math.round((tally.earned / tally.max) * 100))
+        : 0;
+      const colorTheme = masteryColorTheme(percentage, hasAttempts);
+      const label = QUESTION_TYPE_LABELS[type] || type;
+
+      return `
+        <div class="subject-mastery-card">
+          <div class="subject-mastery-card-header">
+            <span class="subject-mastery-topic">${escapeHtml(label)}</span>
+            <span class="subject-mastery-pct" style="color: ${colorTheme};">
+              ${hasAttempts ? `${percentage}%` : "No Attempts"}
+            </span>
+          </div>
+          <div class="subject-mastery-track">
+            <div class="subject-mastery-fill" style="width: ${percentage}%; background: ${colorTheme};"></div>
+          </div>
+          <div class="subject-mastery-meta muted">
+            ${hasAttempts
+              ? `Earned ${tally.earned} of ${tally.max} marks.`
+              : "No questions attempted yet."}
+          </div>
+        </div>
+      `;
+    })
+    .filter(Boolean)
+    .join("");
+
+  if (!cards) {
+    return `<div class="muted" style="text-align: center; padding: 10px;">No question type data yet.</div>`;
+  }
+
+  return `<div class="subject-mastery-grid">${cards}</div>`;
+}
+
 function formatSubjectLabel(subject) {
   if (!subject) return "Unknown";
   const s = String(subject);
@@ -916,6 +987,19 @@ function renderSessionFlashcardNotice(attemptLog) {
   `;
 }
 
+function renderSessionQuestionTypePerformance(attemptLog) {
+  const byType = aggregateMarksByQuestionType(attemptLog);
+  const hasAny = Object.values(byType).some((t) => t.max > 0);
+  if (!hasAny) return "";
+
+  return `
+    <div class="session-summary-question-types">
+      <h4 class="session-summary-section-title">Performance by question type</h4>
+      ${renderQuestionTypeMasteryBars(byType, { onlyWithAttempts: true })}
+    </div>
+  `;
+}
+
 export function renderSessionCompleteSummary(meta, attemptLog) {
   const { marksSummary, bySpecPoint, tableTotals, xpTotal } = buildSessionSummaryData(attemptLog);
   const rows = buildSpecPointSummaryRows(bySpecPoint);
@@ -931,6 +1015,7 @@ export function renderSessionCompleteSummary(meta, attemptLog) {
     <div class="session-summary-results">
       ${renderMarksBreakdownTable(rows, tableTotals)}
     </div>
+    ${renderSessionQuestionTypePerformance(attemptLog)}
   `;
 }
 

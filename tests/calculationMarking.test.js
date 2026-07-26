@@ -98,6 +98,23 @@ test("commutative substitution accepts swapped I and V when I is rearrangement u
   assert.equal(substitutionSlotsMatchCommutative(payload, subStep, powerViTemplate), true);
 });
 
+test("commutative substitution accepts V×numeric when V is blank unknown (AQA order)", () => {
+  // Generated mark scheme: P=920, I=4.8, V omitted (solve for V) → display "920 = 4.8 × V"
+  // Student may enter "920 = V × 4.8" by putting V and 4.8 in either RHS slot.
+  const subStep = {
+    rearrangement_subject: "V",
+    slot_answers: { P: ["920"], I: ["4.8"] }
+  };
+  const payload = {
+    mode: "structured",
+    equation_id: "power_vi",
+    slots: { P: "920", I: "V", V: "4.8" }
+  };
+  assert.equal(substitutionSlotsMatchCommutative(payload, subStep, powerViTemplate), true);
+  payload.slots = { P: "920", I: "4.8", V: "V" };
+  assert.equal(substitutionSlotsMatchCommutative(payload, subStep, powerViTemplate), true);
+});
+
 test("commutative substitution accepts permuted m, c, delta_theta values", () => {
   const subStep = {
     slot_answers: { E: ["500"], m: ["2"], c: ["450"], delta_theta: ["55"] }
@@ -1185,7 +1202,7 @@ test("specific latent heat: substitution accepts E=13000, m=3.5, L symbol", () =
   assert.equal(substitutionSlotsMatchCommutative(payload, subStep, latentHeatTemplate), true);
 });
 
-test("specific latent heat: rejects swapped m and L slot values", () => {
+test("specific latent heat: accepts swapped m and L slot values (AQA commutative ×)", () => {
   const payload = {
     mode: "structured",
     equation_id: "specific_latent_heat",
@@ -1195,7 +1212,7 @@ test("specific latent heat: rejects swapped m and L slot values", () => {
     slot_answers: { E: ["13000"], m: ["3.5"] },
     rearrangement_subject: "L"
   };
-  assert.equal(substitutionSlotsMatchCommutative(payload, subStep, latentHeatTemplate), false);
+  assert.equal(substitutionSlotsMatchCommutative(payload, subStep, latentHeatTemplate), true);
 });
 
 test("specific latent heat: feedback lists each slot label", () => {
