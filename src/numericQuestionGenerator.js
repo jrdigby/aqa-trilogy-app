@@ -308,6 +308,8 @@ const CONVERSION_CATALOG = [
   { slotPattern: /^I$/, fromUnit: "uA", toUnit: "A", factor: 1e-6 },
   { slotPattern: /^V$/, fromUnit: "mV", toUnit: "V", factor: 0.001 },
   { slotPattern: /^V$/, fromUnit: "kV", toUnit: "V", factor: 1000 },
+  // Density (and other volume slots): V means m³, not volts — matched via toUnit === SI unit.
+  { slotPattern: /^V$|^vol$/, fromUnit: "cm³", toUnit: "m³", factor: 1e-6 },
   { slotPattern: /^P$|^P_useful$|^P_in$/, fromUnit: "kW", toUnit: "W", factor: 1000 },
   { slotPattern: /^P$|^P_useful$|^P_in$/, fromUnit: "MW", toUnit: "W", factor: 1e6 },
   {
@@ -342,6 +344,10 @@ const UNIT_ALIASES = {
   mc: "mC",
   mm: "mm",
   cm: "cm",
+  "cm3": "cm³",
+  "cm^3": "cm³",
+  "m3": "m³",
+  "m^3": "m³",
   km: "km",
   "km/h": "km/h",
   min: "min",
@@ -1012,12 +1018,10 @@ export function buildConversionStep(equation, slots, slotAnswers, rng = Math.ran
   for (const id of slotIds) {
     const si = slotNumericValue(slots, id);
     if (!Number.isFinite(si) || si <= 0) continue;
-    for (const rule of CONVERSION_CATALOG) {
-      if (rule.slotPattern.test(id)) {
-        const displayVal = conversionDisplayValue(si, rule.factor);
-        if (conversionDisplayOk(displayVal)) {
-          candidates.push({ id, rule, si });
-        }
+    for (const rule of conversionRulesForSlot(id, equation)) {
+      const displayVal = conversionDisplayValue(si, rule.factor);
+      if (conversionDisplayOk(displayVal)) {
+        candidates.push({ id, rule, si });
       }
     }
   }
@@ -1211,11 +1215,26 @@ function slotAnswersForConfig(slot_answers) {
 
 /** SI unit for a template slot (for conversion dropdowns and typed values). */
 export function getSlotSiUnit(slotId, equation = null) {
-  if (equation?.id === "density" && slotId === "V") return "m³";
-  if (SUBJECT_UNITS[slotId]) return SUBJECT_UNITS[slotId];
+  if (equation) {
+    const resolved = resolveSlotUnit(equation, slotId);
+    if (resolved) return resolved;
+  } else if (SUBJECT_UNITS[slotId]) {
+    return SUBJECT_UNITS[slotId];
+  }
   if (/^(E_k|E_e|E_p|delta_E|E_useful|E_in)$/.test(slotId)) return "J";
   if (/^(P|P_useful|P_in)$/.test(slotId)) return "W";
   return "";
+}
+
+/** Catalog conversion rules that apply to a slot (respects equation-specific SI units). */
+function conversionRulesForSlot(slotId, equation = null) {
+  const siUnit = getSlotSiUnit(slotId, equation);
+  return CONVERSION_CATALOG.filter((rule) => {
+    if (!rule.slotPattern.test(slotId)) return false;
+    // When SI unit is known, only allow conversions into that unit (e.g. density V → m³, not volts).
+    if (siUnit && rule.toUnit !== siUnit) return false;
+    return true;
+  });
 }
 
 function normalizeUnitToken(token) {
@@ -1270,8 +1289,8 @@ export function listConversionUnitOptions(slotId, equation = null) {
     seen.add(rule.fromUnit);
     options.push({ fromUnit: rule.fromUnit, toUnit: rule.toUnit, factor: rule.factor });
   };
-  for (const rule of CONVERSION_CATALOG) {
-    if (rule.slotPattern.test(slotId)) add(rule);
+  for (const rule of conversionRulesForSlot(slotId, equation)) {
+    add(rule);
   }
   const siUnit = getSlotSiUnit(slotId, equation);
   if (siUnit && !seen.has(siUnit)) {

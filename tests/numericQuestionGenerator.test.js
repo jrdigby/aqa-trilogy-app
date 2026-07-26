@@ -141,6 +141,27 @@ test("listConversionUnitOptions — efficiency power slots offer kW and MW", () 
   }
 });
 
+test("listConversionUnitOptions — density volume offers cm³ not voltage units", () => {
+  const density = findEq(sheetP1, "density") || findEq(sheetP2, "density");
+  assert.ok(density, "density equation should exist");
+  const opts = listConversionUnitOptions("V", density);
+  const units = opts.map((o) => o.fromUnit);
+  assert.ok(units.includes("m³"), `expected m³, got ${units.join(", ")}`);
+  assert.ok(units.includes("cm³"), `expected cm³, got ${units.join(", ")}`);
+  assert.ok(!units.includes("mV"), "density volume must not offer mV");
+  assert.ok(!units.includes("kV"), "density volume must not offer kV");
+  assert.ok(!units.includes("V"), "density volume must not offer volts");
+});
+
+test("listConversionUnitOptions — potential difference still offers mV and kV", () => {
+  const opts = listConversionUnitOptions("V");
+  const units = opts.map((o) => o.fromUnit);
+  assert.ok(units.includes("V"));
+  assert.ok(units.includes("mV"));
+  assert.ok(units.includes("kV"));
+  assert.ok(!units.includes("cm³"));
+});
+
 test("generateBatch — efficiency as percentage", () => {
   const { drafts, errors } = generateBatch(
     {
