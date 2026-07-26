@@ -1,6 +1,6 @@
 import { startAnyPractice, startExamPrep, startFlashcardPractice, startSessionForSpecPoint, startSkillPractice, previewExamPaper, upsertSRS as importUpsertSRS } from './sessionEngine.js';
 import { formatPaperPreviewSummary } from './paperBuilder.js';
-import { showToastBanner, renderQuestionLayout, renderFeedback, renderLiveAIFeedback, renderAQAExtendedResponseFeedback, renderMasteryHeatmap, renderSessionContext, renderSessionCompleteSummary, renderExamPaperFeedbackSummary, renderSelfRatingPrompt, renderAdaptiveFeedback, renderHintsPanel, normalizeQuestionHints, mountNumericQuestionWorkflow } from './uiComponents.js';
+import { showToastBanner, renderQuestionLayout, renderFeedback, renderLiveAIFeedback, renderAQAExtendedResponseFeedback, renderMasteryHeatmap, renderSessionContext, renderSessionCompleteSummary, renderExamPaperFeedbackSummary, renderSelfRatingPrompt, renderAdaptiveFeedback, renderHintsPanel, normalizeQuestionHints, mountNumericQuestionWorkflow, QUESTION_TYPE_ORDER, renderQuestionTypeMasteryBars } from './uiComponents.js';
 import {
   DEFAULT_ADAPTIVE_STATE,
   loadAdaptivePracticeState,
@@ -1980,12 +1980,19 @@ async function exitSessionToDashboard() {
 }
 
 function getSessionSummaryMeta() {
-  const sp = getSessionSpecPointMeta();
-  if (sp?.subject && sp?.paper) return sp;
   const { subject, paper, topic } = getSelectedFilters();
+  const sp = getSessionSpecPointMeta();
+
+  // Spec-point practice: keep that question's topic. Otherwise use the dashboard
+  // filters so multi-topic sessions (e.g. exam prep with All topics) don't
+  // incorrectly show the first question's topic.
+  if (sessionMode === "spec_point" && sp?.subject && sp?.paper) {
+    return sp;
+  }
+
   return {
-    subject,
-    paper,
+    subject: subject || sp?.subject,
+    paper: paper || sp?.paper,
     topic_name: topic || "All topics"
   };
 }
@@ -3531,6 +3538,10 @@ function showSignedInLayout() {
   if (dueList) dueList.innerHTML = `<div class="item muted">Refreshing scheduled deck…</div>`;
   if (forecastWrapper) forecastWrapper.innerHTML = `<div class="muted" style="margin: auto; font-size: 0.8rem;">Loading forecast chart…</div>`;
   if (masteryWrapper) masteryWrapper.innerHTML = `<div class="muted" style="text-align: center; padding: 12px;">Crunching syllabus stats…</div>`;
+  const questionTypeMasteryWrapper = el("questionTypeMasteryWrapper");
+  if (questionTypeMasteryWrapper) {
+    questionTypeMasteryWrapper.innerHTML = `<div class="muted" style="text-align: center; padding: 12px;">Loading question type stats…</div>`;
+  }
   if (activityChartWrapper) activityChartWrapper.innerHTML = `<div class="muted" style="width: 100%; text-align: center; margin-bottom: 35px;">Loading practice activity…</div>`;
   if (activitySummary) activitySummary.innerHTML = `<span>Loading activity…</span>`;
   if (activityChartLegend) {
@@ -3753,6 +3764,41 @@ async function loadTopics() {
     } catch (err) {
       console.error("Mastery generation block execution dropped:", err);
       masteryWrapper.innerHTML = `<div class="muted" style="text-align: center;">Unable to populate mastery parameters.</div>`;
+    }
+  }
+
+  const questionTypeMasterySection = el("questionTypeMasterySection");
+  const questionTypeMasteryWrapper = el("questionTypeMasteryWrapper");
+  if (questionTypeMasterySection) {
+    // Only show when "All question types" is selected; still respects subject/paper/topic.
+    const showQuestionTypeReport = !qType;
+    questionTypeMasterySection.style.display = showQuestionTypeReport ? "" : "none";
+
+    if (showQuestionTypeReport && questionTypeMasteryWrapper && currentUser) {
+      try {
+        const questionTypeMap = {};
+        (questions || []).forEach((q) => {
+          questionTypeMap[q.id] = q.question_type || "unknown";
+        });
+
+        const typeTallies = {};
+        QUESTION_TYPE_ORDER.forEach((t) => {
+          typeTallies[t] = { earned: 0, max: 0 };
+        });
+
+        (attempts || []).forEach((att) => {
+          if (!validQuestionIds.has(att.question_id)) return;
+          const type = questionTypeMap[att.question_id] || "unknown";
+          if (!typeTallies[type]) typeTallies[type] = { earned: 0, max: 0 };
+          typeTallies[type].earned += Number(att.score_total) || 0;
+          typeTallies[type].max += Number(att.score_max) || 0;
+        });
+
+        questionTypeMasteryWrapper.innerHTML = renderQuestionTypeMasteryBars(typeTallies);
+      } catch (qtErr) {
+        console.error("Question type mastery render failed:", qtErr);
+        questionTypeMasteryWrapper.innerHTML = `<div class="muted" style="text-align: center;">Unable to populate question type stats.</div>`;
+      }
     }
   }
 
