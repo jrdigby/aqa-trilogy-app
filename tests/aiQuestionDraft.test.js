@@ -14,6 +14,7 @@ import {
   parseImportedDraftBundle,
   prepareImportedDrafts,
   normalizeKeyScientificPoints,
+  extractKeyScientificPoints,
   getExtendedResponseDetailGaps,
   levelDescriptorLabel,
   LEVEL_3_KEY,
@@ -178,6 +179,29 @@ test("normalizeKeyScientificPoints — trims, dedupes, caps at 8", () => {
     normalizeKeyScientificPoints(Array.from({ length: 12 }, (_, i) => `Point ${i}`)).length,
     8
   );
+});
+
+test("extractKeyScientificPoints — accepts aliases and object items", () => {
+  assert.deepEqual(
+    extractKeyScientificPoints({
+      scientific_points: [{ text: "Weight downwards" }, { point: "Normal contact force" }]
+    }),
+    ["Weight downwards", "Normal contact force"]
+  );
+  const [draft] = normalizeAiQuestions([{
+    question_type: "extended_response",
+    prompt: "Explain forces.",
+    max_marks: 6,
+    ao1_marks: 2,
+    ao2_marks: 2,
+    ao3_marks: 2,
+    marking_guidelines: "Guidelines",
+    keyScientificPoints: SAMPLE_SCIENTIFIC_POINTS,
+    level_3_descriptor: "L3",
+    level_2_descriptor: "L2",
+    level_1_descriptor: "L1"
+  }]);
+  assert.deepEqual(draft.answer_key.key_payload.key_scientific_points, SAMPLE_SCIENTIFIC_POINTS);
 });
 
 test("levelDescriptorLabel — 4-mark Level 2 is full marks", () => {

@@ -1016,3 +1016,114 @@ test("suvat is available on FT paper 2 sheet", () => {
   assert.equal(drafts.length, 1);
   assert.ok(drafts[0].question.prompt.includes("final velocity"));
 });
+
+test("transformer power form — combined Paper 1 HT only; triple Paper 2 HT", () => {
+  const combinedP1Ht = sheetP1;
+  const combinedP2Ht = sheetP2;
+  const combinedP2Ft = JSON.parse(
+    fs.readFileSync(path.join(__dirname, "..", "data", "equation_sheets", "physics_p2_ft.json"), "utf8")
+  );
+  const tripleP2Ht = JSON.parse(
+    fs.readFileSync(path.join(__dirname, "..", "data", "equation_sheets", "triple_physics_p2_ht.json"), "utf8")
+  );
+  const tripleP2Ft = JSON.parse(
+    fs.readFileSync(path.join(__dirname, "..", "data", "equation_sheets", "triple_physics_p2_ft.json"), "utf8")
+  );
+  const tripleP1Ht = JSON.parse(
+    fs.readFileSync(path.join(__dirname, "..", "data", "equation_sheets", "triple_physics_p1_ht.json"), "utf8")
+  );
+
+  assert.ok(findEq(combinedP1Ht, "transformer"), "combined P1 HT should have power-form transformer");
+  assert.equal(findEq(combinedP2Ht, "transformer"), undefined, "combined P2 must not have transformer");
+  assert.equal(findEq(combinedP2Ft, "transformer"), undefined);
+  assert.ok(findEq(tripleP2Ht, "transformer"), "triple P2 HT should have power-form transformer");
+  assert.ok(findEq(tripleP2Ht, "transformer_turns"), "triple P2 HT should have turns ratio");
+  assert.equal(findEq(tripleP2Ft, "transformer"), undefined);
+  assert.equal(findEq(tripleP1Ht, "transformer"), undefined, "triple P1 must not have transformer");
+  assert.equal(findEq(combinedP1Ht, "transformer_turns"), undefined, "combined must not have turns ratio");
+});
+
+test("generateBatch — transformer power form on combined Paper 1 HT", () => {
+  const { drafts, errors } = generateBatch(
+    {
+      equation: "transformer",
+      subject: "physics",
+      paper: "paper1",
+      tier: "higher",
+      seed: 11,
+      constants: { V_p: "230", I_p: "2", I_s: "10" },
+      variants: { recipes: [{ base: "substitute", count: 1 }] }
+    },
+    sheetP1
+  );
+  assert.equal(errors.length, 0, errors.map((e) => e.message).join("; "));
+  assert.equal(drafts.length, 1);
+  assert.ok(Math.abs(drafts[0].answer_key.key_payload.answer - 46) < 0.01);
+  assert.equal(drafts[0].answer_key.key_payload.unit, "V");
+  assert.ok(drafts[0].question.prompt.includes("secondary voltage"));
+});
+
+test("transformer_turns — evaluate and rearrange on triple HT", () => {
+  const sheetTripleHt = JSON.parse(
+    fs.readFileSync(path.join(__dirname, "..", "data", "equation_sheets", "triple_physics_p2_ht.json"), "utf8")
+  );
+  const eq = findEq(sheetTripleHt, "transformer_turns");
+  assert.ok(eq?.substitution_template, "transformer_turns needs a substitution template");
+
+  const { answer, unit } = evaluateEquation(eq, { V_p: "230", n_p: "1000", n_s: "100" });
+  assert.equal(unit, "V");
+  assert.ok(Math.abs(answer - 23) < 0.01);
+
+  assert.ok(Math.abs(solveForSubject(eq, { V_s: "23", n_p: "1000", n_s: "100" }, "V_p") - 230) < 0.01);
+  assert.ok(Math.abs(solveForSubject(eq, { V_p: "230", V_s: "23", n_s: "100" }, "n_p") - 1000) < 0.01);
+  assert.ok(Math.abs(solveForSubject(eq, { V_p: "230", V_s: "23", n_p: "1000" }, "n_s") - 100) < 0.01);
+});
+
+test("generateBatch — transformer_turns on triple Physics HT only", () => {
+  const sheetTripleHt = JSON.parse(
+    fs.readFileSync(path.join(__dirname, "..", "data", "equation_sheets", "triple_physics_p2_ht.json"), "utf8")
+  );
+  assert.equal(findEq(sheetP2, "transformer_turns"), undefined, "combined must not have turns ratio");
+
+  const { drafts, errors } = generateBatch(
+    {
+      equation: "transformer_turns",
+      subject: "physics",
+      paper: "paper2",
+      tier: "higher",
+      courseTrack: "triple",
+      seed: 21,
+      variants: { recipes: [{ base: "recall", count: 1 }] }
+    },
+    sheetTripleHt
+  );
+  assert.equal(errors.length, 0, errors.map((e) => e.message).join("; "));
+  assert.equal(drafts.length, 1);
+  assert.equal(drafts[0].answer_key.key_payload.unit, "V");
+  assert.ok(drafts[0].question.prompt.toLowerCase().includes("turns"));
+});
+
+test("generateBatch — transformer_turns rearrangement for n_s", () => {
+  const sheetTripleHt = JSON.parse(
+    fs.readFileSync(path.join(__dirname, "..", "data", "equation_sheets", "triple_physics_p2_ht.json"), "utf8")
+  );
+  const { drafts, errors } = generateBatch(
+    {
+      equation: "transformer_turns",
+      subject: "physics",
+      paper: "paper2",
+      tier: "higher",
+      courseTrack: "triple",
+      seed: 33,
+      rearrangement_subject: "n_s",
+      variants: { recipes: [{ base: "recall", rearrangement: true, count: 1 }] }
+    },
+    sheetTripleHt
+  );
+  assert.equal(errors.length, 0, errors.map((e) => e.message).join("; "));
+  assert.equal(drafts.length, 1);
+  assert.equal(drafts[0].answer_key.key_payload.unit, "turns");
+  const rearr = drafts[0].question.calculation_config.steps.find((s) => s.type === "rearrangement");
+  assert.ok(rearr);
+  assert.equal(rearr.subject, "n_s");
+});

@@ -41,12 +41,23 @@ export function normalizeKeyScientificPoints(raw) {
     list = raw;
   } else if (typeof raw === "string") {
     list = raw.split(/\r?\n|;/).map((s) => s.replace(/^\s*[-•*\d.)]+\s*/, ""));
+  } else if (raw && typeof raw === "object") {
+    // Rare model shape: { points: [...] } or similar
+    if (Array.isArray(raw.points)) list = raw.points;
+    else if (Array.isArray(raw.items)) list = raw.items;
   }
   const out = [];
   const seen = new Set();
   for (const item of list) {
-    const text = String(item || "").trim();
-    if (!text) continue;
+    let text = "";
+    if (typeof item === "string") {
+      text = item.trim();
+    } else if (item && typeof item === "object") {
+      text = String(item.text || item.point || item.content || item.description || "").trim();
+    } else if (item != null) {
+      text = String(item).trim();
+    }
+    if (!text || text === "[object Object]") continue;
     const key = text.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
@@ -54,6 +65,29 @@ export function normalizeKeyScientificPoints(raw) {
     if (out.length >= 8) break;
   }
   return out;
+}
+
+/**
+ * Pull key scientific points from varied AI payload shapes
+ * (top-level, nested rubric, camelCase, or newline string).
+ */
+export function extractKeyScientificPoints(raw) {
+  if (!raw || typeof raw !== "object") return [];
+  const candidates = [
+    raw.key_scientific_points,
+    raw.keyScientificPoints,
+    raw.scientific_points,
+    raw.scientificPoints,
+    raw.checklist_points,
+    raw.answer_key?.key_payload?.key_scientific_points,
+    raw.rubric?.key_scientific_points,
+    raw.key_payload?.key_scientific_points
+  ];
+  for (const candidate of candidates) {
+    const points = normalizeKeyScientificPoints(candidate);
+    if (points.length) return points;
+  }
+  return [];
 }
 
 /** Return missing rubric fields used by AI marking and local fallback feedback. */
@@ -314,10 +348,7 @@ function normalizeExtendedQuestion(raw, context, demandLevel) {
   const ao1 = Number(raw?.ao1_marks ?? 0) || 0;
   const ao2 = Number(raw?.ao2_marks ?? Math.min(2, maxMarks)) || 0;
   const ao3 = Number(raw?.ao3_marks ?? Math.max(0, maxMarks - ao1 - ao2)) || 0;
-  const keyScientificPoints = normalizeKeyScientificPoints(
-    raw?.key_scientific_points
-    ?? raw?.answer_key?.key_payload?.key_scientific_points
-  );
+  const keyScientificPoints = extractKeyScientificPoints(raw);
 
   return {
     variant: {
@@ -764,10 +795,20 @@ export async function generateQuestionStudioBatch(supabaseClient, {
   });
 
   const drafts = (aiResult.drafts || []).map((d) => withDraftDifficulty(d, computeDifficulty));
+  const warnings = [...(aiResult.warnings || [])];
+  drafts.forEach((d, i) => {
+    if (d?.question?.question_type !== "extended_response") return;
+    const gaps = getExtendedResponseDetailGaps(d.answer_key?.key_payload, d.question.max_marks);
+    if (gaps.includes("key scientific points")) {
+      warnings.push(
+        `Draft ${i + 1}: AI left key scientific points empty — fill the local feedback checklist before commit`
+      );
+    }
+  });
 
   return {
     drafts,
-    warnings: aiResult.warnings || [],
+    warnings,
     model: aiResult.model,
     appended: gapFill
   };

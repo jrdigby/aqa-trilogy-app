@@ -1794,9 +1794,9 @@
       "label": "Transformer",
       "latex": "V_p I_p = V_s I_s",
       "topic_tags": [
-        "magnetism"
+        "electricity"
       ],
-      "paper": "paper2",
+      "paper": "paper1",
       "ht_only": true,
       "substitution_template": {
         "layout": "fraction",

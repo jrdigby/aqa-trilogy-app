@@ -1,5 +1,5 @@
 {
-  "_skip_ids": ["magnification", "pv_constant", "transformer_turns"],
+  "_skip_ids": ["magnification", "pv_constant"],
   "templates": {
     "charge": {
       "substitution_template": {
@@ -378,6 +378,26 @@
           { "subject": "V_p", "correct": "V_p = V_s × I_s / I_p", "distractor_patterns": ["invert_fraction", "multiply_instead"] },
           { "subject": "I_p", "correct": "I_p = V_s × I_s / V_p", "distractor_patterns": ["invert_fraction", "multiply_instead"] },
           { "subject": "I_s", "correct": "I_s = V_p × I_p / V_s", "distractor_patterns": ["invert_fraction", "multiply_instead"] }
+        ]
+      }
+    },
+    "transformer_turns": {
+      "substitution_template": {
+        "layout": "fraction",
+        "lhs": [{ "kind": "slot", "id": "V_s", "label": "V_s" }],
+        "numerator": [
+          { "kind": "slot", "id": "V_p", "label": "V_p" },
+          { "kind": "op", "text": "×" },
+          { "kind": "slot", "id": "n_s", "label": "n_s" }
+        ],
+        "denominator": [{ "kind": "slot", "id": "n_p", "label": "n_p" }]
+      },
+      "rearrangement_forms": {
+        "default_subject": "n_s",
+        "variants": [
+          { "subject": "V_p", "correct": "V_p = V_s × n_p / n_s", "distractor_patterns": ["invert_fraction", "multiply_instead"] },
+          { "subject": "n_p", "correct": "n_p = V_p × n_s / V_s", "distractor_patterns": ["invert_fraction", "multiply_instead"] },
+          { "subject": "n_s", "correct": "n_s = V_s × n_p / V_p", "distractor_patterns": ["invert_fraction", "multiply_instead"] }
         ]
       }
     },

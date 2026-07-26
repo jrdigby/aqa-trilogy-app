@@ -45,6 +45,7 @@ const EQUATION_UNITS = {
   pressure_column: "Pa",
   specific_heat_capacity: "J",
   transformer: "V",
+  transformer_turns: "V",
   density: "kg/m³",
   acceleration: "m/s²",
   period: "s",
@@ -93,6 +94,8 @@ const SUBJECT_UNITS = {
   V_s: "V",
   I_p: "A",
   I_s: "A",
+  n_p: "turns",
+  n_s: "turns",
   vol: "m³"
 };
 
@@ -136,7 +139,9 @@ const SLOT_PROMPT_LABELS = {
   V_p: "primary potential difference",
   V_s: "secondary potential difference",
   I_p: "primary current",
-  I_s: "secondary current"
+  I_s: "secondary current",
+  n_p: "number of turns on the primary coil",
+  n_s: "number of turns on the secondary coil"
 };
 
 /** Per-equation overrides when a slot id means different quantities (e.g. W = weight vs work). */
@@ -204,7 +209,9 @@ const DEFAULT_SLOT_RANGES = {
   V_p: { min: 100, max: 25000, step: 100 },
   V_s: { min: 5, max: 240, step: 1 },
   I_p: { min: 0.01, max: 5, step: 0.01 },
-  I_s: { min: 0.1, max: 50, step: 0.1 }
+  I_s: { min: 0.1, max: 50, step: 0.1 },
+  n_p: { min: 100, max: 2000, step: 50 },
+  n_s: { min: 20, max: 1000, step: 20 }
 };
 
 const EFFICIENCY_EQUATION_IDS = new Set(["efficiency_energy", "efficiency_power"]);
@@ -263,6 +270,8 @@ const PROMPT_TEMPLATES = {
   density: "Calculate the density of a substance of mass {m} kg and volume {V} m³.",
   transformer:
     "A transformer has primary voltage {V_p} V, primary current {I_p} A, and secondary current {I_s} A. Calculate the secondary voltage.",
+  transformer_turns:
+    "A transformer has primary voltage {V_p} V, {n_p} turns on the primary coil and {n_s} turns on the secondary coil. Calculate the secondary voltage.",
   wave_speed: "A wave has frequency {f} Hz and wavelength {lambda} m. Calculate the wave speed.",
   gravitational_potential_energy:
     "Calculate the gravitational potential energy of a {m} kg object raised {h} m. Use a gravitational field strength of {g} N/kg.",
@@ -303,11 +312,11 @@ const CONVERSION_CATALOG = [
   { slotPattern: /^m$/, fromUnit: "t", toUnit: "kg", factor: 1000 },
   { slotPattern: /^t$|^T$/, fromUnit: "min", toUnit: "s", factor: 60 },
   { slotPattern: /^t$|^T$/, fromUnit: "ms", toUnit: "s", factor: 0.001 },
-  { slotPattern: /^I$/, fromUnit: "mA", toUnit: "A", factor: 0.001 },
-  { slotPattern: /^I$/, fromUnit: "µA", toUnit: "A", factor: 1e-6 },
-  { slotPattern: /^I$/, fromUnit: "uA", toUnit: "A", factor: 1e-6 },
-  { slotPattern: /^V$/, fromUnit: "mV", toUnit: "V", factor: 0.001 },
-  { slotPattern: /^V$/, fromUnit: "kV", toUnit: "V", factor: 1000 },
+  { slotPattern: /^I$|^I_p$|^I_s$/, fromUnit: "mA", toUnit: "A", factor: 0.001 },
+  { slotPattern: /^I$|^I_p$|^I_s$/, fromUnit: "µA", toUnit: "A", factor: 1e-6 },
+  { slotPattern: /^I$|^I_p$|^I_s$/, fromUnit: "uA", toUnit: "A", factor: 1e-6 },
+  { slotPattern: /^V$|^V_p$|^V_s$/, fromUnit: "mV", toUnit: "V", factor: 0.001 },
+  { slotPattern: /^V$|^V_p$|^V_s$/, fromUnit: "kV", toUnit: "V", factor: 1000 },
   // Density (and other volume slots): V means m³, not volts — matched via toUnit === SI unit.
   { slotPattern: /^V$|^vol$/, fromUnit: "cm³", toUnit: "m³", factor: 1e-6 },
   { slotPattern: /^P$|^P_useful$|^P_in$/, fromUnit: "kW", toUnit: "W", factor: 1000 },
@@ -638,6 +647,26 @@ export function solveForSubject(equation, slots, subject) {
     }
   }
 
+  if (equation.id === "transformer_turns") {
+    const Vp = val("V_p");
+    const Vs = val("V_s");
+    const np = val("n_p");
+    const ns = val("n_s");
+    // V_p / V_s = n_p / n_s  →  V_p × n_s = V_s × n_p
+    if (subject === "V_s" && Number.isFinite(Vp) && Number.isFinite(ns) && Number.isFinite(np) && np !== 0) {
+      return (Vp * ns) / np;
+    }
+    if (subject === "V_p" && Number.isFinite(Vs) && Number.isFinite(np) && Number.isFinite(ns) && ns !== 0) {
+      return (Vs * np) / ns;
+    }
+    if (subject === "n_p" && Number.isFinite(Vp) && Number.isFinite(ns) && Number.isFinite(Vs) && Vs !== 0) {
+      return (Vp * ns) / Vs;
+    }
+    if (subject === "n_s" && Number.isFinite(Vs) && Number.isFinite(np) && Number.isFinite(Vp) && Vp !== 0) {
+      return (Vs * np) / Vp;
+    }
+  }
+
   if (template.layout === "product") {
     const ids = getSlotIdsFromTemplate(template).filter((id) => id !== resultSlot);
     let res = val(resultSlot);
@@ -843,6 +872,111 @@ function generateSuvatSlotBundle(subject, ranges = {}, constants = {}, rng = Mat
   throw new Error(`Could not generate GCSE-friendly suvat values for subject "${target}"`);
 }
 
+/**
+ * Generate GCSE-friendly transformer turns-ratio values (integer turns; voltage integer or 1 d.p.).
+ * subject null → solving for secondary voltage V_s (default result).
+ */
+function generateTransformerTurnsSlotBundle(subject, ranges = {}, constants = {}, rng = Math.random) {
+  const pickInt = (id, lo, hi) => {
+    if (constants[id] != null) return Math.round(Number(constants[id]));
+    const range = ranges[id] || DEFAULT_SLOT_RANGES[id];
+    const min = Math.max(lo, Math.ceil(range?.min ?? lo));
+    const max = Math.min(hi, Math.floor(range?.max ?? hi));
+    if (max < min) return min;
+    return min + Math.floor(rng() * (max - min + 1));
+  };
+
+  const formatTurns = (n) => String(Math.round(n));
+  const formatVoltage = (n) => {
+    const rounded = Math.round(n * 10) / 10;
+    return Number.isInteger(rounded) ? String(rounded) : String(rounded);
+  };
+
+  const target = subject || "V_s";
+  const MAX = 80;
+
+  for (let attempt = 0; attempt < MAX; attempt++) {
+    // Simple integer ratios: 2:1, 5:1, 10:1, 4:1, 5:2, etc.
+    const ratioChoices = [
+      [2, 1],
+      [5, 1],
+      [10, 1],
+      [4, 1],
+      [5, 2],
+      [3, 1],
+      [20, 1],
+      [1, 2],
+      [1, 5],
+      [2, 5]
+    ];
+    const [rp, rs] = ratioChoices[Math.floor(rng() * ratioChoices.length)];
+    const scale = 50 * (1 + Math.floor(rng() * 8)); // 50…400
+    let n_p = rp * scale;
+    let n_s = rs * scale;
+
+    if (constants.n_p != null) n_p = Math.round(Number(constants.n_p));
+    if (constants.n_s != null) n_s = Math.round(Number(constants.n_s));
+
+    let V_p;
+    let V_s;
+
+    if (target === "V_s" || target === "n_s" || target === "n_p") {
+      V_p = pickInt("V_p", 12, 24000);
+      // Prefer voltages that divide cleanly by the ratio
+      if (V_p % rp === 0 || rs === 1) {
+        V_s = (V_p * n_s) / n_p;
+      } else {
+        V_p = Math.round(V_p / rp) * rp;
+        if (V_p <= 0) continue;
+        V_s = (V_p * n_s) / n_p;
+      }
+    } else if (target === "V_p") {
+      V_s = pickInt("V_s", 6, 240);
+      V_p = (V_s * n_p) / n_s;
+    } else {
+      V_p = pickInt("V_p", 12, 24000);
+      V_s = (V_p * n_s) / n_p;
+    }
+
+    if (constants.V_p != null) V_p = Number(constants.V_p);
+    if (constants.V_s != null) V_s = Number(constants.V_s);
+
+    const unknown =
+      target === "V_s" ? V_s
+        : target === "V_p" ? V_p
+          : target === "n_p" ? n_p
+            : n_s;
+
+    if (target === "n_p" || target === "n_s") {
+      if (!Number.isInteger(unknown) || unknown <= 0) continue;
+    } else if (!isSuvatNice(unknown) || unknown <= 0) {
+      continue;
+    }
+
+    const slots = {
+      V_p: formatVoltage(V_p),
+      V_s: formatVoltage(V_s),
+      n_p: formatTurns(n_p),
+      n_s: formatTurns(n_s)
+    };
+    const slot_answers = {};
+    for (const id of Object.keys(slots)) {
+      if (id === target) continue;
+      slot_answers[id] = [slots[id]];
+    }
+
+    return {
+      slots,
+      slot_answers,
+      answer: target === "n_p" || target === "n_s" ? Math.round(unknown) : Math.round(unknown * 10) / 10,
+      unit: getSubjectUnit({ id: "transformer_turns" }, target),
+      rearrangement_subject: subject || null
+    };
+  }
+
+  throw new Error(`Could not generate GCSE-friendly transformer turns values for subject "${target}"`);
+}
+
 export function generateSlotValues(equation, ranges = {}, constants = {}, rng = Math.random) {
   const template = getSubstitutionTemplate(equation);
   if (!template) {
@@ -851,6 +985,11 @@ export function generateSlotValues(equation, ranges = {}, constants = {}, rng = 
 
   if (equation.id === "suvat") {
     const bundle = generateSuvatSlotBundle(null, ranges, constants, rng);
+    return { slots: bundle.slots, slot_answers: bundle.slot_answers };
+  }
+
+  if (equation.id === "transformer_turns") {
+    const bundle = generateTransformerTurnsSlotBundle(null, ranges, constants, rng);
     return { slots: bundle.slots, slot_answers: bundle.slot_answers };
   }
 
@@ -885,6 +1024,17 @@ export function generateSlotValuesForRearrangement(
 
   if (equation.id === "suvat") {
     const bundle = generateSuvatSlotBundle(subject, ranges, constants, rng);
+    return {
+      slots: bundle.slots,
+      slot_answers: bundle.slot_answers,
+      answer: bundle.answer,
+      unit: bundle.unit,
+      rearrangement_subject: subject
+    };
+  }
+
+  if (equation.id === "transformer_turns") {
+    const bundle = generateTransformerTurnsSlotBundle(subject, ranges, constants, rng);
     return {
       slots: bundle.slots,
       slot_answers: bundle.slot_answers,

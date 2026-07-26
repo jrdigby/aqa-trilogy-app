@@ -158,11 +158,11 @@ function typeHintForRecipe(recipe) {
   }
   if (recipe.question_type === "extended_response") {
     const pointsHint =
-      "Provide key_scientific_points: 4–8 concise scientific content statements (checklist items a full-mark answer must cover). Use concrete science terms, not command words.";
+      "REQUIRED field key_scientific_points: a single string with 4–8 short scientific content statements, EACH ON ITS OWN LINE (use \\n between points). These are the local-feedback checklist items a full-mark answer must cover. Example value: \"Weight acts downwards from the centre of mass\\nNormal contact force acts upwards\\nForces are equal in size\". Use concrete science terms, not command words. Never leave this field blank.";
     const levelHint = marks === 6
       ? "Fill level_3_descriptor (top/full band, 5–6 marks), level_2_descriptor (mid band, 3–4 marks), and level_1_descriptor (limited, 1–2 marks)."
       : "For 4-mark: level_2_descriptor is the TOP/FULL-MARKS band (complete coherent answer worth 3–4 marks — not a partial answer). level_1_descriptor is limited/partial (1–2 marks). Set level_3_descriptor to \"N/A for 4-mark\".";
-    return `extended_response: max_marks ${marks}. Provide marking_guidelines, level descriptors, and key_scientific_points. ${levelHint} ${pointsHint} AO marks must sum to ${marks}.`;
+    return `extended_response: max_marks ${marks}. Provide key_scientific_points first, then marking_guidelines and level descriptors. ${pointsHint} ${levelHint} AO marks must sum to ${marks}.`;
   }
   return "mcq: exactly 4 options, one correct answer, three distractors based on common science misconceptions for the topic, option_feedback for each wrong option only (3 entries), max_marks 1, ao1=1. Wrong-option feedback max 12 words each.";
 }
@@ -336,13 +336,13 @@ const EXTENDED_RESPONSE_SCHEMA = {
     ao1_marks: { type: "INTEGER" },
     ao2_marks: { type: "INTEGER" },
     ao3_marks: { type: "INTEGER" },
-    marking_guidelines: { type: "STRING", maxLength: 1200 },
+    // Newline-separated STRING is more reliable than ARRAY for flash-lite structured output.
     key_scientific_points: {
-      type: "ARRAY",
-      minItems: 4,
-      maxItems: 8,
-      items: { type: "STRING", maxLength: 160 }
+      type: "STRING",
+      description: "4–8 concise scientific content statements for the local feedback checklist, each on its own line",
+      maxLength: 1200
     },
+    marking_guidelines: { type: "STRING", maxLength: 1200 },
     level_3_descriptor: { type: "STRING", maxLength: 600 },
     level_2_descriptor: { type: "STRING", maxLength: 600 },
     level_1_descriptor: { type: "STRING", maxLength: 600 }
@@ -350,13 +350,13 @@ const EXTENDED_RESPONSE_SCHEMA = {
   required: [
     "question_type", "demand_level", "command_word", "prompt", "max_marks",
     "ao1_marks", "ao2_marks", "ao3_marks",
-    "marking_guidelines", "key_scientific_points",
+    "key_scientific_points", "marking_guidelines",
     "level_3_descriptor", "level_2_descriptor", "level_1_descriptor"
   ],
   propertyOrdering: [
     "question_type", "demand_level", "command_word", "prompt", "max_marks",
     "ao1_marks", "ao2_marks", "ao3_marks",
-    "marking_guidelines", "key_scientific_points",
+    "key_scientific_points", "marking_guidelines",
     "level_3_descriptor", "level_2_descriptor", "level_1_descriptor"
   ]
 };
@@ -467,7 +467,7 @@ function formatRecipeWarning(index, recipe, err) {
   return `${label}: ${msg}`;
 }
 
-async function callGeminiOnce(prompt, model, timeoutMs, responseSchema, requestId, index, temperature = 0.4) {
+async function callGeminiOnce(prompt, model, timeoutMs, responseSchema, requestId, index, temperature = 0.4, maxOutputTokens = 4096) {
   const apiKey = Deno.env.get("GEMINI_API_KEY");
   if (!apiKey) throw new Error("GEMINI_API_KEY is not configured on the server");
 
@@ -479,6 +479,7 @@ async function callGeminiOnce(prompt, model, timeoutMs, responseSchema, requestI
       contents: [{ parts: [{ text: prompt }] }],
       generationConfig: {
         temperature,
+        maxOutputTokens,
         responseMimeType: "application/json",
         responseSchema,
         thinkingConfig: { thinkingBudget: 0 }
@@ -493,6 +494,7 @@ async function callGeminiOnce(prompt, model, timeoutMs, responseSchema, requestI
 
   const data = await res.json();
   const usage = data?.usageMetadata;
+  const finishReason = data?.candidates?.[0]?.finishReason || null;
   if (usage) {
     console.log(JSON.stringify({
       requestId,
@@ -501,26 +503,42 @@ async function callGeminiOnce(prompt, model, timeoutMs, responseSchema, requestI
       model,
       promptTokenCount: usage.promptTokenCount,
       candidatesTokenCount: usage.candidatesTokenCount,
-      totalTokenCount: usage.totalTokenCount
+      totalTokenCount: usage.totalTokenCount,
+      finishReason
     }));
   }
 
-  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+  const text = data?.candidates?.[0]?.content?.parts
+    ?.filter((p) => p?.text && !p.thought)
+    .map((p) => p.text)
+    .join("\n")
+    || data?.candidates?.[0]?.content?.parts?.[0]?.text;
   if (!text) throw new Error("Empty response from Gemini");
   return {
     parsed: extractJson(text),
     rawText: text,
-    usage: usage || null
+    usage: usage || null,
+    finishReason
   };
 }
 
 async function callGemini(prompt, model, timeoutMs, requestId, index, questionType, maxMarks, temperature = 0.4) {
   const responseSchema = schemaForQuestionType(questionType, maxMarks);
+  const maxOutputTokens = questionType === "extended_response" ? 8192 : 4096;
   let lastErr = null;
 
   for (let attempt = 0; attempt < RETRY_BACKOFF_MS.length; attempt++) {
     try {
-      return await callGeminiOnce(prompt, model, timeoutMs, responseSchema, requestId, index, temperature);
+      return await callGeminiOnce(
+        prompt,
+        model,
+        timeoutMs,
+        responseSchema,
+        requestId,
+        index,
+        temperature,
+        maxOutputTokens
+      );
     } catch (err) {
       lastErr = err;
       const retryable = isTimeoutError(err) || (err instanceof GeminiApiError && err.retryable);
@@ -556,6 +574,16 @@ async function generateOneQuestion(prompt, requestId, index, timeoutMs, question
     temperature
   }));
   return await callGemini(prompt, GEMINI_MODEL, timeoutMs, requestId, index, questionType, maxMarks, temperature);
+}
+
+function countScientificPoints(raw) {
+  if (Array.isArray(raw)) {
+    return raw.filter((p) => String(p || "").trim()).length;
+  }
+  if (typeof raw === "string" && raw.trim()) {
+    return raw.split(/\r?\n|;/).map((s) => s.replace(/^\s*[-•*\d.)]+\s*/, "").trim()).filter(Boolean).length;
+  }
+  return 0;
 }
 
 function stampRecipeOntoQuestion(question, recipe) {
@@ -620,7 +648,12 @@ async function generateQuestionsForRecipes(payload, recipes, requestId) {
       let question = null;
       let usedPrompt = "";
       let geminiMeta = null;
-      for (let diversityAttempt = 0; diversityAttempt < 2; diversityAttempt++) {
+      const maxAttempts = recipe.question_type === "extended_response" ? 3 : 2;
+      for (let diversityAttempt = 0; diversityAttempt < maxAttempts; diversityAttempt++) {
+        const forcePoints = recipe.question_type === "extended_response"
+          && diversityAttempt > 0
+          && question
+          && countScientificPoints(question.key_scientific_points) < 2;
         const prompt = buildSingleQuestionPrompt(payload, recipe, {
           batchIndex,
           sameTypeIndex,
@@ -628,8 +661,10 @@ async function generateQuestionsForRecipes(payload, recipes, requestId) {
           priorSameType,
           avoidSameType,
           focusOffset,
-          forceDistinct: diversityAttempt > 0
-        });
+          forceDistinct: diversityAttempt > 0 && !forcePoints
+        }) + (forcePoints
+          ? "\nCRITICAL RETRY: Your previous JSON left key_scientific_points empty. Fill key_scientific_points with 4–8 scientific checklist lines (newline-separated string) before any other rubric field."
+          : "");
         usedPrompt = prompt;
         const geminiResult = await generateOneQuestion(
           prompt,
@@ -642,16 +677,32 @@ async function generateQuestionsForRecipes(payload, recipes, requestId) {
         );
         geminiMeta = geminiResult;
         question = stampRecipeOntoQuestion(geminiResult.parsed, recipe);
-        if (!isNearDuplicateQuestion(question, allPrior)) break;
+
+        const pointsOk = recipe.question_type !== "extended_response"
+          || countScientificPoints(question.key_scientific_points) >= 2;
+        const distinctOk = !isNearDuplicateQuestion(question, allPrior);
+
+        if (pointsOk && distinctOk) break;
+
         console.warn(JSON.stringify({
           requestId,
-          event: "duplicate_detected",
+          event: pointsOk ? "duplicate_detected" : "missing_scientific_points",
           index: i + 1,
           attempt: diversityAttempt + 1,
-          prompt: question.prompt?.slice(0, 80)
+          pointCount: countScientificPoints(question.key_scientific_points),
+          prompt: question.prompt?.slice(0, 80),
+          finishReason: geminiMeta?.finishReason || null
         }));
-        if (diversityAttempt === 1) {
-          warnings.push(`Question ${i + 1} (${recipe.question_type} · ${recipe.demand_level}): may be similar to another in this batch — please review`);
+
+        if (diversityAttempt === maxAttempts - 1) {
+          if (!distinctOk) {
+            warnings.push(`Question ${i + 1} (${recipe.question_type} · ${recipe.demand_level}): may be similar to another in this batch — please review`);
+          }
+          if (!pointsOk) {
+            warnings.push(
+              `Question ${i + 1} (extended_response · ${recipe.demand_level}): missing key_scientific_points — fill the local feedback checklist before commit`
+            );
+          }
         }
       }
 
@@ -664,6 +715,7 @@ async function generateQuestionsForRecipes(payload, recipes, requestId) {
           model: GEMINI_MODEL,
           request_id: requestId,
           usage: geminiMeta?.usage || null,
+          finish_reason: geminiMeta?.finishReason || null,
           original_prompt: question?.prompt || null,
           input_meta: {
             question_type: recipe.question_type,
@@ -684,6 +736,7 @@ async function generateQuestionsForRecipes(payload, recipes, requestId) {
         event: "recipe_done",
         index: i + 1,
         total: recipes.length,
+        pointCount: countScientificPoints(question?.key_scientific_points),
         elapsedMs: Date.now() - startedAt
       }));
     } catch (err) {

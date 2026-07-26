@@ -1061,7 +1061,69 @@
       "id": "transformer_turns",
       "topic_tags": [
         "magnetism"
-      ]
+      ],
+      "substitution_template": {
+        "layout": "fraction",
+        "lhs": [
+          {
+            "kind": "slot",
+            "id": "V_s",
+            "label": "V_s"
+          }
+        ],
+        "numerator": [
+          {
+            "kind": "slot",
+            "id": "V_p",
+            "label": "V_p"
+          },
+          {
+            "kind": "op",
+            "text": "×"
+          },
+          {
+            "kind": "slot",
+            "id": "n_s",
+            "label": "n_s"
+          }
+        ],
+        "denominator": [
+          {
+            "kind": "slot",
+            "id": "n_p",
+            "label": "n_p"
+          }
+        ]
+      },
+      "rearrangement_forms": {
+        "default_subject": "n_s",
+        "variants": [
+          {
+            "subject": "V_p",
+            "correct": "V_p = V_s × n_p / n_s",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          },
+          {
+            "subject": "n_p",
+            "correct": "n_p = V_p × n_s / V_s",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          },
+          {
+            "subject": "n_s",
+            "correct": "n_s = V_s × n_p / V_p",
+            "distractor_patterns": [
+              "invert_fraction",
+              "multiply_instead"
+            ]
+          }
+        ]
+      }
     },
     {
       "label": "Pressure x volume (gases)",

@@ -90,11 +90,11 @@ function typeHintForRecipe(recipe) {
   }
   if (recipe.question_type === "extended_response") {
     const pointsHint =
-      "Provide key_scientific_points: 4–8 concise scientific content statements (checklist items a full-mark answer must cover). Use concrete science terms, not command words.";
+      "REQUIRED field key_scientific_points: a single string with 4–8 short scientific content statements, EACH ON ITS OWN LINE (use \\n between points). These are the local-feedback checklist items a full-mark answer must cover. Example value: \"Weight acts downwards from the centre of mass\\nNormal contact force acts upwards\\nForces are equal in size\". Use concrete science terms, not command words. Never leave this field blank.";
     const levelHint = marks === 6
       ? "Fill level_3_descriptor (top/full band, 5–6 marks), level_2_descriptor (mid band, 3–4 marks), and level_1_descriptor (limited, 1–2 marks)."
       : "For 4-mark: level_2_descriptor is the TOP/FULL-MARKS band (complete coherent answer worth 3–4 marks — not a partial answer). level_1_descriptor is limited/partial (1–2 marks). Set level_3_descriptor to \"N/A for 4-mark\".";
-    return `extended_response: max_marks ${marks}. Provide marking_guidelines, level descriptors, and key_scientific_points. ${levelHint} ${pointsHint} AO marks must sum to ${marks}.`;
+    return `extended_response: max_marks ${marks}. Provide key_scientific_points first, then marking_guidelines and level descriptors. ${pointsHint} ${levelHint} AO marks must sum to ${marks}.`;
   }
   return "mcq: exactly 4 options, one correct answer, three distractors based on common science misconceptions for the topic, option_feedback for each wrong option only (3 entries), max_marks 1, ao1=1. Wrong-option feedback max 12 words each.";
 }
@@ -271,13 +271,13 @@ export const EXTENDED_RESPONSE_SCHEMA = {
     ao1_marks: { type: "INTEGER" },
     ao2_marks: { type: "INTEGER" },
     ao3_marks: { type: "INTEGER" },
-    marking_guidelines: { type: "STRING", maxLength: 1200 },
+    // Newline-separated STRING is more reliable than ARRAY for flash-lite structured output.
     key_scientific_points: {
-      type: "ARRAY",
-      minItems: 4,
-      maxItems: 8,
-      items: { type: "STRING", maxLength: 160 }
+      type: "STRING",
+      description: "4–8 concise scientific content statements for the local feedback checklist, each on its own line",
+      maxLength: 1200
     },
+    marking_guidelines: { type: "STRING", maxLength: 1200 },
     level_3_descriptor: { type: "STRING", maxLength: 600 },
     level_2_descriptor: { type: "STRING", maxLength: 600 },
     level_1_descriptor: { type: "STRING", maxLength: 600 }
@@ -285,13 +285,13 @@ export const EXTENDED_RESPONSE_SCHEMA = {
   required: [
     "question_type", "demand_level", "command_word", "prompt", "max_marks",
     "ao1_marks", "ao2_marks", "ao3_marks",
-    "marking_guidelines", "key_scientific_points",
+    "key_scientific_points", "marking_guidelines",
     "level_3_descriptor", "level_2_descriptor", "level_1_descriptor"
   ],
   propertyOrdering: [
     "question_type", "demand_level", "command_word", "prompt", "max_marks",
     "ao1_marks", "ao2_marks", "ao3_marks",
-    "marking_guidelines", "key_scientific_points",
+    "key_scientific_points", "marking_guidelines",
     "level_3_descriptor", "level_2_descriptor", "level_1_descriptor"
   ]
 };
