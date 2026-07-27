@@ -15,7 +15,7 @@ import {
 import { triggerMathTypeset } from './mathEngine.js';
 import { checkKeywordOrSynonymsMatch, updateSRS, computeSessionQuality, getAQACommandWordHelper, isFuzzyMatch, computeQuestionAOMaxCaps, flashcardInsightFromMissing } from './evalEngine.js';
 import { escapeHtml, shuffleArray, todayISO, addDaysISO, resolveAppUrl } from './utils.js';
-import { supabaseClient, timeoutPromise, fetchDashboardDueItems, fetchConceptGapAttempts, fetchWeeklyForecastSchedules, fetchSyllabusPipelineData, fetchAttemptActivity, fetchUserProfile, fetchUserClassLicense, fetchPlanQuotas, tryConsumeAiMark, tryConsumeHalfPaper, stashAuthSession, clearAuthGraceSession, endAuthGracePeriod, isAuthGraceActive, incrementUserXp } from './dbClient.js';
+import { supabaseClient, timeoutPromise, fetchDashboardDueItems, fetchConceptGapAttempts, fetchWeeklyForecastSchedules, fetchSyllabusPipelineData, fetchAttemptActivity, fetchUserProfile, fetchUserClassLicense, fetchPlanQuotas, tryConsumeAiMark, tryConsumeHalfPaper, stashAuthSession, clearAuthGraceSession, endAuthGracePeriod, isAuthGraceActive, incrementUserXp, claimXpMilestone, consumeStreakFreeze, fetchDominantSubject, patchUserProfile } from './dbClient.js';
 import dbClient from "./dbClient.js";
 import {
   saveOnboardingProfile,
@@ -57,6 +57,23 @@ import {
   FREE_HALF_PAPERS_PER_MONTH,
 } from './featureAccess.js';
 import { computeAttemptXp, formatXpToastMessage, XP_RULES_FOOTNOTE, XP_RULES_TOAST_KEY } from './xpEngine.js';
+import {
+  getLevelFromXp,
+  getLevelProgress,
+  checkMilestones,
+  getMilestoneCelebrationMessage,
+  normalizeXpRewards,
+  resolveDominantSubject,
+  getJourneyStateFromRewards,
+  mergeJourneyIntoRewards
+} from './xpProgression.js';
+import { renderJourneyPanel, wireJourneyInteractions } from './journeyMap.js';
+import { getScientistForLocation, formatLocationLabel } from './journeyScientists.js';
+import {
+  selectDestination,
+  applyTravelProgress,
+  getWorldProgress
+} from './journeyLocations.js';
 import { loadCalculationWorkflow } from './lazyCalculationWorkflow.js';
 
 console.log("APP VERSION", "v-" + Date.now());
@@ -136,13 +153,15 @@ let lastActivityContext = null;
 const tabPractice = el("tabPractice");
 const tabAnalytics = el("tabAnalytics");
 const tabFlashcards = el("tabFlashcards");
+const tabJourney = el("tabJourney");
 const panelPractice = el("dashboardTabPractice");
 const panelAnalytics = el("dashboardTabAnalytics");
 const panelFlashcards = el("dashboardTabFlashcards");
+const panelJourney = el("dashboardTabJourney");
 const panelSettings = el("dashboardTabSettings");
 const dashboardTabs = document.querySelector(".dashboard-tabs");
 const DASHBOARD_TAB_KEY = "dashboard_active_tab";
-const DASHBOARD_TABS = ["practice", "analytics", "flashcards"];
+const DASHBOARD_TABS = ["practice", "analytics", "flashcards", "journey"];
 let activeDashboardTab = "practice";
 const flashcardSelectedIds = new Set();
 let flashcardSelectionMode = false;
@@ -171,6 +190,7 @@ function switchDashboardTab(tab, { loadData = true } = {}) {
   if (panelPractice) panelPractice.classList.toggle("hidden", active !== "practice");
   if (panelAnalytics) panelAnalytics.classList.toggle("hidden", active !== "analytics");
   if (panelFlashcards) panelFlashcards.classList.toggle("hidden", active !== "flashcards");
+  if (panelJourney) panelJourney.classList.toggle("hidden", active !== "journey");
   mountFiltersForTab(active);
   const schedulePracticeBlock = document.querySelector(".schedule-practice-block");
   if (schedulePracticeBlock) {
@@ -191,9 +211,13 @@ function switchDashboardTab(tab, { loadData = true } = {}) {
     tabFlashcards.classList.toggle("active", active === "flashcards");
     tabFlashcards.setAttribute("aria-selected", active === "flashcards" ? "true" : "false");
   }
+  if (tabJourney) {
+    tabJourney.classList.toggle("active", active === "journey");
+    tabJourney.setAttribute("aria-selected", active === "journey" ? "true" : "false");
+  }
   const typeFilterGroup = el("typeFilterGroup");
   if (typeFilterGroup) {
-    typeFilterGroup.classList.toggle("hidden", active === "flashcards");
+    typeFilterGroup.classList.toggle("hidden", active === "flashcards" || active === "journey");
   }
   try {
     localStorage.setItem(DASHBOARD_TAB_KEY, active);
@@ -208,6 +232,9 @@ function switchDashboardTab(tab, { loadData = true } = {}) {
   if (active === "analytics") {
     updateFreeAnalyticsSummary();
   }
+  if (active === "journey") {
+    mountJourneyPanel();
+  }
   requestAnimationFrame(() => autoSizeFilterSelects());
 }
 
@@ -219,6 +246,7 @@ function openSettings() {
   if (panelPractice) panelPractice.classList.add("hidden");
   if (panelAnalytics) panelAnalytics.classList.add("hidden");
   if (panelFlashcards) panelFlashcards.classList.add("hidden");
+  if (panelJourney) panelJourney.classList.add("hidden");
   if (panelSettings) panelSettings.classList.remove("hidden");
 
   const schedulePracticeBlock = document.querySelector(".schedule-practice-block");
@@ -244,6 +272,7 @@ function closeSettings(returnTab = tabBeforeSettings) {
 if (tabPractice) tabPractice.onclick = () => switchDashboardTab("practice");
 if (tabAnalytics) tabAnalytics.onclick = () => switchDashboardTab("analytics");
 if (tabFlashcards) tabFlashcards.onclick = () => switchDashboardTab("flashcards");
+if (tabJourney) tabJourney.onclick = () => switchDashboardTab("journey");
 if (btnOpenSettings) {
   btnOpenSettings.onclick = () => {
     if (settingsOpen) closeSettings(tabBeforeSettings);
@@ -273,6 +302,8 @@ let currentUser = null;
 let sessionQuestions = [];
 let sessionQualityLog = [];
 let sessionAttemptLog = [];
+let sessionXpEarned = 0;
+let cachedDominantSubject = null;
 let sessionMode = null;
 let sessionSpecPointId = null;
 let sessionSkillCode = null;
@@ -820,7 +851,12 @@ async function loadDashboard(user = currentUser) {
       currentUserProfile = await fetchUserProfile(userId);
     }
     await refreshPlanState();
+    await refreshDominantSubject(true);
     updateXpDisplay(currentUserProfile?.total_xp ?? 0);
+    updateStreakFreezeDisplay();
+    if (activeDashboardTab === "journey") {
+      mountJourneyPanel();
+    }
     updateSciencePathChip();
     scheduleResult = await ensureScheduleReady(userId, currentUserProfile);
   } catch (seedErr) {
@@ -1674,6 +1710,8 @@ const engineContext = {
     idx = index;
     sessionQualityLog = [];
     sessionAttemptLog = [];
+    sessionXpEarned = 0;
+    updateSessionXpDisplay();
     sessionMode = config.mode || null;
     sessionSpecPointId = config.specPointId || null;
     sessionSkillCode = config.skillCode || null;
@@ -1833,12 +1871,186 @@ function logSessionAttempt({ questionId, questionType, specPointId, specPoint, s
 }
 
 function updateXpDisplay(totalXp) {
+  const xp = Math.max(0, Number(totalXp) || 0);
   const xpEl = el("xpTotal");
-  if (xpEl) xpEl.textContent = String(totalXp ?? 0);
+  const levelEl = el("xpLevel");
+  const barFill = el("xpLevelBarFill");
+  const levelKmEl = el("freeAnalyticsLevel");
+  const journeyKmEl = el("freeAnalyticsKm");
+
+  if (xpEl) xpEl.textContent = String(xp);
+
+  const progress = getLevelProgress(xp);
+
+  if (levelEl) levelEl.textContent = `Lv ${progress.level}`;
+  if (barFill) barFill.style.width = `${progress.progressPct}%`;
+  if (levelKmEl) levelKmEl.textContent = `Lv ${progress.level}`;
+  const travelled = getJourneyStateFromRewards(currentUserProfile?.xp_rewards).distance_travelled;
+  if (journeyKmEl) journeyKmEl.textContent = `${travelled.toLocaleString("en-GB")} km`;
+}
+
+function updateSessionXpDisplay() {
+  const chip = el("sessionXpChip");
+  if (!chip) return;
+  const km = sessionXpEarned;
+  chip.textContent = km > 0 ? `+${km} XP · ${km} km` : "";
+  chip.classList.toggle("hidden", km <= 0);
+}
+
+function updateStreakFreezeDisplay() {
+  const badge = el("streakFreezeBadge");
+  if (!badge) return;
+  const tokens = normalizeXpRewards(currentUserProfile?.xp_rewards).streak_freeze_tokens;
+  if (tokens > 0) {
+    badge.textContent = `🧊 ×${tokens}`;
+    badge.classList.remove("hidden");
+  } else {
+    badge.textContent = "";
+    badge.classList.add("hidden");
+  }
+}
+
+function mountJourneyPanel() {
+  const mount = el("journeyMapMount");
+  if (!mount || !currentUserProfile) return;
+
+  const rewards = normalizeXpRewards(currentUserProfile.xp_rewards);
+  const journeyState = getJourneyStateFromRewards(rewards);
+  const dominantSubject = cachedDominantSubject || resolveDominantSubject(currentUserProfile);
+  const totalXp = currentUserProfile.total_xp ?? 0;
+  mount.innerHTML = renderJourneyPanel({
+    totalXp,
+    dominantSubject,
+    journeyState,
+    lapCount: rewards.lap_count
+  });
+  wireJourneyInteractions(mount, {
+    dominantSubject,
+    totalXp,
+    journeyState,
+    onSelectDestination: (locationId, opts = {}) => {
+      void handleJourneyDestinationSelect(locationId, opts);
+    }
+  });
+}
+
+async function persistJourneyRewards(nextRewards) {
+  if (!currentUser?.id) return;
+  try {
+    await patchUserProfile(currentUser.id, { xp_rewards: nextRewards });
+    if (currentUserProfile) currentUserProfile.xp_rewards = nextRewards;
+  } catch (err) {
+    console.warn("Could not persist journey state:", err?.message || err);
+  }
+}
+
+async function handleJourneyDestinationSelect(locationId, { replacePending = false } = {}) {
+  if (!currentUserProfile) return;
+  const rewards = normalizeXpRewards(currentUserProfile.xp_rewards);
+  const journeyState = getJourneyStateFromRewards(rewards);
+  const totalXp = currentUserProfile.total_xp ?? 0;
+  const result = selectDestination(journeyState, totalXp, locationId, { replacePending });
+
+  if (!result.ok) {
+    if (result.reason === "insufficient_xp") {
+      showToastBanner(
+        `Need ${result.shortfall?.toLocaleString("en-GB") || "more"} more XP km to reach that city.`,
+        true,
+        5000
+      );
+    } else if (result.reason === "in_transit") {
+      showToastBanner("Click a city and confirm to change your destination.", false, 4000);
+    } else if (result.reason === "same_destination") {
+      showToastBanner("You're already heading there.", false, 3000);
+    }
+    return;
+  }
+
+  const nextRewards = mergeJourneyIntoRewards(rewards, result.state);
+  nextRewards.countries_discovered = [...new Set([
+    ...(nextRewards.countries_discovered || []),
+    ...result.state.visited
+  ])];
+
+  await persistJourneyRewards(nextRewards);
+
+  const place = formatLocationLabel(result.destination);
+  const scientist = getScientistForLocation(result.destination.id);
+  if (result.arrived) {
+    showToastBanner(
+      `Arrived in ${place}! Meet ${scientist?.name || "a famous scientist"}.`,
+      false,
+      7000
+    );
+    await maybeCelebrateWorldProgress(result.state.distance_travelled, nextRewards);
+  } else if (result.changed) {
+    showToastBanner(
+      `Destination changed to ${place}. Flight progress restarted — keep practising to arrive!`,
+      false,
+      6000
+    );
+  } else {
+    showToastBanner(
+      `Departing for ${place} — ${result.progressKm?.toLocaleString("en-GB")} km underway. Keep practising to arrive!`,
+      false,
+      6000
+    );
+  }
+  mountJourneyPanel();
+}
+
+async function maybeCelebrateWorldProgress(distanceTravelled, rewards) {
+  const world = getWorldProgress(distanceTravelled);
+  const claimed = new Set(rewards.milestones_claimed || []);
+  if (world.halfComplete && !claimed.has("half_lap_0")) {
+    try {
+      const result = await claimXpMilestone("half_lap_0");
+      if (result?.xp_rewards && currentUserProfile) {
+        currentUserProfile.xp_rewards = normalizeXpRewards(result.xp_rewards);
+      }
+      showToastBanner("Halfway around the world!", false, 7000);
+    } catch (err) {
+      console.warn("Half-world milestone skipped:", err?.message || err);
+    }
+  }
+  if (world.fullComplete && !claimed.has("full_lap_0")) {
+    try {
+      const result = await claimXpMilestone("full_lap_0");
+      if (result?.xp_rewards && currentUserProfile) {
+        currentUserProfile.xp_rewards = normalizeXpRewards({
+          ...normalizeXpRewards(result.xp_rewards),
+          lap_count: (normalizeXpRewards(result.xp_rewards).lap_count || 0)
+        });
+      }
+      showToastBanner("You've travelled all the way around the world!", false, 8000);
+    } catch (err) {
+      console.warn("Full-world milestone skipped:", err?.message || err);
+    }
+  }
+}
+
+async function refreshDominantSubject(force = false) {
+  if (!currentUser?.id) return cachedDominantSubject;
+  if (cachedDominantSubject && !force) return cachedDominantSubject;
+  try {
+    const fetched = await fetchDominantSubject(currentUser.id);
+    cachedDominantSubject = fetched || resolveDominantSubject(currentUserProfile);
+  } catch (err) {
+    console.warn("Dominant subject fetch skipped:", err?.message || err);
+    cachedDominantSubject = resolveDominantSubject(currentUserProfile);
+  }
+  return cachedDominantSubject;
 }
 
 async function awardAttemptXp(xpEarned, hintsRevealed) {
   if (!currentUser || !xpEarned) return;
+
+  const oldXp = currentUserProfile?.total_xp ?? 0;
+  const oldLevel = getLevelFromXp(oldXp);
+  const rewards = normalizeXpRewards(currentUserProfile?.xp_rewards);
+
+  sessionXpEarned += xpEarned;
+  updateSessionXpDisplay();
 
   try {
     const newTotal = await incrementUserXp(xpEarned);
@@ -1846,6 +2058,67 @@ async function awardAttemptXp(xpEarned, hintsRevealed) {
       currentUserProfile.total_xp = newTotal;
     }
     updateXpDisplay(newTotal);
+
+    const dominantSubject = await refreshDominantSubject(oldLevel !== getLevelFromXp(newTotal));
+    const newLevel = getLevelFromXp(newTotal);
+
+    if (newLevel > oldLevel && newLevel > (rewards.last_level_seen || 1)) {
+      showToastBanner(`Level up! You're now level ${newLevel}`, false, 6000);
+      try {
+        await patchUserProfile(currentUser.id, {
+          xp_rewards: {
+            ...normalizeXpRewards(currentUserProfile?.xp_rewards),
+            last_level_seen: newLevel
+          }
+        });
+        if (currentUserProfile) {
+          currentUserProfile.xp_rewards = {
+            ...normalizeXpRewards(currentUserProfile.xp_rewards),
+            last_level_seen: newLevel
+          };
+        }
+      } catch (patchErr) {
+        console.warn("Could not persist last_level_seen:", patchErr?.message || patchErr);
+      }
+    }
+
+    const milestones = checkMilestones(oldXp, newTotal, rewards.milestones_claimed);
+    for (const milestone of milestones) {
+      try {
+        const result = await claimXpMilestone(milestone.id);
+        if (result?.xp_rewards && currentUserProfile) {
+          currentUserProfile.xp_rewards = normalizeXpRewards(result.xp_rewards);
+        }
+        showToastBanner(getMilestoneCelebrationMessage(milestone), false, 6000);
+      } catch (milestoneErr) {
+        console.warn("Milestone claim skipped:", milestoneErr?.message || milestoneErr);
+      }
+    }
+
+    // Advance pending flight with newly earned XP km
+    const journeyBefore = getJourneyStateFromRewards(currentUserProfile?.xp_rewards);
+    if (journeyBefore.pending_destination_id) {
+      const travel = applyTravelProgress(journeyBefore, xpEarned);
+      const nextRewards = mergeJourneyIntoRewards(
+        normalizeXpRewards(currentUserProfile?.xp_rewards),
+        travel.state
+      );
+      await persistJourneyRewards(nextRewards);
+      if (travel.arrived && travel.destination) {
+        const place = formatLocationLabel(travel.destination);
+        const scientist = getScientistForLocation(travel.destination.id, { dominantSubject });
+        showToastBanner(
+          `Arrived in ${place}! Meet ${scientist?.name || "a famous scientist"}.`,
+          false,
+          7000
+        );
+        await maybeCelebrateWorldProgress(travel.state.distance_travelled, nextRewards);
+      }
+    }
+
+    updateStreakFreezeDisplay();
+    if (activeDashboardTab === "journey") mountJourneyPanel();
+
     const includeRulesNote = !localStorage.getItem(XP_RULES_TOAST_KEY);
     const msg = formatXpToastMessage(xpEarned, hintsRevealed, { includeRulesNote });
     if (msg) {
@@ -1960,6 +2233,7 @@ async function exitSessionToDashboard() {
   sessionSkillCode = null;
   sessionQuestions = [];
   sessionAttemptLog = [];
+  sessionXpEarned = 0;
   sessionQualityLog = [];
   idx = 0;
 
@@ -2146,7 +2420,12 @@ async function showSessionSummary() {
     summaryContent.innerHTML =
       skillBanner +
       flashcardBanner +
-      renderSessionCompleteSummary(getSessionSummaryMeta(), sessionAttemptLog) +
+      renderSessionCompleteSummary(
+        getSessionSummaryMeta(),
+        sessionAttemptLog,
+        currentUserProfile?.total_xp ?? 0,
+        getJourneyStateFromRewards(currentUserProfile?.xp_rewards)
+      ) +
       examFeedback +
       (isPracticeMode ? `<div id="sessionAdaptiveFeedback"></div>${renderSelfRatingPrompt()}` : "");
   }
@@ -2473,8 +2752,27 @@ async function checkAndUpdateStreak(user = currentUser) {
 
       if (daysDiff === 1) {
         currentStreak += 1;
-      } else {
-        currentStreak = 1;
+      } else if (daysDiff > 1) {
+        const tokens = normalizeXpRewards(currentUserProfile?.xp_rewards).streak_freeze_tokens;
+        if (tokens > 0) {
+          try {
+            const result = await consumeStreakFreeze();
+            if (result?.consumed) {
+              if (result.xp_rewards && currentUserProfile) {
+                currentUserProfile.xp_rewards = normalizeXpRewards(result.xp_rewards);
+              }
+              updateStreakFreezeDisplay();
+              showToastBanner("Streak saved! 1 freeze used.", false, 5000);
+            } else {
+              currentStreak = 1;
+            }
+          } catch (freezeErr) {
+            console.warn("Streak freeze unavailable:", freezeErr?.message || freezeErr);
+            currentStreak = 1;
+          }
+        } else {
+          currentStreak = 1;
+        }
       }
 
       await supabaseClient
@@ -2710,6 +3008,7 @@ function setSignedOutUI() {
   if (sessionSection) sessionSection.classList.add("hidden");
 
   currentUserProfile = null;
+  cachedDominantSubject = null;
   currentAccess = resolveAccess(null);
   planQuotas = {
     is_pro: false,
@@ -2763,9 +3062,15 @@ function updateFreeAnalyticsSummary() {
   const streakEl = el("freeAnalyticsStreak");
   const dueEl = el("freeAnalyticsDue");
   const xpEl = el("freeAnalyticsXp");
+  const levelEl = el("freeAnalyticsLevel");
+  const kmEl = el("freeAnalyticsKm");
   if (streakEl) streakEl.textContent = String(el("streakCount")?.textContent || "0");
   if (dueEl) dueEl.textContent = String(el("dueCount")?.textContent || "0");
   if (xpEl) xpEl.textContent = String(el("xpTotal")?.textContent || "0");
+  const totalXp = currentUserProfile?.total_xp ?? Number(el("xpTotal")?.textContent || 0);
+  const progress = getLevelProgress(totalXp);
+  if (levelEl) levelEl.textContent = `Lv ${progress.level}`;
+  if (kmEl) kmEl.textContent = `${totalXp.toLocaleString("en-GB")} km`;
 }
 
 function showUpgradeModal(featureKey = "generic") {
@@ -3472,6 +3777,7 @@ async function applyAuthSession(session, event = "") {
 
     currentUser = null;
     currentUserProfile = null;
+  cachedDominantSubject = null;
     clearAuthGraceSession();
     setSignedOutUI();
   }
@@ -4047,6 +4353,7 @@ async function bootstrapAuth() {
     } else {
       currentUser = null;
       currentUserProfile = null;
+  cachedDominantSubject = null;
       setSignedOutUI();
       applyInitialAuthUIState();
     }

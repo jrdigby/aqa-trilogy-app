@@ -13,6 +13,7 @@ import { formatSciencePathLabel, courseTrackForProfile } from "./sciencePath.js"
 import { renderMasteryHeatmap } from "./uiComponents.js";
 import { addDaysISO, escapeHtml, todayISO } from "./utils.js";
 import { computeQuestionAOMaxCaps } from "./evalEngine.js";
+import { getLevelFromXp } from "./xpProgression.js";
 
 const el = (id) => document.getElementById(id);
 
@@ -169,7 +170,7 @@ function computeSubjectMastery(srsStates, specPointMap) {
   }));
 }
 
-function renderSummaryCards({ masteryPct, avgScorePct, dueToday, overdue, streak, totalXp }) {
+function renderSummaryCards({ masteryPct, avgScorePct, dueToday, overdue, streak, totalXp, level, journeyKm }) {
   return `
     <div class="teacher-detail-stat-card">
       <span class="teacher-detail-stat-label">Overall mastery</span>
@@ -187,9 +188,14 @@ function renderSummaryCards({ masteryPct, avgScorePct, dueToday, overdue, streak
       <span class="teacher-detail-stat-hint">Due today · overdue items</span>
     </div>
     <div class="teacher-detail-stat-card">
-      <span class="teacher-detail-stat-label">Total XP</span>
-      <strong class="teacher-detail-stat-value">${totalXp ?? 0}</strong>
-      <span class="teacher-detail-stat-hint">Practice experience points</span>
+      <span class="teacher-detail-stat-label">Level</span>
+      <strong class="teacher-detail-stat-value">Lv ${level ?? 1}</strong>
+      <span class="teacher-detail-stat-hint">${totalXp ?? 0} total XP</span>
+    </div>
+    <div class="teacher-detail-stat-card">
+      <span class="teacher-detail-stat-label">Journey</span>
+      <strong class="teacher-detail-stat-value">${(journeyKm ?? 0).toLocaleString("en-GB")} km</strong>
+      <span class="teacher-detail-stat-hint">Distance travelled</span>
     </div>
     <div class="teacher-detail-stat-card">
       <span class="teacher-detail-stat-label">Login streak</span>
@@ -514,13 +520,18 @@ export async function openStudentDetail(studentId, displayName) {
     }
 
     if (summaryEl) {
+      const totalXp = profile?.total_xp ?? 0;
+      const journeyKm = Number(profile?.xp_rewards?.distance_travelled) || 0;
+      const level = getLevelFromXp(totalXp);
       summaryEl.innerHTML = renderSummaryCards({
         masteryPct,
         avgScorePct: rosterStats.avgScorePct,
         dueToday: rosterStats.dueToday || 0,
         overdue: rosterStats.overdue || 0,
         streak: profile?.current_streak || 0,
-        totalXp: profile?.total_xp ?? 0,
+        totalXp,
+        level,
+        journeyKm
       });
     }
 
