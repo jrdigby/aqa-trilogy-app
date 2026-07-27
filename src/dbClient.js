@@ -408,12 +408,50 @@ export async function fetchSyllabusPipelineData(userId, subject, paper, targetTi
 
 // ====== USER PROFILE (ONBOARDING) ======
 const PROFILE_COLUMNS_FULL =
-  "user_id, role, preferred_tier, science_path, subject_tiers, subscription_tier, onboarding_completed_at, subject_preference, subject_difficulty, class_id, display_name, total_xp";
+  "user_id, role, preferred_tier, science_path, subject_tiers, subscription_tier, onboarding_completed_at, subject_preference, subject_difficulty, class_id, display_name, total_xp, xp_rewards";
 const PROFILE_COLUMNS_BASE = "user_id, preferred_tier";
 
 function isMissingColumnError(error) {
   const msg = error?.message || "";
   return error?.code === "42703" || /column/i.test(msg) || /does not exist/i.test(msg);
+}
+
+function defaultXpRewards() {
+  return {
+    streak_freeze_tokens: 0,
+    milestones_claimed: [],
+    last_level_seen: 1,
+    countries_discovered: [],
+    lap_count: 0,
+    current_location_id: "london",
+    visited: ["london"],
+    path: ["london"],
+    distance_travelled: 0,
+    pending_destination_id: null,
+    km_toward_pending: 0
+  };
+}
+
+function normalizeXpRewardsRow(raw) {
+  if (!raw || typeof raw !== "object") return defaultXpRewards();
+  const visited = Array.isArray(raw.visited) && raw.visited.length
+    ? [...raw.visited]
+    : ["london"];
+  if (!visited.includes("london")) visited.unshift("london");
+  const path = Array.isArray(raw.path) && raw.path.length ? [...raw.path] : [...visited];
+  return {
+    streak_freeze_tokens: Math.min(2, Number(raw.streak_freeze_tokens) || 0),
+    milestones_claimed: Array.isArray(raw.milestones_claimed) ? [...raw.milestones_claimed] : [],
+    last_level_seen: Number(raw.last_level_seen) || 1,
+    countries_discovered: Array.isArray(raw.countries_discovered) ? [...raw.countries_discovered] : [],
+    lap_count: Number(raw.lap_count) || 0,
+    current_location_id: raw.current_location_id || "london",
+    visited,
+    path,
+    distance_travelled: Math.max(0, Number(raw.distance_travelled) || 0),
+    pending_destination_id: raw.pending_destination_id || null,
+    km_toward_pending: Math.max(0, Number(raw.km_toward_pending) || 0)
+  };
 }
 
 function normalizeProfileRow(data, userId) {
@@ -430,7 +468,8 @@ function normalizeProfileRow(data, userId) {
     subject_difficulty: data.subject_difficulty ?? null,
     class_id: data.class_id ?? null,
     display_name: data.display_name ?? null,
-    total_xp: Number(data.total_xp) || 0
+    total_xp: Number(data.total_xp) || 0,
+    xp_rewards: normalizeXpRewardsRow(data.xp_rewards)
   };
 }
 
@@ -547,9 +586,53 @@ export async function tryConsumeHalfPaper(userId = null) {
 }
 
 export async function incrementUserXp(amount, userId = null) {
+  if (userId) {
+    return restRpc("increment_user_xp", { p_amount: amount }, userId);
+  }
   const { data, error } = await supabaseClient.rpc("increment_user_xp", { p_amount: amount });
   if (error) throw error;
   return data ?? 0;
+}
+
+export async function claimXpMilestone(milestoneId, userId = null) {
+  return restRpc("claim_xp_milestone", { p_milestone_id: milestoneId }, userId);
+}
+
+export async function consumeStreakFreeze(userId = null) {
+  return restRpc("consume_streak_freeze", {}, userId);
+}
+
+export async function discoverCountry(country, userId = null) {
+  return restRpc("discover_country", { p_country: country }, userId);
+}
+
+export async function fetchDominantSubject(userId = null) {
+  const sinceISO = addDaysISO(todayISO(), -30);
+  const sinceTs = `${sinceISO}T00:00:00`;
+
+  let query = supabaseClient
+    .from("attempts")
+    .select("xp_earned, questions(spec_points(subject))")
+    .gt("xp_earned", 0)
+    .gte("submitted_at", sinceTs);
+
+  if (userId) {
+    query = query.eq("user_id", userId);
+  }
+
+  const { data, error } = await query;
+  if (error) throw error;
+
+  const totals = { biology: 0, chemistry: 0, physics: 0 };
+  for (const row of data || []) {
+    const subject = row.questions?.spec_points?.subject;
+    if (subject && totals[subject] !== undefined) {
+      totals[subject] += Number(row.xp_earned) || 0;
+    }
+  }
+
+  const ranked = Object.entries(totals).sort((a, b) => b[1] - a[1]);
+  return ranked[0]?.[1] > 0 ? ranked[0][0] : null;
 }
 
 // ====== TEACHER PORTAL DATA ======
@@ -570,7 +653,7 @@ export async function fetchTeacherStudentProfile(userId) {
   const { data, error } = await supabaseClient
     .from("profiles")
     .select(
-      "user_id, display_name, preferred_tier, science_path, subject_tiers, subscription_tier, onboarding_completed_at, current_streak, last_login_date, class_id, total_xp"
+      "user_id, display_name, preferred_tier, science_path, subject_tiers, subscription_tier, onboarding_completed_at, current_streak, last_login_date, class_id, total_xp, xp_rewards"
     )
     .eq("user_id", userId)
     .maybeSingle();
@@ -673,7 +756,11 @@ const dbClient = {
   fetchPlanQuotas,
   tryConsumeAiMark,
   tryConsumeHalfPaper,
-  incrementUserXp
+  incrementUserXp,
+  claimXpMilestone,
+  consumeStreakFreeze,
+  discoverCountry,
+  fetchDominantSubject
 };
 
 export default dbClient;

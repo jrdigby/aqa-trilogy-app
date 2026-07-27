@@ -2,6 +2,7 @@
 import { escapeHtml } from './utils.js';
 import { isFuzzyMatch, renderPromptStemHtml, renderHighlightedStudentAnswer, checkKeywordOrSynonymsMatch, getGradableMarkPoints } from './evalEngine.js';
 import { XP_RULES_FOOTNOTE } from './xpEngine.js';
+import { getJourneySummaryLine } from './journeyMap.js';
 import { loadCalculationWorkflow } from './lazyCalculationWorkflow.js';
 
 // Dom element selector shortcut helper used internally
@@ -779,7 +780,7 @@ function renderSpecPointRowCell(specPoint) {
   `;
 }
 
-export function renderSessionSummaryHeader(meta, marksSummary, xpTotal = 0) {
+export function renderSessionSummaryHeader(meta, marksSummary, xpTotal = 0, profileTotalXp = null, journeyState = null) {
   const subject = formatSubjectLabel(meta?.subject);
   const paper = formatPaperLabel(meta?.paper);
   const topic = meta?.topic_name || "All topics";
@@ -789,6 +790,10 @@ export function renderSessionSummaryHeader(meta, marksSummary, xpTotal = 0) {
   const xpChip =
     xpTotal > 0
       ? `<div class="session-summary-xp">+${xpTotal} <span class="session-summary-xp-label">XP</span></div>`
+      : "";
+  const journeyLine =
+    profileTotalXp != null || journeyState
+      ? `<p class="session-summary-journey muted">${escapeHtml(getJourneySummaryLine(profileTotalXp, journeyState))}</p>`
       : "";
 
   return `
@@ -803,6 +808,7 @@ export function renderSessionSummaryHeader(meta, marksSummary, xpTotal = 0) {
           ${xpChip}
         </div>
       </div>
+      ${journeyLine}
     </div>
   `;
 }
@@ -1000,7 +1006,7 @@ function renderSessionQuestionTypePerformance(attemptLog) {
   `;
 }
 
-export function renderSessionCompleteSummary(meta, attemptLog) {
+export function renderSessionCompleteSummary(meta, attemptLog, profileTotalXp = null, journeyState = null) {
   const { marksSummary, bySpecPoint, tableTotals, xpTotal } = buildSessionSummaryData(attemptLog);
   const rows = buildSpecPointSummaryRows(bySpecPoint);
   const xpNote =
@@ -1009,7 +1015,7 @@ export function renderSessionCompleteSummary(meta, attemptLog) {
       : "";
 
   return `
-    ${renderSessionSummaryHeader(meta, marksSummary, xpTotal)}
+    ${renderSessionSummaryHeader(meta, marksSummary, xpTotal, profileTotalXp, journeyState)}
     ${renderSessionFlashcardNotice(attemptLog)}
     ${xpNote}
     <div class="session-summary-results">
