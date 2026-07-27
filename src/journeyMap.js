@@ -378,8 +378,6 @@ export function wireJourneyInteractions(mount, {
     btn.onclick = () => {
       const locationId = btn.dataset.locationId;
       const scientist = getScientistForLocation(locationId, { dominantSubject });
-      const detail = mount.querySelector("#passportDetailMount");
-      if (detail) detail.innerHTML = renderScientistCard(scientist);
       const main = mount.querySelector("#journeyScientistMount");
       if (main) main.innerHTML = renderScientistCard(scientist);
     };

@@ -3082,6 +3082,10 @@ body.teacher-detail-open {
   border-color: #cbd5e1;
 }
 
+.scientist-photo--placeholder[hidden] {
+  display: none !important;
+}
+
 .scientist-photo-wrap--sm .scientist-photo--placeholder {
   font-size: 0.75rem;
 }
@@ -3120,17 +3124,21 @@ body.teacher-detail-open {
   cursor: pointer;
   font-size: 0.75rem;
   text-align: center;
+  color: #0f172a;
+  flex: 0 1 auto;
 }
 
 .passport-card--locked {
   opacity: 0.5;
   cursor: default;
   background: #f8fafc;
+  color: #334155;
 }
 
 .passport-card--discovered:hover {
   border-color: #93c5fd;
   background: #eff6ff;
+  color: #0f172a;
 }
 
 .passport-card-photo--locked {
@@ -3149,14 +3157,15 @@ body.teacher-detail-open {
   line-height: 1;
 }
 
-.passport-card-scientist {
-  color: var(--text-muted);
-  font-size: 0.68rem;
-  line-height: 1.2;
+.passport-card-country {
+  color: #0f172a;
+  font-weight: 600;
 }
 
-.passport-detail-mount {
-  margin-top: 10px;
+.passport-card-scientist {
+  color: #64748b;
+  font-size: 0.68rem;
+  line-height: 1.2;
 }
 
 .xp-level-chip {

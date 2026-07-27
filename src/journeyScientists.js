@@ -166,8 +166,7 @@ export function renderPassportGallery(visitedLocationIds = [], { dominantSubject
   return `
     <div class="passport-gallery" role="list">
       ${cards}
-    </div>
-    <div id="passportDetailMount" class="passport-detail-mount"></div>`;
+    </div>`;
 }
 
 export { getLocationById, getScientistForLocation, formatLocationLabel };
