@@ -196,6 +196,29 @@ test("solveForSubject — gravitational potential energy rearranged for h", () =
   assert.ok(Math.abs(h - 5) < 0.001, `expected h=5, got ${h}`);
 });
 
+test("solveForSubject — period rearranged for f (constant numerator)", () => {
+  const eq = findEq(sheetP2, "period");
+  const f = solveForSubject(eq, { T: "0.5" }, "f");
+  assert.ok(Math.abs(f - 2) < 1e-9, `expected f=2, got ${f}`);
+});
+
+test("generateBatch — period recall + rearrange for f", () => {
+  const { drafts, errors } = generateBatch(
+    {
+      equation: "period",
+      sheet: "physics_p2_ht",
+      rearrangement_subject: "f",
+      variants: { recipes: [{ base: "recall", rearrangement: true, count: 1 }] },
+      seed: 7
+    },
+    sheetP2
+  );
+  assert.equal(errors.length, 0, errors.map((e) => e.message).join("; "));
+  assert.equal(drafts.length, 1);
+  assert.equal(drafts[0].answer_key.key_payload.unit, "Hz");
+  assert.ok(Number.isFinite(drafts[0].answer_key.key_payload.answer));
+});
+
 test("generateBatch — gravitational potential energy rearrangement for h", () => {
   const { drafts, errors } = generateBatch(
     {

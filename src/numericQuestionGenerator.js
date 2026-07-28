@@ -703,13 +703,46 @@ export function solveForSubject(equation, slots, subject) {
       const den = evalFractionPart(template.denominator, slots);
       if (Number.isFinite(num) && Number.isFinite(den) && den !== 0) res = num / den;
     }
-    if (numSlots.includes(subject) && denSlots.length === 1 && subject !== denSlots[0]) {
-      const den = val(denSlots[0]);
-      if (Number.isFinite(res) && Number.isFinite(den)) return res * den;
+    // R = (subject × otherNums) / den  →  subject = R × den / otherNums
+    if (numSlots.includes(subject)) {
+      const den = evalFractionPart(template.denominator, slots);
+      const otherNums = numSlots.filter((id) => id !== subject);
+      let numOthers = 1;
+      for (const id of otherNums) {
+        const v = val(id);
+        if (!Number.isFinite(v) || v === 0) {
+          numOthers = NaN;
+          break;
+        }
+        numOthers *= v;
+      }
+      if (Number.isFinite(res) && Number.isFinite(den) && Number.isFinite(numOthers) && numOthers !== 0) {
+        return (res * den) / numOthers;
+      }
     }
-    if (denSlots.includes(subject) && numSlots.length === 1) {
-      const num = val(numSlots[0]);
-      if (Number.isFinite(res) && Number.isFinite(num) && res !== 0) return num / res;
+    // R = num / (subject × otherDens)  →  subject = num / (R × otherDens)
+    // Handles constant numerators (e.g. period T = 1/f → f = 1/T).
+    if (denSlots.includes(subject)) {
+      const num = evalFractionPart(template.numerator, slots);
+      const otherDens = denSlots.filter((id) => id !== subject);
+      let denOthers = 1;
+      for (const id of otherDens) {
+        const v = val(id);
+        if (!Number.isFinite(v) || v === 0) {
+          denOthers = NaN;
+          break;
+        }
+        denOthers *= v;
+      }
+      if (
+        Number.isFinite(res)
+        && Number.isFinite(num)
+        && Number.isFinite(denOthers)
+        && res !== 0
+        && denOthers !== 0
+      ) {
+        return num / (res * denOthers);
+      }
     }
   }
 
