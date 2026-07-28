@@ -1402,12 +1402,20 @@
 
     .tab-nav {
       display: flex;
+      flex-wrap: nowrap;
       gap: 8px;
       border-bottom: 2px solid var(--border);
       margin-bottom: 24px;
+      overflow-x: auto;
+      overflow-y: hidden;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: thin;
+      overscroll-behavior-x: contain;
     }
 
     .tab-btn {
+      flex: 0 0 auto;
+      white-space: nowrap;
       padding: 10px 16px;
       font-weight: 600;
       font-size: 0.9rem;
@@ -2900,6 +2908,15 @@
             </div>
             <div class="row row-compact" style="display:flex; margin:0; align-items:flex-end; flex-wrap:wrap; gap:8px; width:100%;">
               <div class="field-fit" style="flex:0 0 auto; min-width:132px;">
+                <label for="aiUsageQuickRange">Quick range</label>
+                <select id="aiUsageQuickRange" class="select-fit">
+                  <option value="7">Last 7 days</option>
+                  <option value="14">Last 14 days</option>
+                  <option value="30" selected>Last 30 days</option>
+                  <option value="custom">Custom dates</option>
+                </select>
+              </div>
+              <div class="field-fit" style="flex:0 0 auto; min-width:132px;">
                 <label for="aiUsageStartDate">Start date</label>
                 <input type="date" id="aiUsageStartDate" />
               </div>
@@ -3902,7 +3919,10 @@
     
     const activeBtn = document.querySelector(`.tab-btn[data-panel="${panelId}"]`)
       || Array.from(document.querySelectorAll(".tab-btn")).find(btn => btn.textContent.toLowerCase().includes(String(panelId).toLowerCase()));
-    if (activeBtn) activeBtn.classList.add("active");
+    if (activeBtn) {
+      activeBtn.classList.add("active");
+      activeBtn.scrollIntoView({ behavior: "smooth", inline: "nearest", block: "nearest" });
+    }
     
     const panelMap = {
       creator: "panelCreator",
@@ -7803,11 +7823,13 @@
   const btnQueryQuestions = document.getElementById("btnQueryQuestions");
   const auditList = document.getElementById("questionsAuditList");
   const btnLoadAiUsage = document.getElementById("btnLoadAiUsage");
+  const aiUsageQuickRangeSelect = document.getElementById("aiUsageQuickRange");
   const aiUsageStartDateInput = document.getElementById("aiUsageStartDate");
   const aiUsageEndDateInput = document.getElementById("aiUsageEndDate");
   const aiUsageSortSelect = document.getElementById("aiUsageSort");
   const aiUsageStatus = document.getElementById("aiUsageStatus");
   const aiUsageTableBody = document.getElementById("aiUsageTableBody");
+  let aiUsageApplyingQuickRange = false;
 
   const AUDIT_COLSPAN = 13;
   const auditSelectedIds = new Set();
@@ -7824,14 +7846,39 @@
     return `${year}-${month}-${day}`;
   }
 
+  function applyAiUsageQuickRange(days, { force = false } = {}) {
+    if (!aiUsageStartDateInput || !aiUsageEndDateInput) return;
+    const parsedDays = parseInt(days, 10);
+    if (!Number.isFinite(parsedDays) || parsedDays < 1) return;
+    if (!force && aiUsageStartDateInput.value && aiUsageEndDateInput.value && aiUsageQuickRangeSelect?.value === "custom") {
+      return;
+    }
+    const end = new Date();
+    const start = new Date(end);
+    start.setDate(end.getDate() - (parsedDays - 1));
+    aiUsageApplyingQuickRange = true;
+    aiUsageStartDateInput.value = formatDateInputValue(start);
+    aiUsageEndDateInput.value = formatDateInputValue(end);
+    if (aiUsageQuickRangeSelect) aiUsageQuickRangeSelect.value = String(parsedDays);
+    aiUsageApplyingQuickRange = false;
+  }
+
   function initializeAiUsageDateRange() {
     if (!aiUsageStartDateInput || !aiUsageEndDateInput) return;
     if (aiUsageStartDateInput.value && aiUsageEndDateInput.value) return;
-    const end = new Date();
-    const start = new Date(end);
-    start.setDate(end.getDate() - 29);
-    aiUsageStartDateInput.value = formatDateInputValue(start);
-    aiUsageEndDateInput.value = formatDateInputValue(end);
+    const preset = aiUsageQuickRangeSelect?.value || "30";
+    if (preset === "custom") {
+      applyAiUsageQuickRange(30, { force: true });
+      return;
+    }
+    applyAiUsageQuickRange(preset, { force: true });
+  }
+
+  function maybeAutoRefreshAiUsage() {
+    const isPlaceholderState = !!aiUsageTableBody?.querySelector("tr td[colspan='9']");
+    if (!isPlaceholderState) {
+      loadAiUsageSummary().catch(() => {});
+    }
   }
 
   const GEMINI_PRICING_USD_PER_MILLION = Object.freeze({
@@ -8475,13 +8522,23 @@
   btnLoadAiUsage?.addEventListener("click", () => {
     loadAiUsageSummary().catch(() => {});
   });
-  [aiUsageStartDateInput, aiUsageEndDateInput, aiUsageSortSelect].forEach((control) => {
+  aiUsageQuickRangeSelect?.addEventListener("change", () => {
+    const preset = aiUsageQuickRangeSelect.value;
+    if (preset !== "custom") {
+      applyAiUsageQuickRange(preset, { force: true });
+    }
+    maybeAutoRefreshAiUsage();
+  });
+  [aiUsageStartDateInput, aiUsageEndDateInput].forEach((control) => {
     control?.addEventListener("change", () => {
-      const isPlaceholderState = !!aiUsageTableBody?.querySelector("tr td[colspan='9']");
-      if (!isPlaceholderState) {
-        loadAiUsageSummary().catch(() => {});
+      if (!aiUsageApplyingQuickRange && aiUsageQuickRangeSelect) {
+        aiUsageQuickRangeSelect.value = "custom";
       }
+      maybeAutoRefreshAiUsage();
     });
+  });
+  aiUsageSortSelect?.addEventListener("change", () => {
+    maybeAutoRefreshAiUsage();
   });
 
   function setBulkFieldEnabled(key, enabled) {

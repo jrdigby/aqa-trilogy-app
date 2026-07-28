@@ -215,6 +215,14 @@ function switchDashboardTab(tab, { loadData = true } = {}) {
     tabJourney.classList.toggle("active", active === "journey");
     tabJourney.setAttribute("aria-selected", active === "journey" ? "true" : "false");
   }
+  const activeTabBtn = active === "practice" ? tabPractice
+    : active === "analytics" ? tabAnalytics
+    : active === "flashcards" ? tabFlashcards
+    : active === "journey" ? tabJourney
+    : null;
+  if (activeTabBtn?.scrollIntoView) {
+    activeTabBtn.scrollIntoView({ behavior: "smooth", inline: "nearest", block: "nearest" });
+  }
   const typeFilterGroup = el("typeFilterGroup");
   if (typeFilterGroup) {
     typeFilterGroup.classList.toggle("hidden", active === "flashcards" || active === "journey");
