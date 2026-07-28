@@ -52,14 +52,37 @@ function parseGeminiEvaluationJson(rawResultText: string) {
   return sanitizeEvaluationLatex(parsed);
 }
 
+const GEMINI_MODEL = "gemini-2.5-flash";
+
+async function recordAiUsageEvent(supabase: ReturnType<typeof createClient>, row: Record<string, unknown>) {
+  try {
+    const { error } = await supabase.from("ai_usage_events").insert(row);
+    if (error) {
+      console.error(JSON.stringify({
+        event: "ai_usage_insert_failed",
+        feature: row.feature,
+        message: error.message
+      }));
+    }
+  } catch (err) {
+    console.error(JSON.stringify({
+      event: "ai_usage_insert_failed",
+      feature: row.feature,
+      message: err?.message || String(err)
+    }));
+  }
+}
+
 serve(async (req) => {
   // Handle CORS preflight handshakes cleanly
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
+  const requestId = crypto.randomUUID().slice(0, 8);
+
   try {
-    console.log("====== STARTING EXTENDED RESPONSE EVALUATION ======");
+    console.log(JSON.stringify({ requestId, event: "mark_start" }));
     
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -77,7 +100,27 @@ serve(async (req) => {
       throw new Error("Missing environmental secret: GEMINI_API_KEY is not set. Please add this inside your Supabase Secrets panel.");
     }
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: { persistSession: false }
+    });
+
+    // Resolve the authenticated student so token usage can be attributed per user.
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: "Missing authorization" }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+    const jwt = authHeader.replace(/^Bearer\s+/i, "");
+    const { data: userData, error: userErr } = await supabase.auth.getUser(jwt);
+    if (userErr || !userData?.user) {
+      return new Response(JSON.stringify({ error: "Invalid session" }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+    const userId = userData.user.id;
 
     // Step 2: Parse incoming request parameters safely
     console.log("Step 2: Parsing request payload...");
@@ -99,8 +142,13 @@ serve(async (req) => {
       });
     }
 
-    console.log(`Payload valid. Question ID: ${question_id} | Text length: ${student_text.length} characters.`);
-
+    console.log(JSON.stringify({
+      requestId,
+      event: "payload_valid",
+      userId,
+      question_id,
+      studentTextLength: student_text.length
+    }));
     // Step 3: Fetch Question specifications from database
     console.log(`Step 3: Querying 'questions' table for ID: ${question_id}...`);
     const { data: q, error: qErr } = await supabase
@@ -181,7 +229,7 @@ Remember: escape every LaTeX backslash as \\\\ inside JSON string values (e.g. $
     // Upgraded: Re-pointed back to v1beta to allow systemInstructions and responseSchemas, using the stable model signature
 // Fix: Use the explicit model flavor identifier 'gemini-1.5-flash-latest' to match the v1beta schema directory
 // Fix: Route to the natively supported structured model on the beta gateway
-const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`;
+const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${geminiApiKey}`;
     const geminiPayload = {
       contents: [{ parts: [{ text: userQuery }] }],
       systemInstruction: { parts: [{ text: systemPrompt }] },
@@ -258,15 +306,65 @@ const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemin
     // Step 7: Parse AI Examiner Output (protect LaTeX escapes before JSON.parse)
     console.log("Step 6: Parsing raw response packet returned by Gemini...");
     const geminiData = await response.json();
+    const usage = geminiData?.usageMetadata || null;
+    const finishReason = geminiData?.candidates?.[0]?.finishReason || null;
+    if (usage) {
+      console.log(JSON.stringify({
+        requestId,
+        event: "gemini_usage",
+        feature: "mark_long_answer",
+        userId,
+        model: GEMINI_MODEL,
+        question_id,
+        promptTokenCount: usage.promptTokenCount,
+        candidatesTokenCount: usage.candidatesTokenCount,
+        totalTokenCount: usage.totalTokenCount,
+        finishReason
+      }));
+    }
+
     const rawResultText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!rawResultText) {
+      await recordAiUsageEvent(supabase, {
+        user_id: userId,
+        feature: "mark_long_answer",
+        model: GEMINI_MODEL,
+        request_id: requestId,
+        question_id,
+        prompt_token_count: usage?.promptTokenCount ?? null,
+        candidates_token_count: usage?.candidatesTokenCount ?? null,
+        total_token_count: usage?.totalTokenCount ?? null,
+        finish_reason: finishReason,
+        usage_meta: usage,
+        status: "error",
+        meta: { error: "empty_candidate" }
+      });
       throw new Error("Empty candidate evaluation packet returned from Gemini engine.");
     }
 
     const parsedEvaluation = parseGeminiEvaluationJson(rawResultText);
     console.log(`Evaluation complete! Awarded Score: ${parsedEvaluation.score_total}/${parsedEvaluation.score_max} | Level: ${parsedEvaluation.level_achieved}`);
 
-    console.log("====== EVALUATION RESOLVED CLEANLY ======");
+    // Persist tokens server-side only — never include usage in the student response.
+    await recordAiUsageEvent(supabase, {
+      user_id: userId,
+      feature: "mark_long_answer",
+      model: GEMINI_MODEL,
+      request_id: requestId,
+      question_id,
+      prompt_token_count: usage?.promptTokenCount ?? null,
+      candidates_token_count: usage?.candidatesTokenCount ?? null,
+      total_token_count: usage?.totalTokenCount ?? null,
+      finish_reason: finishReason,
+      usage_meta: usage,
+      status: "success",
+      meta: {
+        score_total: parsedEvaluation.score_total ?? null,
+        score_max: parsedEvaluation.score_max ?? null
+      }
+    });
+
+    console.log(JSON.stringify({ requestId, event: "mark_done", userId }));
     return new Response(JSON.stringify(parsedEvaluation), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }

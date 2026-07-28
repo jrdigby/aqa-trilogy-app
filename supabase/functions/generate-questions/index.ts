@@ -23,6 +23,26 @@ function jsonResponse(body, status = 200) {
   });
 }
 
+async function recordAiUsageEvent(admin, row) {
+  if (!admin || !row?.user_id) return;
+  try {
+    const { error } = await admin.from("ai_usage_events").insert(row);
+    if (error) {
+      console.error(JSON.stringify({
+        event: "ai_usage_insert_failed",
+        feature: row.feature,
+        message: error.message
+      }));
+    }
+  } catch (err) {
+    console.error(JSON.stringify({
+      event: "ai_usage_insert_failed",
+      feature: row.feature,
+      message: err?.message || String(err)
+    }));
+  }
+}
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -601,7 +621,7 @@ function stampRecipeOntoQuestion(question, recipe) {
   return stamped;
 }
 
-async function generateQuestionsForRecipes(payload, recipes, requestId) {
+async function generateQuestionsForRecipes(payload, recipes, requestId, admin = null, userId = null) {
   const questions = [];
   const warnings = [];
   const startedAt = Date.now();
@@ -677,6 +697,30 @@ async function generateQuestionsForRecipes(payload, recipes, requestId) {
         );
         geminiMeta = geminiResult;
         question = stampRecipeOntoQuestion(geminiResult.parsed, recipe);
+
+        const usage = geminiResult?.usage || null;
+        if (usage && userId) {
+          await recordAiUsageEvent(admin, {
+            user_id: userId,
+            feature: "generate_questions",
+            model: GEMINI_MODEL,
+            request_id: requestId,
+            question_id: null,
+            prompt_token_count: usage.promptTokenCount ?? null,
+            candidates_token_count: usage.candidatesTokenCount ?? null,
+            total_token_count: usage.totalTokenCount ?? null,
+            finish_reason: geminiResult?.finishReason || null,
+            usage_meta: usage,
+            status: "success",
+            meta: {
+              recipe_index: i,
+              diversity_attempt: diversityAttempt,
+              question_type: recipe.question_type,
+              demand_level: recipe.demand_level,
+              max_marks: maxMarks
+            }
+          });
+        }
 
         const pointsOk = recipe.question_type !== "extended_response"
           || countScientificPoints(question.key_scientific_points) >= 2;
@@ -812,7 +856,13 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: `Maximum ${MAX_QUESTIONS} questions per request` }, 400);
     }
 
-    const { questions, warnings } = await generateQuestionsForRecipes(payload, recipes, requestId);
+    const { questions, warnings } = await generateQuestionsForRecipes(
+      payload,
+      recipes,
+      requestId,
+      admin,
+      userData.user.id
+    );
 
     console.log(JSON.stringify({
       requestId,
