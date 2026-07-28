@@ -1813,11 +1813,12 @@
       
       <div class="tab-nav">
         <button class="tab-btn active" onclick="switchPanel('creator')">✏️ Create Question</button>
-        <button class="tab-btn" onclick="switchPanel('csv')">📂 Packaged CSV Importer</button>
         <button class="tab-btn" data-panel="batchNumeric" onclick="switchPanel('batchNumeric')">🔢 Batch Numeric Generator</button>
         <button class="tab-btn" data-panel="batchMcq" onclick="switchPanel('batchMcq')">✨ AI Question Studio</button>
         <button class="tab-btn" onclick="switchPanel('audit')">🔍 Database Audit &amp; Review</button>
+        <button class="tab-btn" data-panel="aiUsage" onclick="switchPanel('aiUsage')">💸 AI Usage Monitor</button>
         <button class="tab-btn" onclick="switchPanel('pilot')">🎫 Pilot Pro Access</button>
+        <button class="tab-btn" onclick="switchPanel('csv')">📂 Packaged CSV Importer</button>
       </div>
 
       <!-- TAB 1: CREATOR PANEL -->
@@ -2884,9 +2885,78 @@
             </tbody>
           </table>
         </div>
+
       </div>
 
-      <!-- TAB 4: PILOT PRO ACCESS -->
+      <!-- TAB 4: AI USAGE -->
+      <div id="panelAiUsage" class="panel">
+        <div class="card">
+          <div style="display:flex; flex-direction:column; gap:12px; align-items:stretch;">
+            <div>
+              <h3 style="margin:0; color:var(--primary-dark); font-size:1.1rem;">AI Usage Monitor</h3>
+              <p style="margin:6px 0 0; color:var(--text-muted); font-size:0.84rem; line-height:1.45;">
+                Developer-only token usage from <code>ai_usage_events</code>, with cost estimates and per-user totals for the selected timeframe.
+              </p>
+            </div>
+            <div class="row row-compact" style="display:flex; margin:0; align-items:flex-end; flex-wrap:wrap; gap:8px; width:100%;">
+              <div class="field-fit" style="flex:0 0 auto; min-width:132px;">
+                <label for="aiUsageStartDate">Start date</label>
+                <input type="date" id="aiUsageStartDate" />
+              </div>
+              <div class="field-fit" style="flex:0 0 auto; min-width:132px;">
+                <label for="aiUsageEndDate">End date</label>
+                <input type="date" id="aiUsageEndDate" />
+              </div>
+              <div class="field-fit" style="flex:0 0 auto; min-width:156px;">
+                <label for="aiUsageSort">Sort users by</label>
+                <select id="aiUsageSort" class="select-fit">
+                  <option value="cost_desc" selected>Highest cost</option>
+                  <option value="tokens_desc">Highest total tokens</option>
+                  <option value="calls_desc">Most calls</option>
+                  <option value="recent_desc">Most recent activity</option>
+                  <option value="name_asc">Name A-Z</option>
+                </select>
+              </div>
+              <div class="field-fit" style="flex:0 0 auto;">
+                <button type="button" id="btnLoadAiUsage" class="btn btn-primary">Load AI usage</button>
+              </div>
+            </div>
+          </div>
+          <div style="margin-top:12px; background:#f8fafc; border:1px solid var(--border); border-radius:10px; padding:12px 14px;">
+            <div style="font-weight:700; color:var(--primary-dark); margin-bottom:6px;">Current Gemini pricing used for estimates</div>
+            <div style="font-size:0.84rem; color:var(--text-muted); line-height:1.5;">
+              <div><strong><code>gemini-2.5-flash</code></strong>: $0.30 / 1M input tokens, $2.50 / 1M output tokens.</div>
+              <div><strong><code>gemini-2.5-flash-lite</code></strong>: $0.10 / 1M input tokens, $0.40 / 1M output tokens.</div>
+              <div style="margin-top:6px;">Output pricing includes response and reasoning tokens. Estimates are derived from the recorded input and output token counts.</div>
+            </div>
+          </div>
+          <p id="aiUsageStatus" class="muted" style="margin-top:12px; font-size:0.84rem;" aria-live="polite"></p>
+          <div style="margin-top:12px; overflow-x:auto;">
+            <table class="audit-table">
+              <thead>
+                <tr>
+                  <th>User</th>
+                  <th>Feature</th>
+                  <th>Model</th>
+                  <th>Calls</th>
+                  <th>Input tokens</th>
+                  <th>Output tokens</th>
+                  <th>Total tokens</th>
+                  <th>Est. cost (USD)</th>
+                  <th>Last used</th>
+                </tr>
+              </thead>
+              <tbody id="aiUsageTableBody">
+                <tr>
+                  <td colspan="9" style="padding:20px; text-align:center; color:var(--text-muted);">Load the usage summary to inspect token costs by user.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 5: PILOT PRO ACCESS -->
       <div id="panelPilot" class="panel">
         <div class="card">
           <h3 style="margin-top:0; color:var(--primary-dark); font-size:1.1rem; border-bottom:1px solid var(--border); padding-bottom:8px;">Pilot: Grant Student Pro</h3>
@@ -3840,6 +3910,7 @@
       batchNumeric: "panelBatchNumeric",
       batchMcq: "panelBatchMcq",
       audit: "panelAudit",
+      aiUsage: "panelAiUsage",
       pilot: "panelPilot"
     };
     const panelName = panelMap[panelId] || ("panel" + panelId.charAt(0).toUpperCase() + panelId.slice(1));
@@ -3855,6 +3926,12 @@
     if (panelId === "batchMcq") {
       initBatchMcqRecipes();
       loadBatchMcqSpecPointSelect().catch(() => {});
+    }
+    if (panelId === "aiUsage" && aiUsageTableBody && btnLoadAiUsage) {
+      const isPlaceholderState = !!aiUsageTableBody.querySelector("tr td[colspan='9']");
+      if (isPlaceholderState) {
+        loadAiUsageSummary().catch(() => {});
+      }
     }
   };
 
@@ -7725,10 +7802,216 @@
   // ====== TAB 3: AUDIT CHECKLISTS & ACTIONS ======
   const btnQueryQuestions = document.getElementById("btnQueryQuestions");
   const auditList = document.getElementById("questionsAuditList");
+  const btnLoadAiUsage = document.getElementById("btnLoadAiUsage");
+  const aiUsageStartDateInput = document.getElementById("aiUsageStartDate");
+  const aiUsageEndDateInput = document.getElementById("aiUsageEndDate");
+  const aiUsageSortSelect = document.getElementById("aiUsageSort");
+  const aiUsageStatus = document.getElementById("aiUsageStatus");
+  const aiUsageTableBody = document.getElementById("aiUsageTableBody");
 
   const AUDIT_COLSPAN = 13;
   const auditSelectedIds = new Set();
   let bulkSkillBaselineCodes = new Set();
+
+  function formatAdminNumber(value) {
+    return Number(value || 0).toLocaleString();
+  }
+
+  function formatDateInputValue(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+
+  function initializeAiUsageDateRange() {
+    if (!aiUsageStartDateInput || !aiUsageEndDateInput) return;
+    if (aiUsageStartDateInput.value && aiUsageEndDateInput.value) return;
+    const end = new Date();
+    const start = new Date(end);
+    start.setDate(end.getDate() - 29);
+    aiUsageStartDateInput.value = formatDateInputValue(start);
+    aiUsageEndDateInput.value = formatDateInputValue(end);
+  }
+
+  const GEMINI_PRICING_USD_PER_MILLION = Object.freeze({
+    "gemini-2.5-flash": { input: 0.30, output: 2.50 },
+    "gemini-2.5-flash-lite": { input: 0.10, output: 0.40 },
+  });
+
+  function formatAiFeatureLabel(feature) {
+    return feature === "mark_long_answer"
+      ? "Extended response marking"
+      : feature === "generate_questions"
+        ? "Question generation"
+        : String(feature || "Unknown");
+  }
+
+  function formatModelLabel(model) {
+    return model || "unknown";
+  }
+
+  function estimateUsageCostUsd(row) {
+    const pricing = GEMINI_PRICING_USD_PER_MILLION[row?.model] || null;
+    if (!pricing) return null;
+    const inputCost = (Number(row?.input_tokens) || 0) / 1_000_000 * pricing.input;
+    const outputCost = (Number(row?.output_tokens) || 0) / 1_000_000 * pricing.output;
+    return inputCost + outputCost;
+  }
+
+  function formatUsd(value) {
+    if (value == null || Number.isNaN(Number(value))) return "—";
+    return `$${Number(value).toFixed(4)}`;
+  }
+
+  function formatAdminDateTime(value) {
+    if (!value) return "—";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "—";
+    return date.toLocaleString();
+  }
+
+  async function loadAiUsageSummary() {
+    if (!btnLoadAiUsage || !aiUsageStatus || !aiUsageTableBody || !aiUsageStartDateInput || !aiUsageEndDateInput) return;
+    const startDate = aiUsageStartDateInput.value;
+    const endDate = aiUsageEndDateInput.value;
+    const sortMode = aiUsageSortSelect?.value || "cost_desc";
+    if (!startDate || !endDate) {
+      showAdminToast("Pick both a start date and an end date.", true);
+      return;
+    }
+    if (startDate > endDate) {
+      showAdminToast("Start date must be on or before end date.", true);
+      return;
+    }
+    btnLoadAiUsage.disabled = true;
+    aiUsageStatus.textContent = "Loading token usage summary…";
+    aiUsageTableBody.innerHTML = `<tr><td colspan="9" style="padding:20px; text-align:center; color:var(--text-muted);">Loading usage summary…</td></tr>`;
+
+    try {
+      const { data, error } = await supabaseClient.rpc("developer_ai_usage_summary_range", {
+        p_start_date: startDate,
+        p_end_date: endDate
+      });
+      if (error) throw error;
+
+      const rows = Array.isArray(data) ? data : [];
+      if (!rows.length) {
+        aiUsageStatus.textContent = `No AI usage rows found from ${startDate} to ${endDate}.`;
+        aiUsageTableBody.innerHTML = `<tr><td colspan="9" style="padding:20px; text-align:center; color:var(--text-muted);">No usage recorded for this window.</td></tr>`;
+        return;
+      }
+
+      const groupedByUser = new Map();
+      rows.forEach((row) => {
+        const key = row.user_id || row.display_name || "unknown";
+        if (!groupedByUser.has(key)) {
+          groupedByUser.set(key, {
+            userId: row.user_id || null,
+            displayName: row.display_name || "Unknown user",
+            rows: [],
+            totals: {
+              calls: 0,
+              input_tokens: 0,
+              output_tokens: 0,
+              total_tokens: 0,
+              cost_usd: 0,
+              last_used_at: null,
+            }
+          });
+        }
+        const bucket = groupedByUser.get(key);
+        const costUsd = estimateUsageCostUsd(row);
+        bucket.rows.push({ ...row, cost_usd: costUsd });
+        bucket.totals.calls += Number(row.calls) || 0;
+        bucket.totals.input_tokens += Number(row.input_tokens) || 0;
+        bucket.totals.output_tokens += Number(row.output_tokens) || 0;
+        bucket.totals.total_tokens += Number(row.total_tokens) || 0;
+        bucket.totals.cost_usd += costUsd || 0;
+        if (!bucket.totals.last_used_at || new Date(row.last_used_at) > new Date(bucket.totals.last_used_at)) {
+          bucket.totals.last_used_at = row.last_used_at;
+        }
+      });
+
+      const userGroups = [...groupedByUser.values()].sort((a, b) => {
+        if (sortMode === "tokens_desc") return b.totals.total_tokens - a.totals.total_tokens;
+        if (sortMode === "calls_desc") return b.totals.calls - a.totals.calls;
+        if (sortMode === "recent_desc") return new Date(b.totals.last_used_at || 0) - new Date(a.totals.last_used_at || 0);
+        if (sortMode === "name_asc") return String(a.displayName).localeCompare(String(b.displayName), undefined, { sensitivity: "base" });
+        return b.totals.cost_usd - a.totals.cost_usd;
+      });
+      const grandTotals = userGroups.reduce((acc, group) => {
+        acc.calls += group.totals.calls;
+        acc.input_tokens += group.totals.input_tokens;
+        acc.output_tokens += group.totals.output_tokens;
+        acc.total_tokens += group.totals.total_tokens;
+        acc.cost_usd += group.totals.cost_usd;
+        return acc;
+      }, { calls: 0, input_tokens: 0, output_tokens: 0, total_tokens: 0, cost_usd: 0 });
+
+      aiUsageStatus.textContent =
+        `Showing ${rows.length} grouped row${rows.length === 1 ? "" : "s"} across ${userGroups.length} user`
+        + `${userGroups.length === 1 ? "" : "s"} from ${startDate} to ${endDate}. `
+        + `Estimated total cost: ${formatUsd(grandTotals.cost_usd)}.`;
+
+      aiUsageTableBody.innerHTML = userGroups.map((group) => {
+        const sortedRows = [...group.rows].sort((a, b) => {
+          const costDiff = (b.cost_usd || 0) - (a.cost_usd || 0);
+          if (costDiff !== 0) return costDiff;
+          const tokenDiff = (Number(b.total_tokens) || 0) - (Number(a.total_tokens) || 0);
+          if (tokenDiff !== 0) return tokenDiff;
+          return String(a.feature || "").localeCompare(String(b.feature || ""));
+        });
+        const detailRows = sortedRows.map((row) => `
+          <tr>
+            <td style="font-weight:600;">${escapeHtml(group.displayName)}</td>
+            <td>${escapeHtml(formatAiFeatureLabel(row.feature))}</td>
+            <td><code>${escapeHtml(formatModelLabel(row.model))}</code></td>
+            <td>${formatAdminNumber(row.calls)}</td>
+            <td>${formatAdminNumber(row.input_tokens)}</td>
+            <td>${formatAdminNumber(row.output_tokens)}</td>
+            <td>${formatAdminNumber(row.total_tokens)}</td>
+            <td style="font-weight:700;">${formatUsd(row.cost_usd)}</td>
+            <td>${escapeHtml(formatAdminDateTime(row.last_used_at))}</td>
+          </tr>
+        `).join("");
+
+        const totalRow = `
+          <tr style="background:#f8fafc; border-top:2px solid var(--border);">
+            <td style="font-weight:800;">${escapeHtml(group.displayName)} total</td>
+            <td colspan="2" style="font-weight:700; color:var(--text-muted);">All features</td>
+            <td style="font-weight:800;">${formatAdminNumber(group.totals.calls)}</td>
+            <td style="font-weight:800;">${formatAdminNumber(group.totals.input_tokens)}</td>
+            <td style="font-weight:800;">${formatAdminNumber(group.totals.output_tokens)}</td>
+            <td style="font-weight:800;">${formatAdminNumber(group.totals.total_tokens)}</td>
+            <td style="font-weight:800;">${formatUsd(group.totals.cost_usd)}</td>
+            <td style="font-weight:800;">${escapeHtml(formatAdminDateTime(group.totals.last_used_at))}</td>
+          </tr>
+        `;
+
+        return detailRows + totalRow;
+      }).join("") + `
+        <tr style="background:#e2e8f0; border-top:2px solid #94a3b8;">
+          <td style="font-weight:800;">Grand total</td>
+          <td colspan="2" style="font-weight:700;">All users</td>
+          <td style="font-weight:800;">${formatAdminNumber(grandTotals.calls)}</td>
+          <td style="font-weight:800;">${formatAdminNumber(grandTotals.input_tokens)}</td>
+          <td style="font-weight:800;">${formatAdminNumber(grandTotals.output_tokens)}</td>
+          <td style="font-weight:800;">${formatAdminNumber(grandTotals.total_tokens)}</td>
+          <td style="font-weight:800;">${formatUsd(grandTotals.cost_usd)}</td>
+          <td>—</td>
+        </tr>
+      `;
+    } catch (err) {
+      aiUsageStatus.textContent = "";
+      aiUsageTableBody.innerHTML = `<tr><td colspan="9" style="padding:20px; text-align:center; color:#991b1b;">Could not load AI usage: ${escapeHtml(err.message || String(err))}</td></tr>`;
+      showAdminToast(err.message || "Could not load AI usage.", true);
+    } finally {
+      btnLoadAiUsage.disabled = false;
+    }
+  }
+
+  initializeAiUsageDateRange();
 
   function dedupeQuestionsById(rows) {
     const seen = new Set();
@@ -8189,6 +8472,17 @@
   });
 
   document.getElementById("btnClearAuditSelection")?.addEventListener("click", clearAuditSelection);
+  btnLoadAiUsage?.addEventListener("click", () => {
+    loadAiUsageSummary().catch(() => {});
+  });
+  [aiUsageStartDateInput, aiUsageEndDateInput, aiUsageSortSelect].forEach((control) => {
+    control?.addEventListener("change", () => {
+      const isPlaceholderState = !!aiUsageTableBody?.querySelector("tr td[colspan='9']");
+      if (!isPlaceholderState) {
+        loadAiUsageSummary().catch(() => {});
+      }
+    });
+  });
 
   function setBulkFieldEnabled(key, enabled) {
     const body = document.querySelector(`#bulkEditModal [data-bulk-body="${key}"]`);
