@@ -2934,6 +2934,13 @@
                   <option value="name_asc">Name A-Z</option>
                 </select>
               </div>
+              <div class="field-fit" style="flex:0 0 auto; min-width:170px;">
+                <label for="aiUsageView">View mode</label>
+                <select id="aiUsageView" class="select-fit">
+                  <option value="grouped" selected>Grouped summary</option>
+                  <option value="raw">Raw events</option>
+                </select>
+              </div>
               <div class="field-fit" style="flex:0 0 auto;">
                 <button type="button" id="btnLoadAiUsage" class="btn btn-primary">Load AI usage</button>
               </div>
@@ -2942,15 +2949,15 @@
           <div style="margin-top:12px; background:#f8fafc; border:1px solid var(--border); border-radius:10px; padding:12px 14px;">
             <div style="font-weight:700; color:var(--primary-dark); margin-bottom:6px;">Current Gemini pricing used for estimates</div>
             <div style="font-size:0.84rem; color:var(--text-muted); line-height:1.5;">
-              <div><strong><code>gemini-2.5-flash</code></strong>: $0.30 / 1M input tokens, $2.50 / 1M output tokens.</div>
-              <div><strong><code>gemini-2.5-flash-lite</code></strong>: $0.10 / 1M input tokens, $0.40 / 1M output tokens.</div>
-              <div style="margin-top:6px;">Output pricing includes response and reasoning tokens. Estimates are derived from the recorded input and output token counts.</div>
+              <div><strong><code>gemini-2.5-flash</code></strong>: $0.30 / 1M input, $0.03 / 1M cached input, $2.50 / 1M output.</div>
+              <div><strong><code>gemini-2.5-flash-lite</code></strong>: $0.10 / 1M input, $0.01 / 1M cached input, $0.40 / 1M output.</div>
+              <div style="margin-top:6px;">Aligned with Google AI Studio: <strong>Output</strong> = answer tokens + thinking/reasoning tokens. Cached prompt tokens are charged at the discounted cache rate when present.</div>
             </div>
           </div>
           <p id="aiUsageStatus" class="muted" style="margin-top:12px; font-size:0.84rem;" aria-live="polite"></p>
           <div style="margin-top:12px; overflow-x:auto;">
             <table class="audit-table">
-              <thead>
+              <thead id="aiUsageTableHead">
                 <tr>
                   <th>User</th>
                   <th>Feature</th>
@@ -2961,11 +2968,12 @@
                   <th>Total tokens</th>
                   <th>Est. cost (USD)</th>
                   <th>Last used</th>
+                  <th>Details</th>
                 </tr>
               </thead>
               <tbody id="aiUsageTableBody">
                 <tr>
-                  <td colspan="9" style="padding:20px; text-align:center; color:var(--text-muted);">Load the usage summary to inspect token costs by user.</td>
+                  <td colspan="10" data-ai-usage-placeholder="1" style="padding:20px; text-align:center; color:var(--text-muted);">Load the usage summary to inspect token costs by user.</td>
                 </tr>
               </tbody>
             </table>
@@ -3948,7 +3956,7 @@
       loadBatchMcqSpecPointSelect().catch(() => {});
     }
     if (panelId === "aiUsage" && aiUsageTableBody && btnLoadAiUsage) {
-      const isPlaceholderState = !!aiUsageTableBody.querySelector("tr td[colspan='9']");
+      const isPlaceholderState = !!aiUsageTableBody.querySelector("[data-ai-usage-placeholder='1']");
       if (isPlaceholderState) {
         loadAiUsageSummary().catch(() => {});
       }
@@ -7827,9 +7835,12 @@
   const aiUsageStartDateInput = document.getElementById("aiUsageStartDate");
   const aiUsageEndDateInput = document.getElementById("aiUsageEndDate");
   const aiUsageSortSelect = document.getElementById("aiUsageSort");
+  const aiUsageViewSelect = document.getElementById("aiUsageView");
   const aiUsageStatus = document.getElementById("aiUsageStatus");
+  const aiUsageTableHead = document.getElementById("aiUsageTableHead");
   const aiUsageTableBody = document.getElementById("aiUsageTableBody");
   let aiUsageApplyingQuickRange = false;
+  const aiUsageExpandedGroups = new Set();
 
   const AUDIT_COLSPAN = 13;
   const auditSelectedIds = new Set();
@@ -7875,15 +7886,15 @@
   }
 
   function maybeAutoRefreshAiUsage() {
-    const isPlaceholderState = !!aiUsageTableBody?.querySelector("tr td[colspan='9']");
+    const isPlaceholderState = !!aiUsageTableBody?.querySelector("[data-ai-usage-placeholder='1']");
     if (!isPlaceholderState) {
       loadAiUsageSummary().catch(() => {});
     }
   }
 
   const GEMINI_PRICING_USD_PER_MILLION = Object.freeze({
-    "gemini-2.5-flash": { input: 0.30, output: 2.50 },
-    "gemini-2.5-flash-lite": { input: 0.10, output: 0.40 },
+    "gemini-2.5-flash": { input: 0.30, cached_input: 0.03, output: 2.50 },
+    "gemini-2.5-flash-lite": { input: 0.10, cached_input: 0.01, output: 0.40 },
   });
 
   function formatAiFeatureLabel(feature) {
@@ -7898,10 +7909,47 @@
     return model || "unknown";
   }
 
+  /** Studio-aligned token fields: output = answer + thinking. */
+  function normalizeAiUsageTokens(row) {
+    const usage = row?.usage_meta && typeof row.usage_meta === "object" ? row.usage_meta : {};
+    const meta = row?.meta && typeof row.meta === "object" ? row.meta : {};
+    const inputTokens = Number(row?.prompt_token_count ?? usage.promptTokenCount) || 0;
+    const answerTokens = Number(row?.candidates_token_count ?? usage.candidatesTokenCount) || 0;
+    const thinkingTokens = Number(
+      usage.thoughtsTokenCount
+      ?? meta.thoughts_token_count
+      ?? 0
+    ) || 0;
+    const cachedTokens = Math.min(
+      inputTokens,
+      Number(
+        usage.cachedContentTokenCount
+        ?? meta.cached_content_token_count
+        ?? 0
+      ) || 0
+    );
+    const outputTokens = answerTokens + thinkingTokens;
+    const reportedTotal = Number(row?.total_token_count ?? usage.totalTokenCount) || 0;
+    const totalTokens = reportedTotal > 0 ? reportedTotal : (inputTokens + outputTokens);
+    return {
+      input_tokens: inputTokens,
+      answer_tokens: answerTokens,
+      thinking_tokens: thinkingTokens,
+      cached_tokens: cachedTokens,
+      output_tokens: outputTokens,
+      total_tokens: totalTokens
+    };
+  }
+
   function estimateUsageCostUsd(row) {
     const pricing = GEMINI_PRICING_USD_PER_MILLION[row?.model] || null;
     if (!pricing) return null;
-    const inputCost = (Number(row?.input_tokens) || 0) / 1_000_000 * pricing.input;
+    const inputTokens = Number(row?.input_tokens) || 0;
+    const cachedTokens = Math.min(inputTokens, Number(row?.cached_tokens) || 0);
+    const freshInputTokens = Math.max(0, inputTokens - cachedTokens);
+    const cachedRate = pricing.cached_input ?? (pricing.input * 0.1);
+    const inputCost = (freshInputTokens / 1_000_000 * pricing.input)
+      + (cachedTokens / 1_000_000 * cachedRate);
     const outputCost = (Number(row?.output_tokens) || 0) / 1_000_000 * pricing.output;
     return inputCost + outputCost;
   }
@@ -7918,98 +7966,183 @@
     return date.toLocaleString();
   }
 
-  async function loadAiUsageSummary() {
-    if (!btnLoadAiUsage || !aiUsageStatus || !aiUsageTableBody || !aiUsageStartDateInput || !aiUsageEndDateInput) return;
-    const startDate = aiUsageStartDateInput.value;
-    const endDate = aiUsageEndDateInput.value;
-    const sortMode = aiUsageSortSelect?.value || "cost_desc";
-    if (!startDate || !endDate) {
-      showAdminToast("Pick both a start date and an end date.", true);
-      return;
-    }
-    if (startDate > endDate) {
-      showAdminToast("Start date must be on or before end date.", true);
-      return;
-    }
-    btnLoadAiUsage.disabled = true;
-    aiUsageStatus.textContent = "Loading token usage summary…";
-    aiUsageTableBody.innerHTML = `<tr><td colspan="9" style="padding:20px; text-align:center; color:var(--text-muted);">Loading usage summary…</td></tr>`;
+  function renderAiUsageTableHead(viewMode) {
+    if (!aiUsageTableHead) return;
+    aiUsageTableHead.innerHTML = viewMode === "raw"
+      ? `
+        <tr>
+          <th>User</th>
+          <th>Feature</th>
+          <th>Model</th>
+          <th>Input</th>
+          <th title="Cached portion of input">Cached</th>
+          <th title="Answer JSON tokens">Answer</th>
+          <th title="Thinking / reasoning tokens">Thinking</th>
+          <th title="Answer + thinking (Studio output)">Output</th>
+          <th>Total</th>
+          <th>Est. cost (USD)</th>
+          <th>When</th>
+          <th>Status</th>
+          <th>Request</th>
+        </tr>
+      `
+      : `
+        <tr>
+          <th>User</th>
+          <th>Feature</th>
+          <th>Model</th>
+          <th>Calls</th>
+          <th>Input tokens</th>
+          <th title="Answer + thinking (Studio output)">Output tokens</th>
+          <th>Total tokens</th>
+          <th>Est. cost (USD)</th>
+          <th>Last used</th>
+          <th>Details</th>
+        </tr>
+      `;
+  }
 
-    try {
-      const { data, error } = await supabaseClient.rpc("developer_ai_usage_summary_range", {
-        p_start_date: startDate,
-        p_end_date: endDate
-      });
-      if (error) throw error;
+  function renderAiUsagePlaceholder(message, color = "var(--text-muted)") {
+    const viewMode = aiUsageViewSelect?.value || "grouped";
+    renderAiUsageTableHead(viewMode);
+    const colspan = viewMode === "raw" ? 13 : 10;
+    aiUsageTableBody.innerHTML = `<tr><td colspan="${colspan}" data-ai-usage-placeholder="1" style="padding:20px; text-align:center; color:${color};">${message}</td></tr>`;
+  }
 
-      const rows = Array.isArray(data) ? data : [];
-      if (!rows.length) {
-        aiUsageStatus.textContent = `No AI usage rows found from ${startDate} to ${endDate}.`;
-        aiUsageTableBody.innerHTML = `<tr><td colspan="9" style="padding:20px; text-align:center; color:var(--text-muted);">No usage recorded for this window.</td></tr>`;
-        return;
-      }
+  function getAiUsageRowDisplayName(row, namesByUserId) {
+    return namesByUserId.get(row.user_id) || "Unknown user";
+  }
 
-      const groupedByUser = new Map();
-      rows.forEach((row) => {
-        const key = row.user_id || row.display_name || "unknown";
-        if (!groupedByUser.has(key)) {
-          groupedByUser.set(key, {
-            userId: row.user_id || null,
-            displayName: row.display_name || "Unknown user",
-            rows: [],
-            totals: {
-              calls: 0,
-              input_tokens: 0,
-              output_tokens: 0,
-              total_tokens: 0,
-              cost_usd: 0,
-              last_used_at: null,
-            }
-          });
-        }
-        const bucket = groupedByUser.get(key);
-        const costUsd = estimateUsageCostUsd(row);
-        bucket.rows.push({ ...row, cost_usd: costUsd });
-        bucket.totals.calls += Number(row.calls) || 0;
-        bucket.totals.input_tokens += Number(row.input_tokens) || 0;
-        bucket.totals.output_tokens += Number(row.output_tokens) || 0;
-        bucket.totals.total_tokens += Number(row.total_tokens) || 0;
-        bucket.totals.cost_usd += costUsd || 0;
-        if (!bucket.totals.last_used_at || new Date(row.last_used_at) > new Date(bucket.totals.last_used_at)) {
-          bucket.totals.last_used_at = row.last_used_at;
-        }
-      });
-
-      const userGroups = [...groupedByUser.values()].sort((a, b) => {
-        if (sortMode === "tokens_desc") return b.totals.total_tokens - a.totals.total_tokens;
-        if (sortMode === "calls_desc") return b.totals.calls - a.totals.calls;
-        if (sortMode === "recent_desc") return new Date(b.totals.last_used_at || 0) - new Date(a.totals.last_used_at || 0);
-        if (sortMode === "name_asc") return String(a.displayName).localeCompare(String(b.displayName), undefined, { sensitivity: "base" });
-        return b.totals.cost_usd - a.totals.cost_usd;
-      });
-      const grandTotals = userGroups.reduce((acc, group) => {
-        acc.calls += group.totals.calls;
-        acc.input_tokens += group.totals.input_tokens;
-        acc.output_tokens += group.totals.output_tokens;
-        acc.total_tokens += group.totals.total_tokens;
-        acc.cost_usd += group.totals.cost_usd;
-        return acc;
-      }, { calls: 0, input_tokens: 0, output_tokens: 0, total_tokens: 0, cost_usd: 0 });
-
-      aiUsageStatus.textContent =
-        `Showing ${rows.length} grouped row${rows.length === 1 ? "" : "s"} across ${userGroups.length} user`
-        + `${userGroups.length === 1 ? "" : "s"} from ${startDate} to ${endDate}. `
-        + `Estimated total cost: ${formatUsd(grandTotals.cost_usd)}.`;
-
-      aiUsageTableBody.innerHTML = userGroups.map((group) => {
-        const sortedRows = [...group.rows].sort((a, b) => {
-          const costDiff = (b.cost_usd || 0) - (a.cost_usd || 0);
-          if (costDiff !== 0) return costDiff;
-          const tokenDiff = (Number(b.total_tokens) || 0) - (Number(a.total_tokens) || 0);
-          if (tokenDiff !== 0) return tokenDiff;
-          return String(a.feature || "").localeCompare(String(b.feature || ""));
+  function buildAiUsageGroupRows(rows, namesByUserId, sortMode) {
+    const groupedByUser = new Map();
+    rows.forEach((row) => {
+      const displayName = getAiUsageRowDisplayName(row, namesByUserId);
+      const userKey = row.user_id || displayName || "unknown";
+      if (!groupedByUser.has(userKey)) {
+        groupedByUser.set(userKey, {
+          displayName,
+          rows: [],
+          totals: {
+            calls: 0,
+            input_tokens: 0,
+            output_tokens: 0,
+            total_tokens: 0,
+            cost_usd: 0,
+            last_used_at: null,
+          }
         });
-        const detailRows = sortedRows.map((row) => `
+      }
+      const bucket = groupedByUser.get(userKey);
+      const groupKey = `${row.user_id || "unknown"}::${row.feature || "unknown"}::${row.model || "unknown"}`;
+      let summary = bucket.rows.find((item) => item.group_key === groupKey);
+      if (!summary) {
+        summary = {
+          group_key: groupKey,
+          feature: row.feature,
+          model: row.model,
+          calls: 0,
+          input_tokens: 0,
+          output_tokens: 0,
+          total_tokens: 0,
+          cost_usd: 0,
+          last_used_at: null,
+          events: []
+        };
+        bucket.rows.push(summary);
+      }
+      const tokens = normalizeAiUsageTokens(row);
+      const costUsd = estimateUsageCostUsd({
+        model: row.model,
+        input_tokens: tokens.input_tokens,
+        cached_tokens: tokens.cached_tokens,
+        output_tokens: tokens.output_tokens
+      }) || 0;
+      const eventRow = {
+        ...row,
+        display_name: displayName,
+        ...tokens,
+        cost_usd: costUsd
+      };
+      summary.events.push(eventRow);
+      summary.calls += 1;
+      summary.input_tokens += tokens.input_tokens;
+      summary.output_tokens += tokens.output_tokens;
+      summary.total_tokens += tokens.total_tokens;
+      summary.cost_usd += costUsd;
+      if (!summary.last_used_at || new Date(row.created_at) > new Date(summary.last_used_at)) {
+        summary.last_used_at = row.created_at;
+      }
+      bucket.totals.calls += 1;
+      bucket.totals.input_tokens += tokens.input_tokens;
+      bucket.totals.output_tokens += tokens.output_tokens;
+      bucket.totals.total_tokens += tokens.total_tokens;
+      bucket.totals.cost_usd += costUsd;
+      if (!bucket.totals.last_used_at || new Date(row.created_at) > new Date(bucket.totals.last_used_at)) {
+        bucket.totals.last_used_at = row.created_at;
+      }
+    });
+
+    return [...groupedByUser.values()].sort((a, b) => {
+      if (sortMode === "tokens_desc") return b.totals.total_tokens - a.totals.total_tokens;
+      if (sortMode === "calls_desc") return b.totals.calls - a.totals.calls;
+      if (sortMode === "recent_desc") return new Date(b.totals.last_used_at || 0) - new Date(a.totals.last_used_at || 0);
+      if (sortMode === "name_asc") return String(a.displayName).localeCompare(String(b.displayName), undefined, { sensitivity: "base" });
+      return b.totals.cost_usd - a.totals.cost_usd;
+    });
+  }
+
+  function renderGroupedAiUsage(rows, namesByUserId, startDate, endDate, sortMode) {
+    const userGroups = buildAiUsageGroupRows(rows, namesByUserId, sortMode);
+    if (!userGroups.length) {
+      aiUsageStatus.textContent = `No AI usage rows found from ${startDate} to ${endDate}.`;
+      renderAiUsagePlaceholder("No usage recorded for this window.");
+      return;
+    }
+    const grandTotals = userGroups.reduce((acc, group) => {
+      acc.calls += group.totals.calls;
+      acc.input_tokens += group.totals.input_tokens;
+      acc.output_tokens += group.totals.output_tokens;
+      acc.total_tokens += group.totals.total_tokens;
+      acc.cost_usd += group.totals.cost_usd;
+      return acc;
+    }, { calls: 0, input_tokens: 0, output_tokens: 0, total_tokens: 0, cost_usd: 0 });
+
+    aiUsageStatus.textContent =
+      `Showing ${rows.length} raw event${rows.length === 1 ? "" : "s"} grouped into ${userGroups.length} user`
+      + `${userGroups.length === 1 ? "" : "s"} from ${startDate} to ${endDate}. `
+      + `Output includes thinking tokens (Studio-aligned). `
+      + `Estimated total cost: ${formatUsd(grandTotals.cost_usd)}.`;
+    renderAiUsageTableHead("grouped");
+
+    aiUsageTableBody.innerHTML = userGroups.map((group) => {
+      const sortedRows = [...group.rows].sort((a, b) => {
+        const costDiff = (b.cost_usd || 0) - (a.cost_usd || 0);
+        if (costDiff !== 0) return costDiff;
+        const tokenDiff = (Number(b.total_tokens) || 0) - (Number(a.total_tokens) || 0);
+        if (tokenDiff !== 0) return tokenDiff;
+        return String(a.feature || "").localeCompare(String(b.feature || ""));
+      });
+      const detailRows = sortedRows.map((row) => {
+        const isExpanded = aiUsageExpandedGroups.has(row.group_key);
+        const eventsHtml = isExpanded
+          ? row.events
+            .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+            .map((event) => `
+              <tr style="background:#fcfcfd;">
+                <td style="padding-left:24px;">${escapeHtml(group.displayName)}</td>
+                <td>${escapeHtml(formatAiFeatureLabel(event.feature))}</td>
+                <td><code>${escapeHtml(formatModelLabel(event.model))}</code></td>
+                <td>1</td>
+                <td>${formatAdminNumber(event.input_tokens)}</td>
+                <td>${formatAdminNumber(event.output_tokens)}</td>
+                <td>${formatAdminNumber(event.total_tokens)}</td>
+                <td>${formatUsd(event.cost_usd)}</td>
+                <td>${escapeHtml(formatAdminDateTime(event.created_at))}</td>
+                <td><code>${escapeHtml(event.request_id || "—")}</code></td>
+              </tr>
+            `).join("")
+          : "";
+        return `
           <tr>
             <td style="font-weight:600;">${escapeHtml(group.displayName)}</td>
             <td>${escapeHtml(formatAiFeatureLabel(row.feature))}</td>
@@ -8020,38 +8153,171 @@
             <td>${formatAdminNumber(row.total_tokens)}</td>
             <td style="font-weight:700;">${formatUsd(row.cost_usd)}</td>
             <td>${escapeHtml(formatAdminDateTime(row.last_used_at))}</td>
+            <td><button type="button" class="btn btn-secondary btn-compact ai-usage-toggle" data-group-key="${escapeHtml(row.group_key)}">${isExpanded ? "Hide events" : `Show ${row.events.length} event${row.events.length === 1 ? "" : "s"}`}</button></td>
           </tr>
-        `).join("");
-
-        const totalRow = `
-          <tr style="background:#f8fafc; border-top:2px solid var(--border);">
-            <td style="font-weight:800;">${escapeHtml(group.displayName)} total</td>
-            <td colspan="2" style="font-weight:700; color:var(--text-muted);">All features</td>
-            <td style="font-weight:800;">${formatAdminNumber(group.totals.calls)}</td>
-            <td style="font-weight:800;">${formatAdminNumber(group.totals.input_tokens)}</td>
-            <td style="font-weight:800;">${formatAdminNumber(group.totals.output_tokens)}</td>
-            <td style="font-weight:800;">${formatAdminNumber(group.totals.total_tokens)}</td>
-            <td style="font-weight:800;">${formatUsd(group.totals.cost_usd)}</td>
-            <td style="font-weight:800;">${escapeHtml(formatAdminDateTime(group.totals.last_used_at))}</td>
-          </tr>
+          ${eventsHtml}
         `;
+      }).join("");
 
-        return detailRows + totalRow;
-      }).join("") + `
-        <tr style="background:#e2e8f0; border-top:2px solid #94a3b8;">
-          <td style="font-weight:800;">Grand total</td>
-          <td colspan="2" style="font-weight:700;">All users</td>
-          <td style="font-weight:800;">${formatAdminNumber(grandTotals.calls)}</td>
-          <td style="font-weight:800;">${formatAdminNumber(grandTotals.input_tokens)}</td>
-          <td style="font-weight:800;">${formatAdminNumber(grandTotals.output_tokens)}</td>
-          <td style="font-weight:800;">${formatAdminNumber(grandTotals.total_tokens)}</td>
-          <td style="font-weight:800;">${formatUsd(grandTotals.cost_usd)}</td>
+      const totalRow = `
+        <tr style="background:#f8fafc; border-top:2px solid var(--border);">
+          <td style="font-weight:800;">${escapeHtml(group.displayName)} total</td>
+          <td colspan="2" style="font-weight:700; color:var(--text-muted);">All features</td>
+          <td style="font-weight:800;">${formatAdminNumber(group.totals.calls)}</td>
+          <td style="font-weight:800;">${formatAdminNumber(group.totals.input_tokens)}</td>
+          <td style="font-weight:800;">${formatAdminNumber(group.totals.output_tokens)}</td>
+          <td style="font-weight:800;">${formatAdminNumber(group.totals.total_tokens)}</td>
+          <td style="font-weight:800;">${formatUsd(group.totals.cost_usd)}</td>
+          <td style="font-weight:800;">${escapeHtml(formatAdminDateTime(group.totals.last_used_at))}</td>
           <td>—</td>
         </tr>
       `;
+      return detailRows + totalRow;
+    }).join("") + `
+      <tr style="background:#e2e8f0; border-top:2px solid #94a3b8;">
+        <td style="font-weight:800;">Grand total</td>
+        <td colspan="2" style="font-weight:700;">All users</td>
+        <td style="font-weight:800;">${formatAdminNumber(grandTotals.calls)}</td>
+        <td style="font-weight:800;">${formatAdminNumber(grandTotals.input_tokens)}</td>
+        <td style="font-weight:800;">${formatAdminNumber(grandTotals.output_tokens)}</td>
+        <td style="font-weight:800;">${formatAdminNumber(grandTotals.total_tokens)}</td>
+        <td style="font-weight:800;">${formatUsd(grandTotals.cost_usd)}</td>
+        <td>—</td>
+        <td>—</td>
+      </tr>
+    `;
+  }
+
+  function renderRawAiUsage(rows, namesByUserId, startDate, endDate) {
+    if (!rows.length) {
+      aiUsageStatus.textContent = `No AI usage rows found from ${startDate} to ${endDate}.`;
+      renderAiUsagePlaceholder("No usage recorded for this window.");
+      return;
+    }
+    const enrichedRows = rows.map((row) => {
+      const tokens = normalizeAiUsageTokens(row);
+      return {
+        ...row,
+        display_name: getAiUsageRowDisplayName(row, namesByUserId),
+        ...tokens,
+        cost_usd: estimateUsageCostUsd({
+          model: row.model,
+          input_tokens: tokens.input_tokens,
+          cached_tokens: tokens.cached_tokens,
+          output_tokens: tokens.output_tokens
+        })
+      };
+    });
+    const grandTotals = enrichedRows.reduce((acc, row) => {
+      acc.input_tokens += row.input_tokens;
+      acc.cached_tokens += row.cached_tokens;
+      acc.answer_tokens += row.answer_tokens;
+      acc.thinking_tokens += row.thinking_tokens;
+      acc.output_tokens += row.output_tokens;
+      acc.total_tokens += row.total_tokens;
+      acc.cost_usd += row.cost_usd || 0;
+      return acc;
+    }, {
+      input_tokens: 0,
+      cached_tokens: 0,
+      answer_tokens: 0,
+      thinking_tokens: 0,
+      output_tokens: 0,
+      total_tokens: 0,
+      cost_usd: 0
+    });
+    aiUsageStatus.textContent =
+      `Showing ${enrichedRows.length} raw event${enrichedRows.length === 1 ? "" : "s"} from ${startDate} to ${endDate}. `
+      + `Studio-aligned totals — input ${formatAdminNumber(grandTotals.input_tokens)}, `
+      + `output ${formatAdminNumber(grandTotals.output_tokens)} (answer ${formatAdminNumber(grandTotals.answer_tokens)} + thinking ${formatAdminNumber(grandTotals.thinking_tokens)}). `
+      + `Estimated total cost: ${formatUsd(grandTotals.cost_usd)}.`;
+    renderAiUsageTableHead("raw");
+    aiUsageTableBody.innerHTML = enrichedRows
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+      .map((row) => `
+        <tr>
+          <td style="font-weight:600;">${escapeHtml(row.display_name)}</td>
+          <td>${escapeHtml(formatAiFeatureLabel(row.feature))}</td>
+          <td><code>${escapeHtml(formatModelLabel(row.model))}</code></td>
+          <td>${formatAdminNumber(row.input_tokens)}</td>
+          <td>${formatAdminNumber(row.cached_tokens)}</td>
+          <td>${formatAdminNumber(row.answer_tokens)}</td>
+          <td>${formatAdminNumber(row.thinking_tokens)}</td>
+          <td style="font-weight:700;">${formatAdminNumber(row.output_tokens)}</td>
+          <td>${formatAdminNumber(row.total_tokens)}</td>
+          <td style="font-weight:700;">${formatUsd(row.cost_usd)}</td>
+          <td>${escapeHtml(formatAdminDateTime(row.created_at))}</td>
+          <td>${escapeHtml(row.status || "—")}</td>
+          <td><code>${escapeHtml(row.request_id || "—")}</code></td>
+        </tr>
+      `).join("") + `
+        <tr style="background:#e2e8f0; border-top:2px solid #94a3b8;">
+          <td style="font-weight:800;">Grand total</td>
+          <td colspan="2" style="font-weight:700;">All users</td>
+          <td style="font-weight:800;">${formatAdminNumber(grandTotals.input_tokens)}</td>
+          <td style="font-weight:800;">${formatAdminNumber(grandTotals.cached_tokens)}</td>
+          <td style="font-weight:800;">${formatAdminNumber(grandTotals.answer_tokens)}</td>
+          <td style="font-weight:800;">${formatAdminNumber(grandTotals.thinking_tokens)}</td>
+          <td style="font-weight:800;">${formatAdminNumber(grandTotals.output_tokens)}</td>
+          <td style="font-weight:800;">${formatAdminNumber(grandTotals.total_tokens)}</td>
+          <td style="font-weight:800;">${formatUsd(grandTotals.cost_usd)}</td>
+          <td colspan="3">—</td>
+        </tr>
+      `;
+  }
+
+  async function loadAiUsageSummary() {
+    if (!btnLoadAiUsage || !aiUsageStatus || !aiUsageTableBody || !aiUsageStartDateInput || !aiUsageEndDateInput) return;
+    const startDate = aiUsageStartDateInput.value;
+    const endDate = aiUsageEndDateInput.value;
+    const sortMode = aiUsageSortSelect?.value || "cost_desc";
+    const viewMode = aiUsageViewSelect?.value || "grouped";
+    if (!startDate || !endDate) {
+      showAdminToast("Pick both a start date and an end date.", true);
+      return;
+    }
+    if (startDate > endDate) {
+      showAdminToast("Start date must be on or before end date.", true);
+      return;
+    }
+    btnLoadAiUsage.disabled = true;
+    aiUsageStatus.textContent = viewMode === "raw" ? "Loading raw AI usage events…" : "Loading token usage summary…";
+    renderAiUsagePlaceholder(viewMode === "raw" ? "Loading raw AI usage events…" : "Loading usage summary…");
+
+    try {
+      const startIso = `${startDate}T00:00:00`;
+      const endExclusive = new Date(`${endDate}T00:00:00`);
+      endExclusive.setDate(endExclusive.getDate() + 1);
+      const endIso = `${formatDateInputValue(endExclusive)}T00:00:00`;
+      const { data: summaryRows, error: summaryErr } = await supabaseClient.rpc("developer_ai_usage_summary_range", {
+        p_start_date: startDate,
+        p_end_date: endDate
+      });
+      if (summaryErr) throw summaryErr;
+      const { data, error } = await supabaseClient
+        .from("ai_usage_events")
+        .select("created_at,user_id,feature,model,request_id,question_id,prompt_token_count,candidates_token_count,total_token_count,finish_reason,status,usage_meta,meta")
+        .gte("created_at", startIso)
+        .lt("created_at", endIso)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+
+      const rows = Array.isArray(data) ? data : [];
+      const namesByUserId = new Map();
+      (Array.isArray(summaryRows) ? summaryRows : []).forEach((row) => {
+        if (row?.user_id) {
+          namesByUserId.set(row.user_id, row.display_name?.trim() || "Unknown user");
+        }
+      });
+
+      if (viewMode === "raw") {
+        renderRawAiUsage(rows, namesByUserId, startDate, endDate);
+      } else {
+        renderGroupedAiUsage(rows, namesByUserId, startDate, endDate, sortMode);
+      }
     } catch (err) {
       aiUsageStatus.textContent = "";
-      aiUsageTableBody.innerHTML = `<tr><td colspan="9" style="padding:20px; text-align:center; color:#991b1b;">Could not load AI usage: ${escapeHtml(err.message || String(err))}</td></tr>`;
+      renderAiUsagePlaceholder(`Could not load AI usage: ${escapeHtml(err.message || String(err))}`, "#991b1b");
       showAdminToast(err.message || "Could not load AI usage.", true);
     } finally {
       btnLoadAiUsage.disabled = false;
@@ -8539,6 +8805,21 @@
   });
   aiUsageSortSelect?.addEventListener("change", () => {
     maybeAutoRefreshAiUsage();
+  });
+  aiUsageViewSelect?.addEventListener("change", () => {
+    maybeAutoRefreshAiUsage();
+  });
+  aiUsageTableBody?.addEventListener("click", (event) => {
+    const btn = event.target.closest(".ai-usage-toggle");
+    if (!btn) return;
+    const groupKey = btn.getAttribute("data-group-key");
+    if (!groupKey) return;
+    if (aiUsageExpandedGroups.has(groupKey)) {
+      aiUsageExpandedGroups.delete(groupKey);
+    } else {
+      aiUsageExpandedGroups.add(groupKey);
+    }
+    loadAiUsageSummary().catch(() => {});
   });
 
   function setBulkFieldEnabled(key, enabled) {
