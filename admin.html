@@ -1558,15 +1558,15 @@
       font-size: 0.75rem;
     }
 
-    #panelAudit .audit-table .audit-col-ref { width: 72px; }
+    #panelAudit .audit-table .audit-col-ref { width: 58px; }
     #panelAudit .audit-table .audit-col-type { width: 44px; }
     #panelAudit .audit-table .audit-col-prompt { width: auto; }
     #panelAudit .audit-table .audit-col-marks { width: 40px; }
     #panelAudit .audit-table .audit-col-cmd { width: 56px; }
     #panelAudit .audit-table .audit-col-demand { width: 58px; }
     #panelAudit .audit-table .audit-col-diff { width: 36px; }
-    #panelAudit .audit-table .audit-col-ao { width: 52px; }
-    #panelAudit .audit-table .audit-col-flags { width: 64px; }
+    #panelAudit .audit-table .audit-col-ao { width: 42px; }
+    #panelAudit .audit-table .audit-col-flags { width: 88px; font-size: 0.72rem; white-space: nowrap; }
     #panelAudit .audit-table .audit-col-skills { width: 64px; }
     #panelAudit .audit-table .audit-col-meta { width: 40px; }
     #panelAudit .audit-table .audit-col-ops { width: 118px; }
@@ -2880,7 +2880,7 @@
                 <th class="audit-sort-th audit-col-demand" data-sort="demand">Dem<span class="audit-sort-indicator"></span></th>
                 <th class="audit-sort-th audit-col-diff" data-sort="difficulty" title="Computed difficulty (1–5)">Df<span class="audit-sort-indicator"></span></th>
                 <th class="audit-sort-th audit-col-ao" data-sort="ao">AO<span class="audit-sort-indicator"></span></th>
-                <th class="audit-col-flags">M/RP</th>
+                <th class="audit-col-flags" title="Maths / Required Practical / Audience (B=both tracks, T=triple only) / Tier (FT|HT|Both)">M/RP</th>
                 <th class="audit-col-skills">MS/WS</th>
                 <th class="audit-sort-th audit-col-meta" data-sort="meta">Meta<span class="audit-sort-indicator"></span></th>
                 <th class="audit-col-ops" style="text-align:right;">Ops</th>
@@ -8612,7 +8612,14 @@
       const aoSplit = window.AdminMetadata ? window.AdminMetadata.formatAoSplit(q) : "—";
       const rpCode = q.required_practicals?.code || (q.is_required_practical ? "RP" : "·");
       const aud = q.audience === "triple_only" ? "T" : "B";
-      const flags = `${q.is_maths_skill ? "M" : "·"}/${rpCode}/${aud}`;
+      const tierRaw = String(q.tier || "both").toLowerCase();
+      const tierFlag = (tierRaw === "ft" || tierRaw === "foundation")
+        ? "FT"
+        : (tierRaw === "ht" || tierRaw === "higher")
+          ? "HT"
+          : "Both";
+      const flags = `${q.is_maths_skill ? "M" : "·"}/${rpCode}/${aud}/${tierFlag}`;
+      const flagsTitle = `Maths: ${q.is_maths_skill ? "yes" : "no"} · RP: ${rpCode} · Audience: ${q.audience === "triple_only" ? "triple only" : "both"} · Tier: ${tierFlag}`;
       const metaIncomplete = window.AdminMetadata && window.AdminMetadata.isMetadataIncomplete(q);
       const skillsGap = window.AdminSkills && window.AdminSkills.isSkillsMetadataIncomplete(q);
       const dualLinkGap = window.AdminMetadata && window.AdminMetadata.isDualLinkIncomplete(q);
@@ -8672,7 +8679,7 @@
             <td class="audit-col-demand">${escapeHtml(demand)}</td>
             <td class="audit-col-diff" style="text-align:center;"><span class="difficulty-badge difficulty-badge--compact" title="Computed difficulty (1–5)">${computedDiff}</span></td>
             <td class="audit-col-ao" style="font-family:monospace;">${escapeHtml(aoSplit)}</td>
-            <td class="audit-col-flags">${flags}</td>
+            <td class="audit-col-flags" title="${escapeHtml(flagsTitle)}">${flags}</td>
             <td class="audit-col-skills" style="font-family:monospace; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(skillsBadge)}">${escapeHtml(skillsBadge)}</td>
             <td class="audit-col-meta">${metaBadge}</td>
             <td class="audit-col-ops">
