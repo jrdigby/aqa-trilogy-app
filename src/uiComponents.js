@@ -253,6 +253,45 @@ export function renderLiveAIFeedback(evaluation, hasImprovedCurrentQ) {
   const max = evaluation.score_max || 6;
   const level = evaluation.level_achieved || "Level 1";
   const pct = Math.round((score / max) * 100);
+  const targets = evaluation.ao_targets && typeof evaluation.ao_targets === "object"
+    ? evaluation.ao_targets
+    : null;
+  const aoDefs = [
+    { key: "AO1", label: "AO1: Knowledge &amp; Understanding", color: "#3b82f6", textCol: "#1e3a8a" },
+    { key: "AO2", label: "AO2: Application of Knowledge", color: "#10b981", textCol: "#065f46" },
+    { key: "AO3", label: "AO3: Analysis &amp; Evaluation", color: "#f59e0b", textCol: "#78350f" }
+  ];
+  const aoRowsHtml = aoDefs.map(({ key, label, color, textCol }) => {
+    const awarded = Number(evaluation.ao_breakdown?.[key]) || 0;
+    const target = targets ? Math.max(0, Number(targets[key]) || 0) : null;
+    // Hide objectives that are not assessed on this question (target 0).
+    if (target === 0) return "";
+    const denom = target == null ? "" : `/${target}`;
+    return `
+          <div style="font-size: 0.78rem; padding: 6px 10px; background: #f8fafc; border-left: 3px solid ${color}; border-radius: 0 4px 4px 0; display: flex; justify-content: space-between;">
+            <span style="font-weight: 700; color: ${textCol};">${label}</span>
+            <span style="font-weight: 700;">${awarded}${denom} marks</span>
+          </div>`;
+  }).join("");
+
+  const improvements = Array.isArray(evaluation.improvements_recognised)
+    ? evaluation.improvements_recognised.map((x) => String(x)).filter(Boolean)
+    : [];
+  const improvementsHtml = improvements.length
+    ? `
+      <div style="margin-top: 14px; margin-bottom: 4px; padding: 12px 14px; background: #ecfdf5; border-left: 4px solid #059669; border-radius: 4px;">
+        <strong style="font-size: 0.8rem; color: #065f46; display: block; margin-bottom: 6px;">✅ Improvements recognised since your last attempt:</strong>
+        <ul style="margin: 0; padding-left: 20px; font-size: 0.82rem; color: #064e3b; line-height: 1.4;">
+          ${improvements.map((item) => `<li style="margin-bottom: 3px;">${escapeHtml(restoreMangledLatexEscapes(item))}</li>`).join("")}
+        </ul>
+      </div>`
+    : (hasImprovedCurrentQ
+      ? `
+      <div style="margin-top: 14px; margin-bottom: 4px; padding: 12px 14px; background: #fffbeb; border-left: 4px solid #d97706; border-radius: 4px;">
+        <strong style="font-size: 0.8rem; color: #92400e; display: block;">Improved attempt marked</strong>
+        <p style="font-size: 0.78rem; color: #78350f; margin: 4px 0 0;">No clear new credit against the previous attempt was identified — check the gaps below.</p>
+      </div>`
+      : "");
 
   let html = `
     <div style="background: #fafbfc; padding: 18px; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
@@ -270,22 +309,13 @@ export function renderLiveAIFeedback(evaluation, hasImprovedCurrentQ) {
       </div>
 
       <div style="margin-top: 15px; margin-bottom: 15px;">
-        <strong style="font-size: 0.82rem; color: #1e293b; display: block; margin-bottom: 8px;">Cognitive Mark Split:</strong>
+        <strong style="font-size: 0.82rem; color: #1e293b; display: block; margin-bottom: 8px;">Assessment objective split:</strong>
         <div style="display: flex; flex-direction: column; gap: 6px;">
-          <div style="font-size: 0.78rem; padding: 6px 10px; background: #f8fafc; border-left: 3px solid #3b82f6; border-radius: 0 4px 4px 0; display: flex; justify-content: space-between;">
-            <span style="font-weight: 700; color: #1e3a8a;">AO1: Knowledge &amp; Procedural Recall</span>
-            <span style="font-weight: 700;">${evaluation.ao_breakdown?.AO1 || 0}/${Math.ceil(max/3)} marks</span>
-          </div>
-          <div style="font-size: 0.78rem; padding: 6px 10px; background: #f8fafc; border-left: 3px solid #10b981; border-radius: 0 4px 4px 0; display: flex; justify-content: space-between;">
-            <span style="font-weight: 700; color: #065f46;">AO2: Application to Experimental Method</span>
-            <span style="font-weight: 700;">${evaluation.ao_breakdown?.AO2 || 0}/${Math.floor(max/3)} marks</span>
-          </div>
-          <div style="font-size: 0.78rem; padding: 6px 10px; background: #f8fafc; border-left: 3px solid #f59e0b; border-radius: 0 4px 4px 0; display: flex; justify-content: space-between;">
-            <span style="font-weight: 700; color: #78350f;">AO3: Error Mitigation &amp; Parallax Evaluation</span>
-            <span style="font-weight: 700;">${evaluation.ao_breakdown?.AO3 || 0}/${max - Math.ceil(max/3) - Math.floor(max/3)} marks</span>
-          </div>
+          ${aoRowsHtml || `<div style="font-size: 0.78rem; color: #64748b;">AO split not available for this mark.</div>`}
         </div>
       </div>
+
+      ${improvementsHtml}
 
       <div>
         <strong style="font-size: 0.82rem; color: #0f172a; display: block; margin-bottom: 4px;">🟢 Demonstrated Scientific Concepts:</strong>
@@ -304,7 +334,9 @@ export function renderLiveAIFeedback(evaluation, hasImprovedCurrentQ) {
       </div>
 
       <div style="margin-top: 18px; padding: 12px 14px; background: #eff6ff; border-left: 4px solid #2563eb; border-radius: 4px; box-shadow: inset 0 1px 2px rgba(0,0,0,0.02);">
-        <strong style="font-size: 0.8rem; color: #1e40af; display: block; margin-bottom: 4px;">🎯 Actionable Coach Recommendation to move up a grade:</strong>
+        <strong style="font-size: 0.8rem; color: #1e40af; display: block; margin-bottom: 4px;">${score >= max
+          ? "🎯 Examiner note:"
+          : "🎯 Actionable Coach Recommendation to move up a grade:"}</strong>
         <p style="font-size: 0.78rem; color: #1e3a8a; line-height: 1.4; margin: 0;">
           ${escapeHtml(restoreMangledLatexEscapes(evaluation.actionable_improvement_advice))}
         </p>

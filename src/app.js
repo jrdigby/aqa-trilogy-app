@@ -380,6 +380,8 @@ function wireAnswerFocusTracking() {
 let isInitializingPipeline = false;
 let authHandledByButton = false;
 let hasImprovedCurrentQ = false;
+/** Keep first-mark model answer so lean improvement resubmits can still show it. */
+let lastAiImprovedAnswer = null;
 let cachedDueItems = [];
 let cachedActiveSRS = [];
 
@@ -2833,6 +2835,7 @@ async function loadQuestion() {
   }
   
   hasImprovedCurrentQ = false;
+  lastAiImprovedAnswer = null;
 
   const banner = el("improveBanner");
   if (banner) banner.remove();
@@ -4486,19 +4489,37 @@ if (btnSubmit) {
         const { data, error } = await supabaseClient.functions.invoke('mark-long-answer', {
           body: { 
             question_id: currentQ.id, 
-            student_text: response.text 
+            student_text: response.text,
+            is_improvement: hasImprovedCurrentQ === true
           }
         });
 
         if (error) throw error;
 
-        feedback.innerHTML = renderLiveAIFeedback(data, hasImprovedCurrentQ);
+        if (data?.improved_answer) {
+          lastAiImprovedAnswer = data.improved_answer;
+        }
+        const feedbackData = data?.improved_answer || !lastAiImprovedAnswer
+          ? data
+          : { ...data, improved_answer: lastAiImprovedAnswer };
+
+        // Prefer server ao_targets; fall back to question metadata if an older function omits them.
+        if (!feedbackData.ao_targets && currentQ) {
+          feedbackData.ao_targets = {
+            AO1: Number(currentQ.ao1_marks) || 0,
+            AO2: Number(currentQ.ao2_marks) || 0,
+            AO3: Number(currentQ.ao3_marks) || 0
+          };
+        }
+
+        feedback.innerHTML = renderLiveAIFeedback(feedbackData, hasImprovedCurrentQ);
         triggerMathTypeset();
 
         const btnImprove = el("btnImprove");
         if (btnImprove) {
           btnImprove.onclick = () => {
-            hasImprovedCurrentQ = true; 
+            hasImprovedCurrentQ = true;
+            btnImprove.remove();
             const textarea = el("txtAns");
             if (textarea) {
               textarea.value = response.text;
@@ -4506,6 +4527,8 @@ if (btnSubmit) {
               textarea.scrollIntoView({ behavior: "smooth" });
 
               showSubmitButton("Submit Improved Answer");
+              // Keep advance available while drafting / after the first mark.
+              if (btnNext) showAdvanceButton();
 
               let banner = el("improveBanner");
               if (!banner) {
@@ -4528,7 +4551,7 @@ if (btnSubmit) {
           ao1_score: data.ao_breakdown?.AO1 || 0,
           ao2_score: data.ao_breakdown?.AO2 || 0,
           ao3_score: data.ao_breakdown?.AO3 || 0,
-          feedback_payload: data,
+          feedback_payload: feedbackData,
           xp_earned: xpEarned,
           hints_revealed: hintsRevealed
         });
