@@ -15,7 +15,9 @@ function ensureMathJaxLoaded() {
 
   mathJaxLoadPromise = new Promise((resolve, reject) => {
     window.MathJax = {
+      loader: { load: ["[tex]/mhchem"] },
       tex: {
+        packages: { "[+]": ["mhchem"] },
         inlineMath: [["$", "$"], ["\\(", "\\)"]],
         displayMath: [["$$", "$$"], ["\\[", "\\]"]],
       },
