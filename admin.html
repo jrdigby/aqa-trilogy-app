@@ -7,10 +7,12 @@
   
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   
-  <!-- MathJax Configuration & Loader for beautiful LaTeX symbol typesetting (e.g. \infty, \propto) -->
+  <!-- MathJax Configuration & Loader for LaTeX + mhchem chemical notation -->
   <script>
     window.MathJax = {
+      loader: { load: ['[tex]/mhchem'] },
       tex: {
+        packages: { '[+]': ['mhchem'] },
         inlineMath: [['$', '$'], ['\\(', '\\)']],
         displayMath: [['$$', '$$'], ['\\[', '\\]']]
       },
@@ -1946,6 +1948,12 @@
             <div class="creator-core-side-col">
               <div>
                 <label>Question Prompt / Stem (supports MathJax LaTeX: use $ or $$):</label>
+                <p class="muted" style="font-size: 0.78rem; margin: 4px 0 8px;">
+                  Chemistry: wrap formulas in <code>$\ce{...}$</code> —
+                  e.g. <code>$\ce{H2O}$</code>,
+                  isotope <code>$\ce{^12_6C}$</code>,
+                  equation <code>$\ce{2H2 + O2 -> 2H2O}$</code>.
+                </p>
                 <textarea id="qPrompt" rows="5" placeholder="Type prompt here..."></textarea>
               </div>
 
@@ -3058,7 +3066,12 @@
         <input type="hidden" id="editEqSheetCourseTrack" value="combined"/>
         
         <div class="edit-form-span-full">
-          <label>Question Prompt Stem:</label>
+          <label>Question Prompt Stem (MathJax LaTeX: $ or $$):</label>
+          <p class="muted" style="font-size: 0.78rem; margin: 4px 0 8px;">
+            Chemistry: <code>$\ce{H2O}$</code>,
+            isotope <code>$\ce{^12_6C}$</code>,
+            equation <code>$\ce{2H2 + O2 -> 2H2O}$</code>.
+          </p>
           <textarea id="editPrompt" rows="3" style="font-family:inherit;"></textarea>
         </div>
 
