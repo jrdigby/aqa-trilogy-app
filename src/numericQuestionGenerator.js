@@ -85,6 +85,8 @@ const SUBJECT_UNITS = {
   c: "J/(kg °C)",
   L: "J/kg",
   h: "m",
+  l: "m",
+  B: "T",
   T: "s",
   E_useful: "J",
   E_in: "J",
@@ -128,6 +130,8 @@ const SLOT_PROMPT_LABELS = {
   g: "gravitational field strength",
   c: "specific heat capacity",
   h: "height",
+  l: "length",
+  B: "magnetic flux density",
   L: "specific latent heat",
   delta_theta: "temperature change",
   delta_E: "energy change",
@@ -183,6 +187,8 @@ const DEFAULT_SLOT_RANGES = {
   g: { min: 10, max: 10, step: 1 },
   c: { min: 4200, max: 4200, step: 1 },
   h: { min: 1, max: 2, step: 0.1 },
+  l: { min: 0.05, max: 2, step: 0.05 },
+  B: { min: 0.05, max: 2, step: 0.05 },
   k: { min: 50, max: 500, step: 10 },
   e: { min: 0.01, max: 0.2, step: 0.01 },
   rho: { min: 500, max: 8000, step: 100 },
@@ -289,6 +295,8 @@ const PROMPT_TEMPLATES = {
   momentum: "Calculate the momentum of an object of mass {m} kg moving at {v} m/s.",
   spring_force:
     "Calculate the force on a spring with spring constant {k} N/m and extension {e} m.",
+  force_on_conductor:
+    "A wire of length {l} m carries a current of {I} A at right angles to a magnetic field of magnetic flux density {B} T. Calculate the force on the conductor.",
   suvat:
     "Calculate the final velocity of an object that starts at {u} m/s and accelerates at {a} m/s² for {s} m."
 };
@@ -304,9 +312,9 @@ const REARRANGEMENT_PROMPT_TEMPLATES = {
 };
 
 const CONVERSION_CATALOG = [
-  { slotPattern: /^(s|h|d|e|lambda)$/, fromUnit: "km", toUnit: "m", factor: 1000 },
-  { slotPattern: /^(s|h|d|e|lambda)$/, fromUnit: "cm", toUnit: "m", factor: 0.01 },
-  { slotPattern: /^(s|h|d|e|lambda)$/, fromUnit: "mm", toUnit: "m", factor: 0.001 },
+  { slotPattern: /^(s|h|d|e|lambda|l)$/, fromUnit: "km", toUnit: "m", factor: 1000 },
+  { slotPattern: /^(s|h|d|e|lambda|l)$/, fromUnit: "cm", toUnit: "m", factor: 0.01 },
+  { slotPattern: /^(s|h|d|e|lambda|l)$/, fromUnit: "mm", toUnit: "m", factor: 0.001 },
   { slotPattern: /^(v|u|delta_v)$/, fromUnit: "km/h", toUnit: "m/s", factor: 1000 / 3600 },
   { slotPattern: /^m$/, fromUnit: "g", toUnit: "kg", factor: 0.001 },
   { slotPattern: /^m$/, fromUnit: "t", toUnit: "kg", factor: 1000 },
@@ -319,6 +327,11 @@ const CONVERSION_CATALOG = [
   { slotPattern: /^V$|^V_p$|^V_s$/, fromUnit: "kV", toUnit: "V", factor: 1000 },
   // Density (and other volume slots): V means m³, not volts — matched via toUnit === SI unit.
   { slotPattern: /^V$|^vol$/, fromUnit: "cm³", toUnit: "m³", factor: 1e-6 },
+  { slotPattern: /^B$/, fromUnit: "mT", toUnit: "T", factor: 0.001 },
+  { slotPattern: /^B$/, fromUnit: "µT", toUnit: "T", factor: 1e-6 },
+  { slotPattern: /^B$/, fromUnit: "uT", toUnit: "T", factor: 1e-6 },
+  { slotPattern: /^F$/, fromUnit: "mN", toUnit: "N", factor: 0.001 },
+  { slotPattern: /^F$/, fromUnit: "kN", toUnit: "N", factor: 1000 },
   { slotPattern: /^P$|^P_useful$|^P_in$/, fromUnit: "kW", toUnit: "W", factor: 1000 },
   { slotPattern: /^P$|^P_useful$|^P_in$/, fromUnit: "MW", toUnit: "W", factor: 1e6 },
   {
@@ -346,6 +359,12 @@ const UNIT_ALIASES = {
   ma: "mA",
   mv: "mV",
   kv: "kV",
+  mt: "mT",
+  microt: "µT",
+  ut: "µT",
+  μt: "µT",
+  mn: "mN",
+  kn: "kN",
   kj: "kJ",
   mj: "MJ",
   kw: "kW",

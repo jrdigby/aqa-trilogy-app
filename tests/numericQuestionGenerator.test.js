@@ -162,6 +162,95 @@ test("listConversionUnitOptions — potential difference still offers mV and kV"
   assert.ok(!units.includes("cm³"));
 });
 
+test("listConversionUnitOptions — force on conductor B, l, F units", () => {
+  const eq = findEq(sheetP2, "force_on_conductor");
+  assert.ok(eq, "force_on_conductor should exist");
+
+  const bUnits = listConversionUnitOptions("B", eq).map((o) => o.fromUnit);
+  assert.ok(bUnits.includes("T"), `expected T, got ${bUnits.join(", ")}`);
+  assert.ok(bUnits.includes("mT"), `expected mT, got ${bUnits.join(", ")}`);
+  assert.ok(bUnits.includes("µT"), `expected µT, got ${bUnits.join(", ")}`);
+
+  const lUnits = listConversionUnitOptions("l", eq).map((o) => o.fromUnit);
+  assert.ok(lUnits.includes("m"), `expected m, got ${lUnits.join(", ")}`);
+  assert.ok(lUnits.includes("cm"), `expected cm, got ${lUnits.join(", ")}`);
+  assert.ok(lUnits.includes("mm"), `expected mm, got ${lUnits.join(", ")}`);
+
+  const fUnits = listConversionUnitOptions("F", eq).map((o) => o.fromUnit);
+  assert.ok(fUnits.includes("N"), `expected N, got ${fUnits.join(", ")}`);
+  assert.ok(fUnits.includes("mN"), `expected mN, got ${fUnits.join(", ")}`);
+  assert.ok(fUnits.includes("kN"), `expected kN, got ${fUnits.join(", ")}`);
+});
+
+test("buildConversionStep — force on conductor can convert B, l, or F", () => {
+  const eq = findEq(sheetP2, "force_on_conductor");
+  const slots = { B: "0.2", I: "3", l: "0.5", F: "0.3" };
+  const slotAnswers = {
+    B: ["0.2"],
+    I: ["3"],
+    l: ["0.5"],
+    F: ["0.3"]
+  };
+  const conv = buildConversionStep(eq, slots, slotAnswers, () => 0, {
+    excludeSlotIds: ["I"],
+    rearrangementSubject: "I"
+  });
+  assert.ok(conv.conversion, "expected a conversion step when rearranging for I");
+  assert.ok(["B", "l", "F"].includes(conv.conversion.slot_id), conv.conversion.slot_id);
+  if (conv.conversion.slot_id === "B") {
+    assert.ok(["mT", "µT"].includes(conv.conversion.from_unit));
+  } else if (conv.conversion.slot_id === "l") {
+    assert.ok(["cm", "mm", "km"].includes(conv.conversion.from_unit));
+  } else {
+    assert.ok(["mN", "kN"].includes(conv.conversion.from_unit));
+  }
+});
+
+test("generateBatch — force on conductor with unit conversion (rearrange for I)", () => {
+  const { drafts, errors } = generateBatch(
+    {
+      equation: "force_on_conductor",
+      sheet: "physics_p2_ht",
+      subject: "physics",
+      paper: "paper2",
+      tier: "higher",
+      rearrangement_subject: "I",
+      seed: 11,
+      variants: {
+        recipes: [{ base: "recall", rearrangement: true, unitConversion: true, count: 1 }]
+      }
+    },
+    sheetP2
+  );
+  assert.equal(errors.length, 0, errors.map((e) => e.message).join("; "));
+  assert.equal(drafts.length, 1);
+  const cfg = drafts[0].question.calculation_config;
+  assert.ok(cfg.steps.some((s) => s.type === "conversion"), JSON.stringify(cfg.steps.map((s) => s.type)));
+  assert.equal(drafts[0].answer_key.key_payload.unit, "A");
+});
+
+test("generateBatch — force on conductor substitute with unit conversion", () => {
+  const { drafts, errors } = generateBatch(
+    {
+      equation: "force_on_conductor",
+      sheet: "physics_p2_ht",
+      subject: "physics",
+      paper: "paper2",
+      tier: "higher",
+      seed: 22,
+      variants: {
+        recipes: [{ base: "substitute", unitConversion: true, count: 1 }]
+      }
+    },
+    sheetP2
+  );
+  assert.equal(errors.length, 0, errors.map((e) => e.message).join("; "));
+  assert.equal(drafts.length, 1);
+  assert.equal(drafts[0].answer_key.key_payload.unit, "N");
+  const cfg = drafts[0].question.calculation_config;
+  assert.ok(cfg.steps.some((s) => s.type === "conversion"), JSON.stringify(cfg.steps.map((s) => s.type)));
+});
+
 test("generateBatch — efficiency as percentage", () => {
   const { drafts, errors } = generateBatch(
     {
