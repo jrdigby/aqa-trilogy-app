@@ -1558,18 +1558,18 @@
       font-size: 0.75rem;
     }
 
-    #panelAudit .audit-table .audit-col-ref { width: 58px; }
-    #panelAudit .audit-table .audit-col-type { width: 44px; }
+    #panelAudit .audit-table .audit-col-ref { width: 44px; }
+    #panelAudit .audit-table .audit-col-type { width: 40px; }
     #panelAudit .audit-table .audit-col-prompt { width: auto; }
-    #panelAudit .audit-table .audit-col-marks { width: 40px; }
-    #panelAudit .audit-table .audit-col-cmd { width: 56px; }
-    #panelAudit .audit-table .audit-col-demand { width: 58px; }
-    #panelAudit .audit-table .audit-col-diff { width: 36px; }
-    #panelAudit .audit-table .audit-col-ao { width: 42px; }
-    #panelAudit .audit-table .audit-col-flags { width: 88px; font-size: 0.72rem; white-space: nowrap; }
-    #panelAudit .audit-table .audit-col-skills { width: 64px; }
-    #panelAudit .audit-table .audit-col-meta { width: 40px; }
-    #panelAudit .audit-table .audit-col-ops { width: 118px; }
+    #panelAudit .audit-table .audit-col-marks { width: 36px; }
+    #panelAudit .audit-table .audit-col-cmd { width: 50px; }
+    #panelAudit .audit-table .audit-col-demand { width: 52px; }
+    #panelAudit .audit-table .audit-col-diff { width: 32px; }
+    #panelAudit .audit-table .audit-col-ao { width: 38px; }
+    #panelAudit .audit-table .audit-col-flags { width: 80px; font-size: 0.72rem; white-space: nowrap; }
+    #panelAudit .audit-table .audit-col-skills { width: 58px; }
+    #panelAudit .audit-table .audit-col-meta { width: 36px; }
+    #panelAudit .audit-table .audit-col-ops { width: 142px; }
 
     #panelAudit .audit-type-chip {
       display: inline-block;
@@ -1602,16 +1602,16 @@
 
     #panelAudit .audit-ops {
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 3px;
-      width: 108px;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 2px;
+      width: 132px;
       margin-left: auto;
     }
 
     #panelAudit .audit-ops .btn {
-      padding: 3px 4px;
-      font-size: 0.68rem;
-      line-height: 1.2;
+      padding: 2px 3px;
+      font-size: 0.62rem;
+      line-height: 1.15;
       min-height: 0;
       white-space: nowrap;
     }
@@ -3039,12 +3039,12 @@
   <div id="editModalOverlay" class="hidden" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(15,23,42,0.6); z-index:1900; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(4px);">
     <div class="card" style="width:100%; max-width:800px; box-shadow:0 20px 25px -5px rgba(0,0,0,0.1); border-radius:16px; margin: auto 16px;">
       <div class="edit-modal-header" style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border);">
-        <h3 style="margin:0; color:#1e293b;">✏️ Modify Active Question Record</h3>
+        <h3 id="editModalTitle" style="margin:0; color:#1e293b;">✏️ Modify Active Question Record</h3>
         <button type="button" class="edit-modal-close" onclick="closeEditModal()" style="border:none; background:none; cursor:pointer; color:var(--text-muted);">&times;</button>
       </div>
 
       <div class="edit-modal-body">
-      <div class="edit-modal-notice" style="background:#eff6ff; border:1px solid #bfdbfe; color:#1e40af; border-radius:8px;">
+      <div id="editModalNotice" class="edit-modal-notice" style="background:#eff6ff; border:1px solid #bfdbfe; color:#1e40af; border-radius:8px;">
         💡 <strong>Live Edits Mode:</strong> Making changes here and clicking "Save Changes" will instantly update active tables.
       </div>
 
@@ -8662,7 +8662,7 @@
       const opsBottomLeft = isMcq
         ? `<button type="button" onclick="draftMcqAsShortAnswer('${q.id}')" class="btn btn-secondary" style="background:#059669; color:white;" title="Copy to short-answer draft on Create tab">→ SA</button>`
         : `<button type="button" onclick="requestSafeSystemDeletion('${q.id}')" class="btn btn-danger">Del</button>`;
-      const opsBottomRight = isMcq
+      const opsBottomMid = isMcq
         ? `<button type="button" onclick="requestSafeSystemDeletion('${q.id}')" class="btn btn-danger">Del</button>`
         : `<span class="audit-ops-spacer btn" aria-hidden="true">·</span>`;
 
@@ -8686,8 +8686,10 @@
               <div class="audit-ops">
                 <button type="button" onclick="launchSandboxTest('${q.id}')" class="btn btn-secondary" style="background:#3b82f6; color:white;">Test</button>
                 <button type="button" onclick="requestInteractiveEdit('${q.id}')" class="btn btn-secondary">Edit</button>
+                <button type="button" onclick="requestInteractiveCopy('${q.id}')" class="btn btn-secondary" style="background:#0d9488; color:white;" title="Copy as new question (edit then save)">Copy</button>
                 ${opsBottomLeft}
-                ${opsBottomRight}
+                ${opsBottomMid}
+                <span class="audit-ops-spacer btn" aria-hidden="true">·</span>
               </div>
             </td>
           </tr>
@@ -9433,6 +9435,8 @@
     const q = loadedQuestionsCache.find(x => x.id === id);
     if (!q) return;
 
+    setEditModalCopyMode(false);
+
     // Populate common elements
     document.getElementById("editQuestionId").value = q.id;
     document.getElementById("editQuestionType").value = q.question_type || "";
@@ -9715,8 +9719,43 @@
     document.getElementById("editModalOverlay").classList.remove("hidden");
   };
 
+  let editModalCopyMode = false;
+
+  function setEditModalCopyMode(isCopy) {
+    editModalCopyMode = !!isCopy;
+    const title = document.getElementById("editModalTitle");
+    const notice = document.getElementById("editModalNotice");
+    const btnSave = document.getElementById("btnSaveEdits");
+    if (isCopy) {
+      if (title) title.textContent = "📋 Copy Question as New Record";
+      if (notice) {
+        notice.style.background = "#f0fdfa";
+        notice.style.borderColor = "#99f6e4";
+        notice.style.color = "#115e59";
+        notice.innerHTML = `📋 <strong>Copy Mode:</strong> Amend any fields (subject, spec, audience, wording, etc.) then click <strong>Save as New Question</strong>. The original row is left unchanged.`;
+      }
+      if (btnSave) btnSave.textContent = "Save as New Question";
+    } else {
+      if (title) title.textContent = "✏️ Modify Active Question Record";
+      if (notice) {
+        notice.style.background = "#eff6ff";
+        notice.style.borderColor = "#bfdbfe";
+        notice.style.color = "#1e40af";
+        notice.innerHTML = `💡 <strong>Live Edits Mode:</strong> Making changes here and clicking "Save Changes" will instantly update active tables.`;
+      }
+      if (btnSave) btnSave.textContent = "Save Changes";
+    }
+  }
+
+  window.requestInteractiveCopy = async function(id) {
+    await window.requestInteractiveEdit(id);
+    if (!loadedQuestionsCache.find((x) => x.id === id)) return;
+    setEditModalCopyMode(true);
+  };
+
   window.closeEditModal = function() {
     clearEditSaveError();
+    setEditModalCopyMode(false);
     if (window.CalcWorkflow?.resetCalculationAuthoringForm) {
       window.CalcWorkflow.resetCalculationAuthoringForm("edit");
     }
@@ -9724,10 +9763,11 @@
   };
 
   document.getElementById("btnSaveEdits").onclick = async () => {
-    const qId = document.getElementById("editQuestionId").value;
-    const q = loadedQuestionsCache.find(x => x.id === qId);
+    const sourceId = document.getElementById("editQuestionId").value;
+    const q = loadedQuestionsCache.find(x => x.id === sourceId);
     if (!q) return;
 
+    const isCopy = editModalCopyMode;
     const prompt = document.getElementById("editPrompt").value.trim();
     const resource = document.getElementById("editResource").value.trim();
     const tier = document.getElementById("editTier").value;
@@ -9744,7 +9784,7 @@
       if (window.AdminSkills?.assertDeveloperForSkillSave) {
         await window.AdminSkills.assertDeveloperForSkillSave(supabaseClient);
       }
-      showAdminToast("Saving database updates...");
+      showAdminToast(isCopy ? "Creating copied question..." : "Saving database updates...");
 
       // Handle Image upload or URL updates during modification
       let finalImageUrl = document.getElementById("editImageUrl").value.trim() || null;
@@ -9754,7 +9794,11 @@
         const file = fileInput.files[0];
         const ext = file.name.split('.').pop();
         const randName = `${Math.random().toString(36).substring(2)}.${ext}`;
-        const path = `${document.getElementById("auditSubject").value}/${randName}`;
+        const subjectForPath = document.getElementById("editSpecSubjectSelect")?.value
+          || document.getElementById("editEqSheetSubject")?.value
+          || document.getElementById("auditSubject")?.value
+          || "physics";
+        const path = `${subjectForPath}/${randName}`;
         
         const { error: uploadError } = await supabaseClient.storage
           .from("question-images")
@@ -9858,20 +9902,13 @@
         updatePayload.max_marks = 1;
       }
 
-      const { error: uErr } = await supabaseClient
-        .from("questions")
-        .update(updatePayload)
-        .eq("id", qId);
-
-      if (uErr) throw uErr;
-
-      if (q.question_type === "numeric" && updatePayload.calculation_config) {
-        q.calculation_config = JSON.parse(JSON.stringify(updatePayload.calculation_config));
-      }
-
-      // Update associated keys structure
+      // Build answer key payload (shared by update and copy-insert)
       let updatedPayload = {};
       let updatedKeyType = null; // only short_text can switch key_type (keywords <-> pick_n)
+      let insertKeyType = q.question_type === "mcq" ? "mcq"
+        : q.question_type === "numeric" ? "numeric"
+        : q.question_type === "extended_response" ? "ai_rubric"
+        : "keywords";
       if (q.question_type === "mcq") {
         updatedPayload = {
           correct: document.getElementById("editOptCorrect").value
@@ -9888,6 +9925,7 @@
         const markMode = document.getElementById("editShortMarkMode")?.value || "pick_n";
         if (markMode === "pick_n") {
           updatedKeyType = "pick_n";
+          insertKeyType = "pick_n";
           const poolInput = document.getElementById("editShortPoolKeywords").value.trim();
           updatedPayload = {
             pool: poolInput ? poolInput.split(",").map(k => k.trim()).filter(Boolean) : [],
@@ -9896,6 +9934,7 @@
           };
         } else {
           updatedKeyType = "keywords";
+          insertKeyType = "keywords";
           const reqInput = document.getElementById("editShortReqKeywords").value.trim();
           const optInput = document.getElementById("editShortOptKeywords").value.trim();
           const minOptInput = parseInt(document.getElementById("editShortMinOptional").value) || 0;
@@ -9921,42 +9960,100 @@
         };
       }
 
-      const keyUpdate = updatedKeyType
-        ? { key_type: updatedKeyType, key_payload: updatedPayload }
-        : { key_payload: updatedPayload };
-      const { error: keyErr } = await supabaseClient
-        .from("answer_keys")
-        .update(keyUpdate)
-        .eq("question_id", qId);
+      let savedQuestionId = sourceId;
 
-      if (keyErr) throw keyErr;
+      if (isCopy) {
+        let markingMethod = q.marking_method || "keyword";
+        if (q.question_type === "numeric") markingMethod = "numeric";
+        else if (q.question_type === "extended_response") markingMethod = "ai_rubric";
+        else if (q.question_type === "short_text" && insertKeyType === "pick_n") markingMethod = markingMethod || "keyword";
 
-      // Sync edit mark points (short answer only — numeric feedback lives in calculation_config;
-      // pool "pick N" marking lives in the answer key, so checkpoints are cleared)
-      await supabaseClient.from("mark_points").delete().eq("question_id", qId);
+        const insertPayload = {
+          question_type: q.question_type,
+          marking_method: markingMethod,
+          options: q.question_type === "mcq" ? (updatePayload.options || null) : null,
+          ...updatePayload
+        };
 
-      if (q.question_type !== "numeric" && updatedKeyType !== "pick_n") {
-        const editRows = Array.from(document.querySelectorAll("#editMarkPointsWrapper .edit-mp-row, #editMarkPointsWrapper .mark-point-row"));
-        if (editRows.length > 0) {
-          const markPayloads = await buildMarkPointPayloadsFromRows(editRows, qId, "edit", q.question_type);
-          if (markPayloads.length > 0) {
-            const { error: mpErr } = await supabaseClient.from("mark_points").insert(markPayloads);
-            if (mpErr) throw mpErr;
+        const { data: qResult, error: qErr } = await supabaseClient
+          .from("questions")
+          .insert(insertPayload)
+          .select("id")
+          .single();
+        if (qErr) throw qErr;
+        savedQuestionId = qResult.id;
+
+        const { error: keyErr } = await supabaseClient
+          .from("answer_keys")
+          .insert({
+            question_id: savedQuestionId,
+            key_type: insertKeyType,
+            key_payload: updatedPayload
+          });
+        if (keyErr) throw keyErr;
+
+        if (q.question_type !== "numeric" && insertKeyType !== "pick_n") {
+          const editRows = Array.from(document.querySelectorAll("#editMarkPointsWrapper .edit-mp-row, #editMarkPointsWrapper .mark-point-row"));
+          if (editRows.length > 0) {
+            const markPayloads = await buildMarkPointPayloadsFromRows(editRows, savedQuestionId, "edit", q.question_type);
+            if (markPayloads.length > 0) {
+              const { error: mpErr } = await supabaseClient.from("mark_points").insert(markPayloads);
+              if (mpErr) throw mpErr;
+            }
+          }
+        }
+      } else {
+        const { error: uErr } = await supabaseClient
+          .from("questions")
+          .update(updatePayload)
+          .eq("id", sourceId);
+
+        if (uErr) throw uErr;
+
+        if (q.question_type === "numeric" && updatePayload.calculation_config) {
+          q.calculation_config = JSON.parse(JSON.stringify(updatePayload.calculation_config));
+        }
+
+        const keyUpdate = updatedKeyType
+          ? { key_type: updatedKeyType, key_payload: updatedPayload }
+          : { key_payload: updatedPayload };
+        const { error: keyErr } = await supabaseClient
+          .from("answer_keys")
+          .update(keyUpdate)
+          .eq("question_id", sourceId);
+
+        if (keyErr) throw keyErr;
+
+        // Sync edit mark points (short answer only — numeric feedback lives in calculation_config;
+        // pool "pick N" marking lives in the answer key, so checkpoints are cleared)
+        await supabaseClient.from("mark_points").delete().eq("question_id", sourceId);
+
+        if (q.question_type !== "numeric" && updatedKeyType !== "pick_n") {
+          const editRows = Array.from(document.querySelectorAll("#editMarkPointsWrapper .edit-mp-row, #editMarkPointsWrapper .mark-point-row"));
+          if (editRows.length > 0) {
+            const markPayloads = await buildMarkPointPayloadsFromRows(editRows, sourceId, "edit", q.question_type);
+            if (markPayloads.length > 0) {
+              const { error: mpErr } = await supabaseClient.from("mark_points").insert(markPayloads);
+              if (mpErr) throw mpErr;
+            }
           }
         }
       }
 
       if (window.AdminSkills) {
-        await window.AdminSkills.saveSkillsFromForm(supabaseClient, qId, "edit");
+        await window.AdminSkills.saveSkillsFromForm(supabaseClient, savedQuestionId, "edit");
       }
 
       closeEditModal();
-      showAdminToast("Changes committed successfully!");
+      showAdminToast(isCopy ? "Copied question saved as new record!" : "Changes committed successfully!");
       btnQueryQuestions.click(); // Hot reload instant updates
 
     } catch(err) {
       console.error(err);
-      showEditSaveFeedback("Modification transaction dropped: " + err.message, true);
+      showEditSaveFeedback(
+        (isCopy ? "Copy insert failed: " : "Modification transaction dropped: ") + err.message,
+        true
+      );
     } finally {
       if (btnSave) btnSave.disabled = false;
     }
