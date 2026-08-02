@@ -1976,7 +1976,13 @@
                         <input type="number" id="ChemStemNeutrons" value="12" min="0" max="30" />
                       </div>
                     </div>
-                    <p id="ChemStemAtomHint" class="muted" style="font-size:0.75rem; margin:0 0 8px;">Ion tip: Na⁺ uses 11 protons, 10 electrons, 12 neutrons → shells 2,8.</p>
+                    <p id="ChemStemAtomHint" class="muted" style="font-size:0.75rem; margin:0 0 8px;">
+                      Ion tip: set electrons ≠ protons (e.g. Na⁺ = 11p, 10e, 12n → shells 2,8). Tick below to include GCSE square brackets on the question diagram.
+                    </p>
+                    <label id="ChemStemAsIonWrap" style="display:flex; align-items:center; gap:8px; font-size:0.8rem; margin:0 0 8px;">
+                      <input type="checkbox" id="ChemStemAsIon" />
+                      Draw as ion with square brackets <span class="muted">(for stem image only)</span>
+                    </label>
                     <div id="ChemStemOrganicFields" class="hidden" style="margin-bottom:8px;">
                       <div class="row">
                         <div>
@@ -3881,6 +3887,10 @@
             <div><label>Electrons</label><input type="number" id="editChemStemElectrons" value="11" min="0" /></div>
             <div><label>Neutrons</label><input type="number" id="editChemStemNeutrons" value="12" min="0" /></div>
           </div>
+          <label id="editChemStemAsIonWrap" style="display:flex; align-items:center; gap:8px; font-size:0.8rem; margin:0 0 8px;">
+            <input type="checkbox" id="editChemStemAsIon" />
+            Draw as ion with square brackets <span class="muted">(for stem image only)</span>
+          </label>
           <div id="editChemStemOrganicFields" class="hidden" style="margin-bottom:8px;">
             <div class="row">
               <div>
@@ -5103,10 +5113,28 @@
     const org = document.getElementById(isEdit ? "editChemStemOrganicFields" : "ChemStemOrganicFields");
     const presetWrap = document.getElementById(isEdit ? "editChemStemPresetWrap" : "ChemStemPresetWrap");
     const hint = document.getElementById("ChemStemAtomHint");
+    const asIonWrap = document.getElementById(isEdit ? "editChemStemAsIonWrap" : "ChemStemAsIonWrap");
     atom?.classList.toggle("hidden", source !== "custom_atom");
     org?.classList.toggle("hidden", source !== "custom_organic");
     presetWrap?.classList.toggle("hidden", source !== "preset");
     hint?.classList.toggle("hidden", source !== "custom_atom");
+    asIonWrap?.classList.toggle("hidden", source !== "custom_atom");
+  }
+
+  /** Auto-tick “draw as ion” when electrons ≠ protons (author can still untick). */
+  function syncChemStemAsIonDefault(prefix = "") {
+    const isEdit = prefix === "edit";
+    const pfx = isEdit ? "editChemStem" : "ChemStem";
+    const pEl = document.getElementById(`${pfx}Protons`);
+    const eEl = document.getElementById(`${pfx}Electrons`);
+    const box = document.getElementById(isEdit ? "editChemStemAsIon" : "ChemStemAsIon");
+    if (!pEl || !eEl || !box) return;
+    const p = Number(pEl.value);
+    const e = Number(eEl.value);
+    if (!Number.isFinite(p) || !Number.isFinite(e)) return;
+    // Only auto-check when becoming an ion; don’t force-uncheck if author left it on for a neutral
+    if (p !== e) box.checked = true;
+    else if (box.dataset.userToggled !== "1") box.checked = false;
   }
 
   function getChemStemConfig(prefix = "") {
@@ -5133,11 +5161,13 @@
     }
     // custom_atom
     const pfx = isEdit ? "editChemStem" : "ChemStem";
+    const asIon = document.getElementById(isEdit ? "editChemStemAsIon" : "ChemStemAsIon")?.checked === true;
     return window.ChemWorkflow.buildAtomDiagramConfig({
       symbol: document.getElementById(`${pfx}Symbol`)?.value,
       protons: document.getElementById(`${pfx}Protons`)?.value,
       electrons: document.getElementById(`${pfx}Electrons`)?.value,
       neutrons: document.getElementById(`${pfx}Neutrons`)?.value,
+      showIonBrackets: asIon,
     });
   }
 
@@ -5217,22 +5247,38 @@
   document.getElementById("btnEditChemStemPreview")?.addEventListener("click", () => refreshChemStemPreview("edit"));
   document.getElementById("btnChemStemApply")?.addEventListener("click", () => applyChemStemDiagram(""));
   document.getElementById("btnEditChemStemApply")?.addEventListener("click", () => applyChemStemDiagram("edit"));
+  ["ChemStemAsIon", "editChemStemAsIon"].forEach((id) => {
+    document.getElementById(id)?.addEventListener("change", (ev) => {
+      ev.target.dataset.userToggled = "1";
+      refreshChemStemPreview(id.startsWith("edit") ? "edit" : "");
+    });
+  });
   [
     "ChemStemProtons", "ChemStemElectrons", "ChemStemNeutrons", "ChemStemSymbol",
     "ChemStemOrgFamily", "ChemStemOrgCarbons", "ChemStemOrgName", "ChemStemOrgDoubleAt",
     "ChemStemOrgGroupType", "ChemStemOrgGroupCarbon",
   ].forEach((id) => {
-    document.getElementById(id)?.addEventListener("change", () => refreshChemStemPreview(""));
-    document.getElementById(id)?.addEventListener("input", () => refreshChemStemPreview(""));
+    const refresh = () => {
+      if (id === "ChemStemProtons" || id === "ChemStemElectrons") syncChemStemAsIonDefault("");
+      refreshChemStemPreview("");
+    };
+    document.getElementById(id)?.addEventListener("change", refresh);
+    document.getElementById(id)?.addEventListener("input", refresh);
   });
   [
     "editChemStemProtons", "editChemStemElectrons", "editChemStemNeutrons", "editChemStemSymbol",
     "editChemStemOrgFamily", "editChemStemOrgCarbons", "editChemStemOrgName", "editChemStemOrgDoubleAt",
     "editChemStemOrgGroupType", "editChemStemOrgGroupCarbon",
   ].forEach((id) => {
-    document.getElementById(id)?.addEventListener("change", () => refreshChemStemPreview("edit"));
-    document.getElementById(id)?.addEventListener("input", () => refreshChemStemPreview("edit"));
+    const refresh = () => {
+      if (id === "editChemStemProtons" || id === "editChemStemElectrons") syncChemStemAsIonDefault("edit");
+      refreshChemStemPreview("edit");
+    };
+    document.getElementById(id)?.addEventListener("change", refresh);
+    document.getElementById(id)?.addEventListener("input", refresh);
   });
+  syncChemStemAsIonDefault("");
+  syncChemStemAsIonDefault("edit");
   refreshChemStemPreview("");
   
   qType.onchange = function() {

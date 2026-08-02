@@ -12,6 +12,7 @@ import {
   buildAtomDiagramConfig,
   buildOrganicDiagramConfig,
   symbolFromProtons,
+  renderStemDiagramSvg,
 } from "../src/chemistryWorkflow.js";
 
 describe("chemistry shells helpers", () => {
@@ -135,6 +136,34 @@ describe("custom atom / organic builders", () => {
     const cfg = buildAtomDiagramConfig({ symbol: "Cl", protons: 17, electrons: 18, neutrons: 18 });
     assert.deepEqual(cfg.answer.shells, [2, 8, 8]);
     assert.equal(cfg.answer.charge, -1);
+  });
+
+  it("marks stem ion diagrams for square brackets by default", () => {
+    const cfg = buildAtomDiagramConfig({ protons: 11, electrons: 10, neutrons: 12 });
+    assert.equal(cfg.answer.showIonBrackets, true);
+    assert.equal(cfg.template.showIonBrackets, true);
+  });
+
+  it("can suppress ion brackets on stem when requested", () => {
+    const cfg = buildAtomDiagramConfig({
+      protons: 11, electrons: 10, neutrons: 12, showIonBrackets: false,
+    });
+    assert.equal(cfg.answer.showIonBrackets, false);
+  });
+
+  it("renders stem SVG with ion brackets for Na+", () => {
+    const cfg = buildAtomDiagramConfig({ protons: 11, electrons: 10, neutrons: 12 });
+    const svg = renderStemDiagramSvg(cfg);
+    assert.match(svg, /M[\d.]+ [\d.]+ L[\d.]+/); // bracket path
+    assert.match(svg, />\+<\/text>/); // charge label
+  });
+
+  it("renders stem SVG without brackets when suppressed", () => {
+    const cfg = buildAtomDiagramConfig({
+      protons: 11, electrons: 10, neutrons: 12, showIonBrackets: false,
+    });
+    const svg = renderStemDiagramSvg(cfg);
+    assert.doesNotMatch(svg, />\+<\/text>/);
   });
 
   it("builds custom butane alkane", () => {

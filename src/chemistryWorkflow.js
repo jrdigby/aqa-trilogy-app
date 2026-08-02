@@ -512,11 +512,25 @@ function occupiedShellCount(shells) {
   return Math.max(n, 1);
 }
 
-/** ViewBox + geometry for a non-interactive electron-shell answer diagram. */
-function shellAnswerViewport(shellCount, { baseR = 36, gap = 28, pad = 10 } = {}) {
+/**
+ * ViewBox + geometry for a non-interactive electron-shell answer diagram.
+ * When brackets=true, leave room for GCSE [ ]⁺ notation and the charge label.
+ */
+function shellAnswerViewport(shellCount, { baseR = 36, gap = 28, pad = 10, brackets = false } = {}) {
   const n = Math.max(1, shellCount);
-  const size = Math.ceil((atomOuterRadius(n, baseR, gap) + pad) * 2);
-  return { size, baseR, gap, cx: size / 2, cy: size / 2, maxShells: n };
+  const outer = atomOuterRadius(n, baseR, gap);
+  if (!brackets) {
+    const size = Math.ceil((outer + pad) * 2);
+    return { size, width: size, height: size, baseR, gap, cx: size / 2, cy: size / 2, maxShells: n };
+  }
+  // Bracket pad (~14) + stroke; charge label sits to the right of the right bracket
+  const bracketOuter = 18;
+  const chargeW = 42;
+  const height = Math.ceil((outer + bracketOuter + pad) * 2);
+  const width = Math.ceil(outer * 2 + bracketOuter * 2 + chargeW + pad * 2);
+  const cx = Math.floor((width - chargeW) / 2);
+  const cy = height / 2;
+  return { size: Math.max(width, height), width, height, baseR, gap, cx, cy, maxShells: n };
 }
 
 function renderShellDiagram(state, cfg) {
@@ -1769,10 +1783,11 @@ export function symbolFromProtons(protons) {
 
 /**
  * Custom atom / ion diagram config from p, e, n counts.
- * Shells come from electron count. Charge is stored for marking but not drawn
- * on electron shell diagrams (ionic bonding still uses square-bracket notation).
+ * Shells come from electron count. Charge = p − e.
+ * Interactive student electron-shell diagrams never draw ion brackets;
+ * stem / question diagrams draw [ ]⁺ when charge ≠ 0 (or showIonBrackets is set).
  */
-export function buildAtomDiagramConfig({ symbol, protons, neutrons, electrons } = {}) {
+export function buildAtomDiagramConfig({ symbol, protons, neutrons, electrons, showIonBrackets } = {}) {
   const p = Math.max(0, Math.floor(Number(protons) || 0));
   const n = Math.max(0, Math.floor(Number(neutrons) || 0));
   const eCount = electrons == null || electrons === ""
@@ -1782,6 +1797,9 @@ export function buildAtomDiagramConfig({ symbol, protons, neutrons, electrons } 
   const charge = p - eCount;
   let sym = String(symbol || "").trim();
   if (!sym) sym = symbolFromProtons(p) || "X";
+  // Stem diagrams: explicit flag wins; otherwise ions (charge ≠ 0) get brackets
+  const asIon = showIonBrackets === true
+    || (showIonBrackets !== false && charge !== 0);
   return {
     kind: "electron_shell",
     template: {
@@ -1791,6 +1809,7 @@ export function buildAtomDiagramConfig({ symbol, protons, neutrons, electrons } 
       neutrons: n,
       electrons: eCount,
       charge,
+      showIonBrackets: asIon,
     },
     answer: {
       kind: "electron_shell",
@@ -1798,6 +1817,7 @@ export function buildAtomDiagramConfig({ symbol, protons, neutrons, electrons } 
       nucleus: { p, n },
       symbol: sym,
       charge,
+      showIonBrackets: asIon,
     },
   };
 }
@@ -1863,6 +1883,8 @@ export function buildAtomConfigFromForm(prefix = "") {
     protons: document.getElementById(`${p}ChemProtons`)?.value,
     neutrons: document.getElementById(`${p}ChemNeutrons`)?.value,
     electrons: document.getElementById(`${p}ChemElectrons`)?.value,
+    // Interactive electron-shell questions never draw ion brackets
+    showIonBrackets: false,
   });
 }
 
@@ -1921,12 +1943,15 @@ export function displayStateFromPresetOrConfig(presetOrConfig) {
     const p = answer.nucleus?.p ?? cfg.template?.protons ?? data.Z;
     const n = answer.nucleus?.n ?? cfg.template?.neutrons ?? Math.round(data.A - data.Z);
     const charge = answer.charge ?? cfg.template?.charge ?? (p - shells.reduce((a, b) => a + b, 0));
+    const showIonBrackets = answer.showIonBrackets ?? cfg.template?.showIonBrackets
+      ?? (charge != null && charge !== 0);
     return {
       kind,
       symbol,
       shells,
       nucleus: { p, n },
       charge,
+      showIonBrackets: !!showIonBrackets,
     };
   }
   if (kind === "ionic_bonding") {
@@ -2126,16 +2151,19 @@ export function renderStemDiagramSvg(presetIdOrConfig) {
 
   if (state.kind === "electron_shell") {
     const shellCount = Math.max(occupiedShellCount(state.shells), state.shells?.length || 1, 1);
-    const { size, baseR, gap, cx, cy, maxShells } = shellAnswerViewport(shellCount);
-    return `<svg xmlns="http://www.w3.org/2000/svg" class="chem-svg" viewBox="0 0 ${size} ${size}" width="100%" style="max-width:300px;height:auto;display:block;margin:0 auto;">
+    const charge = Number(state.charge) || 0;
+    // Stem / question images: draw GCSE ion brackets when this is an ion
+    const brackets = !!state.showIonBrackets && charge !== 0;
+    const { width, height, baseR, gap, cx, cy, maxShells } = shellAnswerViewport(shellCount, { brackets });
+    return `<svg xmlns="http://www.w3.org/2000/svg" class="chem-svg" viewBox="0 0 ${width} ${height}" width="100%" style="max-width:${brackets ? 360 : 300}px;height:auto;display:block;margin:0 auto;">
       ${renderAtomSvg({
         cx, cy,
         symbol: state.symbol,
         shells: state.shells,
         protons: state.nucleus?.p,
         neutrons: state.nucleus?.n,
-        charge: null,
-        brackets: false,
+        charge: brackets ? charge : null,
+        brackets,
         interactive: false,
         atomId: "stem",
         maxShells,
@@ -2237,5 +2265,23 @@ export function svgMarkupToPngBlob(svgMarkup, { width = 720, height = 560, scale
 export function stemPreviewHtml(presetIdOrConfig) {
   const svg = renderStemDiagramSvg(presetIdOrConfig);
   if (!svg) return `<p class="muted">No diagram for this selection.</p>`;
-  return `<div class="chem-stem-preview">${svg}</div>`;
+  const state = displayStateFromPresetOrConfig(
+    typeof presetIdOrConfig === "string"
+      ? CHEMISTRY_PRESETS[presetIdOrConfig]
+      : presetIdOrConfig
+  );
+  let caption = "";
+  if (state?.kind === "electron_shell") {
+    const charge = Number(state.charge) || 0;
+    const shells = (state.shells || []).join(", ");
+    if (state.showIonBrackets && charge !== 0) {
+      const label = charge > 0
+        ? (charge === 1 ? "+" : `+${charge}`)
+        : (charge === -1 ? "−" : `−${Math.abs(charge)}`);
+      caption = `<p class="muted" style="margin:6px 0 0;font-size:0.75rem;text-align:center;">Ion ${escapeHtml(state.symbol)}<sup>${label}</sup> · shells [${escapeHtml(shells)}] · square brackets included</p>`;
+    } else {
+      caption = `<p class="muted" style="margin:6px 0 0;font-size:0.75rem;text-align:center;">${escapeHtml(state.symbol)} · shells [${escapeHtml(shells)}]</p>`;
+    }
+  }
+  return `<div class="chem-stem-preview">${svg}${caption}</div>`;
 }
