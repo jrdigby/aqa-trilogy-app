@@ -280,7 +280,11 @@ function closeSettings(returnTab = tabBeforeSettings) {
 if (tabPractice) tabPractice.onclick = () => switchDashboardTab("practice");
 if (tabAnalytics) tabAnalytics.onclick = () => switchDashboardTab("analytics");
 if (tabFlashcards) tabFlashcards.onclick = () => switchDashboardTab("flashcards");
-if (tabJourney) tabJourney.onclick = () => switchDashboardTab("journey");
+if (tabJourney) {
+  tabJourney.onclick = () => switchDashboardTab("journey");
+  tabJourney.addEventListener("pointerenter", prefetchWorldMapAsset, { once: true });
+  tabJourney.addEventListener("focus", prefetchWorldMapAsset, { once: true });
+}
 if (btnOpenSettings) {
   btnOpenSettings.onclick = () => {
     if (settingsOpen) closeSettings(tabBeforeSettings);
@@ -324,6 +328,9 @@ let currentHintState = { revealedCount: 0, panelOpen: false };
 let currentQuestionHints = [];
 let lastAnswerFocusState = null;
 let heatmapRenderGeneration = 0;
+let journeyMountSignature = "";
+let journeyMountGeneration = 0;
+let worldMapPrefetchStarted = false;
 
 function srsSpecPointIdForQuestion(q = currentQ) {
   return resolveSpecPointIdForTrack(q, currentUserProfile);
@@ -924,6 +931,7 @@ async function loadDashboard(user = currentUser) {
 
   updateFreeAnalyticsSummary();
   scheduleDashboardHeatmapRender(activeSRS);
+  scheduleJourneyPrefetch();
 }
 
 /** @returns {Promise<{ text: string, imageUrl: string }[]>} */
@@ -1962,7 +1970,24 @@ function updateStreakFreezeDisplay() {
   }
 }
 
-function mountJourneyPanel() {
+function prefetchWorldMapAsset() {
+  if (worldMapPrefetchStarted) return;
+  worldMapPrefetchStarted = true;
+  const img = new Image();
+  img.decoding = "async";
+  img.src = "images/world-map.svg";
+}
+
+function scheduleJourneyPrefetch() {
+  const run = () => prefetchWorldMapAsset();
+  if (typeof requestIdleCallback === "function") {
+    requestIdleCallback(run, { timeout: 3000 });
+  } else {
+    setTimeout(run, 1200);
+  }
+}
+
+function mountJourneyPanel({ force = false } = {}) {
   const mount = el("journeyMapMount");
   if (!mount || !currentUserProfile) return;
 
@@ -1970,19 +1995,51 @@ function mountJourneyPanel() {
   const journeyState = getJourneyStateFromRewards(rewards);
   const dominantSubject = cachedDominantSubject || resolveDominantSubject(currentUserProfile);
   const totalXp = currentUserProfile.total_xp ?? 0;
-  mount.innerHTML = renderJourneyPanel({
+  const signature = [
     totalXp,
+    journeyState.current_location_id,
+    journeyState.pending_destination_id,
+    journeyState.km_toward_pending,
+    journeyState.distance_travelled,
+    (journeyState.visited || []).join(","),
     dominantSubject,
-    journeyState,
-    lapCount: rewards.lap_count
-  });
-  wireJourneyInteractions(mount, {
-    dominantSubject,
-    totalXp,
-    journeyState,
-    onSelectDestination: (locationId, opts = {}) => {
-      void handleJourneyDestinationSelect(locationId, opts);
-    }
+    rewards.lap_count
+  ].join("|");
+
+  // Re-opening the tab with unchanged state — keep existing DOM (instant).
+  if (!force && journeyMountSignature === signature && mount.querySelector(".journey-panel")) {
+    return;
+  }
+
+  const generation = ++journeyMountGeneration;
+  journeyMountSignature = signature;
+  prefetchWorldMapAsset();
+
+  if (!mount.querySelector(".journey-panel")) {
+    mount.innerHTML = `<div class="muted" style="text-align:center;padding:28px;">Loading science journey…</div>`;
+  }
+
+  const paint = () => {
+    if (generation !== journeyMountGeneration) return;
+    mount.innerHTML = renderJourneyPanel({
+      totalXp,
+      dominantSubject,
+      journeyState,
+      lapCount: rewards.lap_count
+    });
+    wireJourneyInteractions(mount, {
+      dominantSubject,
+      totalXp,
+      journeyState,
+      onSelectDestination: (locationId, opts = {}) => {
+        void handleJourneyDestinationSelect(locationId, opts);
+      }
+    });
+  };
+
+  requestAnimationFrame(() => {
+    if (generation !== journeyMountGeneration) return;
+    requestAnimationFrame(paint);
   });
 }
 

@@ -2726,7 +2726,28 @@ body.teacher-detail-open {
   font-size: 0.78rem;
 }
 
+.journey-map-stage {
+  position: relative;
+  isolation: isolate;
+  background: #e8f2fc;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.journey-map-basemap {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  pointer-events: none;
+  z-index: 0;
+  border-radius: 8px;
+}
+
 .journey-map-svg {
+  position: relative;
+  z-index: 1;
   width: 100%;
   height: auto;
   display: block;
@@ -2736,8 +2757,9 @@ body.teacher-detail-open {
   fill: #e8f2fc;
 }
 
-.journey-map-image {
-  opacity: 1;
+/* Keep ocean as soft base; basemap img sits above it via stacking */
+.journey-map-stage .journey-map-ocean {
+  fill: transparent;
 }
 
 .journey-route {
@@ -2835,16 +2857,6 @@ body.teacher-detail-open {
 
 .journey-map-land {
   pointer-events: none;
-}
-
-.journey-hover-fo {
-  display: none;
-  pointer-events: none;
-  overflow: visible;
-}
-
-.journey-map-stage {
-  position: relative;
 }
 
 .journey-hover-overlay {

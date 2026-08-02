@@ -136,7 +136,6 @@ export function renderJourneyMap({ totalXp = 0, journeyState } = {}) {
       !isVisited && !hasBudget && !isCurrent && !isPending ? "journey-landmark--locked" : ""
     ].filter(Boolean).join(" ");
 
-    const tipFact = scientist?.fact || "";
     return `
       <g class="${cls}"
          data-location-id="${escapeHtml(loc.id)}"
@@ -153,13 +152,6 @@ export function renderJourneyMap({ totalXp = 0, journeyState } = {}) {
         <title>${escapeHtml(formatLocationLabel(loc))} — ${escapeHtml(scientist?.name || "")}</title>
         <text y="-14" text-anchor="middle" class="journey-landmark-city">${escapeHtml(loc.name)}</text>
         <text y="-3" text-anchor="middle" class="journey-landmark-country">${escapeHtml(loc.country)}</text>
-        <foreignObject x="-90" y="12" width="180" height="120" class="journey-hover-fo">
-          <div xmlns="http://www.w3.org/1999/xhtml" class="journey-hover-card">
-            <div class="journey-hover-name">${escapeHtml(scientist?.name || "")}</div>
-            <div class="journey-hover-place">${escapeHtml(formatLocationLabel(loc))}</div>
-            <div class="journey-hover-fact">${escapeHtml(tipFact)}</div>
-          </div>
-        </foreignObject>
       </g>`;
   }).join("");
 
@@ -178,9 +170,9 @@ export function renderJourneyMap({ totalXp = 0, journeyState } = {}) {
       <div id="journeyDestinationConfirm" class="journey-destination-confirm hidden" role="region" aria-live="polite"></div>
       <div class="journey-map-status">${statusLine}</div>
       <div class="journey-map-stage">
+        <img class="journey-map-basemap" src="${WORLD_MAP_HREF}" alt="" width="${MAP_WIDTH}" height="${MAP_HEIGHT}" decoding="async" fetchpriority="high" />
         <svg class="journey-map-svg" viewBox="0 0 ${MAP_WIDTH} ${MAP_HEIGHT}" role="img" aria-label="Interactive science journey map">
           <rect width="${MAP_WIDTH}" height="${MAP_HEIGHT}" class="journey-map-ocean" rx="8" />
-          <image href="${WORLD_MAP_HREF}" width="${MAP_WIDTH}" height="${MAP_HEIGHT}" preserveAspectRatio="none" class="journey-map-image" />
           ${completedPath ? `<path d="${completedPath}" class="journey-route-progress" fill="none" />` : ""}
           ${pendingLine ? `<path d="${pendingLine}" class="journey-route" fill="none" />` : ""}
           ${pendingProgress ? `<path d="${pendingProgress}" class="journey-route-progress journey-route-progress--pending" fill="none" />` : ""}
@@ -247,9 +239,11 @@ export function renderJourneyPanel({
       <div id="journeyScientistMount">
         ${renderScientistCard(scientist)}
       </div>
-      <details class="journey-passport" open>
+      <details class="journey-passport" data-passport-lazy="1">
         <summary class="journey-passport-toggle">Scientist Passport (${visitedCount}/${JOURNEY_LOCATIONS.length} cities)</summary>
-        ${renderPassportGallery(state.visited, { dominantSubject })}
+        <div class="journey-passport-body">
+          <p class="muted journey-passport-placeholder">Open to load visited scientists…</p>
+        </div>
       </details>
     </div>`;
 }
@@ -382,6 +376,28 @@ export function wireJourneyInteractions(mount, {
       if (main) main.innerHTML = renderScientistCard(scientist);
     };
   });
+
+  const passport = mount.querySelector(".journey-passport[data-passport-lazy]");
+  if (passport) {
+    const loadPassportGallery = () => {
+      if (passport.dataset.loaded === "1") return;
+      const body = passport.querySelector(".journey-passport-body");
+      if (!body) return;
+      passport.dataset.loaded = "1";
+      body.innerHTML = renderPassportGallery(state.visited, { dominantSubject });
+      body.querySelectorAll(".passport-card--discovered").forEach((btn) => {
+        btn.onclick = () => {
+          const locationId = btn.dataset.locationId;
+          const scientist = getScientistForLocation(locationId, { dominantSubject });
+          const main = mount.querySelector("#journeyScientistMount");
+          if (main) main.innerHTML = renderScientistCard(scientist);
+        };
+      });
+    };
+    passport.addEventListener("toggle", () => {
+      if (passport.open) loadPassportGallery();
+    });
+  }
 }
 
 function positionOverlay(overlay, stage, ev) {

@@ -21,7 +21,7 @@ export function projectLatLng(lat, lng) {
 }
 
 /** Wikimedia Commons portrait (width-scaled). Returns null when no free portrait is available. */
-export function commonsScientistPhoto(filename, width = 400) {
+export function commonsScientistPhoto(filename, width = 200) {
   if (!filename) return null;
   return `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(filename)}?width=${width}`;
 }
