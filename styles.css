@@ -958,12 +958,12 @@
 }
 
 .revision-card--chemistry {
-  height: 260px;
+  height: 340px;
 }
 
 .revision-card-chem-diagram {
   flex: 1 1 auto;
-  min-height: 0;
+  min-height: 180px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -973,11 +973,17 @@
 .revision-card-chem-diagram .chem-svg,
 .revision-card-chem-diagram svg {
   max-width: 100% !important;
-  max-height: 150px;
+  max-height: 220px;
   width: auto;
   height: auto;
   display: block;
   margin: 0 auto;
+}
+
+.revision-card--chemistry .revision-card-insight-list {
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  line-height: 1.3;
 }
 
 .revision-card .card-inner {
