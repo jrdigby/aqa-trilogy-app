@@ -253,7 +253,7 @@ export async function fetchConceptGapAttempts(userId) {
     .select(`
       submitted_at, question_id, score_total, score_max, feedback_payload,
       questions(
-        question_type, prompt, options, image_url, audience, triple_spec_point_id, calculation_config,
+        question_type, prompt, options, image_url, audience, triple_spec_point_id, calculation_config, chemistry_config,
         spec_points!spec_point_id(subject, paper, topic_name, spec_ref, course_track),
         triple_spec_point:spec_points!triple_spec_point_id(subject, paper, topic_name, spec_ref, course_track)
       )
@@ -334,9 +334,9 @@ export async function fetchSyllabusPipelineData(userId, subject, paper, targetTi
   }
 
   const questionsSelectWithSkills =
-    "id, spec_point_id, triple_spec_point_id, question_type, tier, demand_level, image_url, audience, is_maths_skill, max_marks, calculation_config, question_skills(skill_id, skill_framework_items(id, framework, full_code, title, category))";
+    "id, spec_point_id, triple_spec_point_id, question_type, tier, demand_level, image_url, audience, is_maths_skill, max_marks, calculation_config, chemistry_config, question_skills(skill_id, skill_framework_items(id, framework, full_code, title, category))";
   const questionsSelectBasic =
-    "id, spec_point_id, triple_spec_point_id, question_type, tier, demand_level, image_url, audience, is_maths_skill, max_marks, calculation_config";
+    "id, spec_point_id, triple_spec_point_id, question_type, tier, demand_level, image_url, audience, is_maths_skill, max_marks, calculation_config, chemistry_config";
 
   let questionsRes;
   try {

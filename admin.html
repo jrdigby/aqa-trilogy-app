@@ -1906,6 +1906,7 @@
                   <select id="qType" class="select-fit">
                     <option value="short_text">Short Answer (Written)</option>
                     <option value="numeric">Numeric (Calculation)</option>
+                    <option value="chemistry_interactive">Chemistry Diagram / Equation</option>
                     <option value="mcq">Multiple Choice Question (MCQ)</option>
                     <option value="extended_response">6-Mark Extended Response (AI graded)</option>
                   </select>
@@ -1937,6 +1938,93 @@
                     <img id="creatorImagePreview" style="max-height:72px; border-radius:4px; border:1px solid var(--border);" alt="Diagram preview"/>
                     <button type="button" id="btnClearCreatorImage" class="btn btn-danger" style="padding:2px 6px; font-size:0.7rem;">Clear diagram</button>
                   </div>
+                  <details id="chemStemBuilder" style="margin-top:12px; border:1px solid var(--border); border-radius:8px; padding:10px 12px; background:#f8fafc;">
+                    <summary style="cursor:pointer; font-weight:600; color:var(--primary-dark); font-size:0.88rem;">Build chemistry diagram for this question</summary>
+                    <p class="muted" style="font-size:0.78rem; line-height:1.4; margin:8px 0;">
+                      Create a display diagram for the stem (students do not edit it). Use with short-text / MCQ —
+                      e.g. sodium shells → answer <code>2,8,1</code>, or ethane structure → answer <code>ethane</code>.
+                    </p>
+                    <div class="row" style="margin-bottom:8px;">
+                      <div>
+                        <label>Source</label>
+                        <select id="ChemStemSource" class="select-fit">
+                          <option value="custom_atom">Custom atom / ion</option>
+                          <option value="custom_organic">Custom organic</option>
+                          <option value="preset">From preset</option>
+                        </select>
+                      </div>
+                      <div id="ChemStemPresetWrap" class="hidden">
+                        <label>Preset</label>
+                        <select id="ChemStemPreset" class="select-fit"></select>
+                      </div>
+                    </div>
+                    <div id="ChemStemAtomFields" class="row" style="margin-bottom:8px;">
+                      <div>
+                        <label>Symbol (optional)</label>
+                        <input type="text" id="ChemStemSymbol" placeholder="auto from Z" />
+                      </div>
+                      <div>
+                        <label>Protons</label>
+                        <input type="number" id="ChemStemProtons" value="11" min="0" max="20" />
+                      </div>
+                      <div>
+                        <label>Electrons</label>
+                        <input type="number" id="ChemStemElectrons" value="11" min="0" max="30" title="Fewer than protons = positive ion" />
+                      </div>
+                      <div>
+                        <label>Neutrons</label>
+                        <input type="number" id="ChemStemNeutrons" value="12" min="0" max="30" />
+                      </div>
+                    </div>
+                    <p id="ChemStemAtomHint" class="muted" style="font-size:0.75rem; margin:0 0 8px;">Ion tip: Na⁺ uses 11 protons, 10 electrons, 12 neutrons → shells 2,8.</p>
+                    <div id="ChemStemOrganicFields" class="hidden" style="margin-bottom:8px;">
+                      <div class="row">
+                        <div>
+                          <label>Family</label>
+                          <select id="ChemStemOrgFamily" class="select-fit">
+                            <option value="alkane">Alkane</option>
+                            <option value="alkene">Alkene</option>
+                            <option value="alcohol">Alcohol (triple)</option>
+                            <option value="carboxylic_acid">Carboxylic acid (triple)</option>
+                            <option value="ester">Ester (triple)</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label>Carbon atoms</label>
+                          <input type="number" id="ChemStemOrgCarbons" value="2" min="1" max="8" />
+                        </div>
+                        <div>
+                          <label>Name (optional)</label>
+                          <input type="text" id="ChemStemOrgName" placeholder="e.g. butane" />
+                        </div>
+                      </div>
+                      <div class="row" style="margin-top:8px;">
+                        <div>
+                          <label>C=C starts at carbon # (alkene)</label>
+                          <input type="number" id="ChemStemOrgDoubleAt" value="1" min="1" max="7" title="1 = between first and second carbon" />
+                        </div>
+                        <div>
+                          <label>Functional group</label>
+                          <select id="ChemStemOrgGroupType" class="select-fit">
+                            <option value="">— none / auto —</option>
+                            <option value="OH">–OH</option>
+                            <option value="COOH">–COOH</option>
+                            <option value="COO">–COO– (ester)</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label>Group on carbon #</label>
+                          <input type="number" id="ChemStemOrgGroupCarbon" value="" min="1" max="8" placeholder="auto" />
+                        </div>
+                      </div>
+                    </div>
+                    <div id="ChemStemPreview" style="min-height:80px; padding:8px; background:#fff; border:1px dashed #cbd5e1; border-radius:8px; margin-bottom:8px;"></div>
+                    <div style="display:flex; flex-wrap:wrap; gap:8px;">
+                      <button type="button" class="btn btn-primary" id="btnChemStemApply" style="padding:6px 12px; font-size:0.8rem;">Use as question diagram</button>
+                      <button type="button" class="btn btn-secondary" id="btnChemStemPreview" style="padding:6px 12px; font-size:0.8rem;">Refresh preview</button>
+                    </div>
+                    <p id="ChemStemStatus" class="muted" style="font-size:0.75rem; margin:8px 0 0;"></p>
+                  </details>
                 </div>
                 <div>
                   <label>Walkthrough Resource Video URL (YouTube embed):</label>
@@ -2223,6 +2311,118 @@
             </div>
           </div>
 
+          <!-- Sub Panel: Chemistry interactive (SVG diagrams / equation balance) -->
+          <div id="chemistryPanel" class="hidden" style="margin-top: 16px;">
+            <p class="muted" style="font-size: 0.8rem; line-height: 1.4; margin: 0 0 12px;">
+              Students complete electron shells, bonding diagrams, organic/polymer structures (SVG), or balance equations.
+              Pick a preset for a ready-made mark scheme, or configure shells / equations manually.
+            </p>
+            <div class="row" style="margin-bottom: 12px;">
+              <div>
+                <label>Chemistry kind</label>
+                <select id="ChemKind" class="select-fit">
+                  <option value="electron_shell">Electron shell diagram</option>
+                  <option value="ionic_bonding">Ionic bonding</option>
+                  <option value="covalent_bonding">Covalent bonding</option>
+                  <option value="organic_structure">Organic structure</option>
+                  <option value="polymer_structure">Polymer structure</option>
+                  <option value="balance_equation">Balance equation</option>
+                </select>
+              </div>
+              <div>
+                <label>Preset (recommended)</label>
+                <select id="ChemPreset" class="select-fit">
+                  <option value="">— Custom / manual —</option>
+                </select>
+              </div>
+            </div>
+            <div id="chemShellFields" class="row" style="margin-bottom: 12px;">
+              <div>
+                <label>Element symbol</label>
+                <input type="text" id="ChemSymbol" placeholder="C" value="C" />
+              </div>
+              <div>
+                <label>Protons</label>
+                <input type="number" id="ChemProtons" value="6" min="0" />
+              </div>
+              <div>
+                <label>Electrons</label>
+                <input type="number" id="ChemElectrons" value="6" min="0" title="Sets shell arrangement; fewer than protons = cation" />
+              </div>
+              <div>
+                <label>Neutrons</label>
+                <input type="number" id="ChemNeutrons" value="6" min="0" />
+              </div>
+              <div>
+                <label>Correct shells (auto from electrons; editable)</label>
+                <input type="text" id="ChemShellsAnswer" placeholder="2,4" value="2,4" />
+              </div>
+            </div>
+            <div id="chemOrganicFields" class="hidden" style="margin-bottom: 12px;">
+              <div class="row">
+                <div>
+                  <label>Family</label>
+                  <select id="ChemOrgFamily" class="select-fit">
+                    <option value="alkane">Alkane</option>
+                    <option value="alkene">Alkene</option>
+                    <option value="alcohol">Alcohol</option>
+                    <option value="carboxylic_acid">Carboxylic acid</option>
+                    <option value="ester">Ester</option>
+                  </select>
+                </div>
+                <div>
+                  <label>Carbon atoms</label>
+                  <input type="number" id="ChemOrgCarbons" value="2" min="1" max="8" />
+                </div>
+                <div>
+                  <label>Name (optional)</label>
+                  <input type="text" id="ChemOrgName" placeholder="e.g. butane" />
+                </div>
+              </div>
+              <div class="row" style="margin-top:8px;">
+                <div>
+                  <label>C=C starts at carbon #</label>
+                  <input type="number" id="ChemOrgDoubleAt" value="1" min="1" max="7" />
+                </div>
+                <div>
+                  <label>Functional group</label>
+                  <select id="ChemOrgGroupType" class="select-fit">
+                    <option value="">— none / auto —</option>
+                    <option value="OH">–OH</option>
+                    <option value="COOH">–COOH</option>
+                    <option value="COO">–COO–</option>
+                  </select>
+                </div>
+                <div>
+                  <label>Group on carbon #</label>
+                  <input type="number" id="ChemOrgGroupCarbon" min="1" max="8" placeholder="auto" />
+                </div>
+              </div>
+            </div>
+            <div id="chemEqFields" class="hidden" style="margin-bottom: 12px;">
+              <div class="row">
+                <div>
+                  <label>Equation subtype</label>
+                  <select id="ChemEqSubtype" class="select-fit">
+                    <option value="symbol">Symbol equation</option>
+                    <option value="ionic">Ionic equation</option>
+                    <option value="half">Half-equation</option>
+                  </select>
+                </div>
+                <div>
+                  <label>Correct coefficients (comma-separated)</label>
+                  <input type="text" id="ChemEqCoeffs" placeholder="2,1,2" value="2,1,2" />
+                </div>
+              </div>
+              <label style="margin-top:8px;">Species (formula:side, comma-separated)</label>
+              <input type="text" id="ChemEqSpecies" placeholder="H2:left, O2:left, H2O:right" value="H2:left, O2:left, H2O:right" style="width:100%;" />
+            </div>
+            <p id="chemPresetHint" class="muted" style="font-size: 0.78rem;">
+              Use a preset, or set custom protons/electrons/neutrons (shells auto-fill) or custom organic carbons/family.
+              Triple presets cover alcohols, acids, esters, polyesters and polyamides.
+            </p>
+          </div>
+
           <!-- Sub Panel: Short Answer Keywords -->
           <div id="shortTextKeywordsPanel" style="margin-top: 16px;">
             <div style="max-width: 520px; margin-bottom: 14px;">
@@ -2316,6 +2516,7 @@
             <strong>Keyword syntax:</strong> comma <code>,</code> = all parts required (AND); pipe <code>|</code> = synonyms (OR). Example for one mark: <code>increase, potential difference|voltage|volts</code> needs both “increase” and one of the voltage terms.<br/>
             <strong>Remediation tip:</strong> Practice feedback already lists the checkpoint keywords as badges. Write remediation that <em>expands</em> the idea (why it earns the mark / how to remember it) — don’t just repeat the keywords. Flashcard backs use this remediation only. Example: keywords <code>chlorophyll</code> → remediation <em>“Chlorophyll absorbs light energy for photosynthesis.”</em><br/>
             <strong>Numeric:</strong> Feedback is configured in Section 2 (calculation workflow panels) — this section is not used.<br/>
+            <strong>Chemistry diagrams:</strong> Marking comes from the chemistry answer key in Section 2 — this section is not used.<br/>
             <strong>MCQ:</strong> Add one generic remediation row (feedback field only). Shown below any per-option feedback from Section 2 when a student picks a wrong answer.
           </p>
           <div id="markPointsWrapper"></div>
@@ -2817,6 +3018,7 @@
                 <option value="">-- All Types --</option>
                 <option value="short_text">Short Answer (Written)</option>
                 <option value="numeric">Numeric (Calculation)</option>
+                <option value="chemistry_interactive">Chemistry Diagram / Equation</option>
                 <option value="mcq">Multiple Choice Question (MCQ)</option>
                 <option value="extended_response">6-Mark Extended Response</option>
               </select>
@@ -3419,6 +3621,111 @@
           </div>
         </div>
 
+        <div id="editChemistryPanel" class="hidden">
+          <p class="muted" style="font-size:0.8rem;margin:0 0 10px;">Re-apply a preset to replace the chemistry template and answer key, or leave as-is to keep the stored config.</p>
+          <div class="row">
+            <div>
+              <label>Chemistry kind</label>
+              <select id="editChemKind" class="select-fit">
+                <option value="electron_shell">Electron shell diagram</option>
+                <option value="ionic_bonding">Ionic bonding</option>
+                <option value="covalent_bonding">Covalent bonding</option>
+                <option value="organic_structure">Organic structure</option>
+                <option value="polymer_structure">Polymer structure</option>
+                <option value="balance_equation">Balance equation</option>
+              </select>
+            </div>
+            <div>
+              <label>Replace with preset</label>
+              <select id="editChemPreset" class="select-fit">
+                <option value="">— Keep existing config —</option>
+              </select>
+            </div>
+          </div>
+          <div id="editChemShellFields" class="row" style="margin-top:10px;">
+            <div>
+              <label>Element symbol</label>
+              <input type="text" id="editChemSymbol" />
+            </div>
+            <div>
+              <label>Protons</label>
+              <input type="number" id="editChemProtons" />
+            </div>
+            <div>
+              <label>Electrons</label>
+              <input type="number" id="editChemElectrons" />
+            </div>
+            <div>
+              <label>Neutrons</label>
+              <input type="number" id="editChemNeutrons" />
+            </div>
+            <div>
+              <label>Correct shells</label>
+              <input type="text" id="editChemShellsAnswer" />
+            </div>
+          </div>
+          <div id="editChemOrganicFields" class="hidden" style="margin-top:10px;">
+            <div class="row">
+              <div>
+                <label>Family</label>
+                <select id="editChemOrgFamily" class="select-fit">
+                  <option value="alkane">Alkane</option>
+                  <option value="alkene">Alkene</option>
+                  <option value="alcohol">Alcohol</option>
+                  <option value="carboxylic_acid">Carboxylic acid</option>
+                  <option value="ester">Ester</option>
+                </select>
+              </div>
+              <div>
+                <label>Carbons</label>
+                <input type="number" id="editChemOrgCarbons" min="1" max="8" />
+              </div>
+              <div>
+                <label>Name</label>
+                <input type="text" id="editChemOrgName" />
+              </div>
+            </div>
+            <div class="row" style="margin-top:8px;">
+              <div>
+                <label>C=C at carbon #</label>
+                <input type="number" id="editChemOrgDoubleAt" min="1" max="7" />
+              </div>
+              <div>
+                <label>Group</label>
+                <select id="editChemOrgGroupType" class="select-fit">
+                  <option value="">— none / auto —</option>
+                  <option value="OH">–OH</option>
+                  <option value="COOH">–COOH</option>
+                  <option value="COO">–COO–</option>
+                </select>
+              </div>
+              <div>
+                <label>Group carbon #</label>
+                <input type="number" id="editChemOrgGroupCarbon" min="1" max="8" />
+              </div>
+            </div>
+          </div>
+          <div id="editChemEqFields" class="hidden" style="margin-top:10px;">
+            <div class="row">
+              <div>
+                <label>Subtype</label>
+                <select id="editChemEqSubtype" class="select-fit">
+                  <option value="symbol">Symbol</option>
+                  <option value="ionic">Ionic</option>
+                  <option value="half">Half</option>
+                </select>
+              </div>
+              <div>
+                <label>Coefficients</label>
+                <input type="text" id="editChemEqCoeffs" />
+              </div>
+            </div>
+            <label style="margin-top:8px;">Species</label>
+            <input type="text" id="editChemEqSpecies" style="width:100%;" />
+          </div>
+          <p id="editChemSummary" class="muted" style="font-size:0.78rem;margin-top:10px;"></p>
+        </div>
+
         <div id="editExtendedPanel" class="hidden">
           <div style="margin-bottom:10px;">
             <label>AI Marking Guidelines / Target points:</label>
@@ -3549,6 +3856,65 @@
             <button type="button" onclick="removeEditImage()" class="btn btn-danger" style="padding:2px 6px; font-size:0.7rem; margin-top:4px;">Delete Attachment</button>
           </div>
         </div>
+        <details id="editChemStemBuilder" style="margin-top:12px; border:1px solid var(--border); border-radius:8px; padding:10px 12px; background:#f8fafc;" class="edit-form-span-full">
+          <summary style="cursor:pointer; font-weight:600; color:var(--primary-dark); font-size:0.88rem;">Build chemistry diagram for this question</summary>
+          <p class="muted" style="font-size:0.78rem; line-height:1.4; margin:8px 0;">
+            Custom atom/ion (p, e, n) or organic chain, or pick a preset — then attach as the stem image.
+          </p>
+          <div class="row" style="margin-bottom:8px;">
+            <div>
+              <label>Source</label>
+              <select id="editChemStemSource" class="select-fit">
+                <option value="custom_atom">Custom atom / ion</option>
+                <option value="custom_organic">Custom organic</option>
+                <option value="preset">From preset</option>
+              </select>
+            </div>
+            <div id="editChemStemPresetWrap" class="hidden">
+              <label>Preset</label>
+              <select id="editChemStemPreset" class="select-fit"></select>
+            </div>
+          </div>
+          <div id="editChemStemAtomFields" class="row" style="margin-bottom:8px;">
+            <div><label>Symbol</label><input type="text" id="editChemStemSymbol" placeholder="auto" /></div>
+            <div><label>Protons</label><input type="number" id="editChemStemProtons" value="11" min="0" /></div>
+            <div><label>Electrons</label><input type="number" id="editChemStemElectrons" value="11" min="0" /></div>
+            <div><label>Neutrons</label><input type="number" id="editChemStemNeutrons" value="12" min="0" /></div>
+          </div>
+          <div id="editChemStemOrganicFields" class="hidden" style="margin-bottom:8px;">
+            <div class="row">
+              <div>
+                <label>Family</label>
+                <select id="editChemStemOrgFamily" class="select-fit">
+                  <option value="alkane">Alkane</option>
+                  <option value="alkene">Alkene</option>
+                  <option value="alcohol">Alcohol</option>
+                  <option value="carboxylic_acid">Carboxylic acid</option>
+                  <option value="ester">Ester</option>
+                </select>
+              </div>
+              <div><label>Carbons</label><input type="number" id="editChemStemOrgCarbons" value="2" min="1" max="8" /></div>
+              <div><label>Name</label><input type="text" id="editChemStemOrgName" /></div>
+            </div>
+            <div class="row" style="margin-top:8px;">
+              <div><label>C=C at #</label><input type="number" id="editChemStemOrgDoubleAt" value="1" min="1" /></div>
+              <div>
+                <label>Group</label>
+                <select id="editChemStemOrgGroupType" class="select-fit">
+                  <option value="">— auto —</option>
+                  <option value="OH">–OH</option>
+                  <option value="COOH">–COOH</option>
+                  <option value="COO">–COO–</option>
+                </select>
+              </div>
+              <div><label>Group carbon #</label><input type="number" id="editChemStemOrgGroupCarbon" min="1" max="8" /></div>
+            </div>
+          </div>
+          <div id="editChemStemPreview" style="min-height:80px; padding:8px; background:#fff; border:1px dashed #cbd5e1; border-radius:8px; margin-bottom:8px;"></div>
+          <button type="button" class="btn btn-primary" id="btnEditChemStemApply" style="padding:6px 12px; font-size:0.8rem;">Use as question diagram</button>
+          <button type="button" class="btn btn-secondary" id="btnEditChemStemPreview" style="padding:6px 12px; font-size:0.8rem; margin-left:6px;">Refresh preview</button>
+          <p id="editChemStemStatus" class="muted" style="font-size:0.75rem; margin:8px 0 0;"></p>
+        </details>
 
       </form>
       </div>
@@ -3659,6 +4025,7 @@
   import { supabaseClient } from "./src/dbClient.js";
   import * as CalcWorkflow from "./src/calculationWorkflow.js";
   import * as NumericGen from "./src/numericQuestionGenerator.js";
+  import * as ChemWorkflow from "./src/chemistryWorkflow.js";
   import { initSubstitutionTemplateCatalog } from "./src/substitutionTemplate.js";
   import * as McqBatchGen from "./src/mcqBatchGenerator.js";
   import * as AiQuestionDraft from "./src/aiQuestionDraft.js";
@@ -3668,6 +4035,7 @@
   import { normalizeQuestionTierForDb } from "./src/sciencePath.js";
 
   window.CalcWorkflow = CalcWorkflow;
+  window.ChemWorkflow = ChemWorkflow;
   window.NumericGen = NumericGen;
   window.McqBatchGen = McqBatchGen;
   window.AiQuestionDraft = AiQuestionDraft;
@@ -4667,6 +5035,205 @@
     }
     syncSection3McqMode(type, "creator");
   }
+
+  function syncChemAuthoringFields() {
+    const kind = document.getElementById("ChemKind")?.value || "electron_shell";
+    const shellFields = document.getElementById("chemShellFields");
+    const orgFields = document.getElementById("chemOrganicFields");
+    const eqFields = document.getElementById("chemEqFields");
+    if (shellFields) shellFields.classList.toggle("hidden", kind !== "electron_shell");
+    if (orgFields) orgFields.classList.toggle("hidden", kind !== "organic_structure");
+    if (eqFields) eqFields.classList.toggle("hidden", kind !== "balance_equation");
+    if (window.ChemWorkflow) {
+      const presetSel = document.getElementById("ChemPreset");
+      const prev = presetSel?.value || "";
+      window.ChemWorkflow.populateChemistryPresetSelect(presetSel, kind);
+      if (prev && [...(presetSel?.options || [])].some((o) => o.value === prev)) {
+        presetSel.value = prev;
+      }
+    }
+  }
+
+  function syncShellsFromElectronInputs(prefix = "") {
+    const p = prefix || "";
+    if (!window.ChemWorkflow) return;
+    const eEl = document.getElementById(`${p}ChemElectrons`);
+    const shellsEl = document.getElementById(`${p}ChemShellsAnswer`);
+    const pEl = document.getElementById(`${p}ChemProtons`);
+    const symEl = document.getElementById(`${p}ChemSymbol`);
+    if (!eEl || !shellsEl) return;
+    const cfg = window.ChemWorkflow.buildAtomDiagramConfig({
+      symbol: symEl?.value,
+      protons: pEl?.value,
+      neutrons: document.getElementById(`${p}ChemNeutrons`)?.value,
+      electrons: eEl.value,
+    });
+    shellsEl.value = (cfg.answer.shells || []).join(",");
+    if (symEl && !String(symEl.value || "").trim() && cfg.answer.symbol) {
+      symEl.value = cfg.answer.symbol;
+    }
+  }
+
+  document.getElementById("ChemKind")?.addEventListener("change", syncChemAuthoringFields);
+  document.getElementById("ChemPreset")?.addEventListener("change", (e) => {
+    if (window.ChemWorkflow) {
+      window.ChemWorkflow.applyChemistryPresetToForm("", e.target.value);
+      syncChemAuthoringFields();
+    }
+  });
+  ["ChemElectrons", "ChemProtons"].forEach((id) => {
+    document.getElementById(id)?.addEventListener("change", () => syncShellsFromElectronInputs(""));
+    document.getElementById(id)?.addEventListener("input", () => syncShellsFromElectronInputs(""));
+  });
+  if (window.ChemWorkflow) {
+    window.ChemWorkflow.populateChemistryPresetSelect(document.getElementById("ChemPreset"));
+  }
+
+  function populateChemStemPresetSelect(selectEl) {
+    if (!selectEl || !window.ChemWorkflow) return;
+    const items = window.ChemWorkflow.listStemDiagramPresets();
+    selectEl.innerHTML = `<option value="">— Choose a diagram —</option>`
+      + items.map((p) => `<option value="${p.id}">${p.label}</option>`).join("");
+  }
+
+  function syncChemStemSourceFields(prefix = "") {
+    const isEdit = prefix === "edit";
+    const source = document.getElementById(isEdit ? "editChemStemSource" : "ChemStemSource")?.value || "custom_atom";
+    const atom = document.getElementById(isEdit ? "editChemStemAtomFields" : "ChemStemAtomFields");
+    const org = document.getElementById(isEdit ? "editChemStemOrganicFields" : "ChemStemOrganicFields");
+    const presetWrap = document.getElementById(isEdit ? "editChemStemPresetWrap" : "ChemStemPresetWrap");
+    const hint = document.getElementById("ChemStemAtomHint");
+    atom?.classList.toggle("hidden", source !== "custom_atom");
+    org?.classList.toggle("hidden", source !== "custom_organic");
+    presetWrap?.classList.toggle("hidden", source !== "preset");
+    hint?.classList.toggle("hidden", source !== "custom_atom");
+  }
+
+  function getChemStemConfig(prefix = "") {
+    const isEdit = prefix === "edit";
+    const source = document.getElementById(isEdit ? "editChemStemSource" : "ChemStemSource")?.value || "custom_atom";
+    if (!window.ChemWorkflow) return null;
+    if (source === "preset") {
+      const id = document.getElementById(isEdit ? "editChemStemPreset" : "ChemStemPreset")?.value;
+      return id || null;
+    }
+    if (source === "custom_organic") {
+      const pfx = isEdit ? "editChemStem" : "ChemStem";
+      const groupCarbonRaw = document.getElementById(`${pfx}OrgGroupCarbon`)?.value;
+      return window.ChemWorkflow.buildOrganicDiagramConfig({
+        carbons: document.getElementById(`${pfx}OrgCarbons`)?.value,
+        family: document.getElementById(`${pfx}OrgFamily`)?.value,
+        name: document.getElementById(`${pfx}OrgName`)?.value,
+        doubleBondAt: Math.max(0, (Number(document.getElementById(`${pfx}OrgDoubleAt`)?.value) || 1) - 1),
+        groupType: document.getElementById(`${pfx}OrgGroupType`)?.value || null,
+        groupCarbon: groupCarbonRaw === "" || groupCarbonRaw == null
+          ? null
+          : Math.max(0, Number(groupCarbonRaw) - 1),
+      });
+    }
+    // custom_atom
+    const pfx = isEdit ? "editChemStem" : "ChemStem";
+    return window.ChemWorkflow.buildAtomDiagramConfig({
+      symbol: document.getElementById(`${pfx}Symbol`)?.value,
+      protons: document.getElementById(`${pfx}Protons`)?.value,
+      electrons: document.getElementById(`${pfx}Electrons`)?.value,
+      neutrons: document.getElementById(`${pfx}Neutrons`)?.value,
+    });
+  }
+
+  function refreshChemStemPreview(prefix = "") {
+    const isEdit = prefix === "edit";
+    const preview = document.getElementById(isEdit ? "editChemStemPreview" : "ChemStemPreview");
+    if (!preview || !window.ChemWorkflow) return;
+    const src = getChemStemConfig(prefix);
+    if (!src) {
+      preview.innerHTML = `<p class="muted" style="margin:0;font-size:0.8rem;">Select a source and fill the fields to preview.</p>`;
+      return;
+    }
+    preview.innerHTML = window.ChemWorkflow.stemPreviewHtml(src);
+  }
+
+  async function applyChemStemDiagram(prefix = "") {
+    const isEdit = prefix === "edit";
+    const status = document.getElementById(isEdit ? "editChemStemStatus" : "ChemStemStatus");
+    const urlInput = document.getElementById(isEdit ? "editImageUrl" : "qImageUrl");
+    const fileInput = document.getElementById(isEdit ? "editImageFile" : "qImage");
+    const src = getChemStemConfig(prefix);
+    if (!src) {
+      if (status) status.textContent = "Choose a preset or enter custom values first.";
+      return;
+    }
+    if (!window.ChemWorkflow) {
+      if (status) status.textContent = "Chemistry module not loaded.";
+      return;
+    }
+    if (status) status.textContent = "Rendering and uploading…";
+    try {
+      const svg = window.ChemWorkflow.renderStemDiagramSvg(src);
+      const pngBlob = await window.ChemWorkflow.svgMarkupToPngBlob(svg, { scale: 2 });
+      const subject = document.getElementById(isEdit ? "editSpecSubjectSelect" : "subjectSelect")?.value || "chemistry";
+      const label = typeof src === "string" ? src : (src.answer?.symbol || src.answer?.name || src.kind || "custom");
+      const safe = String(label).replace(/[^a-zA-Z0-9_-]+/g, "_").slice(0, 40);
+      const path = `${subject}/stem-diagrams/${safe}_${Date.now()}.png`;
+      const { error: uploadError } = await supabaseClient.storage
+        .from("question-images")
+        .upload(path, pngBlob, { contentType: "image/png", upsert: true });
+      if (uploadError) throw uploadError;
+      const { data } = supabaseClient.storage.from("question-images").getPublicUrl(path);
+      if (fileInput) fileInput.value = "";
+      if (urlInput) urlInput.value = data.publicUrl;
+      if (isEdit) {
+        const preview = document.getElementById("editImagePreview");
+        const container = document.getElementById("editImagePreviewContainer");
+        if (preview) preview.src = data.publicUrl;
+        if (container) container.classList.remove("hidden");
+      } else {
+        syncCreatorImagePreview();
+      }
+      if (status) status.textContent = "Diagram applied to question image.";
+      showAdminToast("Chemistry diagram attached to question.");
+    } catch (err) {
+      console.error(err);
+      if (status) status.textContent = `Failed: ${err.message || err}`;
+      showAdminToast("Could not build diagram: " + (err.message || err), true);
+    }
+  }
+
+  populateChemStemPresetSelect(document.getElementById("ChemStemPreset"));
+  populateChemStemPresetSelect(document.getElementById("editChemStemPreset"));
+  syncChemStemSourceFields("");
+  syncChemStemSourceFields("edit");
+  document.getElementById("ChemStemSource")?.addEventListener("change", () => {
+    syncChemStemSourceFields("");
+    refreshChemStemPreview("");
+  });
+  document.getElementById("editChemStemSource")?.addEventListener("change", () => {
+    syncChemStemSourceFields("edit");
+    refreshChemStemPreview("edit");
+  });
+  document.getElementById("ChemStemPreset")?.addEventListener("change", () => refreshChemStemPreview(""));
+  document.getElementById("editChemStemPreset")?.addEventListener("change", () => refreshChemStemPreview("edit"));
+  document.getElementById("btnChemStemPreview")?.addEventListener("click", () => refreshChemStemPreview(""));
+  document.getElementById("btnEditChemStemPreview")?.addEventListener("click", () => refreshChemStemPreview("edit"));
+  document.getElementById("btnChemStemApply")?.addEventListener("click", () => applyChemStemDiagram(""));
+  document.getElementById("btnEditChemStemApply")?.addEventListener("click", () => applyChemStemDiagram("edit"));
+  [
+    "ChemStemProtons", "ChemStemElectrons", "ChemStemNeutrons", "ChemStemSymbol",
+    "ChemStemOrgFamily", "ChemStemOrgCarbons", "ChemStemOrgName", "ChemStemOrgDoubleAt",
+    "ChemStemOrgGroupType", "ChemStemOrgGroupCarbon",
+  ].forEach((id) => {
+    document.getElementById(id)?.addEventListener("change", () => refreshChemStemPreview(""));
+    document.getElementById(id)?.addEventListener("input", () => refreshChemStemPreview(""));
+  });
+  [
+    "editChemStemProtons", "editChemStemElectrons", "editChemStemNeutrons", "editChemStemSymbol",
+    "editChemStemOrgFamily", "editChemStemOrgCarbons", "editChemStemOrgName", "editChemStemOrgDoubleAt",
+    "editChemStemOrgGroupType", "editChemStemOrgGroupCarbon",
+  ].forEach((id) => {
+    document.getElementById(id)?.addEventListener("change", () => refreshChemStemPreview("edit"));
+    document.getElementById(id)?.addEventListener("input", () => refreshChemStemPreview("edit"));
+  });
+  refreshChemStemPreview("");
   
   qType.onchange = function() {
     const type = qType.value;
@@ -4674,6 +5241,7 @@
     // Hide all dynamic components
     document.getElementById("mcqPanel").classList.add("hidden");
     document.getElementById("numericPanel").classList.add("hidden");
+    document.getElementById("chemistryPanel")?.classList.add("hidden");
     document.getElementById("shortTextKeywordsPanel").classList.add("hidden");
     document.getElementById("extendedPanel").classList.add("hidden");
     
@@ -4705,7 +5273,20 @@
       } else {
         maxMarks.value = "1";
       }
-    } 
+    }
+    else if (type === "chemistry_interactive") {
+      document.getElementById("chemistryPanel")?.classList.remove("hidden");
+      syncCreatorMcqUi("chemistry_interactive");
+      maxMarks.innerHTML = "";
+      for (let i = 1; i <= 4; i++) {
+        const opt = document.createElement("option");
+        opt.value = String(i);
+        opt.textContent = i === 1 ? "1 mark" : `${i} marks`;
+        maxMarks.appendChild(opt);
+      }
+      maxMarks.value = "1";
+      syncChemAuthoringFields();
+    }
     else if (type === "short_text") {
       document.getElementById("shortTextKeywordsPanel").classList.remove("hidden");
       syncCreatorMcqUi("short_text");
@@ -4871,6 +5452,26 @@
 
   document.getElementById("btnAddCalcRemediation")?.addEventListener("click", () => window.addCalcRemediationRow("", "AO2", ""));
   document.getElementById("btnEditAddCalcRemediation")?.addEventListener("click", () => window.addCalcRemediationRow("edit", "AO2", ""));
+
+  document.getElementById("editChemKind")?.addEventListener("change", () => {
+    const kind = document.getElementById("editChemKind")?.value;
+    document.getElementById("editChemShellFields")?.classList.toggle("hidden", kind !== "electron_shell");
+    document.getElementById("editChemOrganicFields")?.classList.toggle("hidden", kind !== "organic_structure");
+    document.getElementById("editChemEqFields")?.classList.toggle("hidden", kind !== "balance_equation");
+  });
+  document.getElementById("editChemPreset")?.addEventListener("change", (e) => {
+    if (window.ChemWorkflow && e.target.value) {
+      window.ChemWorkflow.applyChemistryPresetToForm("edit", e.target.value);
+      const kind = document.getElementById("editChemKind")?.value;
+      document.getElementById("editChemShellFields")?.classList.toggle("hidden", kind !== "electron_shell");
+      document.getElementById("editChemOrganicFields")?.classList.toggle("hidden", kind !== "organic_structure");
+      document.getElementById("editChemEqFields")?.classList.toggle("hidden", kind !== "balance_equation");
+    }
+  });
+  ["editChemElectrons", "editChemProtons"].forEach((id) => {
+    document.getElementById(id)?.addEventListener("change", () => syncShellsFromElectronInputs("edit"));
+    document.getElementById(id)?.addEventListener("input", () => syncShellsFromElectronInputs("edit"));
+  });
 
   function getMarkPointImageStoragePrefix() {
     return document.getElementById("subjectSelect")?.value
@@ -5150,6 +5751,9 @@
       if (questionType === "numeric") {
         calculatedMaxMarks = parseInt(maxMarks.value, 10) || 1;
         calculatedMarkingMethod = "numeric";
+      } else if (questionType === "chemistry_interactive") {
+        calculatedMaxMarks = parseInt(maxMarks.value, 10) || 1;
+        calculatedMarkingMethod = "chemistry";
       } else if (questionType === "extended_response") {
         calculatedMarkingMethod = "ai_rubric";
       }
@@ -5206,6 +5810,10 @@
         insertPayload.calculation_config = window.CalcWorkflow.finalizeCalculationConfigForSave(calcCfg, eqs);
       }
 
+      if (questionType === "chemistry_interactive" && window.ChemWorkflow) {
+        insertPayload.chemistry_config = window.ChemWorkflow.buildChemistryConfigFromForm("");
+      }
+
       const { data: qResult, error: qErr } = await supabaseClient
         .from("questions")
         .insert(insertPayload)
@@ -5233,7 +5841,14 @@
           tolerance: parseFloat(document.getElementById("numAnsTol").value) || 0,
           unit: document.getElementById("numAnsUnit").value.trim()
         };
-      } 
+      }
+      else if (questionType === "chemistry_interactive") {
+        keyType = "chemistry";
+        const chemCfg = insertPayload.chemistry_config
+          || (window.ChemWorkflow && window.ChemWorkflow.buildChemistryConfigFromForm(""))
+          || {};
+        keyPayload = chemCfg.answer || { kind: chemCfg.kind };
+      }
       else if (questionType === "short_text") {
         const markMode = document.getElementById("shortMarkMode")?.value || "pick_n";
         if (markMode === "pick_n") {
@@ -5286,7 +5901,7 @@
       // Save Section 3 detailed Mark Points (short answer only — numeric uses Section 2 feedback;
       // pool "pick N" marking lives in the answer key, so checkpoints are skipped)
       const rows = Array.from(document.querySelectorAll("#markPointsWrapper .mark-point-row"));
-      if (rows.length > 0 && questionType !== "numeric" && keyType !== "pick_n") {
+      if (rows.length > 0 && questionType !== "numeric" && questionType !== "chemistry_interactive" && keyType !== "pick_n") {
         const markPayloads = await buildMarkPointPayloadsFromRows(rows, qResult.id, "creator", questionType);
         if (markPayloads.length > 0) {
           const { error: mpErr } = await supabaseClient.from("mark_points").insert(markPayloads);
@@ -9355,8 +9970,8 @@
         auditCheckPointsCounterMap[qid] = auditMarkPointStatsMap[qid].gradable;
       });
 
-      const selectWithMeta = "id, spec_point_id, triple_spec_point_id, audience, question_type, prompt, options, tier, marking_method, max_marks, resource_links, hints, image_url, calculation_config, command_word, demand_level, ao1_marks, ao2_marks, ao3_marks, is_maths_skill, is_required_practical, required_practical_id, difficulty, required_practicals(code), answer_keys(key_type, key_payload), question_skills(skill_id, skill_framework_items(full_code, framework, title))";
-      const selectBasic = "id, spec_point_id, triple_spec_point_id, audience, question_type, prompt, options, tier, marking_method, max_marks, resource_links, hints, image_url, calculation_config, command_word, demand_level, ao1_marks, ao2_marks, ao3_marks, is_maths_skill, is_required_practical, required_practical_id, difficulty, required_practicals(code), answer_keys(key_type, key_payload)";
+      const selectWithMeta = "id, spec_point_id, triple_spec_point_id, audience, question_type, prompt, options, tier, marking_method, max_marks, resource_links, hints, image_url, calculation_config, chemistry_config, command_word, demand_level, ao1_marks, ao2_marks, ao3_marks, is_maths_skill, is_required_practical, required_practical_id, difficulty, required_practicals(code), answer_keys(key_type, key_payload), question_skills(skill_id, skill_framework_items(full_code, framework, title))";
+      const selectBasic = "id, spec_point_id, triple_spec_point_id, audience, question_type, prompt, options, tier, marking_method, max_marks, resource_links, hints, image_url, calculation_config, chemistry_config, command_word, demand_level, ao1_marks, ao2_marks, ao3_marks, is_maths_skill, is_required_practical, required_practical_id, difficulty, required_practicals(code), answer_keys(key_type, key_payload)";
 
       auditCourseTrackFilter = courseTrack;
 
@@ -9531,6 +10146,7 @@
     // Reset modal panels
     document.getElementById("editMcqPanel").classList.add("hidden");
     document.getElementById("editNumericPanel").classList.add("hidden");
+    document.getElementById("editChemistryPanel")?.classList.add("hidden");
     document.getElementById("editShortTextPanel").classList.add("hidden");
     document.getElementById("editExtendedPanel").classList.add("hidden");
 
@@ -9574,7 +10190,62 @@
         document.getElementById("editNumAns").value = keyData?.key_payload?.answer || "";
         document.getElementById("editNumTol").value = keyData?.key_payload?.tolerance || 0;
         document.getElementById("editNumUnit").value = keyData?.key_payload?.unit || "";
-      } 
+      }
+      else if (q.question_type === "chemistry_interactive") {
+        document.getElementById("editChemistryPanel")?.classList.remove("hidden");
+        if (window.ChemWorkflow) {
+          window.ChemWorkflow.populateChemistryPresetSelect(document.getElementById("editChemPreset"));
+          const keep = document.getElementById("editChemPreset");
+          if (keep && !keep.querySelector('option[value=""]')) {
+            keep.insertAdjacentHTML("afterbegin", '<option value="">— Keep existing config —</option>');
+          } else if (keep) keep.value = "";
+        }
+        const cfg = q.chemistry_config || {};
+        const kindEl = document.getElementById("editChemKind");
+        if (kindEl) kindEl.value = cfg.kind || "electron_shell";
+        if (cfg.kind === "electron_shell") {
+          const t = cfg.template || {};
+          const a = cfg.answer || keyData?.key_payload || {};
+          const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v ?? ""; };
+          set("editChemSymbol", t.symbol || a.symbol || "C");
+          set("editChemShellsAnswer", (a.shells || []).join(","));
+          set("editChemProtons", t.protons ?? a.nucleus?.p);
+          set("editChemNeutrons", t.neutrons ?? a.nucleus?.n);
+          const eFromShells = (a.shells || []).reduce((x, y) => x + y, 0);
+          set("editChemElectrons", t.electrons ?? (eFromShells || (t.protons ?? a.nucleus?.p)));
+        }
+        if (cfg.kind === "organic_structure") {
+          const t = cfg.template || {};
+          const a = cfg.answer || keyData?.key_payload || {};
+          const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v ?? ""; };
+          set("editChemOrgFamily", t.family || a.family || "alkane");
+          set("editChemOrgCarbons", t.carbons ?? a.carbons ?? 2);
+          set("editChemOrgName", t.name || a.name || "");
+          const dblFromAns = (a.carbonBonds || []).find((b) => Number(b.order) === 2);
+          const dblAt0 = t.doubleBondAt ?? (dblFromAns ? dblFromAns.from : 0);
+          set("editChemOrgDoubleAt", Math.max(1, Number(dblAt0) + 1));
+          const gIdx = (a.groups || []).findIndex((g) => Array.isArray(g) && g.some((x) => x && x !== "H"));
+          const gType = gIdx >= 0 ? (a.groups[gIdx].find((x) => x && x !== "H") || "") : (t.groupType || "");
+          set("editChemOrgGroupCarbon", gIdx >= 0 ? gIdx + 1 : (t.groupCarbon != null ? Number(t.groupCarbon) + 1 : ""));
+          set("editChemOrgGroupType", gType);
+        }
+        if (cfg.kind === "balance_equation") {
+          const t = cfg.template || {};
+          const a = cfg.answer || keyData?.key_payload || {};
+          const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v ?? ""; };
+          set("editChemEqSubtype", t.subtype || "symbol");
+          set("editChemEqSpecies", (t.species || []).map((s) => `${s.formula}:${s.side}`).join(", "));
+          set("editChemEqCoeffs", (a.coeffs || []).join(","));
+        }
+        const shellF = document.getElementById("editChemShellFields");
+        const orgF = document.getElementById("editChemOrganicFields");
+        const eqF = document.getElementById("editChemEqFields");
+        if (shellF) shellF.classList.toggle("hidden", cfg.kind !== "electron_shell");
+        if (orgF) orgF.classList.toggle("hidden", cfg.kind !== "organic_structure");
+        if (eqF) eqF.classList.toggle("hidden", cfg.kind !== "balance_equation");
+        const sum = document.getElementById("editChemSummary");
+        if (sum) sum.textContent = `Stored kind: ${cfg.kind || "—"}. Preset replace optional — or edit custom fields below.`;
+      }
       else if (q.question_type === "short_text") {
         document.getElementById("editShortTextPanel").classList.remove("hidden");
 
@@ -9911,6 +10582,20 @@
           || window.CalcWorkflow.computeMaxMarksFromConfig(calcCfg);
       }
 
+      if (q.question_type === "chemistry_interactive" && window.ChemWorkflow) {
+        const presetId = document.getElementById("editChemPreset")?.value || "";
+        if (presetId) {
+          updatePayload.chemistry_config = window.ChemWorkflow.buildChemistryConfigFromForm("edit");
+        } else {
+          const kind = document.getElementById("editChemKind")?.value || q.chemistry_config?.kind;
+          if (kind === "electron_shell" || kind === "balance_equation" || kind === "organic_structure") {
+            updatePayload.chemistry_config = window.ChemWorkflow.buildChemistryConfigFromForm("edit");
+          } else {
+            updatePayload.chemistry_config = q.chemistry_config;
+          }
+        }
+      }
+
       if (q.question_type === "mcq") {
         updatePayload.max_marks = 1;
       }
@@ -9920,6 +10605,7 @@
       let updatedKeyType = null; // only short_text can switch key_type (keywords <-> pick_n)
       let insertKeyType = q.question_type === "mcq" ? "mcq"
         : q.question_type === "numeric" ? "numeric"
+        : q.question_type === "chemistry_interactive" ? "chemistry"
         : q.question_type === "extended_response" ? "ai_rubric"
         : "keywords";
       if (q.question_type === "mcq") {
@@ -9934,6 +10620,10 @@
           tolerance: parseFloat(document.getElementById("editNumTol").value) || 0,
           unit: document.getElementById("editNumUnit").value.trim()
         };
+      } else if (q.question_type === "chemistry_interactive") {
+        const chemCfg = updatePayload.chemistry_config || q.chemistry_config || {};
+        updatedPayload = chemCfg.answer || keyData?.key_payload || { kind: chemCfg.kind };
+        updatedKeyType = "chemistry";
       } else if (q.question_type === "short_text") {
         const markMode = document.getElementById("editShortMarkMode")?.value || "pick_n";
         if (markMode === "pick_n") {
@@ -9978,6 +10668,7 @@
       if (isCopy) {
         let markingMethod = q.marking_method || "keyword";
         if (q.question_type === "numeric") markingMethod = "numeric";
+        else if (q.question_type === "chemistry_interactive") markingMethod = "chemistry";
         else if (q.question_type === "extended_response") markingMethod = "ai_rubric";
         else if (q.question_type === "short_text" && insertKeyType === "pick_n") markingMethod = markingMethod || "keyword";
 
@@ -10005,7 +10696,7 @@
           });
         if (keyErr) throw keyErr;
 
-        if (q.question_type !== "numeric" && insertKeyType !== "pick_n") {
+        if (q.question_type !== "numeric" && q.question_type !== "chemistry_interactive" && insertKeyType !== "pick_n") {
           const editRows = Array.from(document.querySelectorAll("#editMarkPointsWrapper .edit-mp-row, #editMarkPointsWrapper .mark-point-row"));
           if (editRows.length > 0) {
             const markPayloads = await buildMarkPointPayloadsFromRows(editRows, savedQuestionId, "edit", q.question_type);
@@ -10026,6 +10717,9 @@
         if (q.question_type === "numeric" && updatePayload.calculation_config) {
           q.calculation_config = JSON.parse(JSON.stringify(updatePayload.calculation_config));
         }
+        if (q.question_type === "chemistry_interactive" && updatePayload.chemistry_config) {
+          q.chemistry_config = JSON.parse(JSON.stringify(updatePayload.chemistry_config));
+        }
 
         const keyUpdate = updatedKeyType
           ? { key_type: updatedKeyType, key_payload: updatedPayload }
@@ -10041,7 +10735,7 @@
         // pool "pick N" marking lives in the answer key, so checkpoints are cleared)
         await supabaseClient.from("mark_points").delete().eq("question_id", sourceId);
 
-        if (q.question_type !== "numeric" && updatedKeyType !== "pick_n") {
+        if (q.question_type !== "numeric" && q.question_type !== "chemistry_interactive" && updatedKeyType !== "pick_n") {
           const editRows = Array.from(document.querySelectorAll("#editMarkPointsWrapper .edit-mp-row, #editMarkPointsWrapper .mark-point-row"));
           if (editRows.length > 0) {
             const markPayloads = await buildMarkPointPayloadsFromRows(editRows, sourceId, "edit", q.question_type);
@@ -10191,7 +10885,10 @@
     } 
     else if (q.question_type === "numeric") {
       html += CalcWorkflow.renderCalculationWorkflow(q, currentSandboxedKey, "practice", currentSandboxedEquationSheet);
-    } 
+    }
+    else if (q.question_type === "chemistry_interactive" && window.ChemWorkflow) {
+      html += ChemWorkflow.renderChemistryWorkflow(q, currentSandboxedKey, "practice");
+    }
     else if (q.question_type === "extended_response") {
       html += `
         <div style="display:flex; flex-direction:column; gap:8px;">
@@ -10212,6 +10909,9 @@
       CalcWorkflow.wireStudentEquationSelectPreview(() => {
         if (window.MathJax?.typesetPromise) window.MathJax.typesetPromise();
       }, q, currentSandboxedEquationSheet);
+    }
+    if (q.question_type === "chemistry_interactive" && window.ChemWorkflow) {
+      ChemWorkflow.wireChemistryWorkflow(q);
     }
     // Trigger Math typesetting
     if (window.MathJax && typeof window.MathJax.typesetPromise === "function") {
@@ -10254,6 +10954,8 @@
         document.getElementById("sandboxStage")
       );
       resp.unit = (currentSandboxedKey?.key_payload?.unit) || "";
+    } else if (currentSandboxedQ.question_type === "chemistry_interactive" && window.ChemWorkflow) {
+      resp = ChemWorkflow.collectChemistryResponse(currentSandboxedQ);
     } else {
       resp = { type: "short_text", text: document.getElementById("sbTextAns")?.value.trim() };
     }
@@ -10380,7 +11082,31 @@
           ${auditTrail.map((t) => `<li>${escapeHtml(t)}</li>`).join("")}
         </ul>
       `;
-    } 
+    }
+    else if (currentSandboxedKey.key_type === "chemistry" && window.ChemWorkflow) {
+      const marking = ChemWorkflow.markChemistryResponse(
+        currentSandboxedQ,
+        resp,
+        currentSandboxedKey,
+        currentSandboxedMarkPoints,
+        null
+      );
+      score = marking.total;
+      max = marking.max;
+      const expected = currentSandboxedKey.key_payload || currentSandboxedQ.chemistry_config?.answer || {};
+      const chemDetail = marking.feedbackPayload?.chemistry?.detail || "";
+      const isCorrect = score === max && max > 0;
+      const modelHtml = ChemWorkflow.renderChemistryModelAnswerHtml(expected, {
+        title: isCorrect ? "Model answer" : "Correct electron arrangement",
+        compare: (!isCorrect && (expected.kind === "electron_shell" || expected.shells)) ? resp : null,
+        template: currentSandboxedQ.chemistry_config?.template,
+      });
+      detailsHtml = `
+        <div style="font-weight:bold; margin-bottom:8px;">Chemistry diagram: <span style="color:${isCorrect ? "var(--success)" : "var(--error)"}">${isCorrect ? "CORRECT" : "INCORRECT"} — ${score}/${max}</span></div>
+        <div style="margin-bottom:8px;font-size:0.85rem;">${escapeHtml(chemDetail)}</div>
+        ${modelHtml}
+      `;
+    }
     else if (currentSandboxedKey.key_type === "pick_n") {
       const cleanInputText = (resp.text || "").toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "");
       const studentWords = cleanInputText.split(/\s+/).filter(Boolean);

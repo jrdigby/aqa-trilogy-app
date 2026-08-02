@@ -355,6 +355,7 @@ export function markingMethodForType(questionType) {
   const t = (questionType || "").toLowerCase();
   if (t === "mcq") return "keyword";
   if (t === "numeric") return "numeric";
+  if (t === "chemistry_interactive") return "chemistry";
   if (t === "extended_response") return "ai_rubric";
   return "keyword";
 }

@@ -90,7 +90,10 @@ export function renderQuestionLayout(q, commandWordBanner, currentKey, layoutOpt
   } 
   else if (q.question_type === "numeric") {
     html += `<div id="numericWorkflowMount"></div>`;
-  } 
+  }
+  else if (q.question_type === "chemistry_interactive") {
+    html += `<div id="chemistryWorkflowMount"></div>`;
+  }
   else if (q.question_type === "extended_response") {
     html += `
       <div class="item">
@@ -116,6 +119,18 @@ export async function mountNumericQuestionWorkflow(q, currentKey, presentation, 
   const { renderCalculationWorkflow } = await loadCalculationWorkflow();
   mount.outerHTML = renderCalculationWorkflow(q, currentKey, presentation, equationSheet);
   return loadCalculationWorkflow();
+}
+
+/** Loads chemistry interactive UI after renderQuestionLayout. */
+export async function mountChemistryQuestionWorkflow(q, currentKey, presentation = "practice") {
+  const mount = document.getElementById("chemistryWorkflowMount");
+  if (!mount) return null;
+
+  const { loadChemistryWorkflow } = await import("./lazyChemistryWorkflow.js");
+  const mod = await loadChemistryWorkflow();
+  mount.outerHTML = mod.renderChemistryWorkflow(q, currentKey, presentation);
+  mod.wireChemistryWorkflow(q);
+  return mod;
 }
 
 // ====== STANDARD MARK SCHEME FEEDBACK LAYOUT ENGINE ======
@@ -158,6 +173,19 @@ export async function renderFeedback(marking, currentQ, currentKey, currentMarkP
   if (currentQ.question_type === "numeric" && marking.stepResults) {
     const { renderCalculationStepSummary } = await loadCalculationWorkflow();
     html += renderCalculationStepSummary(marking.stepResults);
+  }
+
+  if (currentQ.question_type === "chemistry_interactive") {
+    const { loadChemistryWorkflow } = await import("./lazyChemistryWorkflow.js");
+    const { renderChemistryModelAnswerHtml } = await loadChemistryWorkflow();
+    const expected = currentKey?.key_payload || currentQ.chemistry_config?.answer || {};
+    const studentResp = marking.feedbackPayload?.chemistry?.student || null;
+    const showCompare = !isPerfect && (expected.kind === "electron_shell" || expected.shells);
+    html += renderChemistryModelAnswerHtml(expected, {
+      title: isPerfect ? "Model answer" : "Correct arrangement",
+      compare: showCompare ? studentResp : null,
+      template: currentQ.chemistry_config?.template,
+    });
   }
 
   if (currentQ.question_type === "short_text" && currentKey && (currentKey.key_type === "keywords" || currentKey.key_type === "pick_n")) {
@@ -649,11 +677,12 @@ export function renderMasteryHeatmap(allSpecPoints, srsStates, onCellClickCallba
 export const QUESTION_TYPE_LABELS = {
   mcq: "Multiple Choice",
   numeric: "Numeric / Calculations",
+  chemistry_interactive: "Chemistry Diagram / Equation",
   short_text: "Short Text / Written",
   extended_response: "Extended Response"
 };
 
-export const QUESTION_TYPE_ORDER = ["mcq", "numeric", "short_text", "extended_response"];
+export const QUESTION_TYPE_ORDER = ["mcq", "numeric", "chemistry_interactive", "short_text", "extended_response"];
 
 function masteryColorTheme(percentage, hasAttempts) {
   if (!hasAttempts) return "#bdc3c7";

@@ -557,6 +557,8 @@ export async function markResponse(q, resp, key, markPoints) {
   } else {
     if (q.question_type === "numeric") {
       maxAo.AO2 = max;
+    } else if (q.question_type === "chemistry_interactive") {
+      maxAo.AO1 = max;
     } else if (q.question_type === "extended_response") {
       maxAo.AO1 = Math.ceil(max / 3);
       maxAo.AO2 = Math.floor(max / 3);
@@ -618,6 +620,21 @@ export async function markResponse(q, resp, key, markPoints) {
     };
 
     return { total, max, ao, maxAo, missing, quality, feedbackPayload, stepResults };
+  }
+  else if (key.key_type === "chemistry") {
+    const { loadChemistryWorkflow } = await import("./lazyChemistryWorkflow.js");
+    const { markChemistryResponse } = await loadChemistryWorkflow();
+    const chemResult = markChemistryResponse(q, resp, key, markPoints, cleanUrl);
+    return {
+      total: chemResult.total,
+      max: chemResult.max,
+      ao: chemResult.ao,
+      maxAo: chemResult.maxAo,
+      missing: chemResult.missing,
+      quality: chemResult.quality,
+      feedbackPayload: chemResult.feedbackPayload,
+      stepResults: null,
+    };
   }
   else if (key.key_type === "pick_n") {
     // Pool marking: award marks_per_hit for each DISTINCT acceptable answer the
@@ -758,6 +775,11 @@ export function computeQuestionAOMaxCaps(q, markPoints = [], calculationWorkflow
 
   if (q.question_type === "mcq") {
     applyMcqMaxAoFromQuestion(q, max, maxAo);
+    return maxAo;
+  }
+
+  if (q.question_type === "chemistry_interactive") {
+    maxAo.AO1 = max;
     return maxAo;
   }
 
