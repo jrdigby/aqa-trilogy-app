@@ -1301,10 +1301,13 @@ export function markChemistryResponse(q, resp, key, markPoints, cleanUrl) {
 
   const missing = [];
   if (!result.correct) {
+    const tip = answer.feedback || result.detail || "Check the diagram against the mark scheme.";
     missing.push({
       ao: "AO1",
       label: result.detail,
-      feedback: answer.feedback || result.detail,
+      feedback: tip,
+      text: tip,
+      flashcard_text: tip,
       resource_url: cleanUrl || null,
     });
   }
@@ -2122,11 +2125,11 @@ export function renderStemDiagramSvg(presetIdOrConfig) {
   if (!state) return "";
 
   if (state.kind === "electron_shell") {
-    const w = 300;
-    const h = 300;
-    return `<svg xmlns="http://www.w3.org/2000/svg" class="chem-svg" viewBox="0 0 ${w} ${h}" width="100%" style="max-width:300px;display:block;margin:0 auto;">
+    const shellCount = Math.max(occupiedShellCount(state.shells), state.shells?.length || 1, 1);
+    const { size, baseR, gap, cx, cy, maxShells } = shellAnswerViewport(shellCount);
+    return `<svg xmlns="http://www.w3.org/2000/svg" class="chem-svg" viewBox="0 0 ${size} ${size}" width="100%" style="max-width:300px;height:auto;display:block;margin:0 auto;">
       ${renderAtomSvg({
-        cx: w / 2, cy: h / 2,
+        cx, cy,
         symbol: state.symbol,
         shells: state.shells,
         protons: state.nucleus?.p,
@@ -2135,7 +2138,9 @@ export function renderStemDiagramSvg(presetIdOrConfig) {
         brackets: false,
         interactive: false,
         atomId: "stem",
-        maxShells: Math.max(state.shells.length, 1),
+        maxShells,
+        baseR,
+        gap,
       })}
     </svg>`;
   }

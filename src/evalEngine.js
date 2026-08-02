@@ -8,7 +8,7 @@ const LEGACY_FLASHCARD_REVIEW_SUFFIX = / Review your flashcards for this specifi
 /** Text for flashcard backs — strips UI-only flashcard prompts from stored feedback. */
 export function flashcardInsightFromMissing(m) {
   if (m?.flashcard_text) return m.flashcard_text;
-  let text = m?.text || "";
+  let text = m?.text || m?.feedback || m?.label || "";
   text = text.replace(LEGACY_FLASHCARD_REVIEW_SUFFIX, "");
   text = text.replace(new RegExp(`\\s*${MCQ_FLASHCARD_ADDED_MSG.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*$`), "");
   return text.trim();

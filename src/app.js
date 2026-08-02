@@ -946,18 +946,49 @@ async function extractFlashcardInsights(att) {
   if (Array.isArray(payload?.missing)) {
     const withFlashcardText = payload.missing.filter((m) => m.flashcard_text);
     const source = withFlashcardText.length > 0 ? withFlashcardText : payload.missing;
-    return source.map((m) =>
-      asInsight(flashcardInsightFromMissing(m), m.image_url || "")
-    );
+    const insights = source
+      .map((m) => asInsight(flashcardInsightFromMissing(m), m.image_url || ""))
+      .filter((row) => row.text.trim() || row.imageUrl);
+    if (insights.length) return insights;
   }
   if (Array.isArray(payload?.missing_or_incorrect)) {
     return payload.missing_or_incorrect.map((line) =>
       asInsight(typeof line === "string" ? line : line?.text || "")
     );
   }
+  if (q.question_type === "chemistry_interactive") {
+    const detail = payload?.chemistry?.detail;
+    if (detail) return [asInsight(detail)];
+    return [asInsight("Study the correct diagram arrangement for this specification point.")];
+  }
   return [
     asInsight("Review standard definitions and practical procedures for this specification statement.")
   ];
+}
+
+/** Correct chemistry diagram SVG for flashcard backs (shells, bonding, organic, etc.). */
+async function renderFlashcardChemistryDiagram(att) {
+  const q = att?.questions || {};
+  if (q.question_type !== "chemistry_interactive") return "";
+  const cfg = q.chemistry_config;
+  const expected = att?.feedback_payload?.chemistry?.expected || cfg?.answer;
+  if (!cfg && !expected) return "";
+  try {
+    const { loadChemistryWorkflow } = await import("./lazyChemistryWorkflow.js");
+    const { renderStemDiagramSvg } = await loadChemistryWorkflow();
+    const diagramCfg = {
+      kind: cfg?.kind || expected?.kind,
+      template: cfg?.template || {},
+      answer: expected || cfg?.answer,
+    };
+    if (diagramCfg.kind === "balance_equation") return "";
+    const svg = renderStemDiagramSvg(diagramCfg);
+    if (!svg) return "";
+    return `<div class="revision-card-chem-diagram">${svg}</div>`;
+  } catch (err) {
+    console.warn("Flashcard chemistry diagram failed:", err);
+    return "";
+  }
 }
 
 function renderFlashcardQuestionImage(imageUrl) {
@@ -1015,10 +1046,13 @@ function renderFlashcardMcqOptions(q) {
   `;
 }
 
-function revisionCardClassNames(q, hasQuestionImg) {
+function revisionCardClassNames(q, hasQuestionImg, hasChemDiagram = false) {
   const parts = ["revision-card"];
   if (q.question_type === "mcq") parts.push("revision-card--mcq");
   if (hasQuestionImg) parts.push("revision-card--has-question-img");
+  if (hasChemDiagram || q.question_type === "chemistry_interactive") {
+    parts.push("revision-card--chemistry");
+  }
   return parts.join(" ");
 }
 
@@ -1315,13 +1349,15 @@ async function loadRevisionCards() {
       const spec = resolveQuestionSpecMeta(q, currentUserProfile) || {};
       const headerMeta = formatFlashcardHeaderMeta(spec, currentUserProfile);
       const insights = await extractFlashcardInsights(att);
+      const chemDiagramHtml = await renderFlashcardChemistryDiagram(att);
       const questionImageUrl = (q.image_url || "").trim();
       const hasQuestionImg = !!questionImageUrl;
+      const hasChemDiagram = !!chemDiagramHtml;
       const selectedClass = flashcardSelectedIds.has(qid) ? " is-selected" : "";
 
       const uid = `card_${idx}`;
       cardHtmlParts.push(`
-        <div id="${uid}" class="${revisionCardClassNames(q, hasQuestionImg)}${selectedClass}" data-question-id="${escapeHtml(qid)}">
+        <div id="${uid}" class="${revisionCardClassNames(q, hasQuestionImg, hasChemDiagram)}${selectedClass}" data-question-id="${escapeHtml(qid)}">
           <button type="button" class="revision-card-select" aria-label="Select flashcard" aria-pressed="${flashcardSelectedIds.has(qid) ? "true" : "false"}"></button>
           <div class="card-inner">
             <div class="card-front">
@@ -1336,6 +1372,7 @@ async function loadRevisionCards() {
             <div class="card-back">
               ${renderFlashcardHeader("Examiner insight", "Tap to view question again")}
               <div class="revision-card-body revision-card-body--back">
+                ${chemDiagramHtml}
                 <ul class="revision-card-insight-list">
                   ${renderFlashcardInsightList(insights)}
                 </ul>
@@ -1389,9 +1426,13 @@ async function downloadStudyGuideText(attempts) {
     const spec = resolveQuestionSpecMeta(q, currentUserProfile) || {};
     const heading = formatFlashcardHeaderMeta(spec, currentUserProfile);
     const insights = await extractFlashcardInsights(att);
+    const chemDiagramHtml = await renderFlashcardChemistryDiagram(att);
     const questionImageUrl = (q.image_url || "").trim();
     const questionImgHtml = questionImageUrl
       ? `<img src="${escapeHtml(questionImageUrl)}" style="max-width:100%; max-height:48px; object-fit:contain; margin:0 0 3px 0; display:block;" alt=""/>`
+      : "";
+    const chemPdfHtml = chemDiagramHtml
+      ? `<div style="max-width:100%; max-height:72px; overflow:hidden; margin:0 0 3px 0;">${chemDiagramHtml.replace(/max-width:\d+px/g, "max-width:100%").replace(/max-height:\d+px/g, "max-height:72px")}</div>`
       : "";
     const mcqOpts = Array.isArray(q.options) ? q.options : [];
     const mcqHtml =
@@ -1429,6 +1470,7 @@ async function downloadStudyGuideText(attempts) {
         </div>
         <div style="padding:3px 2px 3px 8px; box-sizing:border-box;">
           <div style="font-size:6.5pt; font-weight:700; color:#991b1b; text-transform:uppercase; margin:0 0 2px 0;">Answer / examiner insight</div>
+          ${chemPdfHtml}
           <ul style="margin:0; padding-left:12px; font-size:7.5pt; color:#78350f; line-height:1.25; font-weight:500;">
             ${insightHtml}
           </ul>
