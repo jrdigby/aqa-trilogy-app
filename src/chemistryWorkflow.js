@@ -222,8 +222,16 @@ export function renderChemistryModelAnswerHtml(answer, opts = {}) {
   if (kind === "electron_shell" || Array.isArray(answer.shells)) {
     const symbol = answer.symbol || "X";
     const shells = answer.shells || [];
-    const w = 280;
-    const h = 280;
+    const shellCount = Math.max(shells.length, 1);
+    const compareShellCount = compare && Array.isArray(compare.shells)
+      ? Math.max((compare.shells || []).length, shellCount, 1)
+      : shellCount;
+    const baseR = 36;
+    const gap = 28;
+    const pad = 22;
+    const size = Math.ceil((atomOuterRadius(compareShellCount, baseR, gap) + pad) * 2);
+    const w = size;
+    const h = size;
     const cx = w / 2;
     const cy = h / 2;
     const atomOpts = {
@@ -233,15 +241,17 @@ export function renderChemistryModelAnswerHtml(answer, opts = {}) {
       charge: null,
       brackets: false,
       interactive: false,
-      maxShells: Math.max(shells.length, 1),
+      maxShells: shellCount,
+      baseR,
+      gap,
     };
-    diagram = `<svg class="chem-svg chem-answer-svg" viewBox="0 0 ${w} ${h}" width="100%" style="max-width:220px;display:block;margin:0 auto;" aria-label="Model electron shell diagram">
+    diagram = `<svg class="chem-svg chem-answer-svg" viewBox="0 0 ${w} ${h}" width="100%" style="max-width:280px;display:block;margin:0 auto;" aria-label="Model electron shell diagram">
       ${renderAtomSvg({ ...atomOpts, atomId: "answer" })}
     </svg>`;
     caption = `Shells [${shells.join(", ")}]`;
 
     if (compare && Array.isArray(compare.shells)) {
-      const studentSvg = `<svg class="chem-svg chem-answer-svg" viewBox="0 0 ${w} ${h}" width="100%" style="max-width:220px;display:block;margin:0 auto;" aria-label="Your electron shell diagram">
+      const studentSvg = `<svg class="chem-svg chem-answer-svg" viewBox="0 0 ${w} ${h}" width="100%" style="max-width:280px;display:block;margin:0 auto;" aria-label="Your electron shell diagram">
         ${renderAtomSvg({
           cx, cy,
           symbol: compare.symbol || symbol,
@@ -252,7 +262,9 @@ export function renderChemistryModelAnswerHtml(answer, opts = {}) {
           brackets: false,
           interactive: false,
           atomId: "student",
-          maxShells: Math.max((compare.shells || []).length, shells.length, 1),
+          maxShells: compareShellCount,
+          baseR,
+          gap,
         })}
       </svg>`;
       return `

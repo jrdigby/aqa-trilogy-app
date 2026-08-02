@@ -231,6 +231,8 @@ export async function renderFeedback(marking, currentQ, currentKey, currentMarkP
   }
 
   if (marking.missing && marking.missing.length > 0) {
+    // Chemistry interactive: model-answer / compare diagram is sufficient feedback
+    if (currentQ.question_type !== "chemistry_interactive") {
     html += `<hr/><div><strong>How to improve</strong></div>`;
     html += marking.missing.map(m => {
       let feedbackImgHtml = m.image_url 
@@ -269,6 +271,7 @@ export async function renderFeedback(marking, currentQ, currentKey, currentMarkP
         </div>
       `;
     }).join("");
+    }
   } else {
     html += `<hr/><div class="good">Nice — perfect marks on this specification point!</div>`;
   }
