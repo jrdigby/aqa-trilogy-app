@@ -3371,8 +3371,9 @@ body.teacher-detail-open {
 }
 
 .chem-answer-panel .chem-answer-svg {
-  max-width: 280px !important;
+  max-width: 100% !important;
   width: 100%;
+  height: auto;
 }
 
 .chem-answer-panel-correct {

@@ -222,18 +222,14 @@ export function renderChemistryModelAnswerHtml(answer, opts = {}) {
   if (kind === "electron_shell" || Array.isArray(answer.shells)) {
     const symbol = answer.symbol || "X";
     const shells = answer.shells || [];
-    const shellCount = Math.max(shells.length, 1);
-    const compareShellCount = compare && Array.isArray(compare.shells)
-      ? Math.max((compare.shells || []).length, shellCount, 1)
-      : shellCount;
-    const baseR = 36;
-    const gap = 28;
-    const pad = 22;
-    const size = Math.ceil((atomOuterRadius(compareShellCount, baseR, gap) + pad) * 2);
-    const w = size;
-    const h = size;
-    const cx = w / 2;
-    const cy = h / 2;
+    const answerShells = Math.max(shells.length, 1);
+    const studentShells = compare && Array.isArray(compare.shells)
+      ? occupiedShellCount(compare.shells)
+      : answerShells;
+    // Shared size so panels align; crop to occupied shells (ignore empty trailing slots)
+    const { size, baseR, gap, cx, cy, maxShells } = shellAnswerViewport(
+      Math.max(answerShells, studentShells, 1)
+    );
     const atomOpts = {
       cx, cy, symbol, shells,
       protons: answer.nucleus?.p,
@@ -241,17 +237,17 @@ export function renderChemistryModelAnswerHtml(answer, opts = {}) {
       charge: null,
       brackets: false,
       interactive: false,
-      maxShells: shellCount,
+      maxShells,
       baseR,
       gap,
     };
-    diagram = `<svg class="chem-svg chem-answer-svg" viewBox="0 0 ${w} ${h}" width="100%" style="max-width:280px;display:block;margin:0 auto;" aria-label="Model electron shell diagram">
+    diagram = `<svg class="chem-svg chem-answer-svg" viewBox="0 0 ${size} ${size}" width="100%" style="max-width:100%;height:auto;display:block;margin:0 auto;" aria-label="Model electron shell diagram">
       ${renderAtomSvg({ ...atomOpts, atomId: "answer" })}
     </svg>`;
     caption = `Shells [${shells.join(", ")}]`;
 
     if (compare && Array.isArray(compare.shells)) {
-      const studentSvg = `<svg class="chem-svg chem-answer-svg" viewBox="0 0 ${w} ${h}" width="100%" style="max-width:280px;display:block;margin:0 auto;" aria-label="Your electron shell diagram">
+      const studentSvg = `<svg class="chem-svg chem-answer-svg" viewBox="0 0 ${size} ${size}" width="100%" style="max-width:100%;height:auto;display:block;margin:0 auto;" aria-label="Your electron shell diagram">
         ${renderAtomSvg({
           cx, cy,
           symbol: compare.symbol || symbol,
@@ -262,7 +258,7 @@ export function renderChemistryModelAnswerHtml(answer, opts = {}) {
           brackets: false,
           interactive: false,
           atomId: "student",
-          maxShells: compareShellCount,
+          maxShells,
           baseR,
           gap,
         })}
@@ -506,6 +502,21 @@ function atomChargeFromState({ protons, shells, charge }) {
   const p = Number(protons) || 0;
   const e = (shells || []).reduce((a, b) => a + (Number(b) || 0), 0);
   return p - e;
+}
+
+/** Shell count for layout: drop trailing empty shells so the SVG crops tightly. */
+function occupiedShellCount(shells) {
+  const list = Array.isArray(shells) ? shells : [];
+  let n = list.length;
+  while (n > 1 && !(Number(list[n - 1]) > 0)) n -= 1;
+  return Math.max(n, 1);
+}
+
+/** ViewBox + geometry for a non-interactive electron-shell answer diagram. */
+function shellAnswerViewport(shellCount, { baseR = 36, gap = 28, pad = 10 } = {}) {
+  const n = Math.max(1, shellCount);
+  const size = Math.ceil((atomOuterRadius(n, baseR, gap) + pad) * 2);
+  return { size, baseR, gap, cx: size / 2, cy: size / 2, maxShells: n };
 }
 
 function renderShellDiagram(state, cfg) {
