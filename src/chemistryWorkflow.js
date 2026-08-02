@@ -72,11 +72,41 @@ function deepClone(v) {
 
 // ─── Electron positions on a shell ──────────────────────────────────────────
 
-function electronPositions(cx, cy, r, count) {
+/**
+ * GCSE-style electron placement.
+ * First shell (shellIndex 0): opposite positions — top, then bottom.
+ * Outer shells: fill in pairs at top, bottom, left, right.
+ * Counts above 8 fall back to even spacing.
+ */
+function electronPositions(cx, cy, r, count, shellIndex = 1) {
   const pts = [];
   const n = Math.max(0, count);
+  if (n === 0) return pts;
+
+  // Inner shell: one at top, one at bottom (no pairing)
+  if (shellIndex === 0) {
+    const angles = [-Math.PI / 2, Math.PI / 2];
+    for (let i = 0; i < n; i++) {
+      const angle = angles[i % angles.length];
+      pts.push({ x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) });
+    }
+    return pts;
+  }
+
+  if (n > 8) {
+    for (let i = 0; i < n; i++) {
+      const angle = -Math.PI / 2 + (2 * Math.PI * i) / n;
+      pts.push({ x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) });
+    }
+    return pts;
+  }
+
+  // Pair centres: top → bottom → left → right
+  const pairCentres = [-Math.PI / 2, Math.PI / 2, Math.PI, 0];
+  const spread = 0.28; // ~16° half-angle within a pair
   for (let i = 0; i < n; i++) {
-    const angle = -Math.PI / 2 + (2 * Math.PI * i) / Math.max(n, 1);
+    const centre = pairCentres[Math.floor(i / 2) % 4];
+    const angle = centre + (i % 2 === 0 ? -spread : spread);
     pts.push({ x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) });
   }
   return pts;
@@ -111,11 +141,11 @@ function renderAtomSvg(opts) {
     cx, cy, symbol, shells, showNucleus = true, protons, neutrons,
     charge = null, interactive = true, atomId = "atom", maxShells = null,
     brackets = false,
+    baseR = 28,
+    gap = 22,
   } = opts;
   const shellList = Array.isArray(shells) ? shells : [];
   const shellCount = maxShells || Math.max(shellList.length, 1);
-  const baseR = 28;
-  const gap = 22;
   let svg = "";
 
   if (showNucleus) {
@@ -148,7 +178,7 @@ function renderAtomSvg(opts) {
     const r = baseR + s * gap;
     const count = shellList[s] || 0;
     svg += `<circle class="chem-shell" data-atom="${escapeHtml(atomId)}" data-shell="${s}" cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#64748b" stroke-width="1.5" stroke-dasharray="4 3" style="pointer-events:none"/>`;
-    const pts = electronPositions(cx, cy, r, count);
+    const pts = electronPositions(cx, cy, r, count, s);
     pts.forEach((pt, ei) => {
       const fill = interactive ? "#2563eb" : "#059669";
       const stroke = interactive ? "#1e40af" : "#047857";
@@ -192,11 +222,6 @@ export function renderChemistryModelAnswerHtml(answer, opts = {}) {
   if (kind === "electron_shell" || Array.isArray(answer.shells)) {
     const symbol = answer.symbol || "X";
     const shells = answer.shells || [];
-    const charge = atomChargeFromState({
-      protons: answer.nucleus?.p,
-      shells,
-      charge: answer.charge,
-    });
     const w = 280;
     const h = 280;
     const cx = w / 2;
@@ -205,22 +230,17 @@ export function renderChemistryModelAnswerHtml(answer, opts = {}) {
       cx, cy, symbol, shells,
       protons: answer.nucleus?.p,
       neutrons: answer.nucleus?.n,
-      charge,
-      brackets: charge !== 0,
+      charge: null,
+      brackets: false,
       interactive: false,
       maxShells: Math.max(shells.length, 1),
     };
     diagram = `<svg class="chem-svg chem-answer-svg" viewBox="0 0 ${w} ${h}" width="100%" style="max-width:220px;display:block;margin:0 auto;" aria-label="Model electron shell diagram">
       ${renderAtomSvg({ ...atomOpts, atomId: "answer" })}
     </svg>`;
-    caption = `Shells [${shells.join(", ")}]${charge ? ` ${fmtCharge(charge)}` : ""}`;
+    caption = `Shells [${shells.join(", ")}]`;
 
     if (compare && Array.isArray(compare.shells)) {
-      const studentCharge = atomChargeFromState({
-        protons: compare.nucleus?.p ?? answer.nucleus?.p,
-        shells: compare.shells,
-        charge: compare.charge,
-      });
       const studentSvg = `<svg class="chem-svg chem-answer-svg" viewBox="0 0 ${w} ${h}" width="100%" style="max-width:220px;display:block;margin:0 auto;" aria-label="Your electron shell diagram">
         ${renderAtomSvg({
           cx, cy,
@@ -228,8 +248,8 @@ export function renderChemistryModelAnswerHtml(answer, opts = {}) {
           shells: compare.shells || [],
           protons: compare.nucleus?.p ?? answer.nucleus?.p,
           neutrons: compare.nucleus?.n ?? answer.nucleus?.n,
-          charge: studentCharge,
-          brackets: studentCharge !== 0,
+          charge: null,
+          brackets: false,
           interactive: false,
           atomId: "student",
           maxShells: Math.max((compare.shells || []).length, shells.length, 1),
@@ -477,39 +497,35 @@ function atomChargeFromState({ protons, shells, charge }) {
 }
 
 function renderShellDiagram(state, cfg) {
-  const w = 300;
-  const h = 300;
+  const maxShells = state.shells?.length || 2;
+  const baseR = 36;
+  const gap = 28;
+  const pad = 22; // electron radius + hit-area stroke + margin
+  const size = Math.ceil((atomOuterRadius(maxShells, baseR, gap) + pad) * 2);
+  const w = size;
+  const h = size;
   const cx = w / 2;
   const cy = h / 2;
-  const maxShells = state.shells?.length || 2;
   const protons = state.nucleus?.p ?? cfg.template?.protons;
-  // Prefer configured ion charge so brackets stay correct while the student builds shells
-  let charge = 0;
-  if (cfg.template?.charge != null && cfg.template.charge !== "") {
-    charge = Number(cfg.template.charge) || 0;
-  } else if (cfg.answer?.charge != null && cfg.answer.charge !== "") {
-    charge = Number(cfg.answer.charge) || 0;
-  } else if (cfg.template?.protons != null && cfg.template?.electrons != null) {
-    charge = Number(cfg.template.protons) - Number(cfg.template.electrons);
-  } else {
-    charge = atomChargeFromState({ protons, shells: state.shells, charge: state.charge });
-  }
+  // Electron shell diagrams show shells only — no ion brackets or charge label
   const svgInner = renderAtomSvg({
     cx, cy,
     symbol: state.symbol || cfg.template?.symbol || "C",
     shells: state.shells,
     protons,
     neutrons: state.nucleus?.n,
-    charge,
-    brackets: charge !== 0,
+    charge: null,
+    brackets: false,
     interactive: true,
     atomId: "main",
     maxShells,
+    baseR,
+    gap,
   });
   return `
     <div class="chem-diagram-wrap">
-      <svg class="chem-svg" viewBox="0 0 ${w} ${h}" width="100%" style="max-width:340px;touch-action:manipulation;">${svgInner}</svg>
-      <div class="chem-status" id="chemStatus">Shells: [${(state.shells || []).join(", ")}]${charge ? ` · ${fmtCharge(charge)}` : ""}</div>
+      <svg class="chem-svg" viewBox="0 0 ${w} ${h}" width="100%" style="max-width:420px;touch-action:manipulation;">${svgInner}</svg>
+      <div class="chem-status" id="chemStatus">Shells: [${(state.shells || []).join(", ")}]</div>
     </div>`;
 }
 
@@ -1727,7 +1743,8 @@ export function symbolFromProtons(protons) {
 
 /**
  * Custom atom / ion diagram config from p, e, n counts.
- * Ions: electrons ≠ protons → charge shown on diagram; shells from electron count.
+ * Shells come from electron count. Charge is stored for marking but not drawn
+ * on electron shell diagrams (ionic bonding still uses square-bracket notation).
  */
 export function buildAtomDiagramConfig({ symbol, protons, neutrons, electrons } = {}) {
   const p = Math.max(0, Math.floor(Number(protons) || 0));
@@ -2084,11 +2101,6 @@ export function renderStemDiagramSvg(presetIdOrConfig) {
   if (state.kind === "electron_shell") {
     const w = 300;
     const h = 300;
-    const charge = atomChargeFromState({
-      protons: state.nucleus?.p,
-      shells: state.shells,
-      charge: state.charge,
-    });
     return `<svg xmlns="http://www.w3.org/2000/svg" class="chem-svg" viewBox="0 0 ${w} ${h}" width="100%" style="max-width:300px;display:block;margin:0 auto;">
       ${renderAtomSvg({
         cx: w / 2, cy: h / 2,
@@ -2096,8 +2108,8 @@ export function renderStemDiagramSvg(presetIdOrConfig) {
         shells: state.shells,
         protons: state.nucleus?.p,
         neutrons: state.nucleus?.n,
-        charge,
-        brackets: charge !== 0,
+        charge: null,
+        brackets: false,
         interactive: false,
         atomId: "stem",
         maxShells: Math.max(state.shells.length, 1),

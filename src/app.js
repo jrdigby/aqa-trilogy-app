@@ -2550,6 +2550,7 @@ function buildActivityFilterLabel({ subject, paper, topic, qType }) {
   if (qType === "short_text") typeLabel = " · Short text";
   else if (qType === "mcq") typeLabel = " · MCQ";
   else if (qType === "numeric") typeLabel = " · Numeric";
+  else if (qType === "chemistry_interactive") typeLabel = " · Chemistry diagram";
   else if (qType === "extended_response") typeLabel = " · Extended response";
   return `${subjectLabel} · ${paperLabel} · ${topicLabel}${typeLabel}`;
 }
@@ -4022,6 +4023,7 @@ async function loadTopics() {
     if (qType) {
       let typeLabel = qType;
       if (qType === "short_text") typeLabel = "written short-text";
+      if (qType === "chemistry_interactive") typeLabel = "Chemistry Diagram / Equation";
       if (qType === "extended_response") typeLabel = "6-Mark Extended Response";
       summaryDiv.textContent = `Found ${displayCount} total ${typeLabel} questions for ${scopeLabel}${subject.toUpperCase()} ${paper.toUpperCase()} (${tier}).`;
     } else {
