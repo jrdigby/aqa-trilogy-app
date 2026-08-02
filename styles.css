@@ -3368,6 +3368,30 @@ body.teacher-detail-open {
   border-radius: 10px;
 }
 
+.chem-model-answer > .chem-answer-svg,
+.chem-model-answer > .chem-svg {
+  display: block;
+  height: auto;
+  margin-left: auto;
+  margin-right: auto;
+  max-width: min(100%, 260px);
+}
+
+.chem-model-answer > .chem-answer-svg--wide {
+  max-width: min(100%, 420px);
+}
+
+@media (min-width: 640px) {
+  .chem-model-answer > .chem-answer-svg,
+  .chem-model-answer > .chem-svg {
+    max-width: 200px;
+  }
+
+  .chem-model-answer > .chem-answer-svg--wide {
+    max-width: 360px;
+  }
+}
+
 .chem-model-answer-title {
   font-weight: 700;
   font-size: 0.88rem;
