@@ -1,6 +1,6 @@
 import { startAnyPractice, startExamPrep, startFlashcardPractice, startSessionForSpecPoint, startSkillPractice, previewExamPaper, upsertSRS as importUpsertSRS } from './sessionEngine.js';
 import { formatPaperPreviewSummary } from './paperBuilder.js';
-import { showToastBanner, renderQuestionLayout, renderFeedback, renderLiveAIFeedback, renderAQAExtendedResponseFeedback, renderMasteryHeatmap, renderSessionContext, renderSessionCompleteSummary, renderExamPaperFeedbackSummary, renderSelfRatingPrompt, renderAdaptiveFeedback, renderHintsPanel, normalizeQuestionHints, mountNumericQuestionWorkflow, QUESTION_TYPE_ORDER, renderQuestionTypeMasteryBars } from './uiComponents.js';
+import { showToastBanner, renderQuestionLayout, renderFeedback, renderLiveAIFeedback, renderAQAExtendedResponseFeedback, renderMasteryHeatmap, renderSessionContext, renderSessionCompleteSummary, renderExamPaperFeedbackSummary, renderSelfRatingPrompt, renderAdaptiveFeedback, renderHintsPanel, normalizeQuestionHints, mountNumericQuestionWorkflow, mountChemistryQuestionWorkflow, QUESTION_TYPE_ORDER, renderQuestionTypeMasteryBars } from './uiComponents.js';
 import {
   DEFAULT_ADAPTIVE_STATE,
   loadAdaptivePracticeState,
@@ -2918,6 +2918,24 @@ async function loadQuestion() {
     return;
   }
 
+  if (currentQ.question_type === "chemistry_interactive") {
+    if (currentQ?.id !== questionId) return;
+    const tipsHidden = isCommandWordTipsHidden();
+    const commandWordBanner = tipsHidden ? "" : getAQACommandWordHelper(currentQ.prompt);
+    if (qBox) {
+      qBox.innerHTML = renderQuestionLayout(currentQ, commandWordBanner, currentKey, {
+        presentation: "practice",
+        equationSheet: null,
+        commandWordTooltips: tipsHidden
+      });
+      await mountChemistryQuestionWorkflow(currentQ, currentKey, "practice");
+      triggerMathTypeset();
+      lastAnswerFocusState = null;
+    }
+    renderQuestionHintsPanel();
+    return;
+  }
+
   if (currentQ?.id !== questionId) return;
 
   const tipsHidden = isCommandWordTipsHidden();
@@ -3003,6 +3021,11 @@ async function getResponsePayload(q) {
       ? currentKey.key_payload.unit
       : "";
     return { ...resp, unit };
+  }
+  if (q.question_type === "chemistry_interactive") {
+    const { loadChemistryWorkflow } = await import("./lazyChemistryWorkflow.js");
+    const { collectChemistryResponse } = await loadChemistryWorkflow();
+    return collectChemistryResponse(q);
   }
   const text = (el("txtAns")?.value || "").trim();
   return { type: "short_text", text };

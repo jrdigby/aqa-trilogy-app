@@ -3197,3 +3197,209 @@ body.teacher-detail-open {
     grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
   }
 }
+
+/* ── Chemistry interactive diagrams ── */
+.chem-workflow {
+  margin-top: 8px;
+}
+
+.chem-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #0f172a;
+  margin-bottom: 6px;
+}
+
+.chem-hint {
+  font-size: 0.82rem;
+  color: #64748b;
+  margin: 0 0 8px;
+  line-height: 1.4;
+}
+
+.chem-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.chem-btn {
+  padding: 6px 10px;
+  font-size: 0.8rem;
+}
+
+.chem-chip {
+  padding: 8px 12px;
+  font-size: 0.85rem;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+}
+
+.chem-chip-active {
+  border-color: #2563eb;
+  background: #eff6ff;
+  color: #1e40af;
+  font-weight: 700;
+}
+
+.chem-diagram-wrap {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.chem-svg {
+  display: block;
+  margin: 0 auto;
+}
+
+.chem-nucleus-inputs {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  margin-top: 8px;
+  font-size: 0.85rem;
+}
+
+.chem-nucleus-inputs input {
+  width: 64px;
+  margin-left: 6px;
+  padding: 4px 6px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+}
+
+.chem-status {
+  margin-top: 8px;
+  font-size: 0.8rem;
+  color: #475569;
+  text-align: center;
+}
+
+.chem-family-label {
+  text-align: center;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #0369a1;
+  text-transform: capitalize;
+  margin-bottom: 4px;
+}
+
+.chem-equation-wrap .chem-equation {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  justify-content: center;
+  font-size: 1.05rem;
+  padding: 12px 0;
+}
+
+.chem-eq-term {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.chem-coeff,
+.chem-extra-coeff {
+  width: 48px;
+  padding: 4px 6px;
+  border: 2px solid #2563eb;
+  border-radius: 6px;
+  text-align: center;
+  font-weight: 700;
+}
+
+.chem-eq-plus,
+.chem-eq-arrow {
+  font-weight: 700;
+  color: #334155;
+}
+
+.chem-extra-species {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.chem-extra-side {
+  font-size: 0.78rem;
+  padding: 2px 4px;
+}
+
+.chem-model-answer {
+  margin-top: 12px;
+  padding: 12px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 10px;
+}
+
+.chem-model-answer-title {
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: #166534;
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+.chem-answer-caption {
+  text-align: center;
+  font-size: 0.8rem;
+  color: #475569;
+  margin-top: 6px;
+}
+
+.chem-answer-compare {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  align-items: start;
+  width: 100%;
+}
+
+.chem-answer-panel {
+  min-width: 0;
+  padding: 8px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.chem-answer-panel .chem-answer-svg {
+  max-width: 180px !important;
+}
+
+.chem-answer-panel-correct {
+  border-color: #86efac;
+  background: #f8fffb;
+}
+
+.chem-answer-panel-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #64748b;
+  text-align: center;
+  margin-bottom: 4px;
+}
+
+.chem-answer-panel-correct .chem-answer-panel-label {
+  color: #166534;
+}
+
+.chem-stem-preview {
+  display: flex;
+  justify-content: center;
+  padding: 8px;
+}
+
+.chem-stem-preview svg {
+  max-width: 100%;
+  height: auto;
+}
