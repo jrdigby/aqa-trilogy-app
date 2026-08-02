@@ -241,13 +241,13 @@ export function renderChemistryModelAnswerHtml(answer, opts = {}) {
       baseR,
       gap,
     };
-    diagram = `<svg class="chem-svg chem-answer-svg" viewBox="0 0 ${size} ${size}" width="100%" style="max-width:100%;height:auto;display:block;margin:0 auto;" aria-label="Model electron shell diagram">
+    diagram = `<svg class="chem-svg chem-answer-svg" viewBox="0 0 ${size} ${size}" width="100%" style="height:auto;display:block;margin:0 auto;" aria-label="Model electron shell diagram">
       ${renderAtomSvg({ ...atomOpts, atomId: "answer" })}
     </svg>`;
     caption = `Shells [${shells.join(", ")}]`;
 
     if (compare && Array.isArray(compare.shells)) {
-      const studentSvg = `<svg class="chem-svg chem-answer-svg" viewBox="0 0 ${size} ${size}" width="100%" style="max-width:100%;height:auto;display:block;margin:0 auto;" aria-label="Your electron shell diagram">
+      const studentSvg = `<svg class="chem-svg chem-answer-svg" viewBox="0 0 ${size} ${size}" width="100%" style="height:auto;display:block;margin:0 auto;" aria-label="Your electron shell diagram">
         ${renderAtomSvg({
           cx, cy,
           symbol: compare.symbol || symbol,

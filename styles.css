@@ -3376,6 +3376,12 @@ body.teacher-detail-open {
   height: auto;
 }
 
+@media (min-width: 640px) {
+  .chem-answer-panel .chem-answer-svg {
+    max-width: 200px !important;
+  }
+}
+
 .chem-answer-panel-correct {
   border-color: #86efac;
   background: #f8fffb;
