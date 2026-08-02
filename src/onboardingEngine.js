@@ -6,7 +6,8 @@ import {
   fetchUserSRSState,
   rpcJoinClass,
   patchUserProfile,
-  rpcMigrateSrsForTrackChange
+  rpcMigrateSrsForTrackChange,
+  fetchQuestionsLinkedToSpecPoints
 } from "./dbClient.js";
 import { todayISO, addDaysISO } from "./utils.js";
 import {
@@ -442,13 +443,11 @@ export async function ensureScheduleReady(userId, profile) {
 async function specPointsWithQuestions(specPointIds, targetTiers, courseTrack = "combined") {
   if (!specPointIds.length) return new Set();
 
-  let qQuery = supabaseClient
-    .from("questions")
-    .select("spec_point_id, triple_spec_point_id, audience, tier, demand_level")
-    .in("tier", questionTiersForFetch(targetTiers));
-
-  const { data: tierMatched, error: tierErr } = await qQuery;
-  if (tierErr) throw tierErr;
+  const tierMatched = await fetchQuestionsLinkedToSpecPoints({
+    specPointIds,
+    select: "spec_point_id, triple_spec_point_id, audience, tier, demand_level",
+    tierValues: questionTiersForFetch(targetTiers),
+  });
 
   const matched = new Set();
   for (const q of tierMatched || []) {

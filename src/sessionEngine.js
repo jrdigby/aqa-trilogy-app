@@ -13,6 +13,7 @@ import {
   questionTiersForFetch,
   questionMatchesProfileTier
 } from "./sciencePath.js";
+import { fetchQuestionsLinkedToSpecPoints } from "./dbClient.js";
 
 const QUESTION_SKILLS_EMBED =
   "question_skills(skill_id,skill_framework_items(id,framework,full_code,title,category))";
@@ -71,15 +72,25 @@ async function fetchFilteredPracticePool(context) {
   const matchingSpecPointIds = sp.map((item) => item.id);
 
   const rawQs = await Promise.race([
-    fetchQuestionsWithFallback(supabaseClient, (selectCols) => {
-      let qQuery = supabaseClient
-        .from("questions")
-        .select(selectCols)
-        .in("tier", questionTiersForFetch(targetTiers));
-      if (qType) qQuery = qQuery.eq("question_type", qType);
-      return qQuery;
-    }),
-    timeoutPromise(4000, "Practice pool matching timed out")
+    (async () => {
+      try {
+        return await fetchQuestionsLinkedToSpecPoints({
+          specPointIds: matchingSpecPointIds,
+          select: QUESTION_SELECT,
+          tierValues: questionTiersForFetch(targetTiers),
+          qType,
+        });
+      } catch (err) {
+        if (!/column/i.test(err?.message || "")) throw err;
+        return fetchQuestionsLinkedToSpecPoints({
+          specPointIds: matchingSpecPointIds,
+          select: QUESTION_SELECT_FALLBACK,
+          tierValues: questionTiersForFetch(targetTiers),
+          qType,
+        });
+      }
+    })(),
+    timeoutPromise(12000, "Practice pool matching timed out")
   ]);
 
   const activeQs = (rawQs || []).filter((q) => {

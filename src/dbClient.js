@@ -7,6 +7,11 @@ const SUPABASE_URL = "https://hemcttqmhptwgxxrtolh.supabase.co";
 const SUPABASE_ANON_KEY =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhlbWN0dHFtaHB0d2d4eHJ0b2xoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzMjE5MDQsImV4cCI6MjA5OTg5NzkwNH0.ccaN15zKmOHkuDIqLLYUOakxlJkrHHEV7QAZWGTUwuY";
 
+/** PostgREST returns at most this many rows unless paginated with .range(). */
+const POSTGREST_PAGE_SIZE = 1000;
+/** Keep `.in(...)` URL filters under practical length limits. */
+const SPEC_ID_CHUNK_SIZE = 80;
+
 export const SRS_DUE_SELECT =
   "spec_point_id,due_date,interval_days,ease_factor,repetitions,lapses,last_quality, spec_points(id,subject,topic_name,spec_ref,spec_text)";
 
@@ -15,6 +20,71 @@ export const SRS_STATE_SELECT =
 
 // Core Supabase client initialization bound locally
 export const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+function chunkArray(items, size) {
+  const list = items || [];
+  const out = [];
+  for (let i = 0; i < list.length; i += size) out.push(list.slice(i, i + size));
+  return out;
+}
+
+/**
+ * Exhaustively page a PostgREST query (avoids silent 1000-row truncation).
+ * @param {() => import('@supabase/supabase-js').PostgrestFilterBuilder} buildQuery
+ */
+export async function fetchAllRows(buildQuery) {
+  const rows = [];
+  let from = 0;
+  for (;;) {
+    const query = buildQuery();
+    const { data, error } = await query.range(from, from + POSTGREST_PAGE_SIZE - 1);
+    if (error) throw error;
+    const batch = data || [];
+    rows.push(...batch);
+    if (batch.length < POSTGREST_PAGE_SIZE) break;
+    from += POSTGREST_PAGE_SIZE;
+  }
+  return rows;
+}
+
+/**
+ * All questions linked to any of the given spec-point IDs via either FK column.
+ * Chunks IDs and paginates so subject/paper banks above 1000 rows are complete.
+ */
+export async function fetchQuestionsLinkedToSpecPoints({
+  specPointIds,
+  select,
+  tierValues,
+  qType = "",
+} = {}) {
+  const ids = [...new Set((specPointIds || []).filter(Boolean))];
+  if (!ids.length) return [];
+
+  const tiers = tierValues?.length ? tierValues : questionTiersForFetch();
+  const byId = new Map();
+
+  for (const chunk of chunkArray(ids, SPEC_ID_CHUNK_SIZE)) {
+    const fetchByColumn = (column) =>
+      fetchAllRows(() => {
+        let q = supabaseClient
+          .from("questions")
+          .select(select)
+          .in(column, chunk)
+          .in("tier", tiers);
+        if (qType) q = q.eq("question_type", qType);
+        return q;
+      });
+
+    const [bySpec, byTriple] = await Promise.all([
+      fetchByColumn("spec_point_id"),
+      fetchByColumn("triple_spec_point_id"),
+    ]);
+    for (const row of bySpec) byId.set(row.id, row);
+    for (const row of byTriple) byId.set(row.id, row);
+  }
+
+  return [...byId.values()];
+}
 
 export const AUTH_GRACE_MS = 15000;
 
@@ -338,21 +408,43 @@ export async function fetchSyllabusPipelineData(userId, subject, paper, targetTi
   const questionsSelectBasic =
     "id, spec_point_id, triple_spec_point_id, question_type, tier, demand_level, image_url, audience, is_maths_skill, max_marks, calculation_config, chemistry_config";
 
-  let questionsRes;
+  // Spec points first — questions must be scoped to these IDs (unscoped hits PostgREST's 1000-row cap).
+  const specPointsRes = await Promise.race([
+    specPointsQuery,
+    timeoutPromise(4000, "spec_points lookup timed out"),
+  ]).catch(() => ({ data: [] }));
+  const rows = specPointsRes.data || [];
+  const specPointIds = rows.map((r) => r.id);
+  const tierValues = questionTiersForFetch(targetTiers);
+
+  let questions = [];
   try {
-    let questionsQuery = supabaseClient
-      .from("questions")
-      .select(questionsSelectWithSkills)
-      .in("tier", questionTiersForFetch(targetTiers));
-    if (qType) questionsQuery = questionsQuery.eq("question_type", qType);
-    questionsRes = await Promise.race([questionsQuery, timeoutPromise(4000, "questions lookup timed out")]);
-    if (questionsRes.error && /column|relation|question_skills/i.test(questionsRes.error.message || "")) {
-      let fallbackQuery = supabaseClient.from("questions").select(questionsSelectBasic).in("tier", questionTiersForFetch(targetTiers));
-      if (qType) fallbackQuery = fallbackQuery.eq("question_type", qType);
-      questionsRes = await Promise.race([fallbackQuery, timeoutPromise(4000, "questions lookup timed out")]);
-    }
+    questions = await Promise.race([
+      fetchQuestionsLinkedToSpecPoints({
+        specPointIds,
+        select: questionsSelectWithSkills,
+        tierValues,
+        qType,
+      }),
+      timeoutPromise(12000, "questions lookup timed out"),
+    ]);
   } catch (err) {
-    questionsRes = { data: [], error: err };
+    if (/column|relation|question_skills/i.test(err?.message || "")) {
+      questions = await Promise.race([
+        fetchQuestionsLinkedToSpecPoints({
+          specPointIds,
+          select: questionsSelectBasic,
+          tierValues,
+          qType,
+        }),
+        timeoutPromise(12000, "questions lookup timed out"),
+      ]);
+    } else if (!/timed out/i.test(err?.message || "")) {
+      console.warn("fetchSyllabusPipelineData questions:", err);
+      questions = [];
+    } else {
+      throw err;
+    }
   }
 
   const srsStatePromise = restGet("srs_state", userId, {
@@ -390,16 +482,15 @@ export async function fetchSyllabusPipelineData(userId, subject, paper, targetTi
     .from("mark_points")
     .select("question_id, ao, max_marks, image_url");
 
-  const [specPointsRes, srsStateData, attemptsRes, markPointsRes] = await Promise.all([
-    Promise.race([specPointsQuery, timeoutPromise(4000, "spec_points lookup timed out")]).catch(() => ({ data: [] })),
+  const [srsStateData, attemptsRes, markPointsRes] = await Promise.all([
     srsStatePromise,
     fetchAttemptsForUser(),
     Promise.race([markPointsQuery, timeoutPromise(4000, "mark_points list lookup timed out")]).catch(() => ({ data: [] }))
   ]);
 
   return {
-    rows: specPointsRes.data || [],
-    questions: questionsRes.data || [],
+    rows,
+    questions: questions || [],
     rawDue: srsStateData || [],
     attempts: attemptsRes.data || [],
     markPoints: markPointsRes.data || []
@@ -744,6 +835,8 @@ const dbClient = {
   fetchAllSpecificationPoints,
   fetchUserSRSState,
   fetchSyllabusPipelineData,
+  fetchQuestionsLinkedToSpecPoints,
+  fetchAllRows,
   fetchAttemptActivity,
   fetchUserProfile,
   patchUserProfile,
