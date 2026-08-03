@@ -356,6 +356,8 @@ export function markingMethodForType(questionType) {
   if (t === "mcq") return "keyword";
   if (t === "numeric") return "numeric";
   if (t === "chemistry_interactive") return "chemistry";
+  if (t === "circuit_interactive") return "circuit";
+  if (t === "equipment_interactive") return "equipment";
   if (t === "extended_response") return "ai_rubric";
   return "keyword";
 }

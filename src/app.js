@@ -1,6 +1,6 @@
 import { startAnyPractice, startExamPrep, startFlashcardPractice, startSessionForSpecPoint, startSkillPractice, previewExamPaper, upsertSRS as importUpsertSRS } from './sessionEngine.js';
 import { formatPaperPreviewSummary } from './paperBuilder.js';
-import { showToastBanner, renderQuestionLayout, renderFeedback, renderLiveAIFeedback, renderAQAExtendedResponseFeedback, renderMasteryHeatmap, renderSessionContext, renderSessionCompleteSummary, renderExamPaperFeedbackSummary, renderSelfRatingPrompt, renderAdaptiveFeedback, renderHintsPanel, normalizeQuestionHints, mountNumericQuestionWorkflow, mountChemistryQuestionWorkflow, QUESTION_TYPE_ORDER, renderQuestionTypeMasteryBars } from './uiComponents.js';
+import { showToastBanner, renderQuestionLayout, renderFeedback, renderLiveAIFeedback, renderAQAExtendedResponseFeedback, renderMasteryHeatmap, renderSessionContext, renderSessionCompleteSummary, renderExamPaperFeedbackSummary, renderSelfRatingPrompt, renderAdaptiveFeedback, renderHintsPanel, normalizeQuestionHints, mountNumericQuestionWorkflow, mountChemistryQuestionWorkflow, mountCircuitQuestionWorkflow, mountEquipmentQuestionWorkflow, QUESTION_TYPE_ORDER, renderQuestionTypeMasteryBars } from './uiComponents.js';
 import {
   DEFAULT_ADAPTIVE_STATE,
   loadAdaptivePracticeState,
@@ -969,34 +969,82 @@ async function extractFlashcardInsights(att) {
     if (detail) return [asInsight(detail)];
     return [asInsight("Study the correct diagram arrangement for this specification point.")];
   }
+  if (q.question_type === "circuit_interactive") {
+    const detail = payload?.circuit?.detail;
+    if (detail) return [asInsight(detail)];
+    return [asInsight("Revise AQA circuit symbols and how components are connected.")];
+  }
+  if (q.question_type === "equipment_interactive") {
+    const detail = payload?.equipment?.detail;
+    if (detail) return [asInsight(detail)];
+    return [asInsight("Learn the names of standard laboratory apparatus for this practical.")];
+  }
   return [
     asInsight("Review standard definitions and practical procedures for this specification statement.")
   ];
 }
 
-/** Correct chemistry diagram SVG for flashcard backs (shells, bonding, organic, etc.). */
+/** Correct chemistry / circuit / equipment diagram SVG for flashcard backs. */
 async function renderFlashcardChemistryDiagram(att) {
   const q = att?.questions || {};
-  if (q.question_type !== "chemistry_interactive") return "";
-  const cfg = q.chemistry_config;
-  const expected = att?.feedback_payload?.chemistry?.expected || cfg?.answer;
-  if (!cfg && !expected) return "";
-  try {
-    const { loadChemistryWorkflow } = await import("./lazyChemistryWorkflow.js");
-    const { renderStemDiagramSvg } = await loadChemistryWorkflow();
-    const diagramCfg = {
-      kind: cfg?.kind || expected?.kind,
-      template: cfg?.template || {},
-      answer: expected || cfg?.answer,
-    };
-    if (diagramCfg.kind === "balance_equation") return "";
-    const svg = renderStemDiagramSvg(diagramCfg);
-    if (!svg) return "";
-    return `<div class="revision-card-chem-diagram">${svg}</div>`;
-  } catch (err) {
-    console.warn("Flashcard chemistry diagram failed:", err);
-    return "";
+  if (q.question_type === "chemistry_interactive") {
+    const cfg = q.chemistry_config;
+    const expected = att?.feedback_payload?.chemistry?.expected || cfg?.answer;
+    if (!cfg && !expected) return "";
+    try {
+      const { loadChemistryWorkflow } = await import("./lazyChemistryWorkflow.js");
+      const { renderStemDiagramSvg } = await loadChemistryWorkflow();
+      const diagramCfg = {
+        kind: cfg?.kind || expected?.kind,
+        template: cfg?.template || {},
+        answer: expected || cfg?.answer,
+      };
+      if (diagramCfg.kind === "balance_equation") return "";
+      const svg = renderStemDiagramSvg(diagramCfg);
+      if (!svg) return "";
+      return `<div class="revision-card-chem-diagram">${svg}</div>`;
+    } catch (err) {
+      console.warn("Flashcard chemistry diagram failed:", err);
+      return "";
+    }
   }
+  if (q.question_type === "circuit_interactive") {
+    try {
+      const { loadCircuitWorkflow } = await import("./lazyCircuitWorkflow.js");
+      const { renderStemDiagramSvg } = await loadCircuitWorkflow();
+      const cfg = q.circuit_config;
+      const expected = att?.feedback_payload?.circuit?.expected || cfg?.answer;
+      const svg = renderStemDiagramSvg({
+        kind: cfg?.kind,
+        template: cfg?.template || {},
+        answer: expected || cfg?.answer,
+      });
+      if (!svg) return "";
+      return `<div class="revision-card-chem-diagram">${svg}</div>`;
+    } catch (err) {
+      console.warn("Flashcard circuit diagram failed:", err);
+      return "";
+    }
+  }
+  if (q.question_type === "equipment_interactive") {
+    try {
+      const { loadEquipmentWorkflow } = await import("./lazyEquipmentWorkflow.js");
+      const { renderStemDiagramSvg } = await loadEquipmentWorkflow();
+      const cfg = q.equipment_config;
+      const expected = att?.feedback_payload?.equipment?.expected || cfg?.answer;
+      const svg = renderStemDiagramSvg({
+        kind: cfg?.kind,
+        template: cfg?.template || {},
+        answer: expected || cfg?.answer,
+      });
+      if (!svg) return "";
+      return `<div class="revision-card-chem-diagram">${svg}</div>`;
+    } catch (err) {
+      console.warn("Flashcard equipment diagram failed:", err);
+      return "";
+    }
+  }
+  return "";
 }
 
 function renderFlashcardQuestionImage(imageUrl) {
@@ -1058,7 +1106,9 @@ function revisionCardClassNames(q, hasQuestionImg, hasChemDiagram = false) {
   const parts = ["revision-card"];
   if (q.question_type === "mcq") parts.push("revision-card--mcq");
   if (hasQuestionImg) parts.push("revision-card--has-question-img");
-  if (hasChemDiagram || q.question_type === "chemistry_interactive") {
+  if (hasChemDiagram || q.question_type === "chemistry_interactive"
+    || q.question_type === "circuit_interactive"
+    || q.question_type === "equipment_interactive") {
     parts.push("revision-card--chemistry");
   }
   return parts.join(" ");
@@ -2650,6 +2700,8 @@ function buildActivityFilterLabel({ subject, paper, topic, qType }) {
   else if (qType === "mcq") typeLabel = " · MCQ";
   else if (qType === "numeric") typeLabel = " · Numeric";
   else if (qType === "chemistry_interactive") typeLabel = " · Chemistry diagram";
+  else if (qType === "circuit_interactive") typeLabel = " · Circuit diagram";
+  else if (qType === "equipment_interactive") typeLabel = " · Apparatus";
   else if (qType === "extended_response") typeLabel = " · Extended response";
   return `${subjectLabel} · ${paperLabel} · ${topicLabel}${typeLabel}`;
 }
@@ -3036,6 +3088,42 @@ async function loadQuestion() {
     return;
   }
 
+  if (currentQ.question_type === "circuit_interactive") {
+    if (currentQ?.id !== questionId) return;
+    const tipsHidden = isCommandWordTipsHidden();
+    const commandWordBanner = tipsHidden ? "" : getAQACommandWordHelper(currentQ.prompt);
+    if (qBox) {
+      qBox.innerHTML = renderQuestionLayout(currentQ, commandWordBanner, currentKey, {
+        presentation: "practice",
+        equationSheet: null,
+        commandWordTooltips: tipsHidden
+      });
+      await mountCircuitQuestionWorkflow(currentQ, currentKey, "practice");
+      triggerMathTypeset();
+      lastAnswerFocusState = null;
+    }
+    renderQuestionHintsPanel();
+    return;
+  }
+
+  if (currentQ.question_type === "equipment_interactive") {
+    if (currentQ?.id !== questionId) return;
+    const tipsHidden = isCommandWordTipsHidden();
+    const commandWordBanner = tipsHidden ? "" : getAQACommandWordHelper(currentQ.prompt);
+    if (qBox) {
+      qBox.innerHTML = renderQuestionLayout(currentQ, commandWordBanner, currentKey, {
+        presentation: "practice",
+        equationSheet: null,
+        commandWordTooltips: tipsHidden
+      });
+      await mountEquipmentQuestionWorkflow(currentQ, currentKey, "practice");
+      triggerMathTypeset();
+      lastAnswerFocusState = null;
+    }
+    renderQuestionHintsPanel();
+    return;
+  }
+
   if (currentQ?.id !== questionId) return;
 
   const tipsHidden = isCommandWordTipsHidden();
@@ -3126,6 +3214,16 @@ async function getResponsePayload(q) {
     const { loadChemistryWorkflow } = await import("./lazyChemistryWorkflow.js");
     const { collectChemistryResponse } = await loadChemistryWorkflow();
     return collectChemistryResponse(q);
+  }
+  if (q.question_type === "circuit_interactive") {
+    const { loadCircuitWorkflow } = await import("./lazyCircuitWorkflow.js");
+    const { collectCircuitResponse } = await loadCircuitWorkflow();
+    return collectCircuitResponse(q);
+  }
+  if (q.question_type === "equipment_interactive") {
+    const { loadEquipmentWorkflow } = await import("./lazyEquipmentWorkflow.js");
+    const { collectEquipmentResponse } = await loadEquipmentWorkflow();
+    return collectEquipmentResponse(q);
   }
   const text = (el("txtAns")?.value || "").trim();
   return { type: "short_text", text };
@@ -4123,6 +4221,8 @@ async function loadTopics() {
       let typeLabel = qType;
       if (qType === "short_text") typeLabel = "written short-text";
       if (qType === "chemistry_interactive") typeLabel = "Chemistry Diagram / Equation";
+      if (qType === "circuit_interactive") typeLabel = "Circuit Diagram";
+      if (qType === "equipment_interactive") typeLabel = "Apparatus / Equipment";
       if (qType === "extended_response") typeLabel = "6-Mark Extended Response";
       summaryDiv.textContent = `Found ${displayCount} total ${typeLabel} questions for ${scopeLabel}${subject.toUpperCase()} ${paper.toUpperCase()} (${tier}).`;
     } else {

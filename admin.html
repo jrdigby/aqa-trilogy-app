@@ -1907,6 +1907,8 @@
                     <option value="short_text">Short Answer (Written)</option>
                     <option value="numeric">Numeric (Calculation)</option>
                     <option value="chemistry_interactive">Chemistry Diagram / Equation</option>
+                    <option value="circuit_interactive">Circuit Diagram</option>
+                    <option value="equipment_interactive">Apparatus / Equipment</option>
                     <option value="mcq">Multiple Choice Question (MCQ)</option>
                     <option value="extended_response">6-Mark Extended Response (AI graded)</option>
                   </select>
@@ -2030,6 +2032,66 @@
                       <button type="button" class="btn btn-secondary" id="btnChemStemPreview" style="padding:6px 12px; font-size:0.8rem;">Refresh preview</button>
                     </div>
                     <p id="ChemStemStatus" class="muted" style="font-size:0.75rem; margin:8px 0 0;"></p>
+                  </details>
+
+                  <details id="circuitStemBuilder" style="margin-top:12px; border:1px solid var(--border); border-radius:8px; padding:10px 12px; background:#f8fafc;">
+                    <summary style="cursor:pointer; font-weight:600; color:var(--primary-dark); font-size:0.88rem;">Build circuit diagram for this question</summary>
+                    <p class="muted" style="font-size:0.78rem; line-height:1.4; margin:8px 0;">
+                      AQA GCSE circuit symbols → stem image for MCQ / short-text (e.g. “Name this component”).
+                    </p>
+                    <div class="row" style="margin-bottom:8px;">
+                      <div>
+                        <label>Source</label>
+                        <select id="CircuitStemSource" class="select-fit">
+                          <option value="preset">From preset</option>
+                          <option value="symbol">Single symbol</option>
+                        </select>
+                      </div>
+                      <div id="CircuitStemPresetWrap">
+                        <label>Preset</label>
+                        <select id="CircuitStemPreset" class="select-fit"></select>
+                      </div>
+                      <div id="CircuitStemSymbolWrap" class="hidden">
+                        <label>Symbol</label>
+                        <select id="CircuitStemSymbol" class="select-fit"></select>
+                      </div>
+                    </div>
+                    <div id="CircuitStemPreview" style="min-height:80px; padding:8px; background:#fff; border:1px dashed #cbd5e1; border-radius:8px; margin-bottom:8px;"></div>
+                    <div style="display:flex; flex-wrap:wrap; gap:8px;">
+                      <button type="button" class="btn btn-primary" id="btnCircuitStemApply" style="padding:6px 12px; font-size:0.8rem;">Use as question diagram</button>
+                      <button type="button" class="btn btn-secondary" id="btnCircuitStemPreview" style="padding:6px 12px; font-size:0.8rem;">Refresh preview</button>
+                    </div>
+                    <p id="CircuitStemStatus" class="muted" style="font-size:0.75rem; margin:8px 0 0;"></p>
+                  </details>
+
+                  <details id="equipStemBuilder" style="margin-top:12px; border:1px solid var(--border); border-radius:8px; padding:10px 12px; background:#f8fafc;">
+                    <summary style="cursor:pointer; font-weight:600; color:var(--primary-dark); font-size:0.88rem;">Build equipment diagram for this question</summary>
+                    <p class="muted" style="font-size:0.78rem; line-height:1.4; margin:8px 0;">
+                      Apparatus drawings (all sciences) → stem image for “identify this apparatus” questions.
+                    </p>
+                    <div class="row" style="margin-bottom:8px;">
+                      <div>
+                        <label>Source</label>
+                        <select id="EquipStemSource" class="select-fit">
+                          <option value="preset">From preset</option>
+                          <option value="apparatus">Single apparatus</option>
+                        </select>
+                      </div>
+                      <div id="EquipStemPresetWrap">
+                        <label>Preset</label>
+                        <select id="EquipStemPreset" class="select-fit"></select>
+                      </div>
+                      <div id="EquipStemApparatusWrap" class="hidden">
+                        <label>Apparatus</label>
+                        <select id="EquipStemApparatus" class="select-fit"></select>
+                      </div>
+                    </div>
+                    <div id="EquipStemPreview" style="min-height:80px; padding:8px; background:#fff; border:1px dashed #cbd5e1; border-radius:8px; margin-bottom:8px;"></div>
+                    <div style="display:flex; flex-wrap:wrap; gap:8px;">
+                      <button type="button" class="btn btn-primary" id="btnEquipStemApply" style="padding:6px 12px; font-size:0.8rem;">Use as question diagram</button>
+                      <button type="button" class="btn btn-secondary" id="btnEquipStemPreview" style="padding:6px 12px; font-size:0.8rem;">Refresh preview</button>
+                    </div>
+                    <p id="EquipStemStatus" class="muted" style="font-size:0.75rem; margin:8px 0 0;"></p>
                   </details>
                 </div>
                 <div>
@@ -2427,6 +2489,89 @@
               Use a preset, or set custom protons/electrons/neutrons (shells auto-fill) or custom organic carbons/family.
               Triple presets cover alcohols, acids, esters, polyesters and polyamides.
             </p>
+          </div>
+
+          <!-- Sub Panel: Circuit interactive -->
+          <div id="circuitPanel" class="hidden" style="margin-top: 16px;">
+            <p class="muted" style="font-size: 0.8rem; line-height: 1.4; margin: 0 0 12px;">
+              Students identify AQA circuit symbols, complete empty slots, or build a small series circuit.
+            </p>
+            <div class="row" style="margin-bottom: 12px;">
+              <div>
+                <label>Circuit kind</label>
+                <select id="CircuitKind" class="select-fit">
+                  <option value="identify_component">Identify component</option>
+                  <option value="complete_slots">Complete slots</option>
+                  <option value="build_preset">Build series (2 slots)</option>
+                </select>
+              </div>
+              <div>
+                <label>Preset (recommended)</label>
+                <select id="CircuitPreset" class="select-fit">
+                  <option value="">— Custom / manual —</option>
+                </select>
+              </div>
+            </div>
+            <div id="circuitIdentifyFields" class="row" style="margin-bottom: 12px;">
+              <div>
+                <label>Symbol to identify</label>
+                <select id="CircuitSymbol" class="select-fit"></select>
+              </div>
+            </div>
+            <div id="circuitSlotFields" class="hidden" style="margin-bottom: 12px;">
+              <div class="row">
+                <div>
+                  <label>Components before slot (comma ids)</label>
+                  <input type="text" id="CircuitBefore" value="cell,switch_closed" />
+                </div>
+                <div>
+                  <label>Correct slot symbol</label>
+                  <select id="CircuitSlotAnswer" class="select-fit"></select>
+                </div>
+                <div>
+                  <label>Components after slot</label>
+                  <input type="text" id="CircuitAfter" value="" placeholder="optional" />
+                </div>
+              </div>
+            </div>
+            <div id="circuitBuildFields" class="hidden" style="margin-bottom: 12px;">
+              <div class="row">
+                <div>
+                  <label>Slot 1 answer</label>
+                  <select id="CircuitBuild0" class="select-fit"></select>
+                </div>
+                <div>
+                  <label>Slot 2 answer</label>
+                  <select id="CircuitBuild1" class="select-fit"></select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Sub Panel: Equipment interactive -->
+          <div id="equipmentPanel" class="hidden" style="margin-top: 16px;">
+            <p class="muted" style="font-size: 0.8rem; line-height: 1.4; margin: 0 0 12px;">
+              Students identify apparatus or label numbered hotspots on a bench scene (all sciences).
+            </p>
+            <div class="row" style="margin-bottom: 12px;">
+              <div>
+                <label>Equipment kind</label>
+                <select id="EquipKind" class="select-fit">
+                  <option value="identify">Identify apparatus</option>
+                  <option value="label_hotspots">Label hotspots</option>
+                </select>
+              </div>
+              <div>
+                <label>Preset (recommended)</label>
+                <select id="EquipPreset" class="select-fit">
+                  <option value="">— Custom / manual —</option>
+                </select>
+              </div>
+              <div>
+                <label>Apparatus (manual identify)</label>
+                <select id="EquipApparatus" class="select-fit"></select>
+              </div>
+            </div>
           </div>
 
           <!-- Sub Panel: Short Answer Keywords -->
@@ -3025,6 +3170,8 @@
                 <option value="short_text">Short Answer (Written)</option>
                 <option value="numeric">Numeric (Calculation)</option>
                 <option value="chemistry_interactive">Chemistry Diagram / Equation</option>
+                <option value="circuit_interactive">Circuit Diagram</option>
+                <option value="equipment_interactive">Apparatus / Equipment</option>
                 <option value="mcq">Multiple Choice Question (MCQ)</option>
                 <option value="extended_response">6-Mark Extended Response</option>
               </select>
@@ -3732,6 +3879,53 @@
           <p id="editChemSummary" class="muted" style="font-size:0.78rem;margin-top:10px;"></p>
         </div>
 
+        <div id="editCircuitPanel" class="hidden">
+          <p class="muted" style="font-size:0.8rem;margin:0 0 10px;">Re-apply a circuit preset to replace the stored config, or leave blank to keep existing.</p>
+          <div class="row">
+            <div>
+              <label>Circuit kind</label>
+              <select id="editCircuitKind" class="select-fit">
+                <option value="identify_component">Identify component</option>
+                <option value="complete_slots">Complete slots</option>
+                <option value="build_preset">Build series</option>
+              </select>
+            </div>
+            <div>
+              <label>Replace with preset</label>
+              <select id="editCircuitPreset" class="select-fit">
+                <option value="">— Keep existing config —</option>
+              </select>
+            </div>
+            <div>
+              <label>Symbol (identify)</label>
+              <select id="editCircuitSymbol" class="select-fit"></select>
+            </div>
+          </div>
+        </div>
+
+        <div id="editEquipmentPanel" class="hidden">
+          <p class="muted" style="font-size:0.8rem;margin:0 0 10px;">Re-apply an equipment preset to replace the stored config, or leave blank to keep existing.</p>
+          <div class="row">
+            <div>
+              <label>Equipment kind</label>
+              <select id="editEquipKind" class="select-fit">
+                <option value="identify">Identify</option>
+                <option value="label_hotspots">Label hotspots</option>
+              </select>
+            </div>
+            <div>
+              <label>Replace with preset</label>
+              <select id="editEquipPreset" class="select-fit">
+                <option value="">— Keep existing config —</option>
+              </select>
+            </div>
+            <div>
+              <label>Apparatus</label>
+              <select id="editEquipApparatus" class="select-fit"></select>
+            </div>
+          </div>
+        </div>
+
         <div id="editExtendedPanel" class="hidden">
           <div style="margin-bottom:10px;">
             <label>AI Marking Guidelines / Target points:</label>
@@ -4036,6 +4230,8 @@
   import * as CalcWorkflow from "./src/calculationWorkflow.js";
   import * as NumericGen from "./src/numericQuestionGenerator.js";
   import * as ChemWorkflow from "./src/chemistryWorkflow.js";
+  import * as CircuitWorkflow from "./src/circuitWorkflow.js";
+  import * as EquipmentWorkflow from "./src/equipmentWorkflow.js";
   import { initSubstitutionTemplateCatalog } from "./src/substitutionTemplate.js";
   import * as McqBatchGen from "./src/mcqBatchGenerator.js";
   import * as AiQuestionDraft from "./src/aiQuestionDraft.js";
@@ -4046,6 +4242,8 @@
 
   window.CalcWorkflow = CalcWorkflow;
   window.ChemWorkflow = ChemWorkflow;
+  window.CircuitWorkflow = CircuitWorkflow;
+  window.EquipmentWorkflow = EquipmentWorkflow;
   window.NumericGen = NumericGen;
   window.McqBatchGen = McqBatchGen;
   window.AiQuestionDraft = AiQuestionDraft;
@@ -5099,6 +5297,210 @@
     window.ChemWorkflow.populateChemistryPresetSelect(document.getElementById("ChemPreset"));
   }
 
+  function populateCircuitSymbolSelects(prefix = "") {
+    if (!window.CircuitWorkflow) return;
+    const ids = [
+      `${prefix}CircuitSymbol`,
+      `${prefix}CircuitSlotAnswer`,
+      `${prefix}CircuitBuild0`,
+      `${prefix}CircuitBuild1`,
+      "CircuitStemSymbol",
+    ];
+    const symbols = window.CircuitWorkflow.CIRCUIT_SYMBOL_IDS || [];
+    const labels = window.CircuitWorkflow.CIRCUIT_SYMBOLS || {};
+    ids.forEach((id) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const keep = el.value;
+      el.innerHTML = symbols.map((sid) =>
+        `<option value="${sid}">${labels[sid]?.label || sid}</option>`
+      ).join("");
+      if (keep && [...el.options].some((o) => o.value === keep)) el.value = keep;
+    });
+  }
+
+  function syncCircuitAuthoringFields() {
+    const kind = document.getElementById("CircuitKind")?.value || "identify_component";
+    document.getElementById("circuitIdentifyFields")?.classList.toggle("hidden", kind !== "identify_component");
+    document.getElementById("circuitSlotFields")?.classList.toggle("hidden", kind !== "complete_slots");
+    document.getElementById("circuitBuildFields")?.classList.toggle("hidden", kind !== "build_preset");
+    populateCircuitSymbolSelects("");
+    if (window.CircuitWorkflow) {
+      window.CircuitWorkflow.populateCircuitPresetSelect(document.getElementById("CircuitPreset"), kind);
+    }
+  }
+
+  function syncEquipmentAuthoringFields() {
+    const subject = document.getElementById("subjectSelect")?.value || "";
+    const kind = document.getElementById("EquipKind")?.value || "identify";
+    if (window.EquipmentWorkflow) {
+      window.EquipmentWorkflow.populateEquipmentPresetSelect(document.getElementById("EquipPreset"), kind, subject);
+      window.EquipmentWorkflow.populateApparatusSelect(document.getElementById("EquipApparatus"), subject);
+      window.EquipmentWorkflow.populateApparatusSelect(document.getElementById("EquipStemApparatus"), subject);
+    }
+  }
+
+  document.getElementById("CircuitKind")?.addEventListener("change", syncCircuitAuthoringFields);
+  document.getElementById("CircuitPreset")?.addEventListener("change", (e) => {
+    if (window.CircuitWorkflow) {
+      window.CircuitWorkflow.applyCircuitPresetToForm("", e.target.value);
+      syncCircuitAuthoringFields();
+    }
+  });
+  document.getElementById("EquipKind")?.addEventListener("change", syncEquipmentAuthoringFields);
+  document.getElementById("EquipPreset")?.addEventListener("change", (e) => {
+    if (window.EquipmentWorkflow) {
+      window.EquipmentWorkflow.applyEquipmentPresetToForm("", e.target.value);
+    }
+  });
+  document.getElementById("subjectSelect")?.addEventListener("change", () => {
+    syncEquipmentAuthoringFields();
+    refreshEquipStemPreview();
+  });
+  populateCircuitSymbolSelects("");
+  syncCircuitAuthoringFields();
+  syncEquipmentAuthoringFields();
+  if (window.CircuitWorkflow) {
+    window.CircuitWorkflow.populateCircuitPresetSelect(document.getElementById("CircuitStemPreset"));
+  }
+  if (window.EquipmentWorkflow) {
+    window.EquipmentWorkflow.populateEquipmentPresetSelect(document.getElementById("EquipStemPreset"));
+  }
+
+  function syncCircuitStemSourceFields() {
+    const source = document.getElementById("CircuitStemSource")?.value || "preset";
+    document.getElementById("CircuitStemPresetWrap")?.classList.toggle("hidden", source !== "preset");
+    document.getElementById("CircuitStemSymbolWrap")?.classList.toggle("hidden", source !== "symbol");
+  }
+
+  function getCircuitStemSource() {
+    const source = document.getElementById("CircuitStemSource")?.value || "preset";
+    if (source === "symbol") {
+      const type = document.getElementById("CircuitStemSymbol")?.value || "lamp";
+      return {
+        template: { layout: "single", component: { id: "c0", type }, highlightId: "c0" },
+        answer: { type },
+      };
+    }
+    return document.getElementById("CircuitStemPreset")?.value || "";
+  }
+
+  function refreshCircuitStemPreview() {
+    const preview = document.getElementById("CircuitStemPreview");
+    if (!preview || !window.CircuitWorkflow) return;
+    syncCircuitStemSourceFields();
+    preview.innerHTML = window.CircuitWorkflow.stemPreviewHtml(getCircuitStemSource());
+  }
+
+  async function applyCircuitStemDiagram() {
+    const status = document.getElementById("CircuitStemStatus");
+    if (!window.CircuitWorkflow) {
+      if (status) status.textContent = "Circuit workflow not loaded.";
+      return;
+    }
+    try {
+      if (status) status.textContent = "Rendering…";
+      const src = getCircuitStemSource();
+      const svg = window.CircuitWorkflow.renderStemDiagramSvg(src);
+      const pngBlob = await window.CircuitWorkflow.svgMarkupToPngBlob(svg, { scale: 2 });
+      const subject = document.getElementById("subjectSelect")?.value || "physics";
+      const label = typeof src === "string" ? src : (src.answer?.type || "circuit");
+      const safe = String(label).replace(/[^a-z0-9_-]/gi, "_").slice(0, 40);
+      const path = `${subject}/stem-diagrams/${safe}_${Date.now()}.png`;
+      const { error: uploadError } = await supabaseClient.storage
+        .from("question-images")
+        .upload(path, pngBlob, { contentType: "image/png", upsert: false });
+      if (uploadError) throw uploadError;
+      const { data } = supabaseClient.storage.from("question-images").getPublicUrl(path);
+      const urlInput = document.getElementById("qImageUrl");
+      if (urlInput) urlInput.value = data.publicUrl;
+      const fileInput = document.getElementById("qImageFile");
+      if (fileInput) fileInput.value = "";
+      if (status) status.textContent = "Attached as question diagram.";
+    } catch (err) {
+      console.error(err);
+      if (status) status.textContent = err.message || "Failed to apply diagram.";
+    }
+  }
+
+  document.getElementById("CircuitStemSource")?.addEventListener("change", () => {
+    syncCircuitStemSourceFields();
+    refreshCircuitStemPreview();
+  });
+  document.getElementById("CircuitStemPreset")?.addEventListener("change", refreshCircuitStemPreview);
+  document.getElementById("CircuitStemSymbol")?.addEventListener("change", refreshCircuitStemPreview);
+  document.getElementById("btnCircuitStemPreview")?.addEventListener("click", refreshCircuitStemPreview);
+  document.getElementById("btnCircuitStemApply")?.addEventListener("click", () => applyCircuitStemDiagram());
+  syncCircuitStemSourceFields();
+  refreshCircuitStemPreview();
+
+  function syncEquipStemSourceFields() {
+    const source = document.getElementById("EquipStemSource")?.value || "preset";
+    document.getElementById("EquipStemPresetWrap")?.classList.toggle("hidden", source !== "preset");
+    document.getElementById("EquipStemApparatusWrap")?.classList.toggle("hidden", source !== "apparatus");
+  }
+
+  function getEquipStemSource() {
+    const source = document.getElementById("EquipStemSource")?.value || "preset";
+    if (source === "apparatus") {
+      const apparatusId = document.getElementById("EquipStemApparatus")?.value || "beaker";
+      return {
+        template: { items: [{ apparatusId, x: 140, y: 90 }], width: 280, height: 180 },
+        answer: { apparatusId },
+      };
+    }
+    return document.getElementById("EquipStemPreset")?.value || "";
+  }
+
+  function refreshEquipStemPreview() {
+    const preview = document.getElementById("EquipStemPreview");
+    if (!preview || !window.EquipmentWorkflow) return;
+    syncEquipStemSourceFields();
+    preview.innerHTML = window.EquipmentWorkflow.stemPreviewHtml(getEquipStemSource());
+  }
+
+  async function applyEquipStemDiagram() {
+    const status = document.getElementById("EquipStemStatus");
+    if (!window.EquipmentWorkflow) {
+      if (status) status.textContent = "Equipment workflow not loaded.";
+      return;
+    }
+    try {
+      if (status) status.textContent = "Rendering…";
+      const src = getEquipStemSource();
+      const svg = window.EquipmentWorkflow.renderStemDiagramSvg(src);
+      const pngBlob = await window.EquipmentWorkflow.svgMarkupToPngBlob(svg, { scale: 2 });
+      const subject = document.getElementById("subjectSelect")?.value || "chemistry";
+      const label = typeof src === "string" ? src : (src.answer?.apparatusId || "equipment");
+      const safe = String(label).replace(/[^a-z0-9_-]/gi, "_").slice(0, 40);
+      const path = `${subject}/stem-diagrams/${safe}_${Date.now()}.png`;
+      const { error: uploadError } = await supabaseClient.storage
+        .from("question-images")
+        .upload(path, pngBlob, { contentType: "image/png", upsert: false });
+      if (uploadError) throw uploadError;
+      const { data } = supabaseClient.storage.from("question-images").getPublicUrl(path);
+      const urlInput = document.getElementById("qImageUrl");
+      if (urlInput) urlInput.value = data.publicUrl;
+      const fileInput = document.getElementById("qImageFile");
+      if (fileInput) fileInput.value = "";
+      if (status) status.textContent = "Attached as question diagram.";
+    } catch (err) {
+      console.error(err);
+      if (status) status.textContent = err.message || "Failed to apply diagram.";
+    }
+  }
+
+  document.getElementById("EquipStemSource")?.addEventListener("change", () => {
+    syncEquipStemSourceFields();
+    refreshEquipStemPreview();
+  });
+  document.getElementById("EquipStemPreset")?.addEventListener("change", refreshEquipStemPreview);
+  document.getElementById("EquipStemApparatus")?.addEventListener("change", refreshEquipStemPreview);
+  document.getElementById("btnEquipStemPreview")?.addEventListener("click", refreshEquipStemPreview);
+  document.getElementById("btnEquipStemApply")?.addEventListener("click", () => applyEquipStemDiagram());
+  syncEquipStemSourceFields();
+  refreshEquipStemPreview();
+
   function populateChemStemPresetSelect(selectEl) {
     if (!selectEl || !window.ChemWorkflow) return;
     const items = window.ChemWorkflow.listStemDiagramPresets();
@@ -5288,6 +5690,8 @@
     document.getElementById("mcqPanel").classList.add("hidden");
     document.getElementById("numericPanel").classList.add("hidden");
     document.getElementById("chemistryPanel")?.classList.add("hidden");
+    document.getElementById("circuitPanel")?.classList.add("hidden");
+    document.getElementById("equipmentPanel")?.classList.add("hidden");
     document.getElementById("shortTextKeywordsPanel").classList.add("hidden");
     document.getElementById("extendedPanel").classList.add("hidden");
     
@@ -5332,6 +5736,32 @@
       }
       maxMarks.value = "1";
       syncChemAuthoringFields();
+    }
+    else if (type === "circuit_interactive") {
+      document.getElementById("circuitPanel")?.classList.remove("hidden");
+      syncCreatorMcqUi("circuit_interactive");
+      maxMarks.innerHTML = "";
+      for (let i = 1; i <= 4; i++) {
+        const opt = document.createElement("option");
+        opt.value = String(i);
+        opt.textContent = i === 1 ? "1 mark" : `${i} marks`;
+        maxMarks.appendChild(opt);
+      }
+      maxMarks.value = "1";
+      syncCircuitAuthoringFields();
+    }
+    else if (type === "equipment_interactive") {
+      document.getElementById("equipmentPanel")?.classList.remove("hidden");
+      syncCreatorMcqUi("equipment_interactive");
+      maxMarks.innerHTML = "";
+      for (let i = 1; i <= 4; i++) {
+        const opt = document.createElement("option");
+        opt.value = String(i);
+        opt.textContent = i === 1 ? "1 mark" : `${i} marks`;
+        maxMarks.appendChild(opt);
+      }
+      maxMarks.value = "1";
+      syncEquipmentAuthoringFields();
     }
     else if (type === "short_text") {
       document.getElementById("shortTextKeywordsPanel").classList.remove("hidden");
@@ -5800,6 +6230,12 @@
       } else if (questionType === "chemistry_interactive") {
         calculatedMaxMarks = parseInt(maxMarks.value, 10) || 1;
         calculatedMarkingMethod = "chemistry";
+      } else if (questionType === "circuit_interactive") {
+        calculatedMaxMarks = parseInt(maxMarks.value, 10) || 1;
+        calculatedMarkingMethod = "circuit";
+      } else if (questionType === "equipment_interactive") {
+        calculatedMaxMarks = parseInt(maxMarks.value, 10) || 1;
+        calculatedMarkingMethod = "equipment";
       } else if (questionType === "extended_response") {
         calculatedMarkingMethod = "ai_rubric";
       }
@@ -5860,6 +6296,14 @@
         insertPayload.chemistry_config = window.ChemWorkflow.buildChemistryConfigFromForm("");
       }
 
+      if (questionType === "circuit_interactive" && window.CircuitWorkflow) {
+        insertPayload.circuit_config = window.CircuitWorkflow.buildCircuitConfigFromForm("");
+      }
+
+      if (questionType === "equipment_interactive" && window.EquipmentWorkflow) {
+        insertPayload.equipment_config = window.EquipmentWorkflow.buildEquipmentConfigFromForm("");
+      }
+
       const { data: qResult, error: qErr } = await supabaseClient
         .from("questions")
         .insert(insertPayload)
@@ -5894,6 +6338,20 @@
           || (window.ChemWorkflow && window.ChemWorkflow.buildChemistryConfigFromForm(""))
           || {};
         keyPayload = chemCfg.answer || { kind: chemCfg.kind };
+      }
+      else if (questionType === "circuit_interactive") {
+        keyType = "circuit";
+        const cfg = insertPayload.circuit_config
+          || (window.CircuitWorkflow && window.CircuitWorkflow.buildCircuitConfigFromForm(""))
+          || {};
+        keyPayload = cfg.answer || { kind: cfg.kind };
+      }
+      else if (questionType === "equipment_interactive") {
+        keyType = "equipment";
+        const cfg = insertPayload.equipment_config
+          || (window.EquipmentWorkflow && window.EquipmentWorkflow.buildEquipmentConfigFromForm(""))
+          || {};
+        keyPayload = cfg.answer || { kind: cfg.kind };
       }
       else if (questionType === "short_text") {
         const markMode = document.getElementById("shortMarkMode")?.value || "pick_n";
@@ -5947,7 +6405,7 @@
       // Save Section 3 detailed Mark Points (short answer only — numeric uses Section 2 feedback;
       // pool "pick N" marking lives in the answer key, so checkpoints are skipped)
       const rows = Array.from(document.querySelectorAll("#markPointsWrapper .mark-point-row"));
-      if (rows.length > 0 && questionType !== "numeric" && questionType !== "chemistry_interactive" && keyType !== "pick_n") {
+      if (rows.length > 0 && questionType !== "numeric" && questionType !== "chemistry_interactive" && questionType !== "circuit_interactive" && questionType !== "equipment_interactive" && keyType !== "pick_n") {
         const markPayloads = await buildMarkPointPayloadsFromRows(rows, qResult.id, "creator", questionType);
         if (markPayloads.length > 0) {
           const { error: mpErr } = await supabaseClient.from("mark_points").insert(markPayloads);
@@ -10016,8 +10474,8 @@
         auditCheckPointsCounterMap[qid] = auditMarkPointStatsMap[qid].gradable;
       });
 
-      const selectWithMeta = "id, spec_point_id, triple_spec_point_id, audience, question_type, prompt, options, tier, marking_method, max_marks, resource_links, hints, image_url, calculation_config, chemistry_config, command_word, demand_level, ao1_marks, ao2_marks, ao3_marks, is_maths_skill, is_required_practical, required_practical_id, difficulty, required_practicals(code), answer_keys(key_type, key_payload), question_skills(skill_id, skill_framework_items(full_code, framework, title))";
-      const selectBasic = "id, spec_point_id, triple_spec_point_id, audience, question_type, prompt, options, tier, marking_method, max_marks, resource_links, hints, image_url, calculation_config, chemistry_config, command_word, demand_level, ao1_marks, ao2_marks, ao3_marks, is_maths_skill, is_required_practical, required_practical_id, difficulty, required_practicals(code), answer_keys(key_type, key_payload)";
+      const selectWithMeta = "id, spec_point_id, triple_spec_point_id, audience, question_type, prompt, options, tier, marking_method, max_marks, resource_links, hints, image_url, calculation_config, chemistry_config, circuit_config, equipment_config, command_word, demand_level, ao1_marks, ao2_marks, ao3_marks, is_maths_skill, is_required_practical, required_practical_id, difficulty, required_practicals(code), answer_keys(key_type, key_payload), question_skills(skill_id, skill_framework_items(full_code, framework, title))";
+      const selectBasic = "id, spec_point_id, triple_spec_point_id, audience, question_type, prompt, options, tier, marking_method, max_marks, resource_links, hints, image_url, calculation_config, chemistry_config, circuit_config, equipment_config, command_word, demand_level, ao1_marks, ao2_marks, ao3_marks, is_maths_skill, is_required_practical, required_practical_id, difficulty, required_practicals(code), answer_keys(key_type, key_payload)";
 
       auditCourseTrackFilter = courseTrack;
 
@@ -10193,6 +10651,8 @@
     document.getElementById("editMcqPanel").classList.add("hidden");
     document.getElementById("editNumericPanel").classList.add("hidden");
     document.getElementById("editChemistryPanel")?.classList.add("hidden");
+    document.getElementById("editCircuitPanel")?.classList.add("hidden");
+    document.getElementById("editEquipmentPanel")?.classList.add("hidden");
     document.getElementById("editShortTextPanel").classList.add("hidden");
     document.getElementById("editExtendedPanel").classList.add("hidden");
 
@@ -10291,6 +10751,39 @@
         if (eqF) eqF.classList.toggle("hidden", cfg.kind !== "balance_equation");
         const sum = document.getElementById("editChemSummary");
         if (sum) sum.textContent = `Stored kind: ${cfg.kind || "—"}. Preset replace optional — or edit custom fields below.`;
+      }
+      else if (q.question_type === "circuit_interactive") {
+        document.getElementById("editCircuitPanel")?.classList.remove("hidden");
+        if (window.CircuitWorkflow) {
+          window.CircuitWorkflow.populateCircuitPresetSelect(document.getElementById("editCircuitPreset"));
+          const keep = document.getElementById("editCircuitPreset");
+          if (keep && !keep.querySelector('option[value=""]')) {
+            keep.insertAdjacentHTML("afterbegin", '<option value="">— Keep existing config —</option>');
+          } else if (keep) keep.value = "";
+          populateCircuitSymbolSelects("edit");
+        }
+        const cfg = q.circuit_config || {};
+        const kindEl = document.getElementById("editCircuitKind");
+        if (kindEl) kindEl.value = cfg.kind || "identify_component";
+        const symEl = document.getElementById("editCircuitSymbol");
+        if (symEl && cfg.answer?.type) symEl.value = cfg.answer.type;
+      }
+      else if (q.question_type === "equipment_interactive") {
+        document.getElementById("editEquipmentPanel")?.classList.remove("hidden");
+        if (window.EquipmentWorkflow) {
+          const subject = document.getElementById("editSpecSubjectSelect")?.value || "";
+          window.EquipmentWorkflow.populateEquipmentPresetSelect(document.getElementById("editEquipPreset"), "", subject);
+          const keep = document.getElementById("editEquipPreset");
+          if (keep && !keep.querySelector('option[value=""]')) {
+            keep.insertAdjacentHTML("afterbegin", '<option value="">— Keep existing config —</option>');
+          } else if (keep) keep.value = "";
+          window.EquipmentWorkflow.populateApparatusSelect(document.getElementById("editEquipApparatus"), subject);
+        }
+        const cfg = q.equipment_config || {};
+        const kindEl = document.getElementById("editEquipKind");
+        if (kindEl) kindEl.value = cfg.kind || "identify";
+        const appEl = document.getElementById("editEquipApparatus");
+        if (appEl && cfg.answer?.apparatusId) appEl.value = cfg.answer.apparatusId;
       }
       else if (q.question_type === "short_text") {
         document.getElementById("editShortTextPanel").classList.remove("hidden");
@@ -10642,6 +11135,28 @@
         }
       }
 
+      if (q.question_type === "circuit_interactive" && window.CircuitWorkflow) {
+        const presetId = document.getElementById("editCircuitPreset")?.value || "";
+        if (presetId) {
+          updatePayload.circuit_config = window.CircuitWorkflow.buildCircuitConfigFromForm("edit");
+        } else if ((document.getElementById("editCircuitKind")?.value || "") === "identify_component") {
+          updatePayload.circuit_config = window.CircuitWorkflow.buildCircuitConfigFromForm("edit");
+        } else {
+          updatePayload.circuit_config = q.circuit_config;
+        }
+      }
+
+      if (q.question_type === "equipment_interactive" && window.EquipmentWorkflow) {
+        const presetId = document.getElementById("editEquipPreset")?.value || "";
+        if (presetId) {
+          updatePayload.equipment_config = window.EquipmentWorkflow.buildEquipmentConfigFromForm("edit");
+        } else if ((document.getElementById("editEquipKind")?.value || "") === "identify") {
+          updatePayload.equipment_config = window.EquipmentWorkflow.buildEquipmentConfigFromForm("edit");
+        } else {
+          updatePayload.equipment_config = q.equipment_config;
+        }
+      }
+
       if (q.question_type === "mcq") {
         updatePayload.max_marks = 1;
       }
@@ -10652,6 +11167,8 @@
       let insertKeyType = q.question_type === "mcq" ? "mcq"
         : q.question_type === "numeric" ? "numeric"
         : q.question_type === "chemistry_interactive" ? "chemistry"
+        : q.question_type === "circuit_interactive" ? "circuit"
+        : q.question_type === "equipment_interactive" ? "equipment"
         : q.question_type === "extended_response" ? "ai_rubric"
         : "keywords";
       if (q.question_type === "mcq") {
@@ -10670,6 +11187,14 @@
         const chemCfg = updatePayload.chemistry_config || q.chemistry_config || {};
         updatedPayload = chemCfg.answer || keyData?.key_payload || { kind: chemCfg.kind };
         updatedKeyType = "chemistry";
+      } else if (q.question_type === "circuit_interactive") {
+        const cfg = updatePayload.circuit_config || q.circuit_config || {};
+        updatedPayload = cfg.answer || keyData?.key_payload || { kind: cfg.kind };
+        updatedKeyType = "circuit";
+      } else if (q.question_type === "equipment_interactive") {
+        const cfg = updatePayload.equipment_config || q.equipment_config || {};
+        updatedPayload = cfg.answer || keyData?.key_payload || { kind: cfg.kind };
+        updatedKeyType = "equipment";
       } else if (q.question_type === "short_text") {
         const markMode = document.getElementById("editShortMarkMode")?.value || "pick_n";
         if (markMode === "pick_n") {
@@ -10715,6 +11240,8 @@
         let markingMethod = q.marking_method || "keyword";
         if (q.question_type === "numeric") markingMethod = "numeric";
         else if (q.question_type === "chemistry_interactive") markingMethod = "chemistry";
+        else if (q.question_type === "circuit_interactive") markingMethod = "circuit";
+        else if (q.question_type === "equipment_interactive") markingMethod = "equipment";
         else if (q.question_type === "extended_response") markingMethod = "ai_rubric";
         else if (q.question_type === "short_text" && insertKeyType === "pick_n") markingMethod = markingMethod || "keyword";
 
@@ -10742,7 +11269,7 @@
           });
         if (keyErr) throw keyErr;
 
-        if (q.question_type !== "numeric" && q.question_type !== "chemistry_interactive" && insertKeyType !== "pick_n") {
+        if (q.question_type !== "numeric" && q.question_type !== "chemistry_interactive" && q.question_type !== "circuit_interactive" && q.question_type !== "equipment_interactive" && insertKeyType !== "pick_n") {
           const editRows = Array.from(document.querySelectorAll("#editMarkPointsWrapper .edit-mp-row, #editMarkPointsWrapper .mark-point-row"));
           if (editRows.length > 0) {
             const markPayloads = await buildMarkPointPayloadsFromRows(editRows, savedQuestionId, "edit", q.question_type);
@@ -10766,6 +11293,12 @@
         if (q.question_type === "chemistry_interactive" && updatePayload.chemistry_config) {
           q.chemistry_config = JSON.parse(JSON.stringify(updatePayload.chemistry_config));
         }
+        if (q.question_type === "circuit_interactive" && updatePayload.circuit_config) {
+          q.circuit_config = JSON.parse(JSON.stringify(updatePayload.circuit_config));
+        }
+        if (q.question_type === "equipment_interactive" && updatePayload.equipment_config) {
+          q.equipment_config = JSON.parse(JSON.stringify(updatePayload.equipment_config));
+        }
 
         const keyUpdate = updatedKeyType
           ? { key_type: updatedKeyType, key_payload: updatedPayload }
@@ -10781,7 +11314,7 @@
         // pool "pick N" marking lives in the answer key, so checkpoints are cleared)
         await supabaseClient.from("mark_points").delete().eq("question_id", sourceId);
 
-        if (q.question_type !== "numeric" && q.question_type !== "chemistry_interactive" && updatedKeyType !== "pick_n") {
+        if (q.question_type !== "numeric" && q.question_type !== "chemistry_interactive" && q.question_type !== "circuit_interactive" && q.question_type !== "equipment_interactive" && updatedKeyType !== "pick_n") {
           const editRows = Array.from(document.querySelectorAll("#editMarkPointsWrapper .edit-mp-row, #editMarkPointsWrapper .mark-point-row"));
           if (editRows.length > 0) {
             const markPayloads = await buildMarkPointPayloadsFromRows(editRows, sourceId, "edit", q.question_type);
@@ -10935,6 +11468,12 @@
     else if (q.question_type === "chemistry_interactive" && window.ChemWorkflow) {
       html += ChemWorkflow.renderChemistryWorkflow(q, currentSandboxedKey, "practice");
     }
+    else if (q.question_type === "circuit_interactive" && window.CircuitWorkflow) {
+      html += CircuitWorkflow.renderCircuitWorkflow(q, currentSandboxedKey, "practice");
+    }
+    else if (q.question_type === "equipment_interactive" && window.EquipmentWorkflow) {
+      html += EquipmentWorkflow.renderEquipmentWorkflow(q, currentSandboxedKey, "practice");
+    }
     else if (q.question_type === "extended_response") {
       html += `
         <div style="display:flex; flex-direction:column; gap:8px;">
@@ -10958,6 +11497,12 @@
     }
     if (q.question_type === "chemistry_interactive" && window.ChemWorkflow) {
       ChemWorkflow.wireChemistryWorkflow(q);
+    }
+    if (q.question_type === "circuit_interactive" && window.CircuitWorkflow) {
+      CircuitWorkflow.wireCircuitWorkflow(q);
+    }
+    if (q.question_type === "equipment_interactive" && window.EquipmentWorkflow) {
+      EquipmentWorkflow.wireEquipmentWorkflow(q);
     }
     // Trigger Math typesetting
     if (window.MathJax && typeof window.MathJax.typesetPromise === "function") {
@@ -11002,6 +11547,10 @@
       resp.unit = (currentSandboxedKey?.key_payload?.unit) || "";
     } else if (currentSandboxedQ.question_type === "chemistry_interactive" && window.ChemWorkflow) {
       resp = ChemWorkflow.collectChemistryResponse(currentSandboxedQ);
+    } else if (currentSandboxedQ.question_type === "circuit_interactive" && window.CircuitWorkflow) {
+      resp = CircuitWorkflow.collectCircuitResponse(currentSandboxedQ);
+    } else if (currentSandboxedQ.question_type === "equipment_interactive" && window.EquipmentWorkflow) {
+      resp = EquipmentWorkflow.collectEquipmentResponse(currentSandboxedQ);
     } else {
       resp = { type: "short_text", text: document.getElementById("sbTextAns")?.value.trim() };
     }
@@ -11150,6 +11699,50 @@
       detailsHtml = `
         <div style="font-weight:bold; margin-bottom:8px;">Chemistry diagram: <span style="color:${isCorrect ? "var(--success)" : "var(--error)"}">${isCorrect ? "CORRECT" : "INCORRECT"} — ${score}/${max}</span></div>
         <div style="margin-bottom:8px;font-size:0.85rem;">${escapeHtml(chemDetail)}</div>
+        ${modelHtml}
+      `;
+    }
+    else if (currentSandboxedKey.key_type === "circuit" && window.CircuitWorkflow) {
+      const marking = CircuitWorkflow.markCircuitResponse(
+        currentSandboxedQ,
+        resp,
+        currentSandboxedKey,
+        currentSandboxedMarkPoints,
+        null
+      );
+      score = marking.total;
+      max = marking.max;
+      const expected = currentSandboxedKey.key_payload || currentSandboxedQ.circuit_config?.answer || {};
+      const detail = marking.feedbackPayload?.circuit?.detail || "";
+      const isCorrect = score === max && max > 0;
+      const modelHtml = CircuitWorkflow.renderCircuitModelAnswerHtml(expected, {
+        title: isCorrect ? "Model answer" : "Correct answer",
+      });
+      detailsHtml = `
+        <div style="font-weight:bold; margin-bottom:8px;">Circuit diagram: <span style="color:${isCorrect ? "var(--success)" : "var(--error)"}">${isCorrect ? "CORRECT" : "INCORRECT"} — ${score}/${max}</span></div>
+        <div style="margin-bottom:8px;font-size:0.85rem;">${escapeHtml(detail)}</div>
+        ${modelHtml}
+      `;
+    }
+    else if (currentSandboxedKey.key_type === "equipment" && window.EquipmentWorkflow) {
+      const marking = EquipmentWorkflow.markEquipmentResponse(
+        currentSandboxedQ,
+        resp,
+        currentSandboxedKey,
+        currentSandboxedMarkPoints,
+        null
+      );
+      score = marking.total;
+      max = marking.max;
+      const expected = currentSandboxedKey.key_payload || currentSandboxedQ.equipment_config?.answer || {};
+      const detail = marking.feedbackPayload?.equipment?.detail || "";
+      const isCorrect = score === max && max > 0;
+      const modelHtml = EquipmentWorkflow.renderEquipmentModelAnswerHtml(expected, {
+        title: isCorrect ? "Model answer" : "Correct answer",
+      });
+      detailsHtml = `
+        <div style="font-weight:bold; margin-bottom:8px;">Apparatus: <span style="color:${isCorrect ? "var(--success)" : "var(--error)"}">${isCorrect ? "CORRECT" : "INCORRECT"} — ${score}/${max}</span></div>
+        <div style="margin-bottom:8px;font-size:0.85rem;">${escapeHtml(detail)}</div>
         ${modelHtml}
       `;
     }

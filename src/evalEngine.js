@@ -557,7 +557,11 @@ export async function markResponse(q, resp, key, markPoints) {
   } else {
     if (q.question_type === "numeric") {
       maxAo.AO2 = max;
-    } else if (q.question_type === "chemistry_interactive") {
+    } else if (
+      q.question_type === "chemistry_interactive"
+      || q.question_type === "circuit_interactive"
+      || q.question_type === "equipment_interactive"
+    ) {
       maxAo.AO1 = max;
     } else if (q.question_type === "extended_response") {
       maxAo.AO1 = Math.ceil(max / 3);
@@ -633,6 +637,36 @@ export async function markResponse(q, resp, key, markPoints) {
       missing: chemResult.missing,
       quality: chemResult.quality,
       feedbackPayload: chemResult.feedbackPayload,
+      stepResults: null,
+    };
+  }
+  else if (key.key_type === "circuit") {
+    const { loadCircuitWorkflow } = await import("./lazyCircuitWorkflow.js");
+    const { markCircuitResponse } = await loadCircuitWorkflow();
+    const circuitResult = markCircuitResponse(q, resp, key, markPoints, cleanUrl);
+    return {
+      total: circuitResult.total,
+      max: circuitResult.max,
+      ao: circuitResult.ao,
+      maxAo: circuitResult.maxAo,
+      missing: circuitResult.missing,
+      quality: circuitResult.quality,
+      feedbackPayload: circuitResult.feedbackPayload,
+      stepResults: null,
+    };
+  }
+  else if (key.key_type === "equipment") {
+    const { loadEquipmentWorkflow } = await import("./lazyEquipmentWorkflow.js");
+    const { markEquipmentResponse } = await loadEquipmentWorkflow();
+    const equipResult = markEquipmentResponse(q, resp, key, markPoints, cleanUrl);
+    return {
+      total: equipResult.total,
+      max: equipResult.max,
+      ao: equipResult.ao,
+      maxAo: equipResult.maxAo,
+      missing: equipResult.missing,
+      quality: equipResult.quality,
+      feedbackPayload: equipResult.feedbackPayload,
       stepResults: null,
     };
   }
@@ -778,7 +812,11 @@ export function computeQuestionAOMaxCaps(q, markPoints = [], calculationWorkflow
     return maxAo;
   }
 
-  if (q.question_type === "chemistry_interactive") {
+  if (
+    q.question_type === "chemistry_interactive"
+    || q.question_type === "circuit_interactive"
+    || q.question_type === "equipment_interactive"
+  ) {
     maxAo.AO1 = max;
     return maxAo;
   }

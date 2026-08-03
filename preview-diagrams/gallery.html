@@ -1,0 +1,477 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>Diagram library preview</title><style>
+body{font-family:system-ui,sans-serif;background:#f8fafc;margin:0;padding:24px;color:#0f172a}
+h1{font-size:1.4rem;margin:0 0 8px}
+h2{font-size:1.1rem;margin:28px 0 12px;border-bottom:1px solid #e2e8f0;padding-bottom:6px}
+.muted{color:#64748b;font-size:0.9rem;margin:0 0 16px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px}
+.card{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:10px;text-align:center}
+.label{font-size:0.78rem;font-weight:600;margin-bottom:6px;min-height:2.2em}
+svg{max-width:100%;height:auto;display:block;margin:0 auto}
+</style></head><body><h1>AQA GCSE diagram library</h1>
+     <p class="muted">Exact SVGs from circuitWorkflow.js and equipmentWorkflow.js</p>
+     <h2>Circuit symbols (14)</h2>
+     <div class="grid"><div class="card"><div class="label">Cell</div><svg xmlns="http://www.w3.org/2000/svg" class="circuit-svg" viewBox="0 0 160 120" width="100%" style="max-width:160px;height:auto;display:block;margin:0 auto;background:#fff;">
+  <g data-circuit-id="" data-circuit-type="cell">
+        <line x1="44" y1="60" x2="62" y2="60" stroke="#0f172a" stroke-width="2"/><line x1="98" y1="60" x2="116" y2="60" stroke="#0f172a" stroke-width="2"/>
+        <line x1="74" y1="44" x2="74" y2="76" stroke="#0f172a" stroke-width="3"/>
+        <line x1="86" y1="52" x2="86" y2="68" stroke="#0f172a" stroke-width="2"/>
+      </g>
+</svg></div>
+<div class="card"><div class="label">Battery</div><svg xmlns="http://www.w3.org/2000/svg" class="circuit-svg" viewBox="0 0 160 120" width="100%" style="max-width:160px;height:auto;display:block;margin:0 auto;background:#fff;">
+  <g data-circuit-id="" data-circuit-type="battery">
+        <line x1="44" y1="60" x2="62" y2="60" stroke="#0f172a" stroke-width="2"/><line x1="98" y1="60" x2="116" y2="60" stroke="#0f172a" stroke-width="2"/>
+        <line x1="68" y1="44" x2="68" y2="76" stroke="#0f172a" stroke-width="3"/>
+        <line x1="76" y1="52" x2="76" y2="68" stroke="#0f172a" stroke-width="2"/>
+        <line x1="84" y1="44" x2="84" y2="76" stroke="#0f172a" stroke-width="3"/>
+        <line x1="92" y1="52" x2="92" y2="68" stroke="#0f172a" stroke-width="2"/>
+      </g>
+</svg></div>
+<div class="card"><div class="label">Switch (open)</div><svg xmlns="http://www.w3.org/2000/svg" class="circuit-svg" viewBox="0 0 160 120" width="100%" style="max-width:160px;height:auto;display:block;margin:0 auto;background:#fff;">
+  <g data-circuit-id="" data-circuit-type="switch_open">
+        <line x1="44" y1="60" x2="66" y2="60" stroke="#0f172a" stroke-width="2"/>
+        <circle cx="66" cy="60" r="3" fill="#0f172a"/>
+        <line x1="66" y1="60" x2="92" y2="46" stroke="#0f172a" stroke-width="2"/>
+        <circle cx="94" cy="60" r="3" fill="#0f172a"/>
+        <line x1="94" y1="60" x2="116" y2="60" stroke="#0f172a" stroke-width="2"/>
+      </g>
+</svg></div>
+<div class="card"><div class="label">Switch (closed)</div><svg xmlns="http://www.w3.org/2000/svg" class="circuit-svg" viewBox="0 0 160 120" width="100%" style="max-width:160px;height:auto;display:block;margin:0 auto;background:#fff;">
+  <g data-circuit-id="" data-circuit-type="switch_closed">
+        <line x1="44" y1="60" x2="66" y2="60" stroke="#0f172a" stroke-width="2"/>
+        <circle cx="66" cy="60" r="3" fill="#0f172a"/>
+        <line x1="66" y1="60" x2="94" y2="60" stroke="#0f172a" stroke-width="2"/>
+        <circle cx="94" cy="60" r="3" fill="#0f172a"/>
+        <line x1="94" y1="60" x2="116" y2="60" stroke="#0f172a" stroke-width="2"/>
+      </g>
+</svg></div>
+<div class="card"><div class="label">Filament lamp</div><svg xmlns="http://www.w3.org/2000/svg" class="circuit-svg" viewBox="0 0 160 120" width="100%" style="max-width:160px;height:auto;display:block;margin:0 auto;background:#fff;">
+  <g data-circuit-id="" data-circuit-type="lamp">
+        <line x1="44" y1="60" x2="62" y2="60" stroke="#0f172a" stroke-width="2"/><line x1="98" y1="60" x2="116" y2="60" stroke="#0f172a" stroke-width="2"/>
+        <circle cx="80" cy="60" r="14" fill="none" stroke="#0f172a" stroke-width="2"/>
+        <line x1="70" y1="50" x2="90" y2="70" stroke="#0f172a" stroke-width="1.5"/>
+        <line x1="90" y1="50" x2="70" y2="70" stroke="#0f172a" stroke-width="1.5"/>
+      </g>
+</svg></div>
+<div class="card"><div class="label">Fuse</div><svg xmlns="http://www.w3.org/2000/svg" class="circuit-svg" viewBox="0 0 160 120" width="100%" style="max-width:160px;height:auto;display:block;margin:0 auto;background:#fff;">
+  <g data-circuit-id="" data-circuit-type="fuse">
+        <line x1="44" y1="60" x2="62" y2="60" stroke="#0f172a" stroke-width="2"/><line x1="98" y1="60" x2="116" y2="60" stroke="#0f172a" stroke-width="2"/>
+        <rect x="64" y="52" width="32" height="16" fill="none" stroke="#0f172a" stroke-width="2"/>
+        <line x1="64" y1="60" x2="96" y2="60" stroke="#0f172a" stroke-width="1.5"/>
+      </g>
+</svg></div>
+<div class="card"><div class="label">Ammeter</div><svg xmlns="http://www.w3.org/2000/svg" class="circuit-svg" viewBox="0 0 160 120" width="100%" style="max-width:160px;height:auto;display:block;margin:0 auto;background:#fff;">
+  <g data-circuit-id="" data-circuit-type="ammeter">
+        <line x1="44" y1="60" x2="62" y2="60" stroke="#0f172a" stroke-width="2"/><line x1="98" y1="60" x2="116" y2="60" stroke="#0f172a" stroke-width="2"/>
+        <circle cx="80" cy="60" r="14" fill="#fff" stroke="#0f172a" stroke-width="2"/>
+        <text x="80" y="65" text-anchor="middle" font-size="14" font-weight="700" fill="#0f172a" font-family="system-ui,sans-serif">A</text>
+      </g>
+</svg></div>
+<div class="card"><div class="label">Voltmeter</div><svg xmlns="http://www.w3.org/2000/svg" class="circuit-svg" viewBox="0 0 160 120" width="100%" style="max-width:160px;height:auto;display:block;margin:0 auto;background:#fff;">
+  <g data-circuit-id="" data-circuit-type="voltmeter">
+        <line x1="44" y1="60" x2="62" y2="60" stroke="#0f172a" stroke-width="2"/><line x1="98" y1="60" x2="116" y2="60" stroke="#0f172a" stroke-width="2"/>
+        <circle cx="80" cy="60" r="14" fill="#fff" stroke="#0f172a" stroke-width="2"/>
+        <text x="80" y="65" text-anchor="middle" font-size="14" font-weight="700" fill="#0f172a" font-family="system-ui,sans-serif">V</text>
+      </g>
+</svg></div>
+<div class="card"><div class="label">Diode</div><svg xmlns="http://www.w3.org/2000/svg" class="circuit-svg" viewBox="0 0 160 120" width="100%" style="max-width:160px;height:auto;display:block;margin:0 auto;background:#fff;">
+  <g data-circuit-id="" data-circuit-type="diode">
+        <line x1="44" y1="60" x2="62" y2="60" stroke="#0f172a" stroke-width="2"/><line x1="98" y1="60" x2="116" y2="60" stroke="#0f172a" stroke-width="2"/>
+        <polygon points="70,48 70,72 90,60" fill="none" stroke="#0f172a" stroke-width="2"/>
+        <line x1="90" y1="48" x2="90" y2="72" stroke="#0f172a" stroke-width="2"/>
+      </g>
+</svg></div>
+<div class="card"><div class="label">LED</div><svg xmlns="http://www.w3.org/2000/svg" class="circuit-svg" viewBox="0 0 160 120" width="100%" style="max-width:160px;height:auto;display:block;margin:0 auto;background:#fff;">
+  <g data-circuit-id="" data-circuit-type="led">
+        <line x1="44" y1="60" x2="62" y2="60" stroke="#0f172a" stroke-width="2"/><line x1="98" y1="60" x2="116" y2="60" stroke="#0f172a" stroke-width="2"/>
+        <polygon points="70,48 70,72 90,60" fill="none" stroke="#0f172a" stroke-width="2"/>
+        <line x1="90" y1="48" x2="90" y2="72" stroke="#0f172a" stroke-width="2"/>
+        <line x1="84" y1="42" x2="94" y2="32" stroke="#0f172a" stroke-width="1.5"/>
+        <line x1="90" y1="46" x2="100" y2="36" stroke="#0f172a" stroke-width="1.5"/>
+        <polygon points="94,32 90,36 98,36" fill="#0f172a"/>
+        <polygon points="100,36 96,40 104,40" fill="#0f172a"/>
+      </g>
+</svg></div>
+<div class="card"><div class="label">Fixed resistor</div><svg xmlns="http://www.w3.org/2000/svg" class="circuit-svg" viewBox="0 0 160 120" width="100%" style="max-width:160px;height:auto;display:block;margin:0 auto;background:#fff;">
+  <g data-circuit-id="" data-circuit-type="resistor">
+        <line x1="44" y1="60" x2="62" y2="60" stroke="#0f172a" stroke-width="2"/><line x1="98" y1="60" x2="116" y2="60" stroke="#0f172a" stroke-width="2"/>
+        <rect x="62" y="50" width="36" height="20" fill="none" stroke="#0f172a" stroke-width="2"/>
+      </g>
+</svg></div>
+<div class="card"><div class="label">Variable resistor</div><svg xmlns="http://www.w3.org/2000/svg" class="circuit-svg" viewBox="0 0 160 120" width="100%" style="max-width:160px;height:auto;display:block;margin:0 auto;background:#fff;">
+  <g data-circuit-id="" data-circuit-type="variable_resistor">
+        <line x1="44" y1="60" x2="62" y2="60" stroke="#0f172a" stroke-width="2"/><line x1="98" y1="60" x2="116" y2="60" stroke="#0f172a" stroke-width="2"/>
+        <rect x="62" y="50" width="36" height="20" fill="none" stroke="#0f172a" stroke-width="2"/>
+        <line x1="72" y1="78" x2="94" y2="42" stroke="#0f172a" stroke-width="2"/>
+        <polygon points="94,42 86,46 92,50" fill="#0f172a"/>
+      </g>
+</svg></div>
+<div class="card"><div class="label">Thermistor</div><svg xmlns="http://www.w3.org/2000/svg" class="circuit-svg" viewBox="0 0 160 120" width="100%" style="max-width:160px;height:auto;display:block;margin:0 auto;background:#fff;">
+  <g data-circuit-id="" data-circuit-type="thermistor">
+        <line x1="44" y1="60" x2="62" y2="60" stroke="#0f172a" stroke-width="2"/><line x1="98" y1="60" x2="116" y2="60" stroke="#0f172a" stroke-width="2"/>
+        <rect x="62" y="50" width="36" height="20" fill="none" stroke="#0f172a" stroke-width="2"/>
+        <path d="M 70 76 L 78 76 L 82 44 L 90 44" fill="none" stroke="#0f172a" stroke-width="2"/>
+      </g>
+</svg></div>
+<div class="card"><div class="label">LDR</div><svg xmlns="http://www.w3.org/2000/svg" class="circuit-svg" viewBox="0 0 160 120" width="100%" style="max-width:160px;height:auto;display:block;margin:0 auto;background:#fff;">
+  <g data-circuit-id="" data-circuit-type="ldr">
+        <line x1="44" y1="60" x2="62" y2="60" stroke="#0f172a" stroke-width="2"/><line x1="98" y1="60" x2="116" y2="60" stroke="#0f172a" stroke-width="2"/>
+        <rect x="62" y="50" width="36" height="20" fill="none" stroke="#0f172a" stroke-width="2"/>
+        <line x1="74" y1="38" x2="64" y2="28" stroke="#0f172a" stroke-width="1.5"/>
+        <line x1="82" y1="38" x2="72" y2="28" stroke="#0f172a" stroke-width="1.5"/>
+        <polygon points="64,28 68,32 60,32" fill="#0f172a"/>
+        <polygon points="72,28 76,32 68,32" fill="#0f172a"/>
+      </g>
+</svg></div></div>
+     <h2>Apparatus / equipment (41)</h2>
+     <div class="grid"><div class="card"><div class="label">Beaker</div><svg xmlns="http://www.w3.org/2000/svg" class="equipment-svg" viewBox="0 0 180 160" width="100%" style="max-width:560px;height:auto;display:block;margin:0 auto;background:#fff;">
+  
+      <g transform="translate(90,80) scale(1)">
+        <path d="M -28 -40 L -24 40 L 24 40 L 28 -40" fill="none" stroke="#0f172a" stroke-width="2"/>
+        <line x1="-28" y1="-40" x2="28" y2="-40" stroke="#0f172a" stroke-width="2"/>
+        <line x1="-20" y1="10" x2="20" y2="10" stroke="#93c5fd" stroke-width="1.5"/>
+      </g>
+</svg></div>
+<div class="card"><div class="label">Conical flask</div><svg xmlns="http://www.w3.org/2000/svg" class="equipment-svg" viewBox="0 0 180 160" width="100%" style="max-width:560px;height:auto;display:block;margin:0 auto;background:#fff;">
+  
+      <g transform="translate(90,80) scale(1)">
+        <path d="M -10 -42 L -10 -18 L -28 40 L 28 40 L 10 -18 L 10 -42 Z" fill="none" stroke="#0f172a" stroke-width="2"/>
+        <line x1="-10" y1="-42" x2="10" y2="-42" stroke="#0f172a" stroke-width="2"/>
+        <ellipse cx="0" cy="28" rx="18" ry="6" fill="#bfdbfe" stroke="none" opacity="0.6"/>
+      </g>
+</svg></div>
+<div class="card"><div class="label">Measuring cylinder</div><svg xmlns="http://www.w3.org/2000/svg" class="equipment-svg" viewBox="0 0 180 160" width="100%" style="max-width:560px;height:auto;display:block;margin:0 auto;background:#fff;">
+  
+      <g transform="translate(90,80) scale(1)">
+        <rect x="-14" y="-42" width="28" height="84" fill="none" stroke="#0f172a" stroke-width="2" rx="2"/>
+        <line x1="-10" y1="-20" x2="-4" y2="-20" stroke="#64748b" stroke-width="1"/>
+        <line x1="-10" y1="0" x2="-4" y2="0" stroke="#64748b" stroke-width="1"/>
+        <line x1="-10" y1="20" x2="-4" y2="20" stroke="#64748b" stroke-width="1"/>
+        <rect x="-12" y="8" width="24" height="30" fill="#bfdbfe" opacity="0.5"/>
+      </g>
+</svg></div>
+<div class="card"><div class="label">Burette</div><svg xmlns="http://www.w3.org/2000/svg" class="equipment-svg" viewBox="0 0 180 160" width="100%" style="max-width:560px;height:auto;display:block;margin:0 auto;background:#fff;">
+  
+      <g transform="translate(90,80) scale(1)">
+        <rect x="-8" y="-50" width="16" height="70" fill="none" stroke="#0f172a" stroke-width="2"/>
+        <line x1="-6" y1="-30" x2="-2" y2="-30" stroke="#64748b" stroke-width="1"/>
+        <line x1="-6" y1="-10" x2="-2" y2="-10" stroke="#64748b" stroke-width="1"/>
+        <line x1="-6" y1="10" x2="-2" y2="10" stroke="#64748b" stroke-width="1"/>
+        <rect x="-10" y="20" width="20" height="8" fill="none" stroke="#0f172a" stroke-width="2"/>
+        <line x1="0" y1="28" x2="0" y2="48" stroke="#0f172a" stroke-width="2"/>
+        <circle cx="0" cy="50" r="2" fill="#0f172a"/>
+      </g>
+</svg></div>
+<div class="card"><div class="label">Pipette</div><svg xmlns="http://www.w3.org/2000/svg" class="equipment-svg" viewBox="0 0 180 160" width="100%" style="max-width:560px;height:auto;display:block;margin:0 auto;background:#fff;">
+  
+      <g transform="translate(90,80) scale(1)">
+        <line x1="0" y1="-48" x2="0" y2="40" stroke="#0f172a" stroke-width="2"/>
+        <ellipse cx="0" cy="-48" rx="8" ry="6" fill="none" stroke="#0f172a" stroke-width="2"/>
+        <path d="M -4 28 L 0 48 L 4 28" fill="none" stroke="#0f172a" stroke-width="2"/>
+        <ellipse cx="0" cy="0" rx="10" ry="14" fill="none" stroke="#0f172a" stroke-width="2"/>
+      </g>
+</svg></div>
+<div class="card"><div class="label">Volumetric flask</div><svg xmlns="http://www.w3.org/2000/svg" class="equipment-svg" viewBox="0 0 180 160" width="100%" style="max-width:560px;height:auto;display:block;margin:0 auto;background:#fff;">
+  
+      <g transform="translate(90,80) scale(1)">
+        <path d="M -8 -48 L -8 -10 Q -32 10 -28 40 L 28 40 Q 32 10 8 -10 L 8 -48 Z" fill="none" stroke="#0f172a" stroke-width="2"/>
+        <line x1="-8" y1="-48" x2="8" y2="-48" stroke="#0f172a" stroke-width="2"/>
+        <line x1="-22" y1="8" x2="22" y2="8" stroke="#64748b" stroke-width="1.5" stroke-dasharray="3 2"/>
+      </g>
+</svg></div>
+<div class="card"><div class="label">Test tube</div><svg xmlns="http://www.w3.org/2000/svg" class="equipment-svg" viewBox="0 0 180 160" width="100%" style="max-width:560px;height:auto;display:block;margin:0 auto;background:#fff;">
+  
+      <g transform="translate(90,80) scale(1)">
+        <path d="M -10 -40 L -10 28 Q -10 42 0 42 Q 10 42 10 28 L 10 -40 Z" fill="none" stroke="#0f172a" stroke-width="2"/>
+        <line x1="-10" y1="-40" x2="10" y2="-40" stroke="#0f172a" stroke-width="2"/>
+      </g>
+</svg></div>
+<div class="card"><div class="label">Boiling tube</div><svg xmlns="http://www.w3.org/2000/svg" class="equipment-svg" viewBox="0 0 180 160" width="100%" style="max-width:560px;height:auto;display:block;margin:0 auto;background:#fff;">
+  
+      <g transform="translate(90,80) scale(1)">
+        <path d="M -12 -44 L -12 30 Q -12 46 0 46 Q 12 46 12 30 L 12 -44 Z" fill="none" stroke="#0f172a" stroke-width="2"/>
+        <line x1="-12" y1="-44" x2="12" y2="-44" stroke="#0f172a" stroke-width="2"/>
+      </g>
+</svg></div>
+<div class="card"><div class="label">Funnel</div><svg xmlns="http://www.w3.org/2000/svg" class="equipment-svg" viewBox="0 0 180 160" width="100%" style="max-width:560px;height:auto;display:block;margin:0 auto;background:#fff;">
+  
+      <g transform="translate(90,80) scale(1)">
+        <path d="M -28 -30 L 0 10 L 28 -30 Z" fill="none" stroke="#0f172a" stroke-width="2"/>
+        <line x1="0" y1="10" x2="0" y2="44" stroke="#0f172a" stroke-width="2"/>
+      </g>
+</svg></div>
+<div class="card"><div class="label">Evaporating basin</div><svg xmlns="http://www.w3.org/2000/svg" class="equipment-svg" viewBox="0 0 180 160" width="100%" style="max-width:560px;height:auto;display:block;margin:0 auto;background:#fff;">
+  
+      <g transform="translate(90,80) scale(1)">
+        <path d="M -36 -8 Q -36 28 0 28 Q 36 28 36 -8" fill="none" stroke="#0f172a" stroke-width="2"/>
+        <line x1="-36" y1="-8" x2="36" y2="-8" stroke="#0f172a" stroke-width="2"/>
+      </g>
+</svg></div>
+<div class="card"><div class="label">Bunsen burner</div><svg xmlns="http://www.w3.org/2000/svg" class="equipment-svg" viewBox="0 0 180 160" width="100%" style="max-width:560px;height:auto;display:block;margin:0 auto;background:#fff;">
+  
+      <g transform="translate(90,80) scale(1)">
+        <rect x="-18" y="20" width="36" height="10" fill="none" stroke="#0f172a" stroke-width="2"/>
+        <rect x="-6" y="-10" width="12" height="30" fill="none" stroke="#0f172a" stroke-width="2"/>
+        <path d="M -4 -10 Q 0 -36 4 -10" fill="#fbbf24" stroke="#d97706" stroke-width="1.5"/>
+        <circle cx="10" cy="8" r="4" fill="none" stroke="#0f172a" stroke-width="1.5"/>
+      </g>
+</svg></div>
+<div class="card"><div class="label">Tripod</div><svg xmlns="http://www.w3.org/2000/svg" class="equipment-svg" viewBox="0 0 180 160" width="100%" style="max-width:560px;height:auto;display:block;margin:0 auto;background:#fff;">
+  
+      <g transform="translate(90,80) scale(1)">
+        <line x1="-30" y1="-20" x2="30" y2="-20" stroke="#0f172a" stroke-width="2"/>
+        <line x1="-30" y1="-20" x2="-34" y2="40" stroke="#0f172a" stroke-width="2"/>
+        <line x1="0" y1="-20" x2="0" y2="40" stroke="#0f172a" stroke-width="2"/>
+        <line x1="30" y1="-20" x2="34" y2="40" stroke="#0f172a" stroke-width="2"/>
+      </g>
+</svg></div>
+<div class="card"><div class="label">Gauze</div><svg xmlns="http://www.w3.org/2000/svg" class="equipment-svg" viewBox="0 0 180 160" width="100%" style="max-width:560px;height:auto;display:block;margin:0 auto;background:#fff;">
+  
+      <g transform="translate(90,80) scale(1)">
+        <rect x="-32" y="-6" width="64" height="12" fill="none" stroke="#0f172a" stroke-width="2"/>
+        <line x1="-24" y1="-6" x2="-24" y2="6" stroke="#94a3b8" stroke-width="1"/>
+        <line x1="-8" y1="-6" x2="-8" y2="6" stroke="#94a3b8" stroke-width="1"/>
+        <line x1="8" y1="-6" x2="8" y2="6" stroke="#94a3b8" stroke-width="1"/>
+        <line x1="24" y1="-6" x2="24" y2="6" stroke="#94a3b8" stroke-width="1"/>
+      </g>
+</svg></div>
+<div class="card"><div class="label">Gas syringe</div><svg xmlns="http://www.w3.org/2000/svg" class="equipment-svg" viewBox="0 0 180 160" width="100%" style="max-width:560px;height:auto;display:block;margin:0 auto;background:#fff;">
+  
+      <g transform="translate(90,80) scale(1)">
+        <rect x="-40" y="-12" width="70" height="24" fill="none" stroke="#0f172a" stroke-width="2" rx="2"/>
+        <rect x="10" y="-8" width="28" height="16" fill="#e2e8f0" stroke="#0f172a" stroke-width="1.5"/>
+        <line x1="38" y1="0" x2="52" y2="0" stroke="#0f172a" stroke-width="2"/>
+        <line x1="-30" y1="-8" x2="-30" y2="8" stroke="#64748b" stroke-width="1"/>
+        <line x1="-10" y1="-8" x2="-10" y2="8" stroke="#64748b" stroke-width="1"/>
+      </g>
+</svg></div>
+<div class="card"><div class="label">Thermometer</div><svg xmlns="http://www.w3.org/2000/svg" class="equipment-svg" viewBox="0 0 180 160" width="100%" style="max-width:560px;height:auto;display:block;margin:0 auto;background:#fff;">
+  
+      <g transform="translate(90,80) scale(1)">
+        <rect x="-4" y="-44" width="8" height="70" fill="none" stroke="#0f172a" stroke-width="2" rx="4"/>
+        <circle cx="0" cy="36" r="10" fill="#ef4444" stroke="#0f172a" stroke-width="2"/>
+        <line x1="0" y1="26" x2="0" y2="-20" stroke="#ef4444" stroke-width="2"/>
+      </g>
+</svg></div>
+<div class="card"><div class="label">Stand and clamp</div><svg xmlns="http://www.w3.org/2000/svg" class="equipment-svg" viewBox="0 0 180 160" width="100%" style="max-width:560px;height:auto;display:block;margin:0 auto;background:#fff;">
+  
+      <g transform="translate(90,80) scale(1)">
+        <rect x="-28" y="36" width="56" height="8" fill="none" stroke="#0f172a" stroke-width="2"/>
+        <line x1="-20" y1="36" x2="-20" y2="-44" stroke="#0f172a" stroke-width="3"/>
+        <rect x="-20" y="-10" width="36" height="8" fill="none" stroke="#0f172a" stroke-width="2"/>
+        <circle cx="20" cy="-6" r="6" fill="none" stroke="#0f172a" stroke-width="2"/>
+      </g>
+</svg></div>
+<div class="card"><div class="label">Chromatography tank</div><svg xmlns="http://www.w3.org/2000/svg" class="equipment-svg" viewBox="0 0 180 160" width="100%" style="max-width:560px;height:auto;display:block;margin:0 auto;background:#fff;">
+  
+      <g transform="translate(90,80) scale(1)">
+        <rect x="-36" y="-36" width="72" height="72" fill="none" stroke="#0f172a" stroke-width="2" rx="2"/>
+        <line x1="-28" y1="24" x2="28" y2="24" stroke="#93c5fd" stroke-width="3"/>
+        <line x1="0" y1="-28" x2="0" y2="24" stroke="#64748b" stroke-width="1.5"/>
+        <circle cx="0" cy="8" r="3" fill="#7c3aed"/>
+        <circle cx="0" cy="-4" r="3" fill="#2563eb"/>
+      </g>
+</svg></div>
+<div class="card"><div class="label">Pestle and mortar</div><svg xmlns="http://www.w3.org/2000/svg" class="equipment-svg" viewBox="0 0 180 160" width="100%" style="max-width:560px;height:auto;display:block;margin:0 auto;background:#fff;">
+  
+      <g transform="translate(90,80) scale(1)">
+        <path d="M -32 8 Q -32 36 0 36 Q 32 36 32 8" fill="none" stroke="#0f172a" stroke-width="2"/>
+        <line x1="-32" y1="8" x2="32" y2="8" stroke="#0f172a" stroke-width="2"/>
+        <line x1="8" y1="0" x2="28" y2="-28" stroke="#0f172a" stroke-width="3" stroke-linecap="round"/>
+      </g>
+</svg></div>
+<div class="card"><div class="label">Spatula</div><svg xmlns="http://www.w3.org/2000/svg" class="equipment-svg" viewBox="0 0 180 160" width="100%" style="max-width:560px;height:auto;display:block;margin:0 auto;background:#fff;">
+  
+      <g transform="translate(90,80) scale(1)">
+        <line x1="-40" y1="0" x2="20" y2="0" stroke="#0f172a" stroke-width="3" stroke-linecap="round"/>
+        <ellipse cx="30" cy="0" rx="12" ry="6" fill="none" stroke="#0f172a" stroke-width="2"/>
+      </g>
+</svg></div>
+<div class="card"><div class="label">Teat pipette</div><svg xmlns="http://www.w3.org/2000/svg" class="equipment-svg" viewBox="0 0 180 160" width="100%" style="max-width:560px;height:auto;display:block;margin:0 auto;background:#fff;">
+  
+      <g transform="translate(90,80) scale(1)">
+        <ellipse cx="0" cy="-36" rx="10" ry="12" fill="none" stroke="#0f172a" stroke-width="2"/>
+        <line x1="0" y1="-24" x2="0" y2="40" stroke="#0f172a" stroke-width="2"/>
+        <path d="M -3 32 L 0 44 L 3 32" fill="none" stroke="#0f172a" stroke-width="1.5"/>
+      </g>
+</svg></div>
+<div class="card"><div class="label">Light microscope</div><svg xmlns="http://www.w3.org/2000/svg" class="equipment-svg" viewBox="0 0 180 160" width="100%" style="max-width:560px;height:auto;display:block;margin:0 auto;background:#fff;">
+  
+      <g transform="translate(90,80) scale(1)">
+        <rect x="-24" y="28" width="48" height="12" fill="none" stroke="#0f172a" stroke-width="2"/>
+        <path d="M -8 28 L -8 -8 L 8 -8 L 8 28" fill="none" stroke="#0f172a" stroke-width="2"/>
+        <circle cx="0" cy="-20" r="12" fill="none" stroke="#0f172a" stroke-width="2"/>
+        <circle cx="0" cy="-20" r="5" fill="none" stroke="#0f172a" stroke-width="1.5"/>
+        <rect x="-6" y="-8" width="12" height="16" fill="none" stroke="#0f172a" stroke-width="1.5"/>
+        <line x1="8" y1="4" x2="22" y2="4" stroke="#0f172a" stroke-width="2"/>
+      </g>
+</svg></div>
+<div class="card"><div class="label">Microscope slide</div><svg xmlns="http://www.w3.org/2000/svg" class="equipment-svg" viewBox="0 0 180 160" width="100%" style="max-width:560px;height:auto;display:block;margin:0 auto;background:#fff;">
+  
+      <g transform="translate(90,80) scale(1)">
+        <rect x="-40" y="-12" width="80" height="24" fill="#e0f2fe" stroke="#0f172a" stroke-width="2" rx="2"/>
+        <rect x="-10" y="-8" width="20" height="16" fill="none" stroke="#64748b" stroke-width="1.5"/>
+      </g>
+</svg></div>
+<div class="card"><div class="label">Petri dish</div><svg xmlns="http://www.w3.org/2000/svg" class="equipment-svg" viewBox="0 0 180 160" width="100%" style="max-width:560px;height:auto;display:block;margin:0 auto;background:#fff;">
+  
+      <g transform="translate(90,80) scale(1)">
+        <ellipse cx="0" cy="4" rx="36" ry="16" fill="#fef3c7" stroke="#0f172a" stroke-width="2"/>
+        <ellipse cx="0" cy="-4" rx="36" ry="16" fill="none" stroke="#0f172a" stroke-width="2"/>
+        <circle cx="-8" cy="0" r="4" fill="none" stroke="#16a34a" stroke-width="1.5"/>
+        <circle cx="10" cy="2" r="5" fill="none" stroke="#16a34a" stroke-width="1.5"/>
+      </g>
+</svg></div>
+<div class="card"><div class="label">Syringe</div><svg xmlns="http://www.w3.org/2000/svg" class="equipment-svg" viewBox="0 0 180 160" width="100%" style="max-width:560px;height:auto;display:block;margin:0 auto;background:#fff;">
+  
+      <g transform="translate(90,80) scale(1)">
+        <rect x="-36" y="-10" width="60" height="20" fill="none" stroke="#0f172a" stroke-width="2" rx="2"/>
+        <rect x="8" y="-6" width="24" height="12" fill="#e2e8f0" stroke="#0f172a" stroke-width="1.5"/>
+        <line x1="32" y1="0" x2="44" y2="0" stroke="#0f172a" stroke-width="2"/>
+        <line x1="-36" y1="0" x2="-48" y2="0" stroke="#0f172a" stroke-width="2"/>
+      </g>
+</svg></div>
+<div class="card"><div class="label">Forceps</div><svg xmlns="http://www.w3.org/2000/svg" class="equipment-svg" viewBox="0 0 180 160" width="100%" style="max-width:560px;height:auto;display:block;margin:0 auto;background:#fff;">
+  
+      <g transform="translate(90,80) scale(1)">
+        <path d="M -30 -20 Q 0 0 -30 20" fill="none" stroke="#0f172a" stroke-width="2"/>
+        <path d="M -24 -16 Q 4 0 -24 16" fill="none" stroke="#0f172a" stroke-width="2"/>
+        <line x1="0" y1="0" x2="36" y2="0" stroke="#0f172a" stroke-width="2"/>
+      </g>
+</svg></div>
+<div class="card"><div class="label">Quadrat</div><svg xmlns="http://www.w3.org/2000/svg" class="equipment-svg" viewBox="0 0 180 160" width="100%" style="max-width:560px;height:auto;display:block;margin:0 auto;background:#fff;">
+  
+      <g transform="translate(90,80) scale(1)">
+        <rect x="-36" y="-36" width="72" height="72" fill="none" stroke="#0f172a" stroke-width="2"/>
+        <line x1="-12" y1="-36" x2="-12" y2="36" stroke="#94a3b8" stroke-width="1"/>
+        <line x1="12" y1="-36" x2="12" y2="36" stroke="#94a3b8" stroke-width="1"/>
+        <line x1="-36" y1="-12" x2="36" y2="-12" stroke="#94a3b8" stroke-width="1"/>
+        <line x1="-36" y1="12" x2="36" y2="12" stroke="#94a3b8" stroke-width="1"/>
+      </g>
+</svg></div>
+<div class="card"><div class="label">Stopwatch</div><svg xmlns="http://www.w3.org/2000/svg" class="equipment-svg" viewBox="0 0 180 160" width="100%" style="max-width:560px;height:auto;display:block;margin:0 auto;background:#fff;">
+  
+      <g transform="translate(90,80) scale(1)">
+        <circle cx="0" cy="4" r="28" fill="none" stroke="#0f172a" stroke-width="2"/>
+        <circle cx="0" cy="4" r="3" fill="#0f172a"/>
+        <line x1="0" y1="4" x2="0" y2="-14" stroke="#0f172a" stroke-width="2"/>
+        <line x1="0" y1="4" x2="14" y2="12" stroke="#0f172a" stroke-width="2"/>
+        <rect x="-6" y="-32" width="12" height="8" fill="none" stroke="#0f172a" stroke-width="1.5"/>
+      </g>
+</svg></div>
+<div class="card"><div class="label">Metre rule / ruler</div><svg xmlns="http://www.w3.org/2000/svg" class="equipment-svg" viewBox="0 0 180 160" width="100%" style="max-width:560px;height:auto;display:block;margin:0 auto;background:#fff;">
+  
+      <g transform="translate(90,80) scale(1)">
+        <rect x="-50" y="-10" width="100" height="20" fill="#fef3c7" stroke="#0f172a" stroke-width="2"/>
+        <line x1="-40" y1="-10" x2="-40" y2="-2" stroke="#0f172a" stroke-width="1"/>
+        <line x1="-20" y1="-10" x2="-20" y2="-2" stroke="#0f172a" stroke-width="1"/>
+        <line x1="0" y1="-10" x2="0" y2="0" stroke="#0f172a" stroke-width="1.5"/>
+        <line x1="20" y1="-10" x2="20" y2="-2" stroke="#0f172a" stroke-width="1"/>
+        <line x1="40" y1="-10" x2="40" y2="-2" stroke="#0f172a" stroke-width="1"/>
+      </g>
+</svg></div>
+<div class="card"><div class="label">Power supply</div><svg xmlns="http://www.w3.org/2000/svg" class="equipment-svg" viewBox="0 0 180 160" width="100%" style="max-width:560px;height:auto;display:block;margin:0 auto;background:#fff;">
+  
+      <g transform="translate(90,80) scale(1)">
+        <rect x="-40" y="-24" width="80" height="48" fill="none" stroke="#0f172a" stroke-width="2" rx="4"/>
+        <text x="0" y="4" text-anchor="middle" font-size="11" font-weight="700" fill="#0f172a" font-family="system-ui,sans-serif">PSU</text>
+        <circle cx="-22" cy="0" r="5" fill="none" stroke="#dc2626" stroke-width="2"/>
+        <circle cx="22" cy="0" r="5" fill="none" stroke="#000" stroke-width="2"/>
+      </g>
+</svg></div>
+<div class="card"><div class="label">Ammeter (instrument)</div><svg xmlns="http://www.w3.org/2000/svg" class="equipment-svg" viewBox="0 0 180 160" width="100%" style="max-width:560px;height:auto;display:block;margin:0 auto;background:#fff;">
+  
+      <g transform="translate(90,80) scale(1)">
+        <rect x="-28" y="-20" width="56" height="40" fill="none" stroke="#0f172a" stroke-width="2" rx="4"/>
+        <circle cx="0" cy="0" r="12" fill="none" stroke="#0f172a" stroke-width="2"/>
+        <text x="0" y="4" text-anchor="middle" font-size="12" font-weight="700" fill="#0f172a" font-family="system-ui,sans-serif">A</text>
+      </g>
+</svg></div>
+<div class="card"><div class="label">Voltmeter (instrument)</div><svg xmlns="http://www.w3.org/2000/svg" class="equipment-svg" viewBox="0 0 180 160" width="100%" style="max-width:560px;height:auto;display:block;margin:0 auto;background:#fff;">
+  
+      <g transform="translate(90,80) scale(1)">
+        <rect x="-28" y="-20" width="56" height="40" fill="none" stroke="#0f172a" stroke-width="2" rx="4"/>
+        <circle cx="0" cy="0" r="12" fill="none" stroke="#0f172a" stroke-width="2"/>
+        <text x="0" y="4" text-anchor="middle" font-size="12" font-weight="700" fill="#0f172a" font-family="system-ui,sans-serif">V</text>
+      </g>
+</svg></div>
+<div class="card"><div class="label">Ray box</div><svg xmlns="http://www.w3.org/2000/svg" class="equipment-svg" viewBox="0 0 180 160" width="100%" style="max-width:560px;height:auto;display:block;margin:0 auto;background:#fff;">
+  
+      <g transform="translate(90,80) scale(1)">
+        <rect x="-30" y="-16" width="40" height="32" fill="none" stroke="#0f172a" stroke-width="2"/>
+        <line x1="10" y1="0" x2="48" y2="0" stroke="#fbbf24" stroke-width="3"/>
+        <line x1="10" y1="-8" x2="44" y2="-16" stroke="#fbbf24" stroke-width="2"/>
+        <line x1="10" y1="8" x2="44" y2="16" stroke="#fbbf24" stroke-width="2"/>
+      </g>
+</svg></div>
+<div class="card"><div class="label">Spring</div><svg xmlns="http://www.w3.org/2000/svg" class="equipment-svg" viewBox="0 0 180 160" width="100%" style="max-width:560px;height:auto;display:block;margin:0 auto;background:#fff;">
+  
+      <g transform="translate(90,80) scale(1)">
+        <path d="M 0 -40 L 0 -28 Q 12 -24 0 -16 Q -12 -8 0 0 Q 12 8 0 16 Q -12 24 0 32 L 0 44" fill="none" stroke="#0f172a" stroke-width="2"/>
+      </g>
+</svg></div>
+<div class="card"><div class="label">Newton meter</div><svg xmlns="http://www.w3.org/2000/svg" class="equipment-svg" viewBox="0 0 180 160" width="100%" style="max-width:560px;height:auto;display:block;margin:0 auto;background:#fff;">
+  
+      <g transform="translate(90,80) scale(1)">
+        <rect x="-12" y="-40" width="24" height="60" fill="none" stroke="#0f172a" stroke-width="2" rx="2"/>
+        <line x1="-8" y1="-20" x2="8" y2="-20" stroke="#64748b" stroke-width="1"/>
+        <line x1="-8" y1="0" x2="8" y2="0" stroke="#64748b" stroke-width="1"/>
+        <path d="M 0 20 L 0 40 Q -6 48 0 52" fill="none" stroke="#0f172a" stroke-width="2"/>
+        <text x="0" y="-26" text-anchor="middle" font-size="8" fill="#0f172a" font-family="system-ui,sans-serif">N</text>
+      </g>
+</svg></div>
+<div class="card"><div class="label">Trolley</div><svg xmlns="http://www.w3.org/2000/svg" class="equipment-svg" viewBox="0 0 180 160" width="100%" style="max-width:560px;height:auto;display:block;margin:0 auto;background:#fff;">
+  
+      <g transform="translate(90,80) scale(1)">
+        <rect x="-36" y="-12" width="72" height="24" fill="none" stroke="#0f172a" stroke-width="2" rx="2"/>
+        <circle cx="-20" cy="16" r="8" fill="none" stroke="#0f172a" stroke-width="2"/>
+        <circle cx="20" cy="16" r="8" fill="none" stroke="#0f172a" stroke-width="2"/>
+      </g>
+</svg></div>
+<div class="card"><div class="label">Ramp</div><svg xmlns="http://www.w3.org/2000/svg" class="equipment-svg" viewBox="0 0 180 160" width="100%" style="max-width:560px;height:auto;display:block;margin:0 auto;background:#fff;">
+  
+      <g transform="translate(90,80) scale(1)">
+        <path d="M -48 24 L 48 24 L 48 16 L -48 -24 Z" fill="#f1f5f9" stroke="#0f172a" stroke-width="2"/>
+      </g>
+</svg></div>
+<div class="card"><div class="label">Balance / scales</div><svg xmlns="http://www.w3.org/2000/svg" class="equipment-svg" viewBox="0 0 180 160" width="100%" style="max-width:560px;height:auto;display:block;margin:0 auto;background:#fff;">
+  
+      <g transform="translate(90,80) scale(1)">
+        <rect x="-32" y="8" width="64" height="20" fill="none" stroke="#0f172a" stroke-width="2" rx="2"/>
+        <rect x="-24" y="-16" width="48" height="24" fill="none" stroke="#0f172a" stroke-width="2"/>
+        <text x="0" y="0" text-anchor="middle" font-size="10" fill="#0f172a" font-family="system-ui,sans-serif">0.00</text>
+      </g>
+</svg></div>
+<div class="card"><div class="label">Oscilloscope</div><svg xmlns="http://www.w3.org/2000/svg" class="equipment-svg" viewBox="0 0 180 160" width="100%" style="max-width:560px;height:auto;display:block;margin:0 auto;background:#fff;">
+  
+      <g transform="translate(90,80) scale(1)">
+        <rect x="-40" y="-28" width="80" height="56" fill="none" stroke="#0f172a" stroke-width="2" rx="4"/>
+        <rect x="-32" y="-20" width="48" height="36" fill="#0f172a" stroke="#0f172a" stroke-width="1"/>
+        <path d="M -28 0 Q -20 -12 -12 0 Q -4 12 4 0 Q 12 -12 20 0" fill="none" stroke="#4ade80" stroke-width="2"/>
+        <circle cx="28" cy="-8" r="4" fill="none" stroke="#0f172a" stroke-width="1.5"/>
+        <circle cx="28" cy="8" r="4" fill="none" stroke="#0f172a" stroke-width="1.5"/>
+      </g>
+</svg></div>
+<div class="card"><div class="label">Microphone</div><svg xmlns="http://www.w3.org/2000/svg" class="equipment-svg" viewBox="0 0 180 160" width="100%" style="max-width:560px;height:auto;display:block;margin:0 auto;background:#fff;">
+  
+      <g transform="translate(90,80) scale(1)">
+        <rect x="-12" y="-28" width="24" height="36" rx="12" fill="none" stroke="#0f172a" stroke-width="2"/>
+        <path d="M -18 0 Q -18 20 0 24 Q 18 20 18 0" fill="none" stroke="#0f172a" stroke-width="2"/>
+        <line x1="0" y1="24" x2="0" y2="40" stroke="#0f172a" stroke-width="2"/>
+        <line x1="-12" y1="40" x2="12" y2="40" stroke="#0f172a" stroke-width="2"/>
+      </g>
+</svg></div>
+<div class="card"><div class="label">Loudspeaker</div><svg xmlns="http://www.w3.org/2000/svg" class="equipment-svg" viewBox="0 0 180 160" width="100%" style="max-width:560px;height:auto;display:block;margin:0 auto;background:#fff;">
+  
+      <g transform="translate(90,80) scale(1)">
+        <rect x="-24" y="-16" width="20" height="32" fill="none" stroke="#0f172a" stroke-width="2"/>
+        <path d="M -4 -16 L 24 -32 L 24 32 L -4 16 Z" fill="none" stroke="#0f172a" stroke-width="2"/>
+      </g>
+</svg></div>
+<div class="card"><div class="label">Radiation absorber</div><svg xmlns="http://www.w3.org/2000/svg" class="equipment-svg" viewBox="0 0 180 160" width="100%" style="max-width:560px;height:auto;display:block;margin:0 auto;background:#fff;">
+  
+      <g transform="translate(90,80) scale(1)">
+        <rect x="-28" y="-36" width="16" height="72" fill="#cbd5e1" stroke="#0f172a" stroke-width="2"/>
+        <rect x="-4" y="-36" width="16" height="72" fill="#94a3b8" stroke="#0f172a" stroke-width="2"/>
+        <rect x="20" y="-36" width="16" height="72" fill="#64748b" stroke="#0f172a" stroke-width="2"/>
+      </g>
+</svg></div></div></body></html>

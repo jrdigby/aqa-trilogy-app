@@ -94,6 +94,12 @@ export function renderQuestionLayout(q, commandWordBanner, currentKey, layoutOpt
   else if (q.question_type === "chemistry_interactive") {
     html += `<div id="chemistryWorkflowMount"></div>`;
   }
+  else if (q.question_type === "circuit_interactive") {
+    html += `<div id="circuitWorkflowMount"></div>`;
+  }
+  else if (q.question_type === "equipment_interactive") {
+    html += `<div id="equipmentWorkflowMount"></div>`;
+  }
   else if (q.question_type === "extended_response") {
     html += `
       <div class="item">
@@ -130,6 +136,30 @@ export async function mountChemistryQuestionWorkflow(q, currentKey, presentation
   const mod = await loadChemistryWorkflow();
   mount.outerHTML = mod.renderChemistryWorkflow(q, currentKey, presentation);
   mod.wireChemistryWorkflow(q);
+  return mod;
+}
+
+/** Loads circuit interactive UI after renderQuestionLayout. */
+export async function mountCircuitQuestionWorkflow(q, currentKey, presentation = "practice") {
+  const mount = document.getElementById("circuitWorkflowMount");
+  if (!mount) return null;
+
+  const { loadCircuitWorkflow } = await import("./lazyCircuitWorkflow.js");
+  const mod = await loadCircuitWorkflow();
+  mount.outerHTML = mod.renderCircuitWorkflow(q, currentKey, presentation);
+  mod.wireCircuitWorkflow(q);
+  return mod;
+}
+
+/** Loads equipment interactive UI after renderQuestionLayout. */
+export async function mountEquipmentQuestionWorkflow(q, currentKey, presentation = "practice") {
+  const mount = document.getElementById("equipmentWorkflowMount");
+  if (!mount) return null;
+
+  const { loadEquipmentWorkflow } = await import("./lazyEquipmentWorkflow.js");
+  const mod = await loadEquipmentWorkflow();
+  mount.outerHTML = mod.renderEquipmentWorkflow(q, currentKey, presentation);
+  mod.wireEquipmentWorkflow(q);
   return mod;
 }
 
@@ -188,6 +218,24 @@ export async function renderFeedback(marking, currentQ, currentKey, currentMarkP
     });
   }
 
+  if (currentQ.question_type === "circuit_interactive") {
+    const { loadCircuitWorkflow } = await import("./lazyCircuitWorkflow.js");
+    const { renderCircuitModelAnswerHtml } = await loadCircuitWorkflow();
+    const expected = currentKey?.key_payload || currentQ.circuit_config?.answer || {};
+    html += renderCircuitModelAnswerHtml(expected, {
+      title: isPerfect ? "Model answer" : "Correct answer",
+    });
+  }
+
+  if (currentQ.question_type === "equipment_interactive") {
+    const { loadEquipmentWorkflow } = await import("./lazyEquipmentWorkflow.js");
+    const { renderEquipmentModelAnswerHtml } = await loadEquipmentWorkflow();
+    const expected = currentKey?.key_payload || currentQ.equipment_config?.answer || {};
+    html += renderEquipmentModelAnswerHtml(expected, {
+      title: isPerfect ? "Model answer" : "Correct answer",
+    });
+  }
+
   if (currentQ.question_type === "short_text" && currentKey && (currentKey.key_type === "keywords" || currentKey.key_type === "pick_n")) {
     let allTargetKeywords = [];
     if (currentKey.key_type === "pick_n") {
@@ -232,7 +280,11 @@ export async function renderFeedback(marking, currentQ, currentKey, currentMarkP
 
   if (marking.missing && marking.missing.length > 0) {
     // Chemistry interactive: model-answer / compare diagram is sufficient feedback
-    if (currentQ.question_type !== "chemistry_interactive") {
+    if (
+      currentQ.question_type !== "chemistry_interactive"
+      && currentQ.question_type !== "circuit_interactive"
+      && currentQ.question_type !== "equipment_interactive"
+    ) {
     html += `<hr/><div><strong>How to improve</strong></div>`;
     html += marking.missing.map(m => {
       let feedbackImgHtml = m.image_url 
@@ -681,11 +733,21 @@ export const QUESTION_TYPE_LABELS = {
   mcq: "Multiple Choice",
   numeric: "Numeric / Calculations",
   chemistry_interactive: "Chemistry Diagram / Equation",
+  circuit_interactive: "Circuit Diagram",
+  equipment_interactive: "Apparatus / Equipment",
   short_text: "Short Text / Written",
   extended_response: "Extended Response"
 };
 
-export const QUESTION_TYPE_ORDER = ["mcq", "numeric", "chemistry_interactive", "short_text", "extended_response"];
+export const QUESTION_TYPE_ORDER = [
+  "mcq",
+  "numeric",
+  "chemistry_interactive",
+  "circuit_interactive",
+  "equipment_interactive",
+  "short_text",
+  "extended_response",
+];
 
 function masteryColorTheme(percentage, hasAttempts) {
   if (!hasAttempts) return "#bdc3c7";
