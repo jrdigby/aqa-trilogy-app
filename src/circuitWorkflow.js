@@ -40,125 +40,204 @@ export function renderSymbolAt(type, cx, cy, { highlight = false, slot = false, 
   const midY = cy;
   let body = "";
 
-  const wireIn = `<line x1="${left}" y1="${midY}" x2="${cx - 18}" y2="${midY}" stroke="${stroke}" stroke-width="${sw}"/>`;
-  const wireOut = `<line x1="${cx + 18}" y1="${midY}" x2="${right}" y2="${midY}" stroke="${stroke}" stroke-width="${sw}"/>`;
+  /** Wire stubs that meet (and slightly underlap) a component edge at x = cx ± edge. */
+  const wiresTo = (edge) => {
+    // End slightly inside the component so the joint reads as continuous
+    const e = Math.max(0, edge - 1.5);
+    return `
+    <line x1="${left}" y1="${midY}" x2="${cx - e}" y2="${midY}" stroke="${stroke}" stroke-width="${sw}" stroke-linecap="butt"/>
+    <line x1="${cx + e}" y1="${midY}" x2="${right}" y2="${midY}" stroke="${stroke}" stroke-width="${sw}" stroke-linecap="butt"/>`;
+  };
+
+  /** Filled arrowhead at (tipX, tipY), pointing along (dx, dy). */
+  const arrowHead = (tipX, tipY, dx, dy, size = 7) => {
+    const len = Math.hypot(dx, dy) || 1;
+    const ux = dx / len;
+    const uy = dy / len;
+    const px = -uy;
+    const py = ux;
+    const bx = tipX - ux * size;
+    const by = tipY - uy * size;
+    const wing = size * 0.6;
+    const p1x = bx + px * wing;
+    const p1y = by + py * wing;
+    const p2x = bx - px * wing;
+    const p2y = by - py * wing;
+    return `<polygon points="${tipX},${tipY} ${p1x},${p1y} ${p2x},${p2y}" fill="${stroke}" stroke="${stroke}" stroke-width="0.5" stroke-linejoin="round"/>`;
+  };
 
   switch (type) {
     case "cell":
+      // Long plate (+) left, short plate (−) right; + marked top-left of first plate
       body = `
-        ${wireIn}${wireOut}
+        <line x1="${left}" y1="${midY}" x2="${cx - 6}" y2="${midY}" stroke="${stroke}" stroke-width="${sw}"/>
+        <line x1="${cx + 6}" y1="${midY}" x2="${right}" y2="${midY}" stroke="${stroke}" stroke-width="${sw}"/>
         <line x1="${cx - 6}" y1="${cy - 16}" x2="${cx - 6}" y2="${cy + 16}" stroke="${stroke}" stroke-width="3"/>
         <line x1="${cx + 6}" y1="${cy - 8}" x2="${cx + 6}" y2="${cy + 8}" stroke="${stroke}" stroke-width="2"/>
+        <text x="${cx - 14}" y="${cy - 20}" text-anchor="middle" font-size="13" font-weight="700" fill="${stroke}" font-family="system-ui,sans-serif">+</text>
       `;
       break;
     case "battery":
+      // Two cells with four clear dashed segments between them; + at top-left of first plate
       body = `
-        ${wireIn}${wireOut}
-        <line x1="${cx - 12}" y1="${cy - 16}" x2="${cx - 12}" y2="${cy + 16}" stroke="${stroke}" stroke-width="3"/>
-        <line x1="${cx - 4}" y1="${cy - 8}" x2="${cx - 4}" y2="${cy + 8}" stroke="${stroke}" stroke-width="2"/>
-        <line x1="${cx + 4}" y1="${cy - 16}" x2="${cx + 4}" y2="${cy + 16}" stroke="${stroke}" stroke-width="3"/>
-        <line x1="${cx + 12}" y1="${cy - 8}" x2="${cx + 12}" y2="${cy + 8}" stroke="${stroke}" stroke-width="2"/>
+        <line x1="${left}" y1="${midY}" x2="${cx - 18}" y2="${midY}" stroke="${stroke}" stroke-width="${sw}"/>
+        <line x1="${cx + 18}" y1="${midY}" x2="${right}" y2="${midY}" stroke="${stroke}" stroke-width="${sw}"/>
+        <line x1="${cx - 18}" y1="${cy - 16}" x2="${cx - 18}" y2="${cy + 16}" stroke="${stroke}" stroke-width="3"/>
+        <line x1="${cx - 10}" y1="${cy - 8}" x2="${cx - 10}" y2="${cy + 8}" stroke="${stroke}" stroke-width="2"/>
+        <line x1="${cx - 7}" y1="${midY}" x2="${cx - 4.5}" y2="${midY}" stroke="${stroke}" stroke-width="${sw}"/>
+        <line x1="${cx - 2.5}" y1="${midY}" x2="${cx}" y2="${midY}" stroke="${stroke}" stroke-width="${sw}"/>
+        <line x1="${cx + 2}" y1="${midY}" x2="${cx + 4.5}" y2="${midY}" stroke="${stroke}" stroke-width="${sw}"/>
+        <line x1="${cx + 6.5}" y1="${midY}" x2="${cx + 9}" y2="${midY}" stroke="${stroke}" stroke-width="${sw}"/>
+        <line x1="${cx + 10}" y1="${cy - 16}" x2="${cx + 10}" y2="${cy + 16}" stroke="${stroke}" stroke-width="3"/>
+        <line x1="${cx + 18}" y1="${cy - 8}" x2="${cx + 18}" y2="${cy + 8}" stroke="${stroke}" stroke-width="2"/>
+        <text x="${cx - 26}" y="${cy - 18}" text-anchor="middle" font-size="13" font-weight="700" fill="${stroke}" font-family="system-ui,sans-serif">+</text>
       `;
       break;
     case "switch_open":
       body = `
         <line x1="${left}" y1="${midY}" x2="${cx - 14}" y2="${midY}" stroke="${stroke}" stroke-width="${sw}"/>
-        <circle cx="${cx - 14}" cy="${midY}" r="3" fill="${stroke}"/>
+        <circle cx="${cx - 14}" cy="${midY}" r="4" fill="#ffffff" stroke="${stroke}" stroke-width="1.5"/>
         <line x1="${cx - 14}" y1="${midY}" x2="${cx + 12}" y2="${cy - 14}" stroke="${stroke}" stroke-width="${sw}"/>
-        <circle cx="${cx + 14}" cy="${midY}" r="3" fill="${stroke}"/>
+        <circle cx="${cx + 14}" cy="${midY}" r="4" fill="#ffffff" stroke="${stroke}" stroke-width="1.5"/>
         <line x1="${cx + 14}" y1="${midY}" x2="${right}" y2="${midY}" stroke="${stroke}" stroke-width="${sw}"/>
       `;
       break;
     case "switch_closed":
       body = `
         <line x1="${left}" y1="${midY}" x2="${cx - 14}" y2="${midY}" stroke="${stroke}" stroke-width="${sw}"/>
-        <circle cx="${cx - 14}" cy="${midY}" r="3" fill="${stroke}"/>
+        <circle cx="${cx - 14}" cy="${midY}" r="4" fill="#ffffff" stroke="${stroke}" stroke-width="1.5"/>
         <line x1="${cx - 14}" y1="${midY}" x2="${cx + 14}" y2="${midY}" stroke="${stroke}" stroke-width="${sw}"/>
-        <circle cx="${cx + 14}" cy="${midY}" r="3" fill="${stroke}"/>
+        <circle cx="${cx + 14}" cy="${midY}" r="4" fill="#ffffff" stroke="${stroke}" stroke-width="1.5"/>
         <line x1="${cx + 14}" y1="${midY}" x2="${right}" y2="${midY}" stroke="${stroke}" stroke-width="${sw}"/>
       `;
       break;
     case "lamp":
       body = `
-        ${wireIn}${wireOut}
-        <circle cx="${cx}" cy="${cy}" r="14" fill="none" stroke="${stroke}" stroke-width="${sw}"/>
+        <line x1="${left}" y1="${midY}" x2="${cx - 14}" y2="${midY}" stroke="${stroke}" stroke-width="${sw}"/>
+        <line x1="${cx + 14}" y1="${midY}" x2="${right}" y2="${midY}" stroke="${stroke}" stroke-width="${sw}"/>
+        <circle cx="${cx}" cy="${cy}" r="14" fill="#fff" stroke="${stroke}" stroke-width="${sw}"/>
         <line x1="${cx - 10}" y1="${cy - 10}" x2="${cx + 10}" y2="${cy + 10}" stroke="${stroke}" stroke-width="1.5"/>
         <line x1="${cx + 10}" y1="${cy - 10}" x2="${cx - 10}" y2="${cy + 10}" stroke="${stroke}" stroke-width="1.5"/>
       `;
       break;
     case "fuse":
       body = `
-        ${wireIn}${wireOut}
-        <rect x="${cx - 16}" y="${cy - 8}" width="32" height="16" fill="none" stroke="${stroke}" stroke-width="${sw}"/>
-        <line x1="${cx - 16}" y1="${cy}" x2="${cx + 16}" y2="${cy}" stroke="${stroke}" stroke-width="1.5"/>
+        <line x1="${left}" y1="${midY}" x2="${cx - 16}" y2="${midY}" stroke="${stroke}" stroke-width="${sw}"/>
+        <line x1="${cx + 16}" y1="${midY}" x2="${right}" y2="${midY}" stroke="${stroke}" stroke-width="${sw}"/>
+        <rect x="${cx - 16}" y="${cy - 8}" width="32" height="16" fill="#fff" stroke="${stroke}" stroke-width="${sw}"/>
+        <line x1="${cx - 16}" y1="${cy}" x2="${cx + 16}" y2="${cy}" stroke="${stroke}" stroke-width="${sw}"/>
       `;
       break;
     case "ammeter":
       body = `
-        ${wireIn}${wireOut}
+        <line x1="${left}" y1="${midY}" x2="${cx - 14}" y2="${midY}" stroke="${stroke}" stroke-width="${sw}"/>
+        <line x1="${cx + 14}" y1="${midY}" x2="${right}" y2="${midY}" stroke="${stroke}" stroke-width="${sw}"/>
         <circle cx="${cx}" cy="${cy}" r="14" fill="#fff" stroke="${stroke}" stroke-width="${sw}"/>
         <text x="${cx}" y="${cy + 5}" text-anchor="middle" font-size="14" font-weight="700" fill="${stroke}" font-family="system-ui,sans-serif">A</text>
       `;
       break;
     case "voltmeter":
       body = `
-        ${wireIn}${wireOut}
+        <line x1="${left}" y1="${midY}" x2="${cx - 14}" y2="${midY}" stroke="${stroke}" stroke-width="${sw}"/>
+        <line x1="${cx + 14}" y1="${midY}" x2="${right}" y2="${midY}" stroke="${stroke}" stroke-width="${sw}"/>
         <circle cx="${cx}" cy="${cy}" r="14" fill="#fff" stroke="${stroke}" stroke-width="${sw}"/>
         <text x="${cx}" y="${cy + 5}" text-anchor="middle" font-size="14" font-weight="700" fill="${stroke}" font-family="system-ui,sans-serif">V</text>
       `;
       break;
     case "diode":
+      // Continuous wire through circle + triangle + cathode bar
       body = `
-        ${wireIn}${wireOut}
-        <polygon points="${cx - 10},${cy - 12} ${cx - 10},${cy + 12} ${cx + 10},${cy}" fill="none" stroke="${stroke}" stroke-width="${sw}"/>
-        <line x1="${cx + 10}" y1="${cy - 12}" x2="${cx + 10}" y2="${cy + 12}" stroke="${stroke}" stroke-width="${sw}"/>
+        <circle cx="${cx}" cy="${cy}" r="16" fill="#fff" stroke="${stroke}" stroke-width="${sw}"/>
+        <line x1="${left}" y1="${midY}" x2="${right}" y2="${midY}" stroke="${stroke}" stroke-width="${sw}"/>
+        <polygon points="${cx - 8},${cy - 10} ${cx - 8},${cy + 10} ${cx + 8},${cy}" fill="none" stroke="${stroke}" stroke-width="${sw}"/>
+        <line x1="${cx + 8}" y1="${cy - 10}" x2="${cx + 8}" y2="${cy + 10}" stroke="${stroke}" stroke-width="${sw}"/>
       `;
       break;
     case "led":
+      // Continuous wire through circle; arrows set clear of the circle
       body = `
-        ${wireIn}${wireOut}
-        <polygon points="${cx - 10},${cy - 12} ${cx - 10},${cy + 12} ${cx + 10},${cy}" fill="none" stroke="${stroke}" stroke-width="${sw}"/>
-        <line x1="${cx + 10}" y1="${cy - 12}" x2="${cx + 10}" y2="${cy + 12}" stroke="${stroke}" stroke-width="${sw}"/>
-        <line x1="${cx + 4}" y1="${cy - 18}" x2="${cx + 14}" y2="${cy - 28}" stroke="${stroke}" stroke-width="1.5"/>
-        <line x1="${cx + 10}" y1="${cy - 14}" x2="${cx + 20}" y2="${cy - 24}" stroke="${stroke}" stroke-width="1.5"/>
-        <polygon points="${cx + 14},${cy - 28} ${cx + 10},${cy - 24} ${cx + 18},${cy - 24}" fill="${stroke}"/>
-        <polygon points="${cx + 20},${cy - 24} ${cx + 16},${cy - 20} ${cx + 24},${cy - 20}" fill="${stroke}"/>
+        <circle cx="${cx}" cy="${cy}" r="16" fill="#fff" stroke="${stroke}" stroke-width="${sw}"/>
+        <line x1="${left}" y1="${midY}" x2="${right}" y2="${midY}" stroke="${stroke}" stroke-width="${sw}"/>
+        <polygon points="${cx - 8},${cy - 10} ${cx - 8},${cy + 10} ${cx + 8},${cy}" fill="none" stroke="${stroke}" stroke-width="${sw}"/>
+        <line x1="${cx + 8}" y1="${cy - 10}" x2="${cx + 8}" y2="${cy + 10}" stroke="${stroke}" stroke-width="${sw}"/>
+        <line x1="${cx + 12}" y1="${cy - 18}" x2="${cx + 22}" y2="${cy - 30}" stroke="${stroke}" stroke-width="1.6"/>
+        <line x1="${cx + 22}" y1="${cy - 30}" x2="${cx + 16}" y2="${cy - 29}" stroke="${stroke}" stroke-width="1.6"/>
+        <line x1="${cx + 22}" y1="${cy - 30}" x2="${cx + 21}" y2="${cy - 24}" stroke="${stroke}" stroke-width="1.6"/>
+        <line x1="${cx + 18}" y1="${cy - 14}" x2="${cx + 28}" y2="${cy - 26}" stroke="${stroke}" stroke-width="1.6"/>
+        <line x1="${cx + 28}" y1="${cy - 26}" x2="${cx + 22}" y2="${cy - 25}" stroke="${stroke}" stroke-width="1.6"/>
+        <line x1="${cx + 28}" y1="${cy - 26}" x2="${cx + 27}" y2="${cy - 20}" stroke="${stroke}" stroke-width="1.6"/>
       `;
       break;
-    case "resistor":
+    case "resistor": {
+      // ~2.5 : 1 rectangle
+      const rw = 40;
+      const rh = 16;
       body = `
-        ${wireIn}${wireOut}
-        <rect x="${cx - 18}" y="${cy - 10}" width="36" height="20" fill="none" stroke="${stroke}" stroke-width="${sw}"/>
+        <line x1="${left}" y1="${midY}" x2="${cx - rw / 2}" y2="${midY}" stroke="${stroke}" stroke-width="${sw}"/>
+        <line x1="${cx + rw / 2}" y1="${midY}" x2="${right}" y2="${midY}" stroke="${stroke}" stroke-width="${sw}"/>
+        <rect x="${cx - rw / 2}" y="${cy - rh / 2}" width="${rw}" height="${rh}" fill="#fff" stroke="${stroke}" stroke-width="${sw}"/>
       `;
       break;
-    case "variable_resistor":
+    }
+    case "variable_resistor": {
+      const rw = 40;
+      const rh = 16;
+      // 45° diagonal centred on rect; tips 0.25× rect-width above/below the box
+      const overhang = rw * 0.25;
+      const d = rh / 2 + overhang;
       body = `
-        ${wireIn}${wireOut}
-        <rect x="${cx - 18}" y="${cy - 10}" width="36" height="20" fill="none" stroke="${stroke}" stroke-width="${sw}"/>
-        <line x1="${cx - 8}" y1="${cy + 18}" x2="${cx + 14}" y2="${cy - 18}" stroke="${stroke}" stroke-width="${sw}"/>
-        <polygon points="${cx + 14},${cy - 18} ${cx + 6},${cy - 14} ${cx + 12},${cy - 10}" fill="${stroke}"/>
+        <line x1="${left}" y1="${midY}" x2="${cx - rw / 2}" y2="${midY}" stroke="${stroke}" stroke-width="${sw}"/>
+        <line x1="${cx + rw / 2}" y1="${midY}" x2="${right}" y2="${midY}" stroke="${stroke}" stroke-width="${sw}"/>
+        <rect x="${cx - rw / 2}" y="${cy - rh / 2}" width="${rw}" height="${rh}" fill="#fff" stroke="${stroke}" stroke-width="${sw}"/>
+        <line x1="${cx - d}" y1="${cy + d}" x2="${cx + d}" y2="${cy - d}" stroke="${stroke}" stroke-width="${sw}"/>
+        ${arrowHead(cx + d, cy - d, d * 2, -d * 2, 6)}
       `;
       break;
-    case "thermistor":
+    }
+    case "thermistor": {
+      const rw = 40;
+      const rh = 16;
+      // Stub (~1/4 rect length) starts under the left vertical of the box;
+      // 60° diagonal crosses the bottom edge at 0.45 along the width.
+      const hLen = rw / 4;
+      const bottomY = cy + rh / 2;
+      const crossX = cx - rw / 2 + 0.45 * rw;
+      const hx0 = cx - rw / 2;
+      const hx1 = hx0 + hLen;
+      const belowGap = (crossX - hx1) * Math.tan((60 * Math.PI) / 180);
+      const hy = bottomY + belowGap;
+      const tipY = cy - rh / 2 - rw * 0.25;
+      const tipX = hx1 + (hy - tipY) / Math.tan((60 * Math.PI) / 180);
       body = `
-        ${wireIn}${wireOut}
-        <rect x="${cx - 18}" y="${cy - 10}" width="36" height="20" fill="none" stroke="${stroke}" stroke-width="${sw}"/>
-        <path d="M ${cx - 10} ${cy + 16} L ${cx - 2} ${cy + 16} L ${cx + 2} ${cy - 16} L ${cx + 10} ${cy - 16}" fill="none" stroke="${stroke}" stroke-width="${sw}"/>
+        <line x1="${left}" y1="${midY}" x2="${cx - rw / 2}" y2="${midY}" stroke="${stroke}" stroke-width="${sw}"/>
+        <line x1="${cx + rw / 2}" y1="${midY}" x2="${right}" y2="${midY}" stroke="${stroke}" stroke-width="${sw}"/>
+        <rect x="${cx - rw / 2}" y="${cy - rh / 2}" width="${rw}" height="${rh}" fill="#fff" stroke="${stroke}" stroke-width="${sw}"/>
+        <line x1="${hx0}" y1="${hy}" x2="${hx1}" y2="${hy}" stroke="${stroke}" stroke-width="${sw}" stroke-linecap="square"/>
+        <line x1="${hx1}" y1="${hy}" x2="${tipX}" y2="${tipY}" stroke="${stroke}" stroke-width="${sw}" stroke-linecap="square"/>
       `;
       break;
-    case "ldr":
+    }
+    case "ldr": {
+      // Same circle size as ammeter/voltmeter (r=14); smaller 2.5:1 rect that fits inside
+      const cr = 14;
+      const rw = 18;
+      const rh = 7.2;
       body = `
-        ${wireIn}${wireOut}
-        <rect x="${cx - 18}" y="${cy - 10}" width="36" height="20" fill="none" stroke="${stroke}" stroke-width="${sw}"/>
-        <line x1="${cx - 6}" y1="${cy - 22}" x2="${cx - 16}" y2="${cy - 32}" stroke="${stroke}" stroke-width="1.5"/>
-        <line x1="${cx + 2}" y1="${cy - 22}" x2="${cx - 8}" y2="${cy - 32}" stroke="${stroke}" stroke-width="1.5"/>
-        <polygon points="${cx - 16},${cy - 32} ${cx - 12},${cy - 28} ${cx - 20},${cy - 28}" fill="${stroke}"/>
-        <polygon points="${cx - 8},${cy - 32} ${cx - 4},${cy - 28} ${cx - 12},${cy - 28}" fill="${stroke}"/>
+        <circle cx="${cx}" cy="${cy}" r="${cr}" fill="#fff" stroke="${stroke}" stroke-width="${sw}"/>
+        <line x1="${left}" y1="${midY}" x2="${right}" y2="${midY}" stroke="${stroke}" stroke-width="${sw}"/>
+        <rect x="${cx - rw / 2}" y="${cy - rh / 2}" width="${rw}" height="${rh}" fill="#fff" stroke="${stroke}" stroke-width="${sw}"/>
+        <line x1="${cx - 26}" y1="${cy - 32}" x2="${cx - 16}" y2="${cy - 22}" stroke="${stroke}" stroke-width="1.6"/>
+        <line x1="${cx - 16}" y1="${cy - 22}" x2="${cx - 22}" y2="${cy - 23}" stroke="${stroke}" stroke-width="1.6"/>
+        <line x1="${cx - 16}" y1="${cy - 22}" x2="${cx - 17}" y2="${cy - 28}" stroke="${stroke}" stroke-width="1.6"/>
+        <line x1="${cx - 16}" y1="${cy - 34}" x2="${cx - 6}" y2="${cy - 24}" stroke="${stroke}" stroke-width="1.6"/>
+        <line x1="${cx - 6}" y1="${cy - 24}" x2="${cx - 12}" y2="${cy - 25}" stroke="${stroke}" stroke-width="1.6"/>
+        <line x1="${cx - 6}" y1="${cy - 24}" x2="${cx - 7}" y2="${cy - 30}" stroke="${stroke}" stroke-width="1.6"/>
       `;
       break;
+    }
     default:
       body = `
-        ${wireIn}${wireOut}
+        ${wiresTo(16)}
         <rect x="${cx - 16}" y="${cy - 12}" width="32" height="24" fill="#f1f5f9" stroke="#94a3b8" stroke-width="2" stroke-dasharray="4 3" rx="4"/>
         <text x="${cx}" y="${cy + 4}" text-anchor="middle" font-size="11" fill="#64748b" font-family="system-ui,sans-serif">?</text>
       `;
