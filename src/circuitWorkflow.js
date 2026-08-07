@@ -197,15 +197,14 @@ export function renderSymbolAt(type, cx, cy, { highlight = false, slot = false, 
     case "thermistor": {
       const rw = 40;
       const rh = 16;
-      // Stub (~1/4 rect length) starts under the left vertical of the box;
-      // 60° diagonal crosses the bottom edge at 0.45 along the width.
-      const hLen = rw / 4;
+      // Horizontal stub starts under the left vertical; half the box height below
+      // (close to the rectangle). 60° diagonal crosses bottom at 0.45 along width.
       const bottomY = cy + rh / 2;
+      const belowGap = rh * 0.5;
+      const hy = bottomY + belowGap;
       const crossX = cx - rw / 2 + 0.45 * rw;
       const hx0 = cx - rw / 2;
-      const hx1 = hx0 + hLen;
-      const belowGap = (crossX - hx1) * Math.tan((60 * Math.PI) / 180);
-      const hy = bottomY + belowGap;
+      const hx1 = crossX - belowGap / Math.tan((60 * Math.PI) / 180);
       const tipY = cy - rh / 2 - rw * 0.25;
       const tipX = hx1 + (hy - tipY) / Math.tan((60 * Math.PI) / 180);
       body = `
