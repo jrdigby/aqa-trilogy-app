@@ -31,6 +31,10 @@ import {
   WEEKLY_FORECAST_TARGET,
   TODAY_DUE_TARGET
 } from "./srsAnalytics.js";
+import {
+  normalizeCurrentGrades,
+  normalizeTargetGrades
+} from "./gradeConfig.js";
 
 export { fetchUserProfile };
 export {
@@ -67,17 +71,22 @@ export async function saveOnboardingProfile(userId, payload) {
     subject_tiers,
     subject_preference,
     revision_horizon_preset,
-    target_exam_date
+    target_exam_date,
+    current_grades,
+    target_grades
   } = payload;
+  const path = science_path === "triple" ? "triple" : "combined";
   const patch = {
     preferred_tier: normalizeTier(preferred_tier),
-    science_path: science_path === "triple" ? "triple" : "combined",
+    science_path: path,
     subject_preference: subject_preference || {
       biology: 1,
       chemistry: 2,
       physics: 3
     },
     revision_horizon_preset: normalizeHorizonPreset(revision_horizon_preset),
+    current_grades: normalizeCurrentGrades(current_grades, path),
+    target_grades: normalizeTargetGrades(target_grades, path),
     onboarding_completed_at: new Date().toISOString()
   };
   if (science_path === "triple" && subject_tiers) {
@@ -105,11 +114,14 @@ export async function saveUserProfileSettings(userId, payload) {
     subject_tiers,
     display_name,
     revision_horizon_preset,
-    target_exam_date
+    target_exam_date,
+    current_grades,
+    target_grades
   } = payload;
+  const path = science_path === "triple" ? "triple" : "combined";
   const patch = {
     preferred_tier: normalizeTier(preferred_tier),
-    science_path: science_path === "triple" ? "triple" : "combined"
+    science_path: path
   };
   if (science_path === "triple" && subject_tiers) {
     patch.subject_tiers = subject_tiers;
@@ -124,6 +136,12 @@ export async function saveUserProfileSettings(userId, payload) {
     patch.target_exam_date = target_exam_date
       ? String(target_exam_date).slice(0, 10)
       : null;
+  }
+  if (current_grades !== undefined) {
+    patch.current_grades = normalizeCurrentGrades(current_grades, path);
+  }
+  if (target_grades !== undefined) {
+    patch.target_grades = normalizeTargetGrades(target_grades, path);
   }
   if (patch.revision_horizon_preset === "final_months" && !patch.target_exam_date) {
     patch.target_exam_date = examDateToPersist(
