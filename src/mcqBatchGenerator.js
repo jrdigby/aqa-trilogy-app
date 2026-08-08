@@ -283,16 +283,20 @@ export function generateMcqBatch(spec, specPoint) {
   return { drafts, errors, seed };
 }
 
-export function remapMcqOptionFeedback(options, optionFeedback = {}, oldCorrect, newCorrect) {
+export function remapMcqOptionFeedback(oldOptions, optionFeedback = {}, oldCorrect, newCorrect, newOptions = oldOptions) {
   if (!optionFeedback || typeof optionFeedback !== "object") return undefined;
   const remapped = {};
-  const oldOpts = Array.isArray(options) ? options : [];
+  const oldOpts = Array.isArray(oldOptions) ? oldOptions : [];
+  const newOpts = Array.isArray(newOptions) ? newOptions : oldOpts;
   for (const [key, val] of Object.entries(optionFeedback)) {
     if (key === oldCorrect) continue;
     const idx = oldOpts.indexOf(key);
-    if (idx >= 0 && options[idx] && options[idx] !== newCorrect) {
-      remapped[options[idx]] = val;
-    } else if (options.includes(key) && key !== newCorrect) {
+    if (idx >= 0) {
+      const newKey = newOpts[idx];
+      if (newKey && newKey !== newCorrect) {
+        remapped[newKey] = val;
+      }
+    } else if (newOpts.includes(key) && key !== newCorrect) {
       remapped[key] = val;
     }
   }
@@ -318,7 +322,8 @@ export function syncDraftFromPreviewEdits(draft, edits) {
     draft.question?.options,
     draft.answer_key?.key_payload?.option_feedback,
     oldCorrect,
-    correct
+    correct,
+    trimmedOptions
   );
 
   const payload = { correct };

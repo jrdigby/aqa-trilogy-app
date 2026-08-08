@@ -55,9 +55,9 @@ test("wrong + neither → default correct-answer message", () => {
   assert.ok(missing[0].text.includes('The correct answer is "mitochondria"'));
 });
 
-test("correct → no missing entries via markResponse", () => {
+test("correct → no missing entries via markResponse", async () => {
   const q = { question_type: "mcq", max_marks: 1 };
-  const result = markResponse(q, { answer: "mitochondria" }, key, markPointsGeneric);
+  const result = await markResponse(q, { answer: "mitochondria" }, key, markPointsGeneric);
   assert.equal(result.total, 1);
   assert.equal(result.missing.length, 0);
 });
@@ -71,9 +71,9 @@ test("flashcard text combines specific + generic without UI suffix noise", () =>
   assert.ok(insight.includes("Review cell organelles"));
 });
 
-test("markResponse awards AO2 for calculation MCQ when ao2_marks is set", () => {
+test("markResponse awards AO2 for calculation MCQ when ao2_marks is set", async () => {
   const q = { question_type: "mcq", max_marks: 1, ao1_marks: 0, ao2_marks: 1, ao3_marks: 0 };
-  const result = markResponse(q, { answer: "mitochondria" }, key, []);
+  const result = await markResponse(q, { answer: "mitochondria" }, key, []);
   assert.equal(result.total, 1);
   assert.equal(result.ao.AO1, 0);
   assert.equal(result.ao.AO2, 1);
