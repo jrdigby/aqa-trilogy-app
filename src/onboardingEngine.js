@@ -25,7 +25,8 @@ import {
 import {
   planCurriculumIntros,
   normalizeHorizonPreset,
-  examDateToPersist
+  examDateToPersist,
+  resolveBootstrapWeekTarget
 } from "./curriculumPace.js";
 import {
   WEEKLY_FORECAST_TARGET,
@@ -327,11 +328,13 @@ async function hasStartedPractice(userId) {
 /**
  * Bootstrap only: spread new starter topics across the next 7 days before the
  * student has completed any practice (all SRS rows still at repetitions === 0).
+ * Target count scales with weeks left until the intro deadline (later signup → more).
  */
 export async function populateWeekForecast(userId, profile) {
   const today = todayISO();
   const weekEnd = addDaysISO(today, 6);
   const seedProfile = normalizeSeedProfile(profile);
+  const weekTarget = resolveBootstrapWeekTarget(seedProfile, today);
 
   if (await hasStartedPractice(userId)) {
     return { added: 0, reason: "practice_started" };
@@ -353,12 +356,13 @@ export async function populateWeekForecast(userId, profile) {
     if (dayCounts[d] !== undefined) dayCounts[d] += 1;
   });
 
-  if (rows.length >= WEEKLY_FORECAST_TARGET && dueTodayCount >= TODAY_DUE_TARGET) {
+  if (rows.length >= weekTarget && dueTodayCount >= TODAY_DUE_TARGET) {
     return {
       added: 0,
       reason: "week_sufficient",
       totalRows: rows.length,
-      dueTodayCount
+      dueTodayCount,
+      weekTarget
     };
   }
 
@@ -367,12 +371,12 @@ export async function populateWeekForecast(userId, profile) {
     return d >= today && d <= weekEnd;
   }).length;
 
-  const needMoreInWeek = Math.max(0, WEEKLY_FORECAST_TARGET - rows.length);
+  const needMoreInWeek = Math.max(0, weekTarget - rows.length);
   const needDueToday = Math.max(0, TODAY_DUE_TARGET - dueTodayCount);
   const pickCount = Math.max(needMoreInWeek, needDueToday);
 
   if (pickCount === 0) {
-    return { added: 0, reason: "week_sufficient", upcomingInWeek, dueTodayCount };
+    return { added: 0, reason: "week_sufficient", upcomingInWeek, dueTodayCount, weekTarget };
   }
 
   const existingIds = new Set(rows.map((row) => row.spec_point_id));
@@ -380,7 +384,7 @@ export async function populateWeekForecast(userId, profile) {
     useStudyOrder: true
   });
   if (!newIds.length) {
-    return { added: 0, reason: "no_candidates", upcomingInWeek, dueTodayCount };
+    return { added: 0, reason: "no_candidates", upcomingInWeek, dueTodayCount, weekTarget };
   }
 
   let todaySlots = needDueToday;
@@ -394,7 +398,7 @@ export async function populateWeekForecast(userId, profile) {
 
   const { inserted } = await insertSrsRows(insertRows, userId);
 
-  return { added: inserted, upcomingInWeek, dueTodayCount };
+  return { added: inserted, upcomingInWeek, dueTodayCount, weekTarget };
 }
 
 export async function seedInitialSRS(userId, profile) {
@@ -500,7 +504,7 @@ export async function ensureScheduleReady(userId, profile) {
     return { action: "seed", ...seedResult, weekTopUp: weekAfterSeed.added || 0, dueRows, srsRows: srsRowsFull };
   }
 
-  if (!(await hasStartedPractice(userId)) && srsRowsFull.length < WEEKLY_FORECAST_TARGET) {
+  if (!(await hasStartedPractice(userId)) && srsRowsFull.length < resolveBootstrapWeekTarget(seedProfile, today)) {
     const weekResult = await populateWeekForecast(userId, seedProfile);
     if (weekResult.added > 0) {
       console.log("DEBUG ensureScheduleReady: week bootstrap →", weekResult);

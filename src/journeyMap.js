@@ -70,9 +70,13 @@ export function getJourneySummaryLine(totalXp, journeyState) {
   const state = normalizeJourneyState(journeyState);
   const world = getWorldProgress(state.distance_travelled);
   const current = getLocationById(state.current_location_id);
-  const place = current ? formatLocationLabel(current) : "London, United Kingdom";
+  const pending = getLocationById(state.pending_destination_id);
+  const fromPlace = current ? formatLocationLabel(current) : "London, United Kingdom";
   const xpNote = totalXp != null ? ` (${formatKm(totalXp)} XP earned)` : "";
-  return `You've travelled ${formatKm(world.km)} km on your science journey${xpNote} — currently in ${place}.`;
+  const locationNote = pending
+    ? `currently travelling from ${fromPlace} to ${formatLocationLabel(pending)}`
+    : `currently in ${fromPlace}`;
+  return `You've travelled ${formatKm(world.km)} km on your science journey${xpNote} — ${locationNote}.`;
 }
 
 /** @deprecated — region segments removed; kept for any leftover imports */

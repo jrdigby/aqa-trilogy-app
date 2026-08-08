@@ -23,6 +23,9 @@ export const EXAM_REVIEW_BUFFER_DAYS = 7;
 
 export const HORIZON_PRESETS = ["y10", "y11", "final_months"];
 
+/** Comfortable first-week starter count when many weeks remain until exams. */
+export const BOOTSTRAP_WEEK_MIN = 6;
+
 /**
  * SM-2 clamps per revision horizon (stops 147/456-day runaway).
  * @returns {{ maxInterval: number, efFloor: number, efCeil: number, softGrowthMult: number, softGrowthAfterReps: number }}
@@ -293,6 +296,24 @@ export function computeWeeklyIntroBudget({ untracked, weeksLeft }) {
   if (u === 0) return 0;
   const needed = Math.ceil(u / w);
   return Math.min(ABSOLUTE_MAX_WEEKLY_NEW, needed);
+}
+
+/**
+ * First-week seed/bootstrap target from signup date → exam horizon.
+ * Early Y10 (many weeks left) stays at BOOTSTRAP_WEEK_MIN; later signup / shorter
+ * horizons raise toward the weekly intro need (capped at ABSOLUTE_MAX_WEEKLY_NEW).
+ *
+ * @param {{ revision_horizon_preset?: string, target_exam_date?: string|null }} profile
+ * @param {string} today YYYY-MM-DD
+ * @param {number} [eligibleCount=61]
+ */
+export function resolveBootstrapWeekTarget(profile, today, eligibleCount = 61) {
+  const examDate = resolveExamDate(profile || {}, today);
+  const introDeadline = resolveIntroDeadline(examDate, today, profile);
+  const weeksLeft = weeksUntil(introDeadline, today);
+  const untracked = Math.max(1, Number(eligibleCount) || 61);
+  const weeklyBudget = computeWeeklyIntroBudget({ untracked, weeksLeft });
+  return Math.max(BOOTSTRAP_WEEK_MIN, Math.min(ABSOLUTE_MAX_WEEKLY_NEW, weeklyBudget));
 }
 
 /**

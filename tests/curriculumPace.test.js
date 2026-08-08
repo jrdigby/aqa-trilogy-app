@@ -15,6 +15,9 @@ import {
   longIntervalThresholdForPreset,
   interleaveBySubject,
   examDateToPersist,
+  resolveBootstrapWeekTarget,
+  BOOTSTRAP_WEEK_MIN,
+  ABSOLUTE_MAX_WEEKLY_NEW,
   EXAM_DAY,
   EXAM_MONTH
 } from "../src/curriculumPace.js";
@@ -258,4 +261,26 @@ test("daysBetweenISO and longIntervalThresholdForPreset", () => {
   assert.equal(longIntervalThresholdForPreset("y10"), 60);
   assert.equal(longIntervalThresholdForPreset("y11"), 42);
   assert.equal(longIntervalThresholdForPreset("final_months"), 21);
+});
+
+test("resolveBootstrapWeekTarget scales with signup timing", () => {
+  const earlyY10 = resolveBootstrapWeekTarget(
+    { revision_horizon_preset: "y10" },
+    "2026-09-01"
+  );
+  assert.equal(earlyY10, BOOTSTRAP_WEEK_MIN);
+
+  const lateY11 = resolveBootstrapWeekTarget(
+    { revision_horizon_preset: "y11" },
+    "2027-02-01"
+  );
+  assert.ok(lateY11 >= BOOTSTRAP_WEEK_MIN);
+  assert.ok(lateY11 <= ABSOLUTE_MAX_WEEKLY_NEW);
+
+  const crunch = resolveBootstrapWeekTarget(
+    { revision_horizon_preset: "final_months", target_exam_date: "2027-05-11" },
+    "2027-04-01"
+  );
+  assert.ok(crunch > BOOTSTRAP_WEEK_MIN, `expected crunch > ${BOOTSTRAP_WEEK_MIN}, got ${crunch}`);
+  assert.ok(crunch <= ABSOLUTE_MAX_WEEKLY_NEW);
 });
