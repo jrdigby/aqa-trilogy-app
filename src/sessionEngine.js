@@ -14,6 +14,10 @@ import {
   questionMatchesProfileTier
 } from "./sciencePath.js";
 import { fetchQuestionsLinkedToSpecPoints } from "./dbClient.js";
+import {
+  clampIntervalForExam,
+  resolveExamDate
+} from "./curriculumPace.js";
 
 const QUESTION_SKILLS_EMBED =
   "question_skills(skill_id,skill_framework_items(id,framework,full_code,title,category))";
@@ -429,7 +433,8 @@ export async function upsertSRS(specPointId, quality, context) {
     updateSRS,
     addDaysISO,
     todayISO,
-    showToastBanner
+    showToastBanner,
+    getUserProfile
   } = context;
 
   if (!currentUser) {
@@ -453,14 +458,28 @@ export async function upsertSRS(specPointId, quality, context) {
     const lapses = existing?.lapses ?? 0;
 
     const upd = updateSRS({ quality, ef, reps, interval });
+    const today = todayISO();
+    let intervalDays = upd.newInterval;
 
-    const nextDue = addDaysISO(todayISO(), upd.newInterval);
+    const profile = typeof getUserProfile === "function" ? getUserProfile() : null;
+    if (profile) {
+      const examDate = resolveExamDate(profile, today);
+      intervalDays = clampIntervalForExam({
+        today,
+        intervalDays,
+        examDate,
+        spreadKey: specPointId,
+        quality
+      });
+    }
+
+    const nextDue = addDaysISO(today, intervalDays);
 
     const payload = {
       user_id: currentUser.id,
       spec_point_id: specPointId,
       due_date: nextDue,
-      interval_days: upd.newInterval,
+      interval_days: intervalDays,
       ease_factor: upd.newEF,
       repetitions: upd.newReps,
       lapses: lapses + upd.lapse,

@@ -14,6 +14,8 @@ import {
 } from './adaptiveSelector.js';
 import { triggerMathTypeset } from './mathEngine.js';
 import { checkKeywordOrSynonymsMatch, updateSRS, computeSessionQuality, getAQACommandWordHelper, isFuzzyMatch, computeQuestionAOMaxCaps, flashcardInsightFromMissing } from './evalEngine.js';
+import { buildWeeklyForecast } from './srsAnalytics.js';
+import { getHorizonSrsCaps, normalizeHorizonPreset, examDateToPersist } from './curriculumPace.js';
 import { escapeHtml, shuffleArray, todayISO, addDaysISO, resolveAppUrl } from './utils.js';
 import { supabaseClient, timeoutPromise, fetchDashboardDueItems, fetchConceptGapAttempts, fetchWeeklyForecastSchedules, fetchSyllabusPipelineData, fetchAttemptActivity, fetchUserProfile, fetchUserClassLicense, fetchPlanQuotas, tryConsumeAiMark, tryConsumeHalfPaper, stashAuthSession, clearAuthGraceSession, endAuthGracePeriod, isAuthGraceActive, incrementUserXp, claimXpMilestone, consumeStreakFreeze, fetchDominantSubject, patchUserProfile } from './dbClient.js';
 import dbClient from "./dbClient.js";
@@ -26,8 +28,6 @@ import {
   allocateUpcomingTopics,
   normalizeTier,
   targetTiersForTier,
-  sortSubjectsByPreference,
-  sortSubjectsByDifficulty,
   migrateSrsForSciencePathChange
 } from './onboardingEngine.js';
 import {
@@ -397,11 +397,11 @@ function hasStudentStartedPractice(srsRows = []) {
 }
 
 const CAUGHT_UP_SCHEDULE_HTML = `<div class="item caught-up-message">
-  <strong>You're up to date.</strong>
-  <p class="muted caught-up-hint">You can practice questions in the Exam preparation section, or by clicking on topics in the Mastery matrix below.</p>
+  <strong>You're caught up for today.</strong>
+  <p class="muted caught-up-hint">New curriculum topics drip in on a weekly pace toward your exams — we won't refill your queue just to keep it busy. You can still practise via Exam preparation or the Mastery matrix.</p>
 </div>`;
 
-const CAUGHT_UP_PREVIEW_HTML = `<strong>You're up to date.</strong> You can practice questions in the Exam preparation section, or by clicking on topics in the Mastery matrix below.`;
+const CAUGHT_UP_PREVIEW_HTML = `<strong>You're caught up for today.</strong> New topics arrive on a paced schedule — use Exam preparation or the Mastery matrix anytime.`;
 
 function setPracticePreviewCaughtUp() {
   if (!startPracticePreview) return;
@@ -412,6 +412,27 @@ function setPracticePreviewText(text) {
   if (!startPracticePreview) return;
   startPracticePreview.textContent = text;
 }
+
+function syncOnboardingHorizonButtons() {
+  document.querySelectorAll(".onboarding-horizon-btn").forEach((btn) => {
+    btn.classList.toggle(
+      "selected",
+      btn.dataset.horizon === onboardingState.revision_horizon_preset
+    );
+  });
+}
+
+function wireOnboardingHorizonButtons() {
+  document.querySelectorAll(".onboarding-horizon-btn").forEach((btn) => {
+    btn.onclick = () => {
+      onboardingState.revision_horizon_preset = btn.dataset.horizon || "y11";
+      syncOnboardingHorizonButtons();
+    };
+  });
+  syncOnboardingHorizonButtons();
+}
+
+let settingsHorizonPreset = "y11";
 let adaptivePracticeState = { ...DEFAULT_ADAPTIVE_STATE };
 let pendingAdaptiveSession = null;
 let lastSessionSelfRating = null;
@@ -542,27 +563,22 @@ function buildOnboardingSummaryHtml() {
     .sort((a, b) => onboardingState.subject_preference[a] - onboardingState.subject_preference[b])
     .map((s) => s.charAt(0).toUpperCase() + s.slice(1))
     .join(" → ");
-  const diffOrder = [...ONBOARDING_SUBJECTS]
-    .sort((a, b) => {
-      const order = { easiest: 0, medium: 1, hardest: 2 };
-      return (order[onboardingState.subject_difficulty[a]] ?? 1) -
-        (order[onboardingState.subject_difficulty[b]] ?? 1);
-    })
-    .map((s) => {
-      const label = s.charAt(0).toUpperCase() + s.slice(1);
-      const diff = onboardingState.subject_difficulty[s] || "medium";
-      return `${label} (${diff})`;
-    })
-    .join(" → ");
   const classLine = onboardingState.joined_class_name
     ? `Class: ${onboardingState.joined_class_name}`
     : "Class: none (individual)";
+  const horizonLabels = {
+    y10: "Starting Year 10 (~2 years)",
+    y11: "Starting Year 11 (~1 year)",
+    final_months: "Final months before exams"
+  };
+  const horizonLine =
+    horizonLabels[onboardingState.revision_horizon_preset] || horizonLabels.y11;
   return `
     <div><strong>Course:</strong> ${pathLabel}</div>
     <div><strong>Tier:</strong> ${tierLine}</div>
-    <div><strong>Study order:</strong> ${prefOrder}</div>
-    <div><strong>Difficulty ranking:</strong> ${diffOrder}</div>
-    <p class="muted" style="margin-top: 10px; font-size: 0.85rem;">Starter topics use <em>both</em>: subjects earlier in study order are scheduled first; your hardest subject gets more initial topics.</p>
+    <div><strong>Exam horizon:</strong> ${horizonLine}</div>
+    <div><strong>Starter study order:</strong> ${prefOrder}</div>
+    <p class="muted" style="margin-top: 10px; font-size: 0.85rem;">Your first topics are seeded in this subject order. After setup, the schedule drips new topics toward your exam date (~11 May). Pick specific topics anytime via exam practice or curriculum mastery.</p>
     <div><strong>${classLine}</strong></div>
     <p class="muted onboarding-xp-note" style="margin-top: 12px; font-size: 0.85rem; line-height: 1.45;">⭐ <strong>XP:</strong> ${XP_RULES_FOOTNOTE}</p>
   `;
@@ -576,7 +592,7 @@ const onboardingState = {
   preferred_tier: "FT",
   subject_tiers: { biology: "FT", chemistry: "FT", physics: "FT" },
   subject_preference: { biology: 1, chemistry: 2, physics: 3 },
-  subject_difficulty: { biology: "easiest", chemistry: "medium", physics: "hardest" },
+  revision_horizon_preset: "y11",
   class_code: "",
   joined_class_name: null
 };
@@ -1806,9 +1822,15 @@ if (examPrepCountEl) {
 const engineContext = {
   supabaseClient: supabaseClient,
   get currentUser() { return currentUser; }, // 🌟 Add currentUser to the context bundle
-  updateSRS: (data) => updateSRS(data), // 🌟 Pass down the SRS math algorithm
-  addDaysISO: (date, days) => addDaysISO(date, days), // 🌟 Pass down date utility
-  todayISO: () => todayISO(), // 🌟 Pass down current date generator
+  updateSRS: (data) =>
+    updateSRS({
+      ...data,
+      caps:
+        data?.caps ??
+        getHorizonSrsCaps(normalizeHorizonPreset(currentUserProfile?.revision_horizon_preset))
+    }),
+  addDaysISO: (date, days) => addDaysISO(date, days),
+  todayISO: () => todayISO(),
   getSelectedFilters: () => getSelectedFilters(),
   getUserProfile: () => currentUserProfile,
   timeoutPromise: (ms, msg) => timeoutPromise(ms, msg),
@@ -2811,22 +2833,7 @@ async function loadWeeklyForecast(user = currentUser) {
   const userId = user?.id;
   if (!userId || !forecastWrapper) return;
 
-  const weekdayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const today = todayISO();
-  const datesArray = [];
-  const countsMap = {};
-  const itemsMap = {};
-  const overdueItems = [];
-
-  for (let i = 0; i < 7; i++) {
-    const dateString = addDaysISO(today, i);
-    const targetDate = new Date(`${dateString}T00:00:00`);
-    const dayLabel = i === 0 ? "Today" : weekdayNames[targetDate.getDay()];
-
-    datesArray.push({ dateString, dayLabel });
-    countsMap[dateString] = 0;
-    itemsMap[dateString] = [];
-  }
 
   console.log("DEBUG loadWeeklyForecast: Loading schedules forecast...");
   let schedules = [];
@@ -2838,38 +2845,25 @@ async function loadWeeklyForecast(user = currentUser) {
     return;
   }
 
-  let overdueCount = 0;
-  (schedules || []).forEach(s => {
-    const dueDate = String(s.due_date || "").slice(0, 10);
-    if (dueDate < today) {
-      overdueCount++;
-      overdueItems.push(s);
-    } else if (countsMap[dueDate] !== undefined) {
-      countsMap[dueDate]++;
-      itemsMap[dueDate].push(s);
-    }
-  });
-
-  const maxCount = Math.max(overdueCount, ...Object.values(countsMap), 1);
+  const forecast = buildWeeklyForecast(schedules || [], today);
 
   forecastWrapper.innerHTML =
     renderForecastColumn({
       label: "Overdue",
-      tooltip: buildForecastTooltip("Overdue", overdueItems),
-      count: overdueCount,
-      maxCount,
+      tooltip: buildForecastTooltip("Overdue", forecast.overdueItems),
+      count: forecast.overdueCount,
+      maxCount: forecast.maxCount,
       isOverdue: true
     }) +
-    datesArray.map(d => {
-      const items = itemsMap[d.dateString];
+    forecast.days.map(d => {
       const dateTooltip = d.dayLabel === "Today"
         ? `Today (${formatShortDate(d.dateString)})`
         : `${d.dayLabel} (${formatShortDate(d.dateString)})`;
       return renderForecastColumn({
         label: d.dayLabel,
-        tooltip: buildForecastTooltip(dateTooltip, items),
-        count: countsMap[d.dateString],
-        maxCount
+        tooltip: buildForecastTooltip(dateTooltip, d.items),
+        count: d.count,
+        maxCount: forecast.maxCount
       });
     }).join("");
 }
@@ -3435,36 +3429,30 @@ async function runLocalExtendedMarking(response) {
   });
 }
 
-function buildRankMapsFromList(listEl, type) {
+function buildRankMapsFromList(listEl) {
   const items = [...listEl.querySelectorAll(".onboarding-rank-item")];
   const result = {};
   items.forEach((item, index) => {
     const subject = item.dataset.subject;
-    if (type === "preference") {
-      result[subject] = index + 1;
-    } else {
-      const labels = ["easiest", "medium", "hardest"];
-      result[subject] = labels[Math.min(index, labels.length - 1)];
-    }
+    result[subject] = index + 1;
   });
   return result;
 }
 
-function renderRankList(listEl, subjects, type) {
+function renderRankList(listEl, subjects) {
   if (!listEl) return;
   listEl.innerHTML = subjects
     .map((subject, i) => {
       const label = subject.charAt(0).toUpperCase() + subject.slice(1);
-      const num = type === "preference" ? `<span class="onboarding-rank-num">${i + 1}</span>` : "";
       return `<li class="onboarding-rank-item" draggable="true" data-subject="${subject}">
         <span class="onboarding-rank-handle">☰</span>
         <span class="onboarding-rank-label">${label}</span>
-        ${num}
+        <span class="onboarding-rank-num">${i + 1}</span>
       </li>`;
     })
     .join("");
 
-  wireRankListDrag(listEl, type);
+  wireRankListDrag(listEl);
 }
 
 function showSettingsClassDetails(className) {
@@ -3522,15 +3510,25 @@ function loadSettingsPanel() {
     displayNameInput.value = currentUserProfile.display_name || "";
   }
 
+  settingsHorizonPreset = currentUserProfile.revision_horizon_preset || "y11";
+  document.querySelectorAll(".settings-horizon-btn").forEach((btn) => {
+    btn.classList.toggle("selected", btn.dataset.horizon === settingsHorizonPreset);
+    btn.onclick = () => {
+      settingsHorizonPreset = btn.dataset.horizon || "y11";
+      document.querySelectorAll(".settings-horizon-btn").forEach((b) => {
+        b.classList.toggle("selected", b.dataset.horizon === settingsHorizonPreset);
+      });
+    };
+  });
+  const examDateInput = el("settingsExamDateInput");
+  if (examDateInput) {
+    examDateInput.value = currentUserProfile.target_exam_date || "";
+  }
+
   const hideTipsToggle = el("settingsHideCommandWordTips");
   if (hideTipsToggle) {
     hideTipsToggle.checked = isCommandWordTipsHidden();
   }
-
-  const prefOrder = sortSubjectsByPreference(currentUserProfile.subject_preference || {});
-  const diffOrder = sortSubjectsByDifficulty(currentUserProfile.subject_difficulty || {});
-  renderRankList(el("settingsPreferenceRankList"), prefOrder, "preference");
-  renderRankList(el("settingsDifficultyRankList"), diffOrder, "difficulty");
 
   const classInput = el("settingsClassCodeInput");
   const classMsg = el("settingsClassMsg");
@@ -3644,14 +3642,6 @@ function wireSettingsControls() {
   btnSave.onclick = async () => {
     if (!currentUser) return;
 
-    const prefList = el("settingsPreferenceRankList");
-    const diffList = el("settingsDifficultyRankList");
-    const subject_preference = prefList
-      ? buildRankMapsFromList(prefList, "preference")
-      : currentUserProfile?.subject_preference;
-    const subject_difficulty = diffList
-      ? buildRankMapsFromList(diffList, "difficulty")
-      : currentUserProfile?.subject_difficulty;
     const display_name = (el("settingsDisplayNameInput")?.value || "").trim();
 
     const previousPath = getSciencePath(currentUserProfile);
@@ -3674,9 +3664,9 @@ function wireSettingsControls() {
         preferred_tier: settingsTier,
         science_path: settingsSciencePath,
         subject_tiers: settingsSubjectTiers,
-        subject_preference,
-        subject_difficulty,
-        display_name
+        display_name,
+        revision_horizon_preset: settingsHorizonPreset,
+        target_exam_date: (el("settingsExamDateInput")?.value || "").trim() || null
       });
 
       if (settingsSciencePath !== previousPath) {
@@ -3713,7 +3703,7 @@ function wireSettingsControls() {
   };
 }
 
-function wireRankListDrag(listEl, type) {
+function wireRankListDrag(listEl) {
   let dragged = null;
 
   listEl.querySelectorAll(".onboarding-rank-item").forEach((item) => {
@@ -3724,11 +3714,9 @@ function wireRankListDrag(listEl, type) {
     item.addEventListener("dragend", () => {
       item.classList.remove("dragging");
       dragged = null;
-      if (type === "preference") {
-        listEl.querySelectorAll(".onboarding-rank-num").forEach((numEl, idx) => {
-          numEl.textContent = String(idx + 1);
-        });
-      }
+      listEl.querySelectorAll(".onboarding-rank-num").forEach((numEl, idx) => {
+        numEl.textContent = String(idx + 1);
+      });
     });
     item.addEventListener("dragover", (e) => {
       e.preventDefault();
@@ -3763,12 +3751,11 @@ function updateOnboardingStepUI() {
   if (btnSkip) btnSkip.classList.toggle("hidden", onboardingStep !== 5);
 
   syncOnboardingTierPanels();
+  syncOnboardingHorizonButtons();
 
   if (onboardingStep === 6) {
     const prefList = el("preferenceRankList");
-    const diffList = el("difficultyRankList");
-    if (prefList) onboardingState.subject_preference = buildRankMapsFromList(prefList, "preference");
-    if (diffList) onboardingState.subject_difficulty = buildRankMapsFromList(diffList, "difficulty");
+    if (prefList) onboardingState.subject_preference = buildRankMapsFromList(prefList);
 
     const summary = el("onboardingSummary");
     if (summary) summary.innerHTML = buildOnboardingSummaryHtml();
@@ -3784,12 +3771,12 @@ function showOnboardingUI() {
   if (btnSignOut) btnSignOut.classList.remove("hidden");
 
   onboardingStep = 1;
-  renderRankList(el("preferenceRankList"), [...ONBOARDING_SUBJECTS], "preference");
-  renderRankList(el("difficultyRankList"), [...ONBOARDING_SUBJECTS], "difficulty");
+  renderRankList(el("preferenceRankList"), [...ONBOARDING_SUBJECTS]);
 
   wireOnboardingPathButtons();
   wireOnboardingCombinedTierButtons();
   wireOnboardingSubjectTierButtons();
+  wireOnboardingHorizonButtons();
   syncOnboardingTierPanels();
 
   updateOnboardingStepUI();
@@ -3797,9 +3784,7 @@ function showOnboardingUI() {
 
 async function finishOnboarding() {
   const prefList = el("preferenceRankList");
-  const diffList = el("difficultyRankList");
-  if (prefList) onboardingState.subject_preference = buildRankMapsFromList(prefList, "preference");
-  if (diffList) onboardingState.subject_difficulty = buildRankMapsFromList(diffList, "difficulty");
+  if (prefList) onboardingState.subject_preference = buildRankMapsFromList(prefList);
 
   const btnFinish = el("btnOnboardingFinish");
   if (btnFinish) {
@@ -3814,12 +3799,18 @@ async function finishOnboarding() {
       onboardingState.joined_class_name = joinResult?.class_name || null;
     }
 
+    const lockedExamDate = examDateToPersist(
+      { revision_horizon_preset: onboardingState.revision_horizon_preset },
+      todayISO()
+    );
+
     await saveOnboardingProfile(currentUser.id, {
       preferred_tier: onboardingState.preferred_tier,
       science_path: onboardingState.science_path,
       subject_tiers: onboardingState.subject_tiers,
       subject_preference: onboardingState.subject_preference,
-      subject_difficulty: onboardingState.subject_difficulty
+      revision_horizon_preset: onboardingState.revision_horizon_preset,
+      target_exam_date: lockedExamDate
     });
 
     const tier = normalizeTier(
@@ -3834,7 +3825,8 @@ async function finishOnboarding() {
       preferred_tier: normalizeTier(onboardingState.preferred_tier),
       subject_tiers: onboardingState.subject_tiers,
       subject_preference: onboardingState.subject_preference,
-      subject_difficulty: onboardingState.subject_difficulty
+      revision_horizon_preset: onboardingState.revision_horizon_preset,
+      target_exam_date: lockedExamDate
     };
     await seedInitialSRS(currentUser.id, profileForSeed);
 

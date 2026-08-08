@@ -236,12 +236,18 @@ export function renderHighlightedStudentAnswer(rawText, allTargetKeywords) {
   return parts.join("");
 }
 
-// SM-2 style update (simple)
-export function updateSRS({ quality, ef, reps, interval }) {
+// SM-2 style update (simple). Optional `caps` from getHorizonSrsCaps(preset).
+export function updateSRS({ quality, ef, reps, interval, caps = null }) {
   let newEF = ef + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02));
   let newReps = reps;
   let newInterval = interval;
   let lapse = 0;
+
+  if (caps) {
+    const floor = caps.efFloor ?? 1.3;
+    const ceil = caps.efCeil ?? Infinity;
+    newEF = Math.min(ceil, Math.max(floor, newEF));
+  }
 
   if (quality < 3) {
     newReps = 0;
@@ -249,9 +255,26 @@ export function updateSRS({ quality, ef, reps, interval }) {
     lapse = 1;
   } else {
     newReps = reps + 1;
-    if (newReps === 1) newInterval = 1;
-    else if (newReps === 2) newInterval = 6;
-    else newInterval = Math.round(newInterval * newEF);
+    if (newReps === 1) {
+      newInterval = 1;
+    } else if (newReps === 2) {
+      newInterval = 6;
+    } else {
+      let mult = newEF;
+      if (
+        caps &&
+        caps.softGrowthAfterReps != null &&
+        newReps >= caps.softGrowthAfterReps &&
+        caps.softGrowthMult != null
+      ) {
+        mult = Math.min(newEF, caps.softGrowthMult);
+      }
+      newInterval = Math.round(interval * mult);
+    }
+  }
+
+  if (caps?.maxInterval != null) {
+    newInterval = Math.min(newInterval, caps.maxInterval);
   }
 
   return { newEF, newReps, newInterval, lapse };
