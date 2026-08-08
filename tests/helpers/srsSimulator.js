@@ -17,7 +17,8 @@ import {
   planCurriculumIntros,
   resolveIntroDeadline,
   resolveExamDate,
-  longIntervalThresholdForPreset
+  longIntervalThresholdForPreset,
+  resolveBootstrapWeekTarget
 } from "../../src/curriculumPace.js";
 import {
   CURRICULUM_61,
@@ -94,13 +95,18 @@ export class SrsSimulator {
     if (this.hasStartedPractice) {
       return { added: 0, reason: "practice_started" };
     }
+    const weekTarget = resolveBootstrapWeekTarget(
+      this.horizonProfile,
+      this.today,
+      this.specPoints.length
+    );
     const existing = this.srs.size;
     const dueTodayCount = this.dueTopics(this.today).length;
-    if (existing >= WEEKLY_FORECAST_TARGET && dueTodayCount >= TODAY_DUE_TARGET) {
-      return { added: 0, reason: "sufficient" };
+    if (existing >= weekTarget && dueTodayCount >= TODAY_DUE_TARGET) {
+      return { added: 0, reason: "sufficient", weekTarget };
     }
 
-    const needMoreInWeek = Math.max(0, WEEKLY_FORECAST_TARGET - existing);
+    const needMoreInWeek = Math.max(0, weekTarget - existing);
     const needDueToday = Math.max(0, TODAY_DUE_TARGET - dueTodayCount);
     let added = 0;
 
@@ -120,7 +126,7 @@ export class SrsSimulator {
       added++;
     }
 
-    return { added, reason: "seeded" };
+    return { added, reason: "seeded", weekTarget };
   }
 
   /**
