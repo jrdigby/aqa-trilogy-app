@@ -105,11 +105,14 @@ test("expandDemandRecipes — expands demand rows by count", () => {
 });
 
 test("remapMcqOptionFeedback — remaps feedback when option text changes", () => {
+  const oldOptions = ["A correct", "B wrong", "C wrong", "D wrong"];
+  const newOptions = ["A correct", "B altered", "C wrong", "D wrong"];
   const remapped = remapMcqOptionFeedback(
-    ["A correct", "B altered", "C wrong", "D wrong"],
+    oldOptions,
     { "B wrong": "Because B is incorrect" },
     "A correct",
-    "A correct"
+    "A correct",
+    newOptions
   );
   assert.equal(remapped["B altered"], "Because B is incorrect");
 });
