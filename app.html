@@ -519,15 +519,22 @@
       </div>
 
       <div id="onboardingStep3" class="onboarding-panel hidden">
-        <h3 style="margin-bottom: 8px;">Rank subjects by preference</h3>
-        <p class="muted" style="font-size: 0.9rem; margin-bottom: 8px;">Drag to reorder — 1 = study first.</p>
+        <h3 style="margin-bottom: 8px;">Subject study order</h3>
+        <p class="muted" style="font-size: 0.9rem; margin-bottom: 8px;">Drag to reorder — 1 = introduced first when we seed your schedule. Default is Biology → Chemistry → Physics. This only affects your starter topics.</p>
         <ul id="preferenceRankList" class="onboarding-rank-list" data-rank-type="preference"></ul>
       </div>
 
       <div id="onboardingStep4" class="onboarding-panel hidden">
-        <h3 style="margin-bottom: 8px;">Rank subjects by difficulty</h3>
-        <p class="muted" style="font-size: 0.9rem; margin-bottom: 8px;">Drag easiest to hardest — we'll allocate more topics where you need them.</p>
-        <ul id="difficultyRankList" class="onboarding-rank-list" data-rank-type="difficulty"></ul>
+        <h3 style="margin-bottom: 8px;">When are you aiming for exams?</h3>
+        <p class="muted" style="font-size: 0.9rem; margin-bottom: 12px;">
+          We pace new topics so you cover the curriculum by your first science paper (~11 May), without flooding your daily queue.
+        </p>
+        <div class="onboarding-tier-options" id="onboardingHorizonOptions" style="flex-direction: column; align-items: stretch;">
+          <button type="button" class="onboarding-tier-btn onboarding-horizon-btn" data-horizon="y10">Starting Year 10 (~2 years)</button>
+          <button type="button" class="onboarding-tier-btn onboarding-horizon-btn selected" data-horizon="y11">Starting Year 11 (~1 academic year)</button>
+          <button type="button" class="onboarding-tier-btn onboarding-horizon-btn" data-horizon="final_months">Final months before exams</button>
+        </div>
+        <p class="muted" style="font-size: 0.85rem; margin-top: 12px;">You can set an exact exam date later in Settings.</p>
       </div>
 
       <div id="onboardingStep5" class="onboarding-panel hidden">
@@ -908,15 +915,16 @@
           </div>
 
           <div class="settings-section">
-            <h4 class="settings-heading">Subject study order</h4>
-            <p class="muted settings-hint">Drag to rank — top subject gets scheduled first.</p>
-            <ul id="settingsPreferenceRankList" class="onboarding-rank-list onboarding-rank-list--compact" data-rank-type="preference"></ul>
-          </div>
-
-          <div class="settings-section">
-            <h4 class="settings-heading">Subject difficulty</h4>
-            <p class="muted settings-hint">Drag — top = easiest for you; hardest subject gets more starter topics.</p>
-            <ul id="settingsDifficultyRankList" class="onboarding-rank-list onboarding-rank-list--compact" data-rank-type="difficulty"></ul>
+            <h4 class="settings-heading">Exam horizon</h4>
+            <p class="muted settings-hint">Controls how quickly new curriculum topics are introduced. First science paper is typically ~11 May.</p>
+            <div class="onboarding-tier-options" id="settingsHorizonOptions" style="flex-direction: column; align-items: stretch;">
+              <button type="button" class="onboarding-tier-btn settings-horizon-btn" data-horizon="y10">Starting Year 10 (~2 years)</button>
+              <button type="button" class="onboarding-tier-btn settings-horizon-btn" data-horizon="y11">Starting Year 11 (~1 academic year)</button>
+              <button type="button" class="onboarding-tier-btn settings-horizon-btn" data-horizon="final_months">Final months before exams</button>
+            </div>
+            <label for="settingsExamDateInput" class="muted settings-hint" style="display:block;margin-top:12px;">Optional exam date override</label>
+            <input id="settingsExamDateInput" type="date" class="settings-class-input" style="max-width:220px;" />
+            <p class="muted settings-hint" style="margin-top:6px;">Leave blank to use the preset (next / following 11 May).</p>
           </div>
 
           <div class="settings-section">

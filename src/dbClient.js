@@ -499,8 +499,10 @@ export async function fetchSyllabusPipelineData(userId, subject, paper, targetTi
 
 // ====== USER PROFILE (ONBOARDING) ======
 const PROFILE_COLUMNS_FULL =
-  "user_id, role, preferred_tier, science_path, subject_tiers, subscription_tier, onboarding_completed_at, subject_preference, subject_difficulty, class_id, display_name, total_xp, xp_rewards";
+  "user_id, role, preferred_tier, science_path, subject_tiers, subscription_tier, onboarding_completed_at, subject_preference, class_id, display_name, total_xp, xp_rewards, revision_horizon_preset, target_exam_date, revision_pace_state";
 const PROFILE_COLUMNS_BASE = "user_id, preferred_tier";
+const PROFILE_COLUMNS_LEGACY =
+  "user_id, role, preferred_tier, science_path, subject_tiers, subscription_tier, onboarding_completed_at, subject_preference, class_id, display_name, total_xp, xp_rewards";
 
 function isMissingColumnError(error) {
   const msg = error?.message || "";
@@ -556,11 +558,18 @@ function normalizeProfileRow(data, userId) {
     subscription_tier: data.subscription_tier ?? "free",
     onboarding_completed_at: data.onboarding_completed_at ?? null,
     subject_preference: data.subject_preference ?? null,
-    subject_difficulty: data.subject_difficulty ?? null,
     class_id: data.class_id ?? null,
     display_name: data.display_name ?? null,
     total_xp: Number(data.total_xp) || 0,
-    xp_rewards: normalizeXpRewardsRow(data.xp_rewards)
+    xp_rewards: normalizeXpRewardsRow(data.xp_rewards),
+    revision_horizon_preset: data.revision_horizon_preset ?? "y11",
+    target_exam_date: data.target_exam_date
+      ? String(data.target_exam_date).slice(0, 10)
+      : null,
+    revision_pace_state:
+      data.revision_pace_state && typeof data.revision_pace_state === "object"
+        ? data.revision_pace_state
+        : {}
   };
 }
 
@@ -583,7 +592,12 @@ export async function ensureUserProfile(userId) {
     data = await queryProfileRow(userId, PROFILE_COLUMNS_FULL);
   } catch (err) {
     if (!isMissingColumnError(err)) throw err;
-    data = await queryProfileRow(userId, PROFILE_COLUMNS_BASE);
+    try {
+      data = await queryProfileRow(userId, PROFILE_COLUMNS_LEGACY);
+    } catch (err2) {
+      if (!isMissingColumnError(err2)) throw err2;
+      data = await queryProfileRow(userId, PROFILE_COLUMNS_BASE);
+    }
   }
 
   if (data) return normalizeProfileRow(data, userId);
@@ -607,7 +621,12 @@ export async function ensureUserProfile(userId) {
     data = await queryProfileRow(userId, PROFILE_COLUMNS_FULL);
   } catch (err) {
     if (!isMissingColumnError(err)) throw err;
-    data = await queryProfileRow(userId, PROFILE_COLUMNS_BASE);
+    try {
+      data = await queryProfileRow(userId, PROFILE_COLUMNS_LEGACY);
+    } catch (err2) {
+      if (!isMissingColumnError(err2)) throw err2;
+      data = await queryProfileRow(userId, PROFILE_COLUMNS_BASE);
+    }
   }
 
   return normalizeProfileRow(data, userId);

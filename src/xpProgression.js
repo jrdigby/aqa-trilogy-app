@@ -150,10 +150,5 @@ export function getMilestoneCelebrationMessage(milestone) {
 
 export function resolveDominantSubject(profile, fetchedSubject) {
   if (fetchedSubject && SUBJECTS.includes(fetchedSubject)) return fetchedSubject;
-  const pref = profile?.subject_preference;
-  if (pref && typeof pref === "object") {
-    const sorted = Object.entries(pref).sort((a, b) => a[1] - b[1]);
-    if (sorted[0]?.[0] && SUBJECTS.includes(sorted[0][0])) return sorted[0][0];
-  }
   return "biology";
 }

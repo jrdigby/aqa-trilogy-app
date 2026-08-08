@@ -244,15 +244,16 @@ export function normalizeSeedProfile(profile) {
     science_path,
     preferred_tier: normalizeTier(profile?.preferred_tier || "FT"),
     subject_tiers: getSubjectTiers(profile),
+    /** Onboarding-only: order subjects are first seeded. Default Bio → Chem → Phys. */
     subject_preference: profile?.subject_preference || {
       biology: 1,
       chemistry: 2,
       physics: 3
     },
-    subject_difficulty: profile?.subject_difficulty || {
-      biology: "easiest",
-      chemistry: "medium",
-      physics: "hardest"
-    }
+    revision_horizon_preset: profile?.revision_horizon_preset || "y11",
+    target_exam_date: profile?.target_exam_date
+      ? String(profile.target_exam_date).slice(0, 10)
+      : null,
+    revision_pace_state: profile?.revision_pace_state || {}
   };
 }
