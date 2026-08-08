@@ -374,6 +374,68 @@
       color: var(--primary);
     }
 
+    .onboarding-grades-panel .input-group {
+      margin-bottom: 12px;
+    }
+
+    .onboarding-grades-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      align-items: flex-end;
+    }
+
+    .onboarding-grades-row .input-group {
+      margin-bottom: 0;
+      flex: 1;
+      min-width: 140px;
+    }
+
+    .onboarding-grade-select {
+      width: 100%;
+      max-width: 220px;
+      padding: 10px 12px;
+      border: 2px solid var(--border);
+      border-radius: 8px;
+      background: #fff;
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .grades-table {
+      width: 100%;
+      max-width: 420px;
+      border-collapse: collapse;
+      margin-top: 8px;
+    }
+
+    .grades-table th,
+    .grades-table td {
+      padding: 10px 8px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+
+    .grades-table th {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+    }
+
+    .grades-table td:first-child {
+      font-weight: 600;
+      min-width: 90px;
+    }
+
+    .grades-table .onboarding-grade-select {
+      max-width: 100px;
+      width: 100%;
+    }
+
     .onboarding-rank-list {
       list-style: none;
       margin: 16px 0;
@@ -476,6 +538,7 @@
         <span class="onboarding-step-dot"></span>
         <span class="onboarding-step-dot"></span>
         <span class="onboarding-step-dot"></span>
+        <span class="onboarding-step-dot"></span>
       </div>
 
       <div id="onboardingStep1" class="onboarding-panel">
@@ -519,12 +582,72 @@
       </div>
 
       <div id="onboardingStep3" class="onboarding-panel hidden">
+        <h3 style="margin-bottom: 8px;">Your grades</h3>
+        <p class="muted" style="font-size: 0.9rem; margin-bottom: 12px;">
+          Current grade sets your starting question difficulty. Target grade is your goal — you can change both later in Settings.
+        </p>
+        <div id="onboardingCombinedGrades" class="onboarding-grades-panel">
+          <div class="onboarding-grades-row">
+            <div class="input-group">
+              <label for="onboardingCombinedCurrentGrade">Current grade</label>
+              <select id="onboardingCombinedCurrentGrade" class="onboarding-grade-select"></select>
+            </div>
+            <div class="input-group">
+              <label for="onboardingCombinedTargetGrade">Target grade</label>
+              <select id="onboardingCombinedTargetGrade" class="onboarding-grade-select"></select>
+            </div>
+          </div>
+        </div>
+        <div id="onboardingTripleGrades" class="onboarding-grades-panel hidden" style="display: none;">
+          <table class="grades-table" aria-label="Current and target grades by subject">
+            <thead>
+              <tr>
+                <th scope="col">Subject</th>
+                <th scope="col">Current</th>
+                <th scope="col">Target</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Biology</td>
+                <td>
+                  <select id="onboardingTripleCurrentBiology" class="onboarding-grade-select" data-grade-role="current" data-subject="biology" aria-label="Biology current grade"></select>
+                </td>
+                <td>
+                  <select id="onboardingTripleTargetBiology" class="onboarding-grade-select" data-grade-role="target" data-subject="biology" aria-label="Biology target grade"></select>
+                </td>
+              </tr>
+              <tr>
+                <td>Chemistry</td>
+                <td>
+                  <select id="onboardingTripleCurrentChemistry" class="onboarding-grade-select" data-grade-role="current" data-subject="chemistry" aria-label="Chemistry current grade"></select>
+                </td>
+                <td>
+                  <select id="onboardingTripleTargetChemistry" class="onboarding-grade-select" data-grade-role="target" data-subject="chemistry" aria-label="Chemistry target grade"></select>
+                </td>
+              </tr>
+              <tr>
+                <td>Physics</td>
+                <td>
+                  <select id="onboardingTripleCurrentPhysics" class="onboarding-grade-select" data-grade-role="current" data-subject="physics" aria-label="Physics current grade"></select>
+                </td>
+                <td>
+                  <select id="onboardingTripleTargetPhysics" class="onboarding-grade-select" data-grade-role="target" data-subject="physics" aria-label="Physics target grade"></select>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p id="onboardingGradeMsg" class="muted hidden" style="margin-top: 10px; font-size: 0.9rem;"></p>
+      </div>
+
+      <div id="onboardingStep4" class="onboarding-panel hidden">
         <h3 style="margin-bottom: 8px;">Subject study order</h3>
         <p class="muted" style="font-size: 0.9rem; margin-bottom: 8px;">Drag to reorder — 1 = introduced first when we seed your schedule. Default is Biology → Chemistry → Physics. This only affects your starter topics.</p>
         <ul id="preferenceRankList" class="onboarding-rank-list" data-rank-type="preference"></ul>
       </div>
 
-      <div id="onboardingStep4" class="onboarding-panel hidden">
+      <div id="onboardingStep5" class="onboarding-panel hidden">
         <h3 style="margin-bottom: 8px;">When are you aiming for exams?</h3>
         <p class="muted" style="font-size: 0.9rem; margin-bottom: 12px;">
           We pace new topics so you cover the curriculum by your first science paper (~11 May), without flooding your daily queue.
@@ -537,7 +660,7 @@
         <p class="muted" style="font-size: 0.85rem; margin-top: 12px;">You can set an exact exam date later in Settings.</p>
       </div>
 
-      <div id="onboardingStep5" class="onboarding-panel hidden">
+      <div id="onboardingStep6" class="onboarding-panel hidden">
         <h3 style="margin-bottom: 8px;">Join your class (optional)</h3>
         <p class="muted" style="font-size: 0.9rem; margin-bottom: 12px;">Enter the 6-character code from your teacher, or skip to continue solo.</p>
         <div class="input-group">
@@ -547,7 +670,7 @@
         <p id="classCodeMsg" class="muted hidden" style="margin-top: 8px; font-size: 0.9rem;"></p>
       </div>
 
-      <div id="onboardingStep6" class="onboarding-panel hidden">
+      <div id="onboardingStep7" class="onboarding-panel hidden">
         <h3 style="margin-bottom: 8px;">Ready to go</h3>
         <div id="onboardingSummary" class="onboarding-summary"></div>
       </div>
@@ -912,6 +1035,64 @@
                 </div>
               </div>
             </div>
+          </div>
+
+          <div class="settings-section">
+            <h4 class="settings-heading">Grades</h4>
+            <p class="muted settings-hint">Current and target GCSE grades. Changing these does not reset your adaptive difficulty.</p>
+            <div id="settingsCombinedGrades" class="onboarding-grades-panel">
+              <div class="onboarding-grades-row">
+                <div class="input-group">
+                  <label for="settingsCombinedCurrentGrade">Current grade</label>
+                  <select id="settingsCombinedCurrentGrade" class="onboarding-grade-select"></select>
+                </div>
+                <div class="input-group">
+                  <label for="settingsCombinedTargetGrade">Target grade</label>
+                  <select id="settingsCombinedTargetGrade" class="onboarding-grade-select"></select>
+                </div>
+              </div>
+            </div>
+            <div id="settingsTripleGrades" class="onboarding-grades-panel hidden" style="display: none;">
+              <table class="grades-table" aria-label="Current and target grades by subject">
+                <thead>
+                  <tr>
+                    <th scope="col">Subject</th>
+                    <th scope="col">Current</th>
+                    <th scope="col">Target</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Biology</td>
+                    <td>
+                      <select id="settingsTripleCurrentBiology" class="onboarding-grade-select" data-grade-role="current" data-subject="biology" aria-label="Biology current grade"></select>
+                    </td>
+                    <td>
+                      <select id="settingsTripleTargetBiology" class="onboarding-grade-select" data-grade-role="target" data-subject="biology" aria-label="Biology target grade"></select>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Chemistry</td>
+                    <td>
+                      <select id="settingsTripleCurrentChemistry" class="onboarding-grade-select" data-grade-role="current" data-subject="chemistry" aria-label="Chemistry current grade"></select>
+                    </td>
+                    <td>
+                      <select id="settingsTripleTargetChemistry" class="onboarding-grade-select" data-grade-role="target" data-subject="chemistry" aria-label="Chemistry target grade"></select>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Physics</td>
+                    <td>
+                      <select id="settingsTripleCurrentPhysics" class="onboarding-grade-select" data-grade-role="current" data-subject="physics" aria-label="Physics current grade"></select>
+                    </td>
+                    <td>
+                      <select id="settingsTripleTargetPhysics" class="onboarding-grade-select" data-grade-role="target" data-subject="physics" aria-label="Physics target grade"></select>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p id="settingsGradeMsg" class="muted hidden" style="margin-top: 8px; font-size: 0.9rem;"></p>
           </div>
 
           <div class="settings-section">

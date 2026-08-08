@@ -499,7 +499,7 @@ export async function fetchSyllabusPipelineData(userId, subject, paper, targetTi
 
 // ====== USER PROFILE (ONBOARDING) ======
 const PROFILE_COLUMNS_FULL =
-  "user_id, role, preferred_tier, science_path, subject_tiers, subscription_tier, onboarding_completed_at, subject_preference, class_id, display_name, total_xp, xp_rewards, revision_horizon_preset, target_exam_date, revision_pace_state";
+  "user_id, role, preferred_tier, science_path, subject_tiers, subscription_tier, onboarding_completed_at, subject_preference, class_id, display_name, total_xp, xp_rewards, revision_horizon_preset, target_exam_date, revision_pace_state, current_grades, target_grades";
 const PROFILE_COLUMNS_BASE = "user_id, preferred_tier";
 const PROFILE_COLUMNS_LEGACY =
   "user_id, role, preferred_tier, science_path, subject_tiers, subscription_tier, onboarding_completed_at, subject_preference, class_id, display_name, total_xp, xp_rewards";
@@ -569,7 +569,15 @@ function normalizeProfileRow(data, userId) {
     revision_pace_state:
       data.revision_pace_state && typeof data.revision_pace_state === "object"
         ? data.revision_pace_state
-        : {}
+        : {},
+    current_grades:
+      data.current_grades && typeof data.current_grades === "object"
+        ? data.current_grades
+        : null,
+    target_grades:
+      data.target_grades && typeof data.target_grades === "object"
+        ? data.target_grades
+        : null
   };
 }
 
