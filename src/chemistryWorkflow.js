@@ -184,6 +184,9 @@ function renderAtomSvg(opts) {
       const stroke = interactive ? "#1e40af" : "#047857";
       const pe = interactive ? "all" : "none";
       svg += `<circle class="chem-electron" data-atom="${escapeHtml(atomId)}" data-shell="${s}" data-e="${ei}" cx="${pt.x}" cy="${pt.y}" r="6" fill="${fill}" stroke="${stroke}" stroke-width="1" tabindex="${interactive ? "0" : "-1"}" role="${interactive ? "button" : "presentation"}" aria-label="${interactive ? `Remove electron from shell ${s + 1}` : ""}" style="cursor:${interactive ? "pointer" : "default"};pointer-events:${pe}"/>`;
+      if (interactive) {
+        svg += `<circle class="chem-electron-hit" data-atom="${escapeHtml(atomId)}" data-shell="${s}" data-e="${ei}" cx="${pt.x}" cy="${pt.y}" r="12" fill="transparent" stroke="none" tabindex="-1" aria-hidden="true" style="cursor:pointer;pointer-events:all"/>`;
+      }
     });
   }
 
@@ -963,7 +966,9 @@ export function wireChemistryWorkflow(q = null) {
         refreshDiagram();
         return;
       }
-      const elec = typeof t.closest === "function" ? t.closest(".chem-electron") : null;
+      const elec = typeof t.closest === "function"
+        ? (t.closest(".chem-electron") || t.closest(".chem-electron-hit"))
+        : null;
       if (elec) {
         e.preventDefault();
         const atomId = elec.getAttribute("data-atom");

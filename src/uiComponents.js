@@ -40,7 +40,9 @@ export function showToastBanner(msg, isError = true, durationMs = 5000) {
   if (!banner) {
     banner = document.createElement("div");
     banner.id = "toastBanner";
-    banner.style = "position: fixed; top: 16px; right: 16px; z-index: 9999; max-width: min(420px, calc(100vw - 32px)); padding: 12px 24px; border-radius: 8px; font-weight: 600; font-size: 0.9rem; color: white; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); opacity: 0; transform: translateY(-20px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); line-height: 1.35;";
+    banner.setAttribute("role", "status");
+    banner.setAttribute("aria-live", "polite");
+    banner.style = "position: fixed; bottom: 16px; right: 16px; z-index: 9999; max-width: min(420px, calc(100vw - 32px)); padding: 12px 24px; border-radius: 8px; font-weight: 600; font-size: 0.9rem; color: white; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); opacity: 0; transform: translateY(20px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); line-height: 1.35; pointer-events: none;";
     document.body.appendChild(banner);
   }
   banner.textContent = msg;
@@ -49,7 +51,7 @@ export function showToastBanner(msg, isError = true, durationMs = 5000) {
   banner.style.transform = "translateY(0)";
   setTimeout(() => {
     banner.style.opacity = "0";
-    banner.style.transform = "translateY(-20px)";
+    banner.style.transform = "translateY(20px)";
   }, durationMs);
 }
 
@@ -577,6 +579,12 @@ function attachHeatmapFloatingTooltips(container) {
       }
     });
     cell.addEventListener("mouseleave", hideHeatmapFloatingTooltip);
+    cell.addEventListener("focus", () => {
+      const text = cell.getAttribute("data-tooltip") || cell.getAttribute("aria-label");
+      if (!text) return;
+      showHeatmapFloatingTooltip(tip, cell, text);
+    });
+    cell.addEventListener("blur", hideHeatmapFloatingTooltip);
   });
 }
 
@@ -697,6 +705,15 @@ export function renderMasteryHeatmap(allSpecPoints, srsStates, onCellClickCallba
         };
       } else {
         cell.classList.add("heatmap-cell-readonly");
+        cell.setAttribute("tabindex", "0");
+        cell.setAttribute("role", "img");
+        cell.setAttribute("aria-label", tooltipText);
+        cell.onkeydown = (e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            cell.focus();
+          }
+        };
       }
 
       rowEl.appendChild(cell);

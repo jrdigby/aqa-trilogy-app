@@ -492,6 +492,40 @@
       text-transform: capitalize;
     }
 
+    .onboarding-rank-actions {
+      display: inline-flex;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+
+    .onboarding-rank-move {
+      flex: none;
+      width: 32px;
+      min-width: 32px;
+      height: 32px;
+      min-height: 32px;
+      padding: 0;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: #fff;
+      color: var(--text);
+      font-size: 0.7rem;
+      line-height: 1;
+      cursor: pointer;
+    }
+
+    .onboarding-rank-move:hover:not(:disabled) {
+      border-color: var(--primary);
+      color: var(--primary);
+    }
+
+    .onboarding-rank-move:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+      background: #f1f5f9;
+      color: var(--text-muted);
+    }
+
     .onboarding-rank-num {
       width: 28px;
       height: 28px;
@@ -543,12 +577,19 @@
 </head>
 <body>
 
+  <a class="skip-link" href="#mainContent">Skip to main content</a>
   <div class="container">
     <header>
       <h1>AQA Science Spaced Repetition</h1>
+      <nav class="site-help-nav" aria-label="Help and policies">
+        <a href="privacy.html" target="_blank" rel="noopener">Privacy</a>
+        <a href="terms.html" target="_blank" rel="noopener">Terms</a>
+        <a href="teacher.html">Teacher portal</a>
+      </nav>
       <div id="authMsg" class="muted">Checking session status...</div>
     </header>
 
+    <main id="mainContent">
     <section id="onboarding" class="card hidden">
       <h2>Welcome — set up your practice</h2>
       <p class="muted" style="margin-bottom: 16px;">A few quick steps so we can personalise your revision schedule.</p>
@@ -1198,6 +1239,7 @@
         <div id="summaryActions" class="btn-group" style="margin-top: 20px;"></div>
       </div>
     </section>
+    </main>
   </div>
 
   <div id="upgradeModal" class="upgrade-modal hidden" role="dialog" aria-modal="true" aria-labelledby="upgradeModalTitle">

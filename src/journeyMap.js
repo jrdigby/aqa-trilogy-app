@@ -154,7 +154,7 @@ export function renderJourneyMap({ totalXp = 0, journeyState } = {}) {
          role="button"
          aria-label="${escapeHtml(formatLocationLabel(loc))}${scientist?.name ? ` — ${escapeHtml(scientist.name)}` : ""}"
          style="cursor: pointer;">
-        <circle r="14" class="journey-landmark-hit" fill="transparent" />
+        <circle r="16" class="journey-landmark-hit" fill="transparent" />
         <circle r="6" class="journey-landmark-dot" />
         <title>${escapeHtml(formatLocationLabel(loc))} — ${escapeHtml(scientist?.name || "")}</title>
         <text y="-14" text-anchor="middle" class="journey-landmark-city">${escapeHtml(loc.name)}</text>

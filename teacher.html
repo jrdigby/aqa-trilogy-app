@@ -8,12 +8,18 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body class="teacher-portal">
+  <a class="skip-link" href="#teacherMain">Skip to main content</a>
   <div class="container">
     <header class="teacher-portal-header">
       <div class="teacher-portal-brand">
         <p class="teacher-portal-eyebrow">AQA GCSE Combined Science · Trilogy</p>
         <h1>Teacher Portal</h1>
         <p class="teacher-portal-tagline">Create class codes, view rosters, and monitor student revision progress.</p>
+        <nav class="site-help-nav" aria-label="Help and policies">
+          <a href="privacy.html" target="_blank" rel="noopener">Privacy</a>
+          <a href="terms.html" target="_blank" rel="noopener">Terms</a>
+          <a href="app.html">Student app</a>
+        </nav>
       </div>
       <div class="teacher-portal-header-actions">
         <a href="app.html" class="teacher-portal-link">← Student app</a>
@@ -24,6 +30,7 @@
 
     <div id="teacherToast" class="teacher-toast hidden" role="status" aria-live="polite"></div>
 
+    <main id="teacherMain">
     <section id="teacherAuthSection" class="card teacher-auth-card">
       <div class="teacher-auth-tabs" role="tablist" aria-label="Authentication">
         <button type="button" id="teacherAuthTabSignIn" class="teacher-auth-tab active" role="tab" aria-selected="true">Sign in</button>
@@ -49,6 +56,7 @@
       <div id="teacherAuthPanelSignUp" class="teacher-auth-panel hidden" role="tabpanel">
         <h2>Create teacher account</h2>
         <p class="muted teacher-auth-lead">Register with your school email. You'll use class join codes so students can link to your classes during onboarding.</p>
+        <p class="muted teacher-auth-lead">By registering you agree to the <a href="terms.html" target="_blank" rel="noopener">Terms of Use</a> and <a href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a>.</p>
       </div>
 
       <div id="teacherAuthFields" class="teacher-auth-fields">
@@ -99,6 +107,7 @@
         </div>
       </section>
     </div>
+    </main>
   </div>
 
   <div id="studentDetailOverlay" class="teacher-detail-overlay hidden" aria-hidden="true">
