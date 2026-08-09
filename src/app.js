@@ -3788,6 +3788,21 @@ function loadSettingsPanel() {
     hideTipsToggle.checked = isCommandWordTipsHidden();
   }
 
+  const weeklyToggle = el("settingsWeeklyReportEnabled");
+  if (weeklyToggle) {
+    weeklyToggle.checked = Boolean(currentUserProfile.weekly_report_enabled);
+  }
+  const parentEmailInput = el("settingsParentEmailInput");
+  if (parentEmailInput) {
+    parentEmailInput.value = currentUserProfile.parent_email || "";
+  }
+  const parentEmailToggle = el("settingsParentEmailEnabled");
+  if (parentEmailToggle) {
+    parentEmailToggle.checked = Boolean(currentUserProfile.parent_email_enabled);
+  }
+  const progressEmailMsg = el("settingsProgressEmailMsg");
+  if (progressEmailMsg) progressEmailMsg.classList.add("hidden");
+
   const classInput = el("settingsClassCodeInput");
   const classMsg = el("settingsClassMsg");
   if (classInput) classInput.value = "";
@@ -3927,6 +3942,29 @@ function wireSettingsControls() {
       }
       showGradeValidationMsg(el("settingsGradeMsg"), true);
 
+      const parentEmailRaw = (el("settingsParentEmailInput")?.value || "").trim();
+      const weeklyEnabled = Boolean(el("settingsWeeklyReportEnabled")?.checked);
+      const parentCopyEnabled = Boolean(el("settingsParentEmailEnabled")?.checked);
+      const progressMsg = el("settingsProgressEmailMsg");
+      const emailOk = !parentEmailRaw || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(parentEmailRaw);
+      if (!emailOk) {
+        if (progressMsg) {
+          progressMsg.textContent = "Enter a valid parent / guardian email, or leave it blank.";
+          progressMsg.style.color = "var(--error, #c0392b)";
+          progressMsg.classList.remove("hidden");
+        }
+        return;
+      }
+      if (parentCopyEnabled && !parentEmailRaw) {
+        if (progressMsg) {
+          progressMsg.textContent = "Add a parent / guardian email to send them a copy.";
+          progressMsg.style.color = "var(--error, #c0392b)";
+          progressMsg.classList.remove("hidden");
+        }
+        return;
+      }
+      if (progressMsg) progressMsg.classList.add("hidden");
+
       if (
         settingsSciencePath !== previousPath &&
         !window.confirm(
@@ -3944,7 +3982,10 @@ function wireSettingsControls() {
         revision_horizon_preset: settingsHorizonPreset,
         target_exam_date: (el("settingsExamDateInput")?.value || "").trim() || null,
         current_grades: settingsCurrentGrades,
-        target_grades: settingsTargetGrades
+        target_grades: settingsTargetGrades,
+        weekly_report_enabled: weeklyEnabled,
+        parent_email: parentEmailRaw || null,
+        parent_email_enabled: parentCopyEnabled && Boolean(parentEmailRaw)
       });
 
       if (settingsSciencePath !== previousPath) {

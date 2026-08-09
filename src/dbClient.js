@@ -499,10 +499,12 @@ export async function fetchSyllabusPipelineData(userId, subject, paper, targetTi
 
 // ====== USER PROFILE (ONBOARDING) ======
 const PROFILE_COLUMNS_FULL =
-  "user_id, role, preferred_tier, science_path, subject_tiers, subscription_tier, onboarding_completed_at, subject_preference, class_id, display_name, total_xp, xp_rewards, revision_horizon_preset, target_exam_date, revision_pace_state, current_grades, target_grades";
+  "user_id, role, preferred_tier, science_path, subject_tiers, subscription_tier, onboarding_completed_at, subject_preference, class_id, display_name, total_xp, xp_rewards, revision_horizon_preset, target_exam_date, revision_pace_state, current_grades, target_grades, weekly_report_enabled, parent_email, parent_email_enabled, weekly_report_unsubscribed_at";
 const PROFILE_COLUMNS_BASE = "user_id, preferred_tier";
 const PROFILE_COLUMNS_LEGACY =
   "user_id, role, preferred_tier, science_path, subject_tiers, subscription_tier, onboarding_completed_at, subject_preference, class_id, display_name, total_xp, xp_rewards";
+const PROFILE_COLUMNS_WITHOUT_REPORTS =
+  "user_id, role, preferred_tier, science_path, subject_tiers, subscription_tier, onboarding_completed_at, subject_preference, class_id, display_name, total_xp, xp_rewards, revision_horizon_preset, target_exam_date, revision_pace_state, current_grades, target_grades";
 
 function isMissingColumnError(error) {
   const msg = error?.message || "";
@@ -577,7 +579,11 @@ function normalizeProfileRow(data, userId) {
     target_grades:
       data.target_grades && typeof data.target_grades === "object"
         ? data.target_grades
-        : null
+        : null,
+    weekly_report_enabled: Boolean(data.weekly_report_enabled),
+    parent_email: data.parent_email ? String(data.parent_email).trim() : null,
+    parent_email_enabled: Boolean(data.parent_email_enabled),
+    weekly_report_unsubscribed_at: data.weekly_report_unsubscribed_at ?? null
   };
 }
 
@@ -601,10 +607,15 @@ export async function ensureUserProfile(userId) {
   } catch (err) {
     if (!isMissingColumnError(err)) throw err;
     try {
-      data = await queryProfileRow(userId, PROFILE_COLUMNS_LEGACY);
+      data = await queryProfileRow(userId, PROFILE_COLUMNS_WITHOUT_REPORTS);
     } catch (err2) {
       if (!isMissingColumnError(err2)) throw err2;
-      data = await queryProfileRow(userId, PROFILE_COLUMNS_BASE);
+      try {
+        data = await queryProfileRow(userId, PROFILE_COLUMNS_LEGACY);
+      } catch (err3) {
+        if (!isMissingColumnError(err3)) throw err3;
+        data = await queryProfileRow(userId, PROFILE_COLUMNS_BASE);
+      }
     }
   }
 
@@ -630,10 +641,15 @@ export async function ensureUserProfile(userId) {
   } catch (err) {
     if (!isMissingColumnError(err)) throw err;
     try {
-      data = await queryProfileRow(userId, PROFILE_COLUMNS_LEGACY);
+      data = await queryProfileRow(userId, PROFILE_COLUMNS_WITHOUT_REPORTS);
     } catch (err2) {
       if (!isMissingColumnError(err2)) throw err2;
-      data = await queryProfileRow(userId, PROFILE_COLUMNS_BASE);
+      try {
+        data = await queryProfileRow(userId, PROFILE_COLUMNS_LEGACY);
+      } catch (err3) {
+        if (!isMissingColumnError(err3)) throw err3;
+        data = await queryProfileRow(userId, PROFILE_COLUMNS_BASE);
+      }
     }
   }
 
