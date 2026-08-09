@@ -105,7 +105,7 @@ export function renderQuestionLayout(q, commandWordBanner, currentKey, layoutOpt
     html += `
       <div class="item">
         <textarea id="txtAns" rows="8" style="width:100%;padding:12px;border-radius:10px;border:1px solid #ccc;background:#ffffff;color:#000000;font-size:0.95rem;line-height:1.5;" placeholder="Draft your detailed scientific explanation here..."></textarea>
-        <div style="display: flex; justify-content: space-between; margin-top: 6px; font-size: 0.78rem; color: #64748b; font-weight: 600;">
+        <div style="display: flex; justify-content: space-between; margin-top: 6px; font-size: 0.78rem; color: var(--text-muted); font-weight: 600;">
           <span id="charCount">0 characters</span>
           <span id="wordCount">0 words (aim for 100-200)</span>
         </div>
@@ -382,7 +382,7 @@ export function renderLiveAIFeedback(evaluation, hasImprovedCurrentQ) {
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid #f1f5f9; padding-bottom: 12px;">
         <div>
           <span style="font-size: 1.1rem; font-weight: 800; color: #1e293b;">🤖 AI GCSE Examiner Evaluation</span>
-          <div style="font-size: 0.74rem; color: #64748b; font-weight: 600; margin-top: 2px;">GRADED IN SECURE SANDBOX AGAINST AQA SCIENTIFIC BLUEPRINTS</div>
+          <div style="font-size: 0.74rem; color: var(--text-muted); font-weight: 600; margin-top: 2px;">GRADED IN SECURE SANDBOX AGAINST AQA SCIENTIFIC BLUEPRINTS</div>
         </div>
         <div style="text-align: right;">
           <div style="background: #4f46e5; color: white; padding: 4px 10px; border-radius: 6px; font-weight: 700; font-size: 0.85rem;">
@@ -395,7 +395,7 @@ export function renderLiveAIFeedback(evaluation, hasImprovedCurrentQ) {
       <div style="margin-top: 15px; margin-bottom: 15px;">
         <strong style="font-size: 0.82rem; color: #1e293b; display: block; margin-bottom: 8px;">Assessment objective split:</strong>
         <div style="display: flex; flex-direction: column; gap: 6px;">
-          ${aoRowsHtml || `<div style="font-size: 0.78rem; color: #64748b;">AO split not available for this mark.</div>`}
+          ${aoRowsHtml || `<div style="font-size: 0.78rem; color: var(--text-muted);">AO split not available for this mark.</div>`}
         </div>
       </div>
 
@@ -501,13 +501,13 @@ export function renderAQAExtendedResponseFeedback(studentText, rubric, localKeyw
         </p>
       </div>
 
-      <div style="font-size: 0.8rem; color: #64748b; font-weight: 600;">
+      <div style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600;">
         Target scientific keywords matching: ${keywordHits} of ${localKeywords.length} targets identified.
       </div>
       <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;">
         ${localKeywords.map(k => {
           const hit = matchedKeywords.includes(k);
-          return `<span style="padding: 2px 6px; border-radius: 4px; font-size: 0.72rem; font-weight: 600; border: 1px solid ${hit ? '#a7f3d0' : '#e2e8f0'}; background: ${hit ? '#ecfdf5' : '#f8fafc'}; color: ${hit ? '#065f46' : '#94a3b8'};">${hit ? '🟢' : '⚪'} ${k}</span>`;
+          return `<span style="padding: 2px 6px; border-radius: 4px; font-size: 0.72rem; font-weight: 600; border: 1px solid ${hit ? '#a7f3d0' : '#e2e8f0'}; background: ${hit ? '#ecfdf5' : '#f8fafc'}; color: ${hit ? '#065f46' : 'var(--text-muted)'};">${hit ? '🟢' : '⚪'} ${k}</span>`;
         }).join("")}
       </div>
     </div>
@@ -622,7 +622,7 @@ export function renderMasteryHeatmap(allSpecPoints, srsStates, onCellClickCallba
     <div class="heatmap-header">
       <div>
         <h3 style="margin:0; font-size:1.1rem; color:#1e293b; font-weight:700;">Curriculum Mastery Matrix</h3>
-        <p style="margin:2px 0 0 0; font-size:0.8rem; color:#64748b;">Visualizing active tracking intervals vs concept gaps across the AQA Specification footprint</p>
+        <p style="margin:2px 0 0 0; font-size:0.8rem; color:var(--text-muted);">Visualizing active tracking intervals vs concept gaps across the AQA Specification footprint</p>
       </div>
     </div>
     <div class="heatmap-body" id="heatmapRowsTarget"></div>
@@ -680,9 +680,19 @@ export function renderMasteryHeatmap(allSpecPoints, srsStates, onCellClickCallba
       );
 
       if (!readOnly) {
-        cell.onclick = () => {
+        cell.setAttribute("tabindex", "0");
+        cell.setAttribute("role", "button");
+        cell.setAttribute("aria-label", tooltipText);
+        const activate = () => {
           if (typeof onCellClickCallback === "function") {
             onCellClickCallback(point);
+          }
+        };
+        cell.onclick = activate;
+        cell.onkeydown = (e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            activate();
           }
         };
       } else {
@@ -1061,7 +1071,7 @@ export function renderExamPaperFeedbackSummary(attemptLog) {
           <strong style="font-size:0.85rem;">Q${i + 1}</strong>
           <span class="chip" style="font-size:0.76rem;">${escapeHtml(scoreLine)}</span>
         </div>
-        ${att.promptPreview ? `<p style="font-size:0.78rem;color:#64748b;margin:0 0 8px;line-height:1.4;">${escapeHtml(att.promptPreview)}…</p>` : ""}
+        ${att.promptPreview ? `<p style="font-size:0.78rem;color:var(--text-muted);margin:0 0 8px;line-height:1.4;">${escapeHtml(att.promptPreview)}…</p>` : ""}
         ${stepSummary}
         ${gaps || ecf ? `<ul style="margin:0;padding-left:18px;font-size:0.82rem;line-height:1.4;">${gaps}${ecf}</ul>` : `<p style="margin:0;font-size:0.82rem;color:#059669;">Fully correct.</p>`}
       </div>

@@ -323,7 +323,7 @@ export function renderSubstitutionHelper(template, symbolSlotIds, equationId = n
   if (!symbolSlotIds?.size) return "";
   const labels = [...symbolSlotIds].map((id) => symbolLabelForHelper(template, id, equationId));
   const symText = labels.length === 1 ? labels[0] : labels.join(" or ");
-  return `<p class="calc-sub-hint" style="font-size:0.8rem;color:#64748b;margin:0 0 8px;line-height:1.45;">Enter values from the question in each box. For the quantity you are finding, type its symbol (<strong>${escapeHtml(symText)}</strong>).</p>`;
+  return `<p class="calc-sub-hint" style="font-size:0.8rem;color:var(--text-muted);margin:0 0 8px;line-height:1.45;">Enter values from the question in each box. For the quantity you are finding, type its symbol (<strong>${escapeHtml(symText)}</strong>).</p>`;
 }
 
 function firstMarkSchemeSlotValue(vals) {
@@ -514,7 +514,7 @@ export function renderFreeTextSubstitution(inputStyle) {
 }
 
 export function renderPendingEquationSelectSubstitution() {
-  return `<p class="calc-sub-pending" style="font-size:0.85rem;color:#64748b;margin:0;font-style:italic;">Select an equation in the step above first.</p>`;
+  return `<p class="calc-sub-pending" style="font-size:0.85rem;color:var(--text-muted);margin:0;font-style:italic;">Select an equation in the step above first.</p>`;
 }
 
 export function renderSubstitutionStepInner(ctx, inputStyle, renderOpts = {}) {

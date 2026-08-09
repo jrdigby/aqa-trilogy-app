@@ -197,30 +197,30 @@ export function renderStandardFormInputHelper({ requiresStandardForm = false } =
         <p style="margin:0 0 6px;font-weight:600;">Standard form — type on your keyboard:</p>
         <p style="margin:0 0 8px;padding:8px 10px;background:#fff;border:1px solid #e2e8f0;border-radius:6px;">
           <code style="${codeStyle}">a</code>
-          <span style="color:#64748b;"> then </span>
+          <span style="color:var(--text-muted);"> then </span>
           <code style="${codeStyle}">x10^</code>
-          <span style="color:#64748b;"> then the power </span>
+          <span style="color:var(--text-muted);"> then the power </span>
           <code style="${codeStyle}">n</code>
-          <span style="color:#64748b;"> &nbsp;→&nbsp; e.g. </span>
+          <span style="color:var(--text-muted);"> &nbsp;→&nbsp; e.g. </span>
           <code style="${codeStyle}">3.2x10^6</code>
         </p>
         <p style="margin:0 0 6px;">Examples to type:</p>
         <ul style="margin:0 0 8px;padding-left:18px;">
           <li style="margin-bottom:4px;">
             <code style="${codeStyle}">3.2x10^6</code>
-            <span style="color:#64748b;"> or </span>
+            <span style="color:var(--text-muted);"> or </span>
             <code style="${codeStyle}">3.2×10^6</code>
-            <span style="color:#64748b;"> → </span>
+            <span style="color:var(--text-muted);"> → </span>
             $3.2 \\times 10^{6}$
           </li>
           <li style="margin-bottom:4px;">
             <code style="${codeStyle}">4.5x10^3</code>
-            <span style="color:#64748b;"> → </span>
+            <span style="color:var(--text-muted);"> → </span>
             $4.5 \\times 10^{3}$
           </li>
           <li style="margin-bottom:4px;">
             <code style="${codeStyle}">1.2x10^-4</code>
-            <span style="color:#64748b;"> (negative power) → </span>
+            <span style="color:var(--text-muted);"> (negative power) → </span>
             $1.2 \\times 10^{-4}$
           </li>
           <li>
@@ -230,7 +230,7 @@ export function renderStandardFormInputHelper({ requiresStandardForm = false } =
             <code style="${codeStyle}">3.2e8</code>
           </li>
         </ul>
-        <p style="margin:0;font-size:0.78rem;color:#64748b;">
+        <p style="margin:0;font-size:0.78rem;color:var(--text-muted);">
           Use <strong>x</strong> or <strong>×</strong> before 10; use <strong>^</strong> before the exponent.
           Spaces are optional (<code style="${codeStyle}">3.2 x 10^6</code>).
         </p>
