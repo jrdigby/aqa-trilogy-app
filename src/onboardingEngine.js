@@ -117,7 +117,10 @@ export async function saveUserProfileSettings(userId, payload) {
     revision_horizon_preset,
     target_exam_date,
     current_grades,
-    target_grades
+    target_grades,
+    weekly_report_enabled,
+    parent_email,
+    parent_email_enabled
   } = payload;
   const path = science_path === "triple" ? "triple" : "combined";
   const patch = {
@@ -143,6 +146,19 @@ export async function saveUserProfileSettings(userId, payload) {
   }
   if (target_grades !== undefined) {
     patch.target_grades = normalizeTargetGrades(target_grades, path);
+  }
+  if (weekly_report_enabled !== undefined) {
+    patch.weekly_report_enabled = Boolean(weekly_report_enabled);
+    if (patch.weekly_report_enabled) {
+      patch.weekly_report_unsubscribed_at = null;
+    }
+  }
+  if (parent_email !== undefined) {
+    const cleaned = parent_email?.trim() || null;
+    patch.parent_email = cleaned;
+  }
+  if (parent_email_enabled !== undefined) {
+    patch.parent_email_enabled = Boolean(parent_email_enabled);
   }
   if (patch.revision_horizon_preset === "final_months" && !patch.target_exam_date) {
     patch.target_exam_date = examDateToPersist(
