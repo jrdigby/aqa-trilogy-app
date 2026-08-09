@@ -6,7 +6,7 @@
   background: none;
   border: none;
   padding: 0;
-  color: var(--primary, #4a90e2);
+  color: var(--primary, #1d6fd0);
   font-size: inherit;
   font-weight: 600;
   cursor: pointer;
@@ -38,7 +38,7 @@
 }
 
 .auth-checkbox-label a {
-  color: var(--primary, #4a90e2);
+  color: var(--primary, #1d6fd0);
 }
 
 /* ===== SIMPLE MCQ LAYOUT ===== */
@@ -198,7 +198,7 @@
   padding-right: 0;
   font-size: 0.75rem;
   font-weight: 700;
-  color: #64748b;
+  color: var(--text-muted, #555555);
   letter-spacing: 0.02em;
   line-height: 24px;
   white-space: nowrap;
@@ -225,6 +225,12 @@
   cursor: pointer;
   position: relative;
   z-index: 1;
+}
+
+.heatmap-cell:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring, 0 0 0 3px rgba(29, 111, 208, 0.45));
+  z-index: 2;
 }
 
 .heatmap-cell:hover {
@@ -314,7 +320,7 @@
 .session-context-spec-text {
   font-size: 0.88rem;
   line-height: 1.4;
-  color: var(--text-muted, #64748b);
+  color: var(--text-muted, #555555);
 }
 
 .session-summary-table {
@@ -332,7 +338,7 @@
 
 .session-summary-table th {
   font-weight: 700;
-  color: var(--text-muted, #64748b);
+  color: var(--text-muted, #555555);
   font-size: 0.8rem;
 }
 
@@ -400,7 +406,7 @@
 .session-summary-marks-label {
   font-size: 0.95rem;
   font-weight: 600;
-  color: var(--text-muted, #64748b);
+  color: var(--text-muted, #555555);
 }
 
 .session-summary-totals-row td {
@@ -686,7 +692,7 @@
 .session-adaptive-hint {
   margin: 0;
   font-size: 0.88rem;
-  color: var(--text-muted, #64748b);
+  color: var(--text-muted, #555555);
 }
 
 .session-adaptive-nudge {
@@ -1053,7 +1059,7 @@
   flex-shrink: 0;
   font-size: 0.62rem;
   font-weight: 600;
-  color: #64748b;
+  color: var(--text-muted, #555555);
   white-space: nowrap;
   padding-top: 1px;
 }
@@ -1238,7 +1244,7 @@
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  border: 2px solid #94a3b8;
+  border: 2px solid var(--text-muted, #555555);
   background: rgba(255, 255, 255, 0.95);
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.15);
   cursor: pointer;
@@ -1251,8 +1257,9 @@
 
 .revision-card-select:hover,
 .revision-card-select:focus-visible {
-  border-color: #4f46e5;
+  border-color: var(--primary, #1d6fd0);
   outline: none;
+  box-shadow: var(--focus-ring, 0 0 0 3px rgba(29, 111, 208, 0.45));
   transform: scale(1.06);
 }
 
@@ -2181,9 +2188,49 @@ body.teacher-portal {
   background: transparent;
   font-size: 1.5rem;
   line-height: 1;
+  color: var(--text-muted, #555555);
   cursor: pointer;
-  color: #64748b;
+  width: auto;
+  flex: none;
   padding: 4px 8px;
+}
+
+.upgrade-modal-close:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring, 0 0 0 3px rgba(29, 111, 208, 0.45));
+  border-radius: 6px;
+}
+
+.chem-shell-hitarea:focus,
+.chem-electron:focus,
+.chem-bond-hit:focus,
+.chem-cov-atom:focus,
+.chem-org-bond:focus,
+.chem-org-carbon:focus,
+.journey-landmark:focus {
+  outline: none;
+}
+
+.chem-shell-hitarea:focus-visible,
+.chem-electron:focus-visible,
+.chem-bond-hit:focus-visible,
+.chem-cov-atom:focus-visible,
+.chem-org-bond:focus-visible,
+.chem-org-carbon:focus-visible {
+  stroke: var(--primary, #1d6fd0);
+  stroke-width: 3;
+  stroke-opacity: 1;
+}
+
+.journey-landmark:focus-visible .journey-landmark-hit {
+  stroke: var(--primary, #1d6fd0);
+  stroke-width: 3;
+  fill: rgba(29, 111, 208, 0.12);
+}
+
+.revision-card[role="button"]:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring, 0 0 0 3px rgba(29, 111, 208, 0.45));
 }
 
 .upgrade-modal-card h2 {

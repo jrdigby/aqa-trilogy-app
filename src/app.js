@@ -322,6 +322,7 @@ if (activityRangePicker) {
 
 // ====== SESSION STATE ======
 let currentUser = null;
+let upgradeModalPreviousFocus = null;
 let sessionQuestions = [];
 let sessionQualityLog = [];
 let sessionAttemptLog = [];
@@ -1569,7 +1570,13 @@ function wireFlashcardCardInteractions(element, questionId) {
     if (!inner || flashcardSelectionMode || flashcardSelectedIds.size > 0) return;
     flipped = !flipped;
     inner.style.transform = flipped ? "rotateY(180deg)" : "rotateY(0deg)";
+    element.setAttribute("aria-pressed", flipped ? "true" : "false");
   };
+
+  element.setAttribute("tabindex", "0");
+  element.setAttribute("role", "button");
+  element.setAttribute("aria-label", "Flashcard — press Enter or Space to flip");
+  element.setAttribute("aria-pressed", "false");
 
   if (selectBtn) {
     selectBtn.addEventListener("click", (e) => {
@@ -1614,6 +1621,17 @@ function wireFlashcardCardInteractions(element, questionId) {
     }
     flip();
   });
+
+  element.addEventListener("keydown", (e) => {
+    if (e.target.closest?.(".revision-card-select")) return;
+    if (e.key !== "Enter" && e.key !== " ") return;
+    e.preventDefault();
+    if (flashcardSelectionMode || flashcardSelectedIds.size > 0) {
+      toggleFlashcardSelection(questionId);
+      return;
+    }
+    flip();
+  });
 }
 
 // ====== "MISSING INFO" REVISION FLASHCARD COMPILER ======
@@ -1636,7 +1654,7 @@ async function loadRevisionCards() {
 
     if (failedAttempts.length === 0) {
       container.innerHTML = `
-        <div style="grid-column: 1/-1; text-align: center; padding: 24px; border: 2px dashed #e2e8f0; border-radius: 8px; color: #64748b;">
+        <div style="grid-column: 1/-1; text-align: center; padding: 24px; border: 2px dashed #e2e8f0; border-radius: 8px; color: var(--text-muted);">
           <span style="font-size: 1.5rem; display: block; margin-bottom: 6px;">🎉</span>
           <strong style="font-size:0.85rem; color:#334155;">No concept gaps for ${escapeHtml(filterLabel)}</strong>
           <p style="font-size:0.75rem; margin:4px 0 0 0;">Complete more practice sessions in this selection. Gaps or missed keywords will construct flashcards here.</p>
@@ -1739,7 +1757,7 @@ async function downloadStudyGuideText(attempts) {
   printArea.innerHTML = `
     <div style="margin:0 0 6px 0; padding:0 0 4px 0; border-bottom:1px solid #cbd5e1;">
       <div style="color:#1e293b; margin:0; font-size:11pt; font-weight:700; line-height:1.2;">AQA GCSE Science — Fold revision cards</div>
-      <div style="color:#64748b; margin:2px 0 0 0; font-size:7.5pt;">Fold on the dotted line to hide answers · ${todayISO()}</div>
+      <div style="color:var(--text-muted); margin:2px 0 0 0; font-size:7.5pt;">Fold on the dotted line to hide answers · ${todayISO()}</div>
     </div>
   `;
 
@@ -1785,7 +1803,7 @@ async function downloadStudyGuideText(attempts) {
     itemBlock.style.paddingBottom = "4px";
     itemBlock.innerHTML = `
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:0; position:relative; min-height:52px;">
-        <div style="padding:3px 8px 3px 2px; border-right:1.5px dotted #94a3b8; box-sizing:border-box;">
+        <div style="padding:3px 8px 3px 2px; border-right:1.5px dotted var(--text-muted); box-sizing:border-box;">
           <div style="font-size:6.5pt; font-weight:700; color:#4f46e5; text-transform:uppercase; letter-spacing:0.02em; margin:0 0 2px 0; line-height:1.2;">${i + 1}. ${escapeHtml(heading)}</div>
           ${questionImgHtml}
           <div style="font-size:8pt; color:#1e293b; font-weight:600; line-height:1.25; margin:0;">${escapeHtml(q.prompt || "")}</div>
@@ -3558,19 +3576,33 @@ function showUpgradeModal(featureKey = "generic") {
   if (pricingEl) {
     pricingEl.textContent = formatProPricing();
   }
-  if (modal) modal.classList.remove("hidden");
+  if (modal) {
+    upgradeModalPreviousFocus = document.activeElement;
+    modal.classList.remove("hidden");
+    const focusTarget = el("btnCloseUpgradeModal") || modal.querySelector("button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])");
+    if (focusTarget && typeof focusTarget.focus === "function") {
+      try { focusTarget.focus(); } catch (_) { /* ignore */ }
+    }
+  }
 }
 
 function hideUpgradeModal() {
   const modal = el("upgradeModal");
   if (modal) modal.classList.add("hidden");
+  const prev = upgradeModalPreviousFocus;
+  upgradeModalPreviousFocus = null;
+  if (prev && typeof prev.focus === "function" && document.contains(prev)) {
+    try { prev.focus(); } catch (_) { /* ignore */ }
+  }
 }
 
 function wireUpgradeModal() {
+  const modal = el("upgradeModal");
   const backdrop = el("upgradeModalBackdrop");
   const btnClose = el("btnCloseUpgradeModal");
   const btnDismiss = el("btnUpgradeModalDismiss");
   const btnAnalytics = el("btnUpgradeFromAnalytics");
+  const card = modal?.querySelector(".upgrade-modal-card");
 
   if (backdrop) backdrop.onclick = hideUpgradeModal;
   if (btnClose) btnClose.onclick = hideUpgradeModal;
@@ -3578,6 +3610,29 @@ function wireUpgradeModal() {
   if (btnAnalytics) {
     btnAnalytics.onclick = () => showUpgradeModal("analytics");
   }
+
+  document.addEventListener("keydown", (e) => {
+    if (!isUpgradeModalOpen()) return;
+    if (e.key === "Escape") {
+      e.preventDefault();
+      hideUpgradeModal();
+      return;
+    }
+    if (e.key !== "Tab" || !card) return;
+    const focusables = [...card.querySelectorAll(
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    )].filter((node) => !node.hasAttribute("disabled") && node.offsetParent !== null);
+    if (!focusables.length) return;
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  });
 }
 
 async function refreshPlanState() {
@@ -4785,13 +4840,13 @@ async function loadTopics() {
               <span style="font-weight: 700; color: #1e293b; font-size: 0.95rem; line-height: 1.3;">${ao.name}</span>
               <span style="font-size: 1.1rem; font-weight: 800; color: ${ao.color};">${hasAttempts ? `${percentage}%` : "0%"}</span>
             </div>
-            <p style="font-size: 0.76rem; color: #64748b; line-height: 1.4; margin-bottom: 12px;">${ao.desc}</p>
+            <p style="font-size: 0.76rem; color: var(--text-muted); line-height: 1.4; margin-bottom: 12px;">${ao.desc}</p>
             <div style="width: 100%; height: 8px; background: #f1f5f9; border-radius: 4px; overflow: hidden; margin-bottom: 6px;">
               <div style="width: ${percentage}%; height: 100%; background: ${ao.color}; border-radius: 4px; transition: width 0.5s ease-out;"></div>
             </div>
             <div style="font-size: 0.72rem; color: #475569; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px;">
               <span>Earned: <strong>${stats.earned}</strong> of <strong>${stats.max}</strong> max marks</span>
-              <span style="font-weight: 600; color: #64748b;">${hasAttempts ? "Active Mastery" : "No Attempts"}</span>
+              <span style="font-weight: 600; color: var(--text-muted);">${hasAttempts ? "Active Mastery" : "No Attempts"}</span>
             </div>
           </div>
         `;
@@ -4962,270 +5017,305 @@ async function bootstrapAuth() {
 
 bootstrapAuth();
 
+function isPracticeSubmitAvailable() {
+  return !!(
+    btnSubmit &&
+    currentUser &&
+    currentQ &&
+    !btnSubmit.disabled &&
+    !btnSubmit.classList.contains("hidden")
+  );
+}
+
+function isPracticeAdvanceAvailable() {
+  return !!(btnNext && !btnNext.disabled && !btnNext.classList.contains("hidden"));
+}
+
+function isUpgradeModalOpen() {
+  const modal = el("upgradeModal");
+  return !!(modal && !modal.classList.contains("hidden"));
+}
+
 // ====== ANSWER SUBMISSION ORCHESTRATOR ======
-if (btnSubmit) {
-  btnSubmit.onclick = async () => {
-    if (!currentUser || !currentQ) return;
+async function submitCurrentAnswer() {
+  if (!currentUser || !currentQ) return;
+  if (!isPracticeSubmitAvailable()) return;
+
+  const response = await getResponsePayload(currentQ);
+
+  if (currentQ.question_type === "extended_response" || currentQ.marking_method === "ai_rubric") {
+    if (!response.text || response.text.trim().length === 0) {
+      showToastBanner("Please write a detailed response before clicking Submit!", true);
+      btnSubmit.disabled = false;
+      return;
+    }
+  }
+
+  if (currentQ.question_type === "numeric") {
+    const { validateCalculationResponse } = await loadCalculationWorkflow();
+    const calcValidation = validateCalculationResponse(currentQ, response, sessionMode);
+    if (!calcValidation.valid) {
+      showToastBanner(calcValidation.message, true);
+      btnSubmit.disabled = false;
+      return;
+    }
+    if (calcValidation.warn) {
+      showToastBanner(calcValidation.warn, false, 3500);
+    }
+  }
+
+  hideSubmitButton();
+
+  const hintsRevealed = currentHintState.revealedCount;
+  const xpEarned = computeAttemptXp(currentQ, hintsRevealed, response);
+
+  const existingBanner = el("improveBanner");
+  if (existingBanner) existingBanner.remove();
+
+  if (currentQ.question_type === "mcq") {
+    const selectedInput = document.querySelector('input[name="mcq"]:checked');
+    const correctVal = currentKey?.key_payload?.correct || currentKey?.key_payload?.answer || "";
+    const inputs = document.querySelectorAll('input[name="mcq"]');
     
-    const response = await getResponsePayload(currentQ);
+    inputs.forEach(input => {
+      const label = input.closest('label');
+      if (label) {
+        const val = input.value;
+        input.disabled = true;
+        if (val === correctVal) {
+          label.style.borderColor = "#10b981";
+          label.style.backgroundColor = "#ecfdf5";
+          label.style.color = "#065f46";
+          label.style.borderWidth = "2px";
+          label.style.boxShadow = "0 0 0 3px rgba(16, 185, 129, 0.15)";
+        } else if (selectedInput && input === selectedInput) {
+          label.style.borderColor = "#ef4444";
+          label.style.backgroundColor = "#fef2f2";
+          label.style.color = "#991b1b";
+          label.style.borderWidth = "2px";
+          label.style.boxShadow = "0 0 0 3px rgba(239, 68, 68, 0.15)";
+        }
+      }
+    });
+  }
 
-    if (currentQ.question_type === "extended_response" || currentQ.marking_method === "ai_rubric") {
-      if (!response.text || response.text.trim().length === 0) {
-        showToastBanner("Please write a detailed response before clicking Submit!", true);
-        btnSubmit.disabled = false;
-        return;
+  if (currentQ.question_type === "extended_response" || currentQ.marking_method === "ai_rubric") {
+    let useAiMarking = !!currentAccess?.isPro;
+
+    if (!useAiMarking) {
+      try {
+        const quota = await tryConsumeAiMark();
+        if (quota?.allowed) {
+          useAiMarking = true;
+          planQuotas.ai_used = Number(quota.used) || planQuotas.ai_used + 1;
+          updatePlanQuotaChip();
+        } else {
+          showUpgradeModal("ai_marking");
+          showToastBanner(
+            `You've used your ${quota?.limit ?? FREE_AI_MARKS_PER_WEEK} free AI examiner marks this week. Showing basic feedback instead.`,
+            true
+          );
+        }
+      } catch (quotaErr) {
+        console.warn("AI quota check skipped:", quotaErr?.message || quotaErr);
+        useAiMarking = true;
       }
     }
 
-    if (currentQ.question_type === "numeric") {
-      const { validateCalculationResponse } = await loadCalculationWorkflow();
-      const calcValidation = validateCalculationResponse(currentQ, response, sessionMode);
-      if (!calcValidation.valid) {
-        showToastBanner(calcValidation.message, true);
-        btnSubmit.disabled = false;
-        return;
-      }
-      if (calcValidation.warn) {
-        showToastBanner(calcValidation.warn, false, 3500);
-      }
-    }
+    if (!useAiMarking) {
+      await runLocalExtendedMarking(response);
+      if (btnNext) showAdvanceButton();
+      hideSubmitButton();
+    } else {
+    feedback.innerHTML = `
+      <div style="text-align: center; padding: 24px 12px;">
+        <div class="loader-spinner" style="margin: 0 auto 12px auto; width: 32px; height: 32px; border: 4px solid #f3f3f3; border-top: 4px solid var(--primary); border-radius: 50%; animation: spin 1s linear infinite;"></div>
+        <strong style="color: var(--text); font-size: 0.92rem; display: block; margin-bottom: 4px;">🤖 AI GCSE Examiner Evaluating...</strong>
+        <p style="font-size: 0.78rem; color: var(--text-muted); max-width: 250px; margin: 0 auto; line-height: 1.3;">Analyzing experimental descriptions, sequencing, error controls, and scientific terminology against official AQA grids.</p>
+      </div>
+      <style>
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+      </style>
+    `;
+    if (btnNext) showAdvanceButton();
 
-    hideSubmitButton();
+    try {
+      console.log("Invoking Edge Function 'mark-long-answer' for Question ID:", currentQ.id);
 
-    const hintsRevealed = currentHintState.revealedCount;
-    const xpEarned = computeAttemptXp(currentQ, hintsRevealed, response);
-
-    const existingBanner = el("improveBanner");
-    if (existingBanner) existingBanner.remove();
-
-    if (currentQ.question_type === "mcq") {
-      const selectedInput = document.querySelector('input[name="mcq"]:checked');
-      const correctVal = currentKey?.key_payload?.correct || currentKey?.key_payload?.answer || "";
-      const inputs = document.querySelectorAll('input[name="mcq"]');
-      
-      inputs.forEach(input => {
-        const label = input.closest('label');
-        if (label) {
-          const val = input.value;
-          input.disabled = true;
-          if (val === correctVal) {
-            label.style.borderColor = "#10b981";
-            label.style.backgroundColor = "#ecfdf5";
-            label.style.color = "#065f46";
-            label.style.borderWidth = "2px";
-            label.style.boxShadow = "0 0 0 3px rgba(16, 185, 129, 0.15)";
-          } else if (selectedInput && input === selectedInput) {
-            label.style.borderColor = "#ef4444";
-            label.style.backgroundColor = "#fef2f2";
-            label.style.color = "#991b1b";
-            label.style.borderWidth = "2px";
-            label.style.boxShadow = "0 0 0 3px rgba(239, 68, 68, 0.15)";
-          }
+      const { data, error } = await supabaseClient.functions.invoke('mark-long-answer', {
+        body: { 
+          question_id: currentQ.id, 
+          student_text: response.text,
+          is_improvement: hasImprovedCurrentQ === true
         }
       });
-    }
 
-    if (currentQ.question_type === "extended_response" || currentQ.marking_method === "ai_rubric") {
-      let useAiMarking = !!currentAccess?.isPro;
+      if (error) throw error;
 
-      if (!useAiMarking) {
-        try {
-          const quota = await tryConsumeAiMark();
-          if (quota?.allowed) {
-            useAiMarking = true;
-            planQuotas.ai_used = Number(quota.used) || planQuotas.ai_used + 1;
-            updatePlanQuotaChip();
-          } else {
-            showUpgradeModal("ai_marking");
-            showToastBanner(
-              `You've used your ${quota?.limit ?? FREE_AI_MARKS_PER_WEEK} free AI examiner marks this week. Showing basic feedback instead.`,
-              true
-            );
-          }
-        } catch (quotaErr) {
-          console.warn("AI quota check skipped:", quotaErr?.message || quotaErr);
-          useAiMarking = true;
-        }
+      if (data?.improved_answer) {
+        lastAiImprovedAnswer = data.improved_answer;
+      }
+      const feedbackData = data?.improved_answer || !lastAiImprovedAnswer
+        ? data
+        : { ...data, improved_answer: lastAiImprovedAnswer };
+
+      // Prefer server ao_targets; fall back to question metadata if an older function omits them.
+      if (!feedbackData.ao_targets && currentQ) {
+        feedbackData.ao_targets = {
+          AO1: Number(currentQ.ao1_marks) || 0,
+          AO2: Number(currentQ.ao2_marks) || 0,
+          AO3: Number(currentQ.ao3_marks) || 0
+        };
       }
 
-      if (!useAiMarking) {
-        await runLocalExtendedMarking(response);
-        if (btnNext) showAdvanceButton();
-        hideSubmitButton();
-      } else {
-      feedback.innerHTML = `
-        <div style="text-align: center; padding: 24px 12px;">
-          <div class="loader-spinner" style="margin: 0 auto 12px auto; width: 32px; height: 32px; border: 4px solid #f3f3f3; border-top: 4px solid var(--primary); border-radius: 50%; animation: spin 1s linear infinite;"></div>
-          <strong style="color: var(--text); font-size: 0.92rem; display: block; margin-bottom: 4px;">🤖 AI GCSE Examiner Evaluating...</strong>
-          <p style="font-size: 0.78rem; color: var(--text-muted); max-width: 250px; margin: 0 auto; line-height: 1.3;">Analyzing experimental descriptions, sequencing, error controls, and scientific terminology against official AQA grids.</p>
-        </div>
-        <style>
-          @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        </style>
-      `;
-      if (btnNext) showAdvanceButton();
+      feedback.innerHTML = renderLiveAIFeedback(feedbackData, hasImprovedCurrentQ);
+      triggerMathTypeset();
 
-      try {
-        console.log("Invoking Edge Function 'mark-long-answer' for Question ID:", currentQ.id);
+      const btnImprove = el("btnImprove");
+      if (btnImprove) {
+        btnImprove.onclick = () => {
+          hasImprovedCurrentQ = true;
+          btnImprove.remove();
+          const textarea = el("txtAns");
+          if (textarea) {
+            textarea.value = response.text;
+            textarea.focus();
+            textarea.scrollIntoView({ behavior: "smooth" });
 
-        const { data, error } = await supabaseClient.functions.invoke('mark-long-answer', {
-          body: { 
-            question_id: currentQ.id, 
-            student_text: response.text,
-            is_improvement: hasImprovedCurrentQ === true
-          }
-        });
+            showSubmitButton("Submit Improved Answer");
+            // Keep advance available while drafting / after the first mark.
+            if (btnNext) showAdvanceButton();
 
-        if (error) throw error;
-
-        if (data?.improved_answer) {
-          lastAiImprovedAnswer = data.improved_answer;
-        }
-        const feedbackData = data?.improved_answer || !lastAiImprovedAnswer
-          ? data
-          : { ...data, improved_answer: lastAiImprovedAnswer };
-
-        // Prefer server ao_targets; fall back to question metadata if an older function omits them.
-        if (!feedbackData.ao_targets && currentQ) {
-          feedbackData.ao_targets = {
-            AO1: Number(currentQ.ao1_marks) || 0,
-            AO2: Number(currentQ.ao2_marks) || 0,
-            AO3: Number(currentQ.ao3_marks) || 0
-          };
-        }
-
-        feedback.innerHTML = renderLiveAIFeedback(feedbackData, hasImprovedCurrentQ);
-        triggerMathTypeset();
-
-        const btnImprove = el("btnImprove");
-        if (btnImprove) {
-          btnImprove.onclick = () => {
-            hasImprovedCurrentQ = true;
-            btnImprove.remove();
-            const textarea = el("txtAns");
-            if (textarea) {
-              textarea.value = response.text;
-              textarea.focus();
-              textarea.scrollIntoView({ behavior: "smooth" });
-
-              showSubmitButton("Submit Improved Answer");
-              // Keep advance available while drafting / after the first mark.
-              if (btnNext) showAdvanceButton();
-
-              let banner = el("improveBanner");
-              if (!banner) {
-                banner = document.createElement("div");
-                banner.id = "improveBanner";
-                banner.style = "background: #fffbeb; color: #b45309; padding: 12px 14px; border-radius: 8px; font-size: 0.84rem; font-weight: 600; margin-bottom: 14px; border: 1px solid #fef3c7; line-height: 1.4;";
-                textarea.parentNode.insertBefore(banner, textarea);
-              }
-              banner.innerHTML = "💡 <strong>Drafting Improved Version:</strong> Reference the AI's model answer and actionable recommendation inside the feedback panel below to complete any missing concepts!";
+            let banner = el("improveBanner");
+            if (!banner) {
+              banner = document.createElement("div");
+              banner.id = "improveBanner";
+              banner.style = "background: #fffbeb; color: #b45309; padding: 12px 14px; border-radius: 8px; font-size: 0.84rem; font-weight: 600; margin-bottom: 14px; border: 1px solid #fef3c7; line-height: 1.4;";
+              textarea.parentNode.insertBefore(banner, textarea);
             }
-          };
-        }
-
-        const result = await insertAttemptRow({
-          user_id: currentUser.id,
-          question_id: currentQ.id,
-          response_payload: response,
-          score_total: data.score_total, 
-          score_max: data.score_max,
-          ao1_score: data.ao_breakdown?.AO1 || 0,
-          ao2_score: data.ao_breakdown?.AO2 || 0,
-          ao3_score: data.ao_breakdown?.AO3 || 0,
-          feedback_payload: feedbackData,
-          xp_earned: xpEarned,
-          hints_revealed: hintsRevealed
-        });
-
-        if (result.error) throw result.error;
-
-        let srsQuality = 0;
-        if (data.score_total >= (data.score_max - 1)) srsQuality = 5;
-        else if (data.score_total >= Math.ceil(data.score_max / 2)) srsQuality = 3;
-        else if (data.score_total >= 1) srsQuality = 1;
-        else srsQuality = 0;
-
-        sessionQualityLog.push({ specPointId: srsSpecPointIdForQuestion(), quality: srsQuality });
-        logSessionAttempt({
-          questionId: currentQ.id,
-          questionType: currentQ.question_type,
-          specPointId: srsSpecPointIdForQuestion(),
-          specPoint: resolveQuestionSpecMeta(currentQ, currentUserProfile),
-          scoreTotal: data.score_total,
-          scoreMax: data.score_max,
-          xpEarned
-        });
-        await awardAttemptXp(xpEarned, hintsRevealed);
-
-      } catch (err) {
-        console.error("AI Marking route failed, applying local self-assessment failover:", err);
-        showToastBanner("AI Grader slow or offline. Displaying local grading rubric schema.", true);
-        await runLocalExtendedMarking(response);
-      }
-      hideSubmitButton();
-      }
-
-    } else {
-      const marking = await markResponse(currentQ, response, currentKey, currentMarkPoints);
-      const isExamPaper = sessionMode === "paper_practice";
-
-      if (feedback) {
-        if (isExamPaper) {
-          feedback.innerHTML = `
-            <div class="item" style="border-left:4px solid var(--primary); padding:12px 16px; background:#f0f9ff;">
-              <strong>Answer recorded</strong>
-              <p style="margin:6px 0 0; font-size:0.85rem; color:var(--text-muted);">
-                ${marking.total}/${marking.max} marks — detailed step feedback will appear at the end of the paper.
-              </p>
-            </div>
-          `;
-        } else {
-          feedback.innerHTML = await renderFeedback(marking, currentQ, currentKey, currentMarkPoints);
-          triggerMathTypeset();
-          if (currentQ.question_type === "numeric" && marking.stepResults) {
-            const { applyCalculationStepHighlighting } = await loadCalculationWorkflow();
-            applyCalculationStepHighlighting(marking.stepResults);
+            banner.innerHTML = "💡 <strong>Drafting Improved Version:</strong> Reference the AI's model answer and actionable recommendation inside the feedback panel below to complete any missing concepts!";
           }
-        }
+        };
       }
-      if (btnNext) showAdvanceButton();
-      hideSubmitButton();
 
-      try {
-        const result = await insertAttemptRow({
-          user_id: currentUser.id,
-          question_id: currentQ.id,
-          response_payload: response,
-          score_total: marking.total,
-          score_max: marking.max,
-          ao1_score: marking.ao.AO1,
-          ao2_score: marking.ao.AO2,
-          ao3_score: marking.ao.AO3,
-          feedback_payload: marking.feedbackPayload,
-          xp_earned: xpEarned,
-          hints_revealed: hintsRevealed
-        });
+      const result = await insertAttemptRow({
+        user_id: currentUser.id,
+        question_id: currentQ.id,
+        response_payload: response,
+        score_total: data.score_total, 
+        score_max: data.score_max,
+        ao1_score: data.ao_breakdown?.AO1 || 0,
+        ao2_score: data.ao_breakdown?.AO2 || 0,
+        ao3_score: data.ao_breakdown?.AO3 || 0,
+        feedback_payload: feedbackData,
+        xp_earned: xpEarned,
+        hints_revealed: hintsRevealed
+      });
 
-        if (result.error) throw result.error;
-        sessionQualityLog.push({ specPointId: srsSpecPointIdForQuestion(), quality: marking.quality });
-        logSessionAttempt({
-          questionId: currentQ.id,
-          questionType: currentQ.question_type,
-          specPointId: srsSpecPointIdForQuestion(),
-          specPoint: resolveQuestionSpecMeta(currentQ, currentUserProfile),
-          scoreTotal: marking.total,
-          scoreMax: marking.max,
-          xpEarned,
-          marking: isExamPaper ? marking : null,
-          promptPreview: (currentQ.prompt || "").slice(0, 120)
-        });
-        await awardAttemptXp(xpEarned, hintsRevealed);
-      } catch(err) {
-        console.error("Sync backup failure logged:", err);
-        showToastBanner("Warning: Failed to log performance metric: " + err.message, true);
+      if (result.error) throw result.error;
+
+      let srsQuality = 0;
+      if (data.score_total >= (data.score_max - 1)) srsQuality = 5;
+      else if (data.score_total >= Math.ceil(data.score_max / 2)) srsQuality = 3;
+      else if (data.score_total >= 1) srsQuality = 1;
+      else srsQuality = 0;
+
+      sessionQualityLog.push({ specPointId: srsSpecPointIdForQuestion(), quality: srsQuality });
+      logSessionAttempt({
+        questionId: currentQ.id,
+        questionType: currentQ.question_type,
+        specPointId: srsSpecPointIdForQuestion(),
+        specPoint: resolveQuestionSpecMeta(currentQ, currentUserProfile),
+        scoreTotal: data.score_total,
+        scoreMax: data.score_max,
+        xpEarned
+      });
+      await awardAttemptXp(xpEarned, hintsRevealed);
+
+    } catch (err) {
+      console.error("AI Marking route failed, applying local self-assessment failover:", err);
+      showToastBanner("AI Grader slow or offline. Displaying local grading rubric schema.", true);
+      await runLocalExtendedMarking(response);
+    }
+    hideSubmitButton();
+    }
+
+  } else {
+    const marking = await markResponse(currentQ, response, currentKey, currentMarkPoints);
+    const isExamPaper = sessionMode === "paper_practice";
+
+    if (feedback) {
+      if (isExamPaper) {
+        feedback.innerHTML = `
+          <div class="item" style="border-left:4px solid var(--primary); padding:12px 16px; background:#f0f9ff;">
+            <strong>Answer recorded</strong>
+            <p style="margin:6px 0 0; font-size:0.85rem; color:var(--text-muted);">
+              ${marking.total}/${marking.max} marks — detailed step feedback will appear at the end of the paper.
+            </p>
+          </div>
+        `;
+      } else {
+        feedback.innerHTML = await renderFeedback(marking, currentQ, currentKey, currentMarkPoints);
+        triggerMathTypeset();
+        if (currentQ.question_type === "numeric" && marking.stepResults) {
+          const { applyCalculationStepHighlighting } = await loadCalculationWorkflow();
+          applyCalculationStepHighlighting(marking.stepResults);
+        }
       }
     }
+    if (btnNext) showAdvanceButton();
+    hideSubmitButton();
+
+    try {
+      const result = await insertAttemptRow({
+        user_id: currentUser.id,
+        question_id: currentQ.id,
+        response_payload: response,
+        score_total: marking.total,
+        score_max: marking.max,
+        ao1_score: marking.ao.AO1,
+        ao2_score: marking.ao.AO2,
+        ao3_score: marking.ao.AO3,
+        feedback_payload: marking.feedbackPayload,
+        xp_earned: xpEarned,
+        hints_revealed: hintsRevealed
+      });
+
+      if (result.error) throw result.error;
+      sessionQualityLog.push({ specPointId: srsSpecPointIdForQuestion(), quality: marking.quality });
+      logSessionAttempt({
+        questionId: currentQ.id,
+        questionType: currentQ.question_type,
+        specPointId: srsSpecPointIdForQuestion(),
+        specPoint: resolveQuestionSpecMeta(currentQ, currentUserProfile),
+        scoreTotal: marking.total,
+        scoreMax: marking.max,
+        xpEarned,
+        marking: isExamPaper ? marking : null,
+        promptPreview: (currentQ.prompt || "").slice(0, 120)
+      });
+      await awardAttemptXp(xpEarned, hintsRevealed);
+    } catch(err) {
+      console.error("Sync backup failure logged:", err);
+      showToastBanner("Warning: Failed to log performance metric: " + err.message, true);
+    }
+  }
+
+
+  const focusTarget = isPracticeAdvanceAvailable() ? btnNext : el("feedback");
+  if (focusTarget && typeof focusTarget.focus === "function") {
+    try {
+      if (focusTarget === el("feedback") && !focusTarget.hasAttribute("tabindex")) {
+        focusTarget.setAttribute("tabindex", "-1");
+      }
+      focusTarget.focus({ preventScroll: true });
+    } catch (_) { /* ignore */ }
+  }
+}
+
+if (btnSubmit) {
+  btnSubmit.onclick = () => {
+    void submitCurrentAnswer();
   };
 }
 
@@ -5235,17 +5325,79 @@ if (btnExitPractice) {
   };
 }
 
+async function advanceToNextQuestion() {
+  idx++;
+  if (idx >= sessionQuestions.length) {
+    await showSessionSummary();
+  } else {
+    await loadQuestion();
+  }
+}
+
 // ====== PRACTICE NAVIGATION CONTROL ======
 if (btnNext) {
-  btnNext.onclick = async () => {
-    idx++;
-    if (idx >= sessionQuestions.length) {
-      await showSessionSummary();
-    } else {
-      await loadQuestion();
-    }
+  btnNext.onclick = () => {
+    void advanceToNextQuestion();
   };
 }
+
+function wirePracticeKeyboardShortcuts() {
+  document.addEventListener("keydown", (e) => {
+    if (isUpgradeModalOpen()) return;
+    if (e.key !== "Enter" && e.key !== " ") return;
+
+    const active = document.activeElement;
+    const tag = (active?.tagName || "").toLowerCase();
+    const isTextarea = tag === "textarea";
+    const isButton = tag === "button" || active?.getAttribute?.("role") === "button";
+    const inMultiline = isTextarea || active?.isContentEditable;
+
+    // Let native / widget handlers own activation for focused buttons.
+    if (isButton) return;
+
+    if (e.key === "Enter") {
+      if (inMultiline) {
+        if (!(e.ctrlKey || e.metaKey)) return;
+        if (!isPracticeSubmitAvailable()) return;
+        e.preventDefault();
+        void submitCurrentAnswer();
+        return;
+      }
+
+      if (tag === "input" || tag === "select") {
+        if (!isPracticeSubmitAvailable()) return;
+        e.preventDefault();
+        void submitCurrentAnswer();
+        return;
+      }
+
+      if (isPracticeSubmitAvailable()) {
+        e.preventDefault();
+        void submitCurrentAnswer();
+        return;
+      }
+
+      if (isPracticeAdvanceAvailable()) {
+        e.preventDefault();
+        void advanceToNextQuestion();
+      }
+      return;
+    }
+
+    // Space: do not steal from text fields; native buttons handle themselves.
+    if (e.key === " " && !inMultiline && tag !== "input" && !isButton) {
+      if (isPracticeSubmitAvailable()) {
+        e.preventDefault();
+        void submitCurrentAnswer();
+      } else if (isPracticeAdvanceAvailable()) {
+        e.preventDefault();
+        void advanceToNextQuestion();
+      }
+    }
+  });
+}
+
+wirePracticeKeyboardShortcuts();
 
 console.log("DEBUG: app.js engine parsing completed.");
 wireAnswerFocusTracking();

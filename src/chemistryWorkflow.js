@@ -170,7 +170,7 @@ function renderAtomSvg(opts) {
   if (interactive) {
     for (let s = shellCount - 1; s >= 0; s--) {
       const r = baseR + s * gap;
-      svg += `<circle class="chem-shell-hitarea" data-atom="${escapeHtml(atomId)}" data-shell="${s}" cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#93c5fd" stroke-opacity="0.35" stroke-width="18" pointer-events="stroke" style="cursor:pointer"/>`;
+      svg += `<circle class="chem-shell-hitarea" data-atom="${escapeHtml(atomId)}" data-shell="${s}" cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#93c5fd" stroke-opacity="0.35" stroke-width="18" pointer-events="stroke" tabindex="0" role="button" aria-label="Add electron to shell ${s + 1}" style="cursor:pointer"/>`;
     }
   }
 
@@ -183,7 +183,7 @@ function renderAtomSvg(opts) {
       const fill = interactive ? "#2563eb" : "#059669";
       const stroke = interactive ? "#1e40af" : "#047857";
       const pe = interactive ? "all" : "none";
-      svg += `<circle class="chem-electron" data-atom="${escapeHtml(atomId)}" data-shell="${s}" data-e="${ei}" cx="${pt.x}" cy="${pt.y}" r="6" fill="${fill}" stroke="${stroke}" stroke-width="1" style="cursor:${interactive ? "pointer" : "default"};pointer-events:${pe}"/>`;
+      svg += `<circle class="chem-electron" data-atom="${escapeHtml(atomId)}" data-shell="${s}" data-e="${ei}" cx="${pt.x}" cy="${pt.y}" r="6" fill="${fill}" stroke="${stroke}" stroke-width="1" tabindex="${interactive ? "0" : "-1"}" role="${interactive ? "button" : "presentation"}" aria-label="${interactive ? `Remove electron from shell ${s + 1}` : ""}" style="cursor:${interactive ? "pointer" : "default"};pointer-events:${pe}"/>`;
     });
   }
 
@@ -634,7 +634,7 @@ function renderCovalentDiagram(state, { interactive = true } = {}) {
   state.atoms.forEach((atom, ai) => {
     const p = positions[ai];
     svg += `<circle cx="${p.x}" cy="${p.y}" r="${shellR}" fill="rgba(241,245,249,0.55)" stroke="#475569" stroke-width="2"/>`;
-    svg += `<circle class="chem-cov-atom" data-atom-idx="${ai}" cx="${p.x}" cy="${p.y}" r="16" fill="#1e293b" style="cursor:${interactive ? "pointer" : "default"}"/>`;
+    svg += `<circle class="chem-cov-atom" data-atom-idx="${ai}" cx="${p.x}" cy="${p.y}" r="16" fill="#1e293b" tabindex="${interactive ? "0" : "-1"}" role="${interactive ? "button" : "presentation"}" aria-label="${interactive ? `Cycle lone pairs on atom ${escapeHtml(atom.symbol)}` : ""}" style="cursor:${interactive ? "pointer" : "default"}"/>`;
     svg += `<text x="${p.x}" y="${p.y + 5}" text-anchor="middle" fill="#f8fafc" font-size="13" font-weight="700" pointer-events="none">${escapeHtml(atom.symbol)}</text>`;
   });
 
@@ -659,7 +659,7 @@ function renderCovalentDiagram(state, { interactive = true } = {}) {
       svg += renderCovElectron(cx1, cy1, "cross", "#dc2626");
     }
     if (interactive) {
-      svg += `<rect class="chem-bond-hit" data-bond="${bi}" x="${mx - 30}" y="${my - 36}" width="60" height="72" fill="transparent" style="cursor:pointer"/>`;
+      svg += `<rect class="chem-bond-hit" data-bond="${bi}" x="${mx - 30}" y="${my - 36}" width="60" height="72" fill="transparent" tabindex="0" role="button" aria-label="Cycle shared pairs on bond ${bi + 1}" style="cursor:pointer"/>`;
     }
     svg += `<text x="${mx}" y="${my + shellR + 18}" text-anchor="middle" fill="#64748b" font-size="10">${bond.sharedPairs}/${bond.maxPairs} shared</text>`;
   });
@@ -1139,6 +1139,19 @@ export function wireChemistryWorkflow(q = null) {
         refreshDiagram();
       }
     }
+  });
+
+  root.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    const t = e.target;
+    if (!t || typeof t.closest !== "function") return;
+    const interactive = t.closest(
+      ".chem-shell-hitarea, .chem-electron, .chem-bond-hit, .chem-cov-atom, .chem-org-bond, .chem-org-carbon"
+    );
+    if (!interactive || !root.contains(interactive)) return;
+    if (interactive.getAttribute("tabindex") === "-1") return;
+    e.preventDefault();
+    interactive.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
   });
 
   root.addEventListener("change", (e) => {
@@ -2027,7 +2040,7 @@ export function renderDisplayedFormulaSvg(state, { interactive = false } = {}) {
     if (interactive) {
       const mx = (xs[i] + xs[i + 1]) / 2;
       const bi = bonds.findIndex((x) => x.from === i && x.to === i + 1);
-      svg += `<rect class="chem-org-bond" data-bond="${bi >= 0 ? bi : i}" x="${mx - 18}" y="${cy - 28}" width="36" height="56" fill="transparent" style="cursor:pointer"/>`;
+      svg += `<rect class="chem-org-bond" data-bond="${bi >= 0 ? bi : i}" x="${mx - 18}" y="${cy - 28}" width="36" height="56" fill="transparent" tabindex="0" role="button" aria-label="Cycle bond order" style="cursor:pointer"/>`;
     }
   }
 
@@ -2048,7 +2061,7 @@ export function renderDisplayedFormulaSvg(state, { interactive = false } = {}) {
     const onDouble = hasDoubleBond(i);
 
     if (interactive) {
-      svg += `<circle class="chem-org-carbon" data-carbon="${i}" cx="${x}" cy="${cy}" r="16" fill="transparent" stroke="none" style="cursor:pointer"/>`;
+      svg += `<circle class="chem-org-carbon" data-carbon="${i}" cx="${x}" cy="${cy}" r="16" fill="transparent" stroke="none" tabindex="0" role="button" aria-label="Apply selected group to carbon ${i + 1}" style="cursor:pointer"/>`;
     }
     svg += `<text x="${x}" y="${cy + 5}" text-anchor="middle" font-size="16" font-weight="700" fill="#0f172a" pointer-events="none">C</text>`;
 

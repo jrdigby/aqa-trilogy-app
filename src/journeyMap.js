@@ -150,6 +150,9 @@ export function renderJourneyMap({ totalXp = 0, journeyState } = {}) {
          data-current="${isCurrent ? "1" : "0"}"
          data-pending="${isPending ? "1" : "0"}"
          transform="translate(${pos.x.toFixed(1)}, ${pos.y.toFixed(1)})"
+         tabindex="0"
+         role="button"
+         aria-label="${escapeHtml(formatLocationLabel(loc))}${scientist?.name ? ` — ${escapeHtml(scientist.name)}` : ""}"
          style="cursor: pointer;">
         <circle r="14" class="journey-landmark-hit" fill="transparent" />
         <circle r="6" class="journey-landmark-dot" />
@@ -336,7 +339,7 @@ export function wireJourneyInteractions(mount, {
       overlay.innerHTML = "";
     });
 
-    g.addEventListener("click", () => {
+    const activateLandmark = () => {
       if (!locationId) return;
       // Current city: show scientist only
       if (g.dataset.current === "1") {
@@ -369,6 +372,13 @@ export function wireJourneyInteractions(mount, {
       hideDestinationConfirm();
       const detail = mount.querySelector("#journeyScientistMount");
       if (detail) detail.innerHTML = renderScientistCard(scientist);
+    };
+
+    g.addEventListener("click", activateLandmark);
+    g.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      e.preventDefault();
+      activateLandmark();
     });
   });
 
