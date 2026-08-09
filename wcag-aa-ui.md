@@ -1,6 +1,6 @@
-# WCAG 2.1 AA — Student UI tokens & keyboard
+# WCAG 2.1 / 2.2 AA — Student UI tokens & keyboard
 
-Guidance for upcoming student layouts. Scope: student app (`app.html`, practice session, related chrome). Teacher/admin/landing are out of this pass.
+Guidance for student and teacher layouts. Admin is out of scope. See also [`wcag-2.2-aa.md`](wcag-2.2-aa.md) for the 2.2 delta and audit.
 
 ## Contrast tokens (`app.html` `:root`)
 

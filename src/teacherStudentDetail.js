@@ -448,6 +448,9 @@ function bindTabHandlers(ctx) {
   });
 }
 
+let detailPreviousFocus = null;
+let detailFocusTrapHandler = null;
+
 export function closeStudentDetail() {
   const overlay = el("studentDetailOverlay");
   if (overlay) {
@@ -456,6 +459,35 @@ export function closeStudentDetail() {
   }
   activeStudentId = null;
   document.body.classList.remove("teacher-detail-open");
+  if (detailFocusTrapHandler) {
+    document.removeEventListener("keydown", detailFocusTrapHandler, true);
+    detailFocusTrapHandler = null;
+  }
+  const prev = detailPreviousFocus;
+  detailPreviousFocus = null;
+  if (prev && typeof prev.focus === "function" && document.contains(prev)) {
+    try { prev.focus(); } catch (_) { /* ignore */ }
+  }
+}
+
+function trapFocusInStudentDetail(event) {
+  if (event.key !== "Tab") return;
+  const overlay = el("studentDetailOverlay");
+  const panel = overlay?.querySelector(".teacher-detail-panel");
+  if (!panel || overlay?.classList.contains("hidden")) return;
+  const focusables = [...panel.querySelectorAll(
+    'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+  )].filter((node) => node.offsetParent !== null || node === document.activeElement);
+  if (!focusables.length) return;
+  const first = focusables[0];
+  const last = focusables[focusables.length - 1];
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
 }
 
 export async function openStudentDetail(studentId, displayName) {
@@ -469,11 +501,22 @@ export async function openStudentDetail(studentId, displayName) {
 
   if (!overlay) return;
 
+  detailPreviousFocus = document.activeElement;
   activeStudentId = studentId;
   activeTab = "overview";
   overlay.classList.remove("hidden");
   overlay.setAttribute("aria-hidden", "false");
   document.body.classList.add("teacher-detail-open");
+
+  if (!detailFocusTrapHandler) {
+    detailFocusTrapHandler = trapFocusInStudentDetail;
+    document.addEventListener("keydown", detailFocusTrapHandler, true);
+  }
+
+  const closeBtn = el("btnCloseStudentDetail");
+  if (closeBtn && typeof closeBtn.focus === "function") {
+    try { closeBtn.focus(); } catch (_) { /* ignore */ }
+  }
 
   if (nameEl) nameEl.textContent = displayName || "Student";
   if (metaEl) metaEl.textContent = "Loading student progress…";

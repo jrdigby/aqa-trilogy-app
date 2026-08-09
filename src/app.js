@@ -914,13 +914,26 @@ function autoSizeFilterSelects() {
 let authPanel = "signin";
 
 function setAuthPanel(mode) {
-  authPanel = mode === "signup" || mode === "forgot" ? mode : "signin";
+  const prevEmail =
+    (el("signinEmail")?.value || el("signupEmail")?.value || el("forgotEmail")?.value || "").trim();
+
+  authView = mode === "signup" || mode === "forgot" ? mode : "signin";
   const panelSignin = el("authPanelSignin");
   const panelSignup = el("authPanelSignup");
   const panelForgot = el("authPanelForgot");
-  if (panelSignin) panelSignin.classList.toggle("hidden", authPanel !== "signin");
-  if (panelSignup) panelSignup.classList.toggle("hidden", authPanel !== "signup");
-  if (panelForgot) panelForgot.classList.toggle("hidden", authPanel !== "forgot");
+  if (panelSignin) panelSignin.classList.toggle("hidden", authView !== "signin");
+  if (panelSignup) panelSignup.classList.toggle("hidden", authView !== "signup");
+  if (panelForgot) panelForgot.classList.toggle("hidden", authView !== "forgot");
+
+  // 3.3.7 — reuse email already typed across auth modes
+  if (prevEmail) {
+    const signinEmail = el("signinEmail");
+    const signupEmail = el("signupEmail");
+    const forgotEmail = el("forgotEmail");
+    if (authView === "signin" && signinEmail) signinEmail.value = prevEmail;
+    if (authView === "signup" && signupEmail) signupEmail.value = prevEmail;
+    if (authView === "forgot" && forgotEmail) forgotEmail.value = prevEmail;
+  }
 }
 
 const btnShowForgot = el("btnShowForgot");
@@ -3231,6 +3244,10 @@ function showAdvanceButton() {
   const isLastQuestion = idx >= sessionQuestions.length - 1;
   btnNext.textContent = isLastQuestion ? "See summary" : "Advance to Next Question →";
   btnNext.classList.remove("hidden");
+  try {
+    btnNext.focus({ preventScroll: false });
+    btnNext.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  } catch (_) { /* ignore */ }
 }
 
 async function loadQuestion() {
@@ -3749,14 +3766,76 @@ function renderRankList(listEl, subjects) {
     .map((subject, i) => {
       const label = subject.charAt(0).toUpperCase() + subject.slice(1);
       return `<li class="onboarding-rank-item" draggable="true" data-subject="${subject}">
-        <span class="onboarding-rank-handle">☰</span>
+        <span class="onboarding-rank-handle" aria-hidden="true">☰</span>
         <span class="onboarding-rank-label">${label}</span>
-        <span class="onboarding-rank-num">${i + 1}</span>
+        <span class="onboarding-rank-actions">
+          <button type="button" class="onboarding-rank-move" data-dir="up" aria-label="Move ${label} up" ${i === 0 ? "disabled" : ""}>▲</button>
+          <button type="button" class="onboarding-rank-move" data-dir="down" aria-label="Move ${label} down" ${i === subjects.length - 1 ? "disabled" : ""}>▼</button>
+        </span>
+        <span class="onboarding-rank-num" aria-hidden="true">${i + 1}</span>
       </li>`;
     })
     .join("");
 
-  wireRankListDrag(listEl);
+  wireRankListControls(listEl);
+}
+
+function refreshRankListNumbers(listEl) {
+  const items = [...listEl.querySelectorAll(".onboarding-rank-item")];
+  items.forEach((item, idx) => {
+    const numEl = item.querySelector(".onboarding-rank-num");
+    if (numEl) numEl.textContent = String(idx + 1);
+    const up = item.querySelector('.onboarding-rank-move[data-dir="up"]');
+    const down = item.querySelector('.onboarding-rank-move[data-dir="down"]');
+    if (up) up.disabled = idx === 0;
+    if (down) down.disabled = idx === items.length - 1;
+  });
+}
+
+function moveRankItem(listEl, item, dir) {
+  if (!listEl || !item) return;
+  if (dir === "up") {
+    const prev = item.previousElementSibling;
+    if (prev) listEl.insertBefore(item, prev);
+  } else if (dir === "down") {
+    const next = item.nextElementSibling;
+    if (next) listEl.insertBefore(next, item);
+  }
+  refreshRankListNumbers(listEl);
+}
+
+function wireRankListControls(listEl) {
+  let dragged = null;
+
+  listEl.querySelectorAll(".onboarding-rank-item").forEach((item) => {
+    item.addEventListener("dragstart", (e) => {
+      if (e.target.closest?.(".onboarding-rank-move")) {
+        e.preventDefault();
+        return;
+      }
+      dragged = item;
+      item.classList.add("dragging");
+    });
+    item.addEventListener("dragend", () => {
+      item.classList.remove("dragging");
+      dragged = null;
+      refreshRankListNumbers(listEl);
+    });
+    item.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      if (!dragged || dragged === item) return;
+      const rect = item.getBoundingClientRect();
+      const after = e.clientY > rect.top + rect.height / 2;
+      listEl.insertBefore(dragged, after ? item.nextSibling : item);
+    });
+  });
+
+  listEl.addEventListener("click", (e) => {
+    const btn = e.target.closest?.(".onboarding-rank-move");
+    if (!btn || btn.disabled) return;
+    const item = btn.closest(".onboarding-rank-item");
+    moveRankItem(listEl, item, btn.dataset.dir);
+  });
 }
 
 function showSettingsClassDetails(className) {
@@ -4075,31 +4154,6 @@ function wireSettingsControls() {
       btnSave.textContent = "Save preferences";
     }
   };
-}
-
-function wireRankListDrag(listEl) {
-  let dragged = null;
-
-  listEl.querySelectorAll(".onboarding-rank-item").forEach((item) => {
-    item.addEventListener("dragstart", () => {
-      dragged = item;
-      item.classList.add("dragging");
-    });
-    item.addEventListener("dragend", () => {
-      item.classList.remove("dragging");
-      dragged = null;
-      listEl.querySelectorAll(".onboarding-rank-num").forEach((numEl, idx) => {
-        numEl.textContent = String(idx + 1);
-      });
-    });
-    item.addEventListener("dragover", (e) => {
-      e.preventDefault();
-      if (!dragged || dragged === item) return;
-      const rect = item.getBoundingClientRect();
-      const after = e.clientY > rect.top + rect.height / 2;
-      listEl.insertBefore(dragged, after ? item.nextSibling : item);
-    });
-  });
 }
 
 function updateOnboardingStepUI() {
@@ -5308,7 +5362,8 @@ async function submitCurrentAnswer() {
       if (focusTarget === el("feedback") && !focusTarget.hasAttribute("tabindex")) {
         focusTarget.setAttribute("tabindex", "-1");
       }
-      focusTarget.focus({ preventScroll: true });
+      focusTarget.focus({ preventScroll: false });
+      focusTarget.scrollIntoView({ block: "nearest", behavior: "smooth" });
     } catch (_) { /* ignore */ }
   }
 }

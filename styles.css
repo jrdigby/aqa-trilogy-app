@@ -5,7 +5,10 @@
 .auth-link-btn {
   background: none;
   border: none;
-  padding: 0;
+  padding: 6px 8px;
+  margin: -6px -8px;
+  min-height: 32px;
+  min-width: 32px;
   color: var(--primary, #1d6fd0);
   font-size: inherit;
   font-weight: 600;
@@ -13,6 +16,8 @@
   text-decoration: underline;
   flex: none;
   width: auto;
+  display: inline-flex;
+  align-items: center;
 }
 
 .auth-link-btn:hover {
@@ -215,11 +220,11 @@
 
 .heatmap-cell {
   display: block;
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   flex-shrink: 0;
-  min-width: 24px;
-  min-height: 24px;
+  min-width: 28px;
+  min-height: 28px;
   border-radius: 4px;
   transition: all 0.2s ease-in-out;
   cursor: pointer;
@@ -803,11 +808,23 @@
 }
 
 .dashboard-scoped-panel--settings .onboarding-rank-list--compact .onboarding-rank-num {
-  width: 22px;
-  height: 22px;
-  font-size: 0.72rem;
-  flex-shrink: 0;
-  margin-left: auto;
+  width: 24px;
+  height: 24px;
+  font-size: 0.75rem;
+}
+
+.dashboard-scoped-panel--settings .onboarding-rank-list--compact .onboarding-rank-move {
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  min-height: 28px;
+  flex: none;
+  padding: 0;
+  border: 1px solid var(--border, #dcdde1);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--text, #333);
+  font-size: 0.65rem;
 }
 
 .dashboard-scoped-panel--settings .settings-display-name-input {
@@ -1241,8 +1258,10 @@
   top: 8px;
   left: 8px;
   z-index: 3;
-  width: 24px;
-  height: 24px;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
   border-radius: 50%;
   border: 2px solid var(--text-muted, #555555);
   background: rgba(255, 255, 255, 0.95);
@@ -1706,19 +1725,40 @@
 /* ===== TEACHER PORTAL (teacher.html) ===== */
 body.teacher-portal {
   --teacher-accent: #7c3aed;
-  --teacher-accent-dark: #6d28d9;
+  --teacher-accent-dark: #5b21b6;
   --teacher-accent-soft: #ede9fe;
   --bg: #f4f6f8;
   --card-bg: #ffffff;
   --text: #333333;
-  --text-muted: #666666;
+  --text-muted: #555555;
+  --primary: #1d6fd0;
+  --primary-hover: #1557a8;
+  --success: #1f8f4e;
+  --success-text: #157a42;
   --border: #dcdde1;
+  --focus-ring: 0 0 0 3px rgba(29, 111, 208, 0.45);
   background: var(--bg);
   color: var(--text);
   padding: 20px;
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   min-height: 100vh;
+}
+
+body.teacher-portal button:focus-visible,
+body.teacher-portal a:focus-visible,
+body.teacher-portal input:focus-visible,
+body.teacher-portal textarea:focus-visible,
+body.teacher-portal select:focus-visible,
+body.teacher-portal [tabindex]:not([tabindex="-1"]):focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+body.teacher-portal .input-group input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: var(--focus-ring);
 }
 
 .teacher-portal .container {
@@ -1831,10 +1871,57 @@ body.teacher-portal {
   font-weight: 600;
   color: var(--teacher-accent-dark);
   text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  min-width: 32px;
+  padding: 6px 8px;
 }
 
 .teacher-portal-link:hover {
   text-decoration: underline;
+}
+
+.site-help-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  margin-top: 8px;
+  font-size: 0.85rem;
+}
+
+.site-help-nav a {
+  color: var(--primary, #1d6fd0);
+  font-weight: 600;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 4px 6px;
+}
+
+.site-help-nav a:hover {
+  text-decoration: underline;
+}
+
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 10001;
+  padding: 10px 16px;
+  background: #0f172a;
+  color: #fff;
+  font-weight: 700;
+  text-decoration: none;
+  border-radius: 0 0 8px 0;
+}
+
+.skip-link:focus {
+  left: 0;
+  outline: none;
+  box-shadow: var(--focus-ring, 0 0 0 3px rgba(29, 111, 208, 0.45));
 }
 
 .teacher-badge {
@@ -1901,8 +1988,9 @@ body.teacher-portal {
 
 .teacher-toast {
   position: fixed;
-  top: 20px;
+  bottom: 20px;
   right: 20px;
+  top: auto;
   padding: 12px 20px;
   border-radius: 8px;
   color: #fff;
@@ -1910,6 +1998,8 @@ body.teacher-portal {
   z-index: 1000;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   transition: opacity 0.3s;
+  max-width: min(420px, calc(100vw - 32px));
+  pointer-events: none;
 }
 
 .teacher-auth-card {
@@ -2648,9 +2738,10 @@ body.teacher-detail-open {
 }
 
 .teacher-roster-row:hover,
-.teacher-roster-row:focus {
+.teacher-roster-row:focus-visible {
   background: #f5f3ff;
   outline: none;
+  box-shadow: inset 0 0 0 2px var(--teacher-accent, #7c3aed);
 }
 
 .teacher-roster-row--alert {
