@@ -12,8 +12,12 @@ import { shuffleArray } from "./utils.js";
 
 export const DEFAULT_ADAPTIVE_STATE = {
   difficulty_offset: 0,
-  boundary_streak: { at_ft_ceiling: 0, at_ht_floor: 0 }
+  boundary_streak: { at_ft_ceiling: 0, at_ht_floor: 0 },
+  ramp_streak: { high: 0, low: 0 }
 };
+
+/** Consecutive high/low sessions required before global offset moves ±1. */
+export const RAMP_STREAK_REQUIRED = 2;
 
 const BOUNDARY_BOOST = 2.5;
 
@@ -139,14 +143,53 @@ export function normalizeAdaptiveState(raw) {
     at_ft_ceiling: Number(base.boundary_streak?.at_ft_ceiling) || 0,
     at_ht_floor: Number(base.boundary_streak?.at_ht_floor) || 0
   };
+  base.ramp_streak = {
+    high: Number(base.ramp_streak?.high) || 0,
+    low: Number(base.ramp_streak?.low) || 0
+  };
   return base;
+}
+
+function resolveRampDelta(prevOffset, finalDelta, rampStreak) {
+  const streak = { ...rampStreak };
+  let appliedDelta = 0;
+
+  if (finalDelta > 0) {
+    streak.low = 0;
+    if (prevOffset < GLOBAL_OFFSET_MAX) {
+      streak.high += 1;
+      if (streak.high >= RAMP_STREAK_REQUIRED) {
+        appliedDelta = 1;
+        streak.high = 0;
+      }
+    } else {
+      streak.high = 0;
+    }
+  } else if (finalDelta < 0) {
+    streak.high = 0;
+    if (prevOffset > GLOBAL_OFFSET_MIN) {
+      streak.low += 1;
+      if (streak.low >= RAMP_STREAK_REQUIRED) {
+        appliedDelta = -1;
+        streak.low = 0;
+      }
+    } else {
+      streak.low = 0;
+    }
+  } else {
+    streak.high = 0;
+    streak.low = 0;
+  }
+
+  return { appliedDelta, rampStreak: streak };
 }
 
 export function computeGlobalOffsetUpdate(state, { scorePct, selfRating, tier }) {
   const marksDelta = marksDeltaFromScorePct(scorePct);
   const finalDelta = blendDelta(marksDelta, selfRating != null ? ratingDeltaFromSelfRating(selfRating) : null);
   const prevOffset = state.difficulty_offset;
-  const nextOffset = clamp(prevOffset + finalDelta, GLOBAL_OFFSET_MIN, GLOBAL_OFFSET_MAX);
+  const { appliedDelta, rampStreak } = resolveRampDelta(prevOffset, finalDelta, state.ramp_streak);
+  const nextOffset = clamp(prevOffset + appliedDelta, GLOBAL_OFFSET_MIN, GLOBAL_OFFSET_MAX);
 
   const streak = { ...state.boundary_streak };
   let tierNudge = null;
@@ -171,11 +214,11 @@ export function computeGlobalOffsetUpdate(state, { scorePct, selfRating, tier })
   }
 
   return {
-    nextState: { difficulty_offset: nextOffset, boundary_streak: streak },
+    nextState: { difficulty_offset: nextOffset, boundary_streak: streak, ramp_streak: rampStreak },
     offsetChanged: nextOffset !== prevOffset,
     offsetDirection: nextOffset > prevOffset ? "harder" : nextOffset < prevOffset ? "easier" : null,
     tierNudge,
-    finalDelta
+    finalDelta: appliedDelta
   };
 }
 

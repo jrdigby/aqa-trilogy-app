@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Difficulty Scaling Report — Physics Combined Science</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; background: #0f172a; color: #e2e8f0; margin: 0; padding: 2rem; }
+    h1 { color: #f8fafc; font-size: 1.5rem; margin-bottom: 0.25rem; }
+    .subtitle { color: #94a3b8; margin-bottom: 2rem; font-size: 0.9rem; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem; }
+    .card { background: #1e293b; border-radius: 10px; padding: 1.5rem; }
+    .card h2 { font-size: 1rem; color: #cbd5e1; margin: 0 0 1rem 0; }
+    .chart-wrap { position: relative; height: 280px; }
+    .stats { display: flex; gap: 1.5rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
+    .stat { background: #1e293b; border-radius: 10px; padding: 1rem 1.5rem; flex: 1; min-width: 140px; }
+    .stat .val { font-size: 2rem; font-weight: 700; color: #f8fafc; }
+    .stat .lbl { color: #94a3b8; font-size: 0.8rem; margin-top: 0.2rem; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    th { text-align: left; color: #94a3b8; padding: 0.5rem; border-bottom: 1px solid #334155; }
+    td { padding: 0.5rem; border-bottom: 1px solid #1e293b; }
+    tr.pass td:first-child { color: #22c55e; }
+    tr.fail td:first-child { color: #ef4444; }
+    tr.fail { background: #2d1b1b; }
+    tr.pass { background: #1a2d1e; }
+    .full { grid-column: 1 / -1; }
+    @media (max-width: 700px) { .grid { grid-template-columns: 1fr; } .full { grid-column: 1; } }
+  </style>
+</head>
+<body>
+  <h1>Difficulty Scaling Report — Physics Combined Science</h1>
+  <p class="subtitle">Generated 11/08/2026, 11:18:14 · Total questions: 1283</p>
+
+  <div class="stats">
+    <div class="stat"><div class="val">1283</div><div class="lbl">Total Questions</div></div>
+    <div class="stat"><div class="val">258</div><div class="lbl">HT Hard Questions (D4+D5)</div></div>
+    <div class="stat"><div class="val">20.1%</div><div class="lbl">HT Hard Share</div></div>
+    <div class="stat"><div class="val">16</div><div class="lbl">Highest Difficulty (D5)</div></div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>Question Bank Difficulty Distribution</h2>
+      <div class="chart-wrap"><canvas id="distChart"></canvas></div>
+    </div>
+
+    <div class="card">
+      <h2>Ramp Speed: Before vs After (Option A — 2-session streak)</h2>
+      <div class="chart-wrap"><canvas id="sessionChart"></canvas></div>
+    </div>
+
+    <div class="card full">
+      <h2>Sessions to Reach Offset Ceiling/Floor</h2>
+      <table>
+        <thead><tr><th>Profile</th><th>Target</th><th>Before</th><th>After</th><th>After in 4–12?</th></tr></thead>
+        <tbody><tr>
+      <td>High Achiever (score=100%)</td>
+      <td>+2</td>
+      <td>3</td>
+      <td>5</td>
+      <td class="pass">✓ in range</td>
+    </tr><tr>
+      <td>Struggling Student (score=0%)</td>
+      <td>−2</td>
+      <td>3</td>
+      <td>5</td>
+      <td class="pass">✓ in range</td>
+    </tr></tbody>
+      </table>
+    </div>
+
+    <div class="card full">
+      <h2>Assertion Results</h2>
+      <table>
+        <thead><tr><th></th><th>Check</th><th>Value</th></tr></thead>
+        <tbody>
+    <tr class="pass">
+      <td>✓</td>
+      <td>HT questions (D4+D5) ≥ 150</td>
+      <td>258</td>
+    </tr>
+    <tr class="fail">
+      <td>✗</td>
+      <td>D5 questions ≥ 30</td>
+      <td>16</td>
+    </tr>
+    <tr class="fail">
+      <td>✗</td>
+      <td>[Before] Before: HT High Achiever (score=100%): sessions to reach offset 2 (4–12)</td>
+      <td>3</td>
+    </tr>
+    <tr class="fail">
+      <td>✗</td>
+      <td>[Before] Before: HT High Achiever (score=100%): mean difficulty at ceiling ≥ 4</td>
+      <td>2.7</td>
+    </tr>
+    <tr class="fail">
+      <td>✗</td>
+      <td>[Before] Before: HT Struggling Student (score=0%): sessions to reach offset -2 (4–12)</td>
+      <td>3</td>
+    </tr>
+    <tr class="pass">
+      <td>✓</td>
+      <td>[After] After: HT High Achiever (score=100%): sessions to reach offset 2 (4–12)</td>
+      <td>5</td>
+    </tr>
+    <tr class="fail">
+      <td>✗</td>
+      <td>[After] After: HT High Achiever (score=100%): mean difficulty at ceiling ≥ 4</td>
+      <td>3.2</td>
+    </tr>
+    <tr class="pass">
+      <td>✓</td>
+      <td>[After] After: HT Struggling Student (score=0%): sessions to reach offset -2 (4–12)</td>
+      <td>5</td>
+    </tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    const distLabels = ["D1 Low (FT)","D2 Standard (FT)","D3 Standard 4–5 (HT)","D4 Standard 6–7 (HT)","D5 High 8–9 (HT)"];
+    const distData = [279,356,390,242,16];
+    const distColors = ["#4e9af1","#4e9af1","#f1a84e","#e8604c","#cc2020"];
+
+    new Chart(document.getElementById("distChart"), {
+      type: "bar",
+      data: {
+        labels: distLabels,
+        datasets: [{ label: "Questions", data: distData, backgroundColor: distColors, borderRadius: 4 }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => {
+                const total = distData.reduce((a, b) => a + b, 0);
+                const pct = ((ctx.raw / total) * 100).toFixed(1);
+                return ` ${ctx.raw} questions (${pct}%)`;
+              }
+            }
+          }
+        },
+        scales: {
+          x: { ticks: { color: "#94a3b8" }, grid: { color: "#1e293b" } },
+          y: { ticks: { color: "#94a3b8" }, grid: { color: "#334155" }, beginAtZero: true }
+        }
+      }
+    });
+
+    const sessionLabels = ["S1","S2","S3","S4","S5","S6","S7","S8","S9","S10","S11","S12","S13","S14","S15","S16","S17","S18","S19","S20"];
+    const sessionDatasets = [{"label":"Before — High Achiever (score=100%) offset","data":[0,1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2],"borderColor":"#86efac","borderDash":[6,4],"backgroundColor":"transparent","tension":0.1,"pointRadius":3,"yAxisID":"yOffset"},{"label":"Before — High Achiever (score=100%) mean diff","data":[2.7,3.2,3.1,3.3,2.8,3.4,3.2,2.8,3,3.3,3.3,3.4,2.5,3,2.3,2.9,2.4,2.9,2.8,2.7],"borderColor":"#22c55e","borderDash":[6,4],"backgroundColor":"transparent","tension":0.3,"pointRadius":4,"yAxisID":"y"},{"label":"Before — Struggling Student (score=0%) offset","data":[0,-1,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2],"borderColor":"#fca5a5","borderDash":[6,4],"backgroundColor":"transparent","tension":0.1,"pointRadius":3,"yAxisID":"yOffset"},{"label":"Before — Struggling Student (score=0%) mean diff","data":[3.3,2.8,2.1,2.5,2.4,1.9,2.3,2.1,2.5,2.4,2.6,2.5,2.5,2.3,2.5,2.7,2.4,2.4,2.5,2.4],"borderColor":"#ef4444","borderDash":[6,4],"backgroundColor":"transparent","tension":0.3,"pointRadius":4,"yAxisID":"y"},{"label":"After — High Achiever (score=100%) offset","data":[0,0,1,1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2],"borderColor":"#86efac","borderDash":[],"backgroundColor":"transparent","tension":0.1,"pointRadius":3,"yAxisID":"yOffset"},{"label":"After — High Achiever (score=100%) mean diff","data":[2.9,2.2,3.3,2.7,3.2,3.6,2.8,3.1,3.2,3.1,3,2.7,2.6,2.9,2.3,2.8,2.4,3.2,3.2,3.2],"borderColor":"#22c55e","borderDash":[],"backgroundColor":"transparent","tension":0.3,"pointRadius":4,"yAxisID":"y"},{"label":"After — Struggling Student (score=0%) offset","data":[0,0,-1,-1,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2],"borderColor":"#fca5a5","borderDash":[],"backgroundColor":"transparent","tension":0.1,"pointRadius":3,"yAxisID":"yOffset"},{"label":"After — Struggling Student (score=0%) mean diff","data":[2.7,3.3,2.6,2.5,2.3,2.2,2.2,2.6,1.8,2.8,2.6,2.4,2.7,2.4,2.2,2.5,2.4,2.2,2.8,2.5],"borderColor":"#ef4444","borderDash":[],"backgroundColor":"transparent","tension":0.3,"pointRadius":4,"yAxisID":"y"}];
+
+    new Chart(document.getElementById("sessionChart"), {
+      type: "line",
+      data: { labels: sessionLabels, datasets: sessionDatasets },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { labels: { color: "#94a3b8", boxWidth: 12 } },
+          tooltip: { mode: "index", intersect: false }
+        },
+        scales: {
+          x: { ticks: { color: "#94a3b8" }, grid: { color: "#334155" } },
+          y: {
+            title: { display: true, text: "Mean Difficulty (1–5)", color: "#94a3b8" },
+            ticks: { color: "#94a3b8" },
+            grid: { color: "#334155" },
+            min: 1, max: 5
+          },
+          yOffset: {
+            position: "right",
+            title: { display: true, text: "Difficulty Offset", color: "#94a3b8" },
+            ticks: { color: "#94a3b8" },
+            grid: { drawOnChartArea: false },
+            min: -2, max: 2
+          }
+        }
+      }
+    });
+  </script>
+</body>
+</html>
