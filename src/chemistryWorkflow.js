@@ -33,10 +33,58 @@ export const ELEMENT_DATA = {
 
 const SHELL_CAPS = [2, 8, 8, 18];
 
+const CHEM_STEM_KINDS = new Set([
+  "electron_shell",
+  "ionic_bonding",
+  "covalent_bonding",
+  "ionic_lattice",
+  "metallic_bonding",
+  "particle_model",
+  "organic_structure",
+  "polymer_structure",
+  "molecule_builder",
+]);
+
 export function getChemistryConfig(q) {
-  const cfg = q?.chemistry_config;
+  let cfg = q?.chemistry_config;
+  if (!cfg) return null;
+  if (typeof cfg === "string") {
+    try {
+      cfg = JSON.parse(cfg);
+    } catch {
+      return null;
+    }
+  }
   if (!cfg || typeof cfg !== "object") return null;
   return cfg;
+}
+
+/** MCQ / short-text questions that show a filled chemistry diagram in the stem. */
+export function questionHasChemistryStem(q) {
+  const cfg = getChemistryConfig(q);
+  if (!cfg?.kind || !cfg?.answer) return false;
+  if (!CHEM_STEM_KINDS.has(cfg.kind)) return false;
+  if (q?.question_type === "chemistry_interactive") return false;
+  if ((q?.image_url || "").trim()) return false;
+  return true;
+}
+
+export function chemistryStemSourceFromQuestion(q) {
+  const cfg = getChemistryConfig(q);
+  if (!cfg?.answer) return null;
+  return {
+    kind: cfg.kind,
+    template: cfg.template || {},
+    answer: cfg.answer,
+  };
+}
+
+/** Build stem diagram HTML for identification questions (MCQ / short text). */
+export function buildChemistryStemHtml(q) {
+  if (!questionHasChemistryStem(q)) return "";
+  const src = chemistryStemSourceFromQuestion(q);
+  if (!src) return "";
+  return stemPreviewHtml(src);
 }
 
 export function shellsForElement(symbol, ionElectrons = null) {
@@ -312,6 +360,16 @@ export function renderChemistryModelAnswerHtml(answer, opts = {}) {
   } else if (kind === "polymer_structure") {
     diagram = renderPolymerDisplaySvg(answer, { template: opts.template || {} });
     caption = answer.name || answer.selectedRepeat || "polymer";
+  } else if (kind === "molecule_builder") {
+    diagram = renderMoleculeBuilderSvg(answer, { interactive: false });
+    caption = moleculeBuilderCaption(answer);
+  } else if (kind === "metallic_bonding") {
+    diagram = renderMetallicBondingSvg(answer);
+    caption = "Metal atoms → positive ions in a sea of delocalised electrons";
+  } else if (kind === "particle_model") {
+    diagram = renderParticleModelSvg(answer);
+    const stateLabel = particleModelStateLabel(answer.state || answer.phase);
+    caption = stateLabel ? `Particle model — ${stateLabel}` : "Particle model";
   } else if (kind === "balance_equation" && Array.isArray(answer.coeffs)) {
     caption = `Coefficients: [${answer.coeffs.join(", ")}]`;
   } else if (kind === "covalent_bonding") {
@@ -380,13 +438,12 @@ export function initialStateForConfig(cfg) {
       kind,
       atoms: atoms.map((a) => ({
         symbol: a.symbol,
-        lonePairs: 0,
-        maxLone: a.maxLone ?? 0,
+        loneElectrons: emptyLoneElectronCounts(),
       })),
       bonds: bonds.map((b) => ({
         a: b.a,
         b: b.b,
-        sharedPairs: 0,
+        sharedCount: 0,
         maxPairs: b.maxPairs ?? 1,
       })),
     };
@@ -413,6 +470,18 @@ export function initialStateForConfig(cfg) {
       mode: cfg.template?.mode || "addition",
       selectedRepeat: null,
       selectedLinkage: null,
+    };
+  }
+  if (kind === "molecule_builder") {
+    const allowed = cfg.template?.allowedSymbols || ["H", "C", "N", "O", "Cl"];
+    return {
+      kind,
+      atoms: [],
+      bonds: [],
+      selectedSymbol: allowed[0] || "H",
+      mode: "add",
+      bondFrom: null,
+      nextAtomId: 1,
     };
   }
   if (kind === "balance_equation") {
@@ -452,7 +521,7 @@ function toolbarHtml(cfg) {
     tools = `<p class="chem-hint">Tap an electron to select it, then tap another atom to transfer it. Toggle square brackets and set ion charges manually for each atom.</p>`;
   }
   if (kind === "covalent_bonding") {
-    tools = `<p class="chem-hint">Tap the overlap to add a shared pair (dots + crosses). Tap an atom to add a lone pair on its outer shell.</p>`;
+    tools = `<p class="chem-hint">Tap a bond overlap or shell edge to add one electron (● / ✕). Tap an electron to remove it.</p>`;
   }
   if (kind === "organic_structure") {
     const family = cfg.template?.family || "alkane";
@@ -474,6 +543,9 @@ function toolbarHtml(cfg) {
   }
   if (kind === "polymer_structure") {
     tools = `<p class="chem-hint">Choose the correct repeat unit${cfg.template?.mode === "condensation" ? " and linkage" : ""}.</p>`;
+  }
+  if (kind === "molecule_builder") {
+    tools = `<p class="chem-hint">Pick an element, add atoms on the canvas, then add bonds to connect elements.</p>`;
   }
   if (kind === "balance_equation") {
     tools = `<p class="chem-hint">Enter the smallest whole-number coefficients that balance the equation.</p>`;
@@ -805,33 +877,260 @@ function fmtCharge(c) {
   return mag === 1 ? sign : `${toSuperscriptDigits(mag)}${sign}`;
 }
 
+const COVALENT_SHELL_OVERLAP = 16;
+const COVALENT_MAX_SHARED_CAP = 4;
+const COVALENT_LONE_SLOTS = ["top", "bottom", "left", "right"];
+const COVALENT_LONE_SLOT_ANGLES = {
+  top: -Math.PI / 2,
+  bottom: Math.PI / 2,
+  left: Math.PI,
+  right: 0,
+};
+const COVALENT_ELECTRON_HIT_R = 12;
+const COVALENT_LONE_ELECTRONS_PER_SLOT = 2;
+
+function emptyLoneElectronCounts() {
+  return { top: 0, bottom: 0, left: 0, right: 0 };
+}
+
+function covElectronStyle(ai) {
+  return ai % 2 === 0 ? "dot" : "cross";
+}
+
+function covElectronColor(ai) {
+  return ai % 2 === 0 ? "#2563eb" : "#dc2626";
+}
+
+/** GCSE dot-and-cross: bond.a contributes dots, bond.b contributes crosses in the overlap. */
+function covSharedElectronStyle(bond, atomIdx) {
+  return atomIdx === bond.a ? "dot" : "cross";
+}
+
+function covSharedElectronColor(bond, atomIdx) {
+  return atomIdx === bond.a ? "#2563eb" : "#dc2626";
+}
+
+function lonePairsFromElectronCounts(loneElectrons) {
+  if (!loneElectrons) return 0;
+  return COVALENT_LONE_SLOTS.filter((slot) => (loneElectrons[slot] || 0) >= 2).length;
+}
+
+function sharedPairsFromElectronCount(sharedCount) {
+  return Math.floor(Math.max(0, Number(sharedCount) || 0) / 2);
+}
+
+function renderCovElectronInteractive(x, y, style, color, attrs = "") {
+  return `${renderCovElectron(x, y, style, color)}<circle class="chem-cov-electron-hit" cx="${x}" cy="${y}" r="${COVALENT_ELECTRON_HIT_R}" fill="transparent" stroke="none" tabindex="0" role="button" style="cursor:pointer;pointer-events:all" ${attrs}/>`;
+}
+
+/** GCSE-style relative sizes: H is smaller; C/N/O larger; Cl etc. medium. */
+function covalentAtomMetrics(symbol) {
+  switch (symbol) {
+    case "H":
+      return { shellR: 30, coreR: 9, fontSize: 11 };
+    case "C":
+    case "N":
+    case "O":
+      return { shellR: 50, coreR: 15, fontSize: 13 };
+    case "Cl":
+    case "S":
+    case "P":
+      return { shellR: 46, coreR: 14, fontSize: 12 };
+    default:
+      return { shellR: 44, coreR: 13, fontSize: 12 };
+  }
+}
+
+function covalentBondDistance(rA, rB) {
+  return rA + rB - COVALENT_SHELL_OVERLAP;
+}
+
+function covalentSharedCap(bond) {
+  return Math.max(COVALENT_MAX_SHARED_CAP, Number(bond?.maxPairs || 1) + 2);
+}
+
+function covalentMaxSharedElectrons(bond) {
+  return covalentSharedCap(bond) * 2;
+}
+
+function covalentViewBounds(positions, shellRadii, pad = 36) {
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minY = Infinity;
+  let maxY = -Infinity;
+  positions.forEach((p, i) => {
+    const r = shellRadii[i] || 44;
+    minX = Math.min(minX, p.x - r);
+    maxX = Math.max(maxX, p.x + r);
+    minY = Math.min(minY, p.y - r);
+    maxY = Math.max(maxY, p.y + r);
+  });
+  return {
+    w: Math.ceil(maxX - minX + pad * 2),
+    h: Math.ceil(maxY - minY + pad * 2),
+    offsetX: minX - pad,
+    offsetY: minY - pad,
+  };
+}
+
+function shiftCovalentLayout(positions, bounds) {
+  return positions.map((p) => ({
+    x: p.x - bounds.offsetX,
+    y: p.y - bounds.offsetY,
+  }));
+}
+
+/** Prefer free cardinal slots when auto-placing lone pairs from a count (stem / model answers). */
+function covalentLoneSlotsFromCount(atom, bondDirs, count) {
+  const n = Math.max(0, Number(count) || 0);
+  if (!n) return [];
+  const free = COVALENT_LONE_SLOTS.filter((slot) => {
+    const ang = COVALENT_LONE_SLOT_ANGLES[slot];
+    return !(bondDirs || []).some((d) => {
+      let diff = Math.abs(ang - d) % (Math.PI * 2);
+      if (diff > Math.PI) diff = Math.PI * 2 - diff;
+      return diff < 0.65;
+    });
+  });
+  const slots = free.length ? free : COVALENT_LONE_SLOTS;
+  return slots.slice(0, n);
+}
+
+function covalentAtomLoneSlots(atom, bondDirs) {
+  const counts = getAtomLoneElectronCounts(atom, bondDirs);
+  return COVALENT_LONE_SLOTS.filter((slot) => (counts[slot] || 0) > 0);
+}
+
+/** Lone electrons per cardinal slot (0–2). Falls back from legacy lonePairSlots / lonePairs on stems. */
+function getAtomLoneElectronCounts(atom, bondDirs) {
+  if (atom?.loneElectrons && typeof atom.loneElectrons === "object") {
+    return { ...emptyLoneElectronCounts(), ...atom.loneElectrons };
+  }
+  if (Array.isArray(atom?.lonePairSlots)) {
+    const counts = emptyLoneElectronCounts();
+    atom.lonePairSlots.forEach((slot) => {
+      if (counts[slot] != null) counts[slot] = COVALENT_LONE_ELECTRONS_PER_SLOT;
+    });
+    return counts;
+  }
+  const pairCount = Number(atom?.lonePairs) || 0;
+  const slots = covalentLoneSlotsFromCount(atom, bondDirs, pairCount);
+  const counts = emptyLoneElectronCounts();
+  slots.forEach((slot) => { counts[slot] = COVALENT_LONE_ELECTRONS_PER_SLOT; });
+  return counts;
+}
+
+function getBondSharedCount(bond) {
+  if (bond?.sharedCount != null) return Math.max(0, Number(bond.sharedCount) || 0);
+  return Math.max(0, Number(bond?.sharedPairs) || 0) * 2;
+}
+
+function ensureBondSharedCount(bond) {
+  if (bond.sharedCount == null) bond.sharedCount = getBondSharedCount(bond);
+  return bond;
+}
+
+/** Shared electrons on each atom's shell circle where the bond axis meets the shell. */
+function covalentSharedElectronPositions(bond, positions, shellRadii) {
+  const pa = positions[bond.a];
+  const pb = positions[bond.b];
+  if (!pa || !pb) return [];
+
+  const rA = shellRadii[bond.a];
+  const rB = shellRadii[bond.b];
+  const dx = pb.x - pa.x;
+  const dy = pb.y - pa.y;
+  const dist = Math.hypot(dx, dy) || 1;
+  const ux = dx / dist;
+  const uy = dy / dist;
+  const nx = -uy;
+  const ny = ux;
+  const sharedCount = getBondSharedCount(bond);
+  const pts = [];
+
+  for (let ei = 0; ei < sharedCount; ei++) {
+    const pairIdx = Math.floor(ei / 2);
+    const stack = (pairIdx - (Math.ceil(sharedCount / 2) - 1) / 2) * 10;
+    const isFirstInPair = ei % 2 === 0;
+    if (isFirstInPair) {
+      pts.push({
+        x: pa.x + ux * rA + nx * stack,
+        y: pa.y + uy * rA + ny * stack,
+        atom: bond.a,
+      });
+    } else {
+      pts.push({
+        x: pb.x - ux * rB + nx * stack,
+        y: pb.y - uy * rB + ny * stack,
+        atom: bond.b,
+      });
+    }
+  }
+  return pts;
+}
+
+function nearestCovalentLoneSlot(atomX, atomY, clickX, clickY) {
+  const ang = Math.atan2(clickY - atomY, clickX - atomX);
+  let best = COVALENT_LONE_SLOTS[0];
+  let bestDiff = Infinity;
+  for (const slot of COVALENT_LONE_SLOTS) {
+    let diff = Math.abs(ang - COVALENT_LONE_SLOT_ANGLES[slot]);
+    if (diff > Math.PI) diff = Math.PI * 2 - diff;
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      best = slot;
+    }
+  }
+  return best;
+}
+
+function addCovalentLoneElectron(state, atomIdx, slot) {
+  const atom = state.atoms?.[atomIdx];
+  if (!atom || !slot) return false;
+  if (!atom.loneElectrons) atom.loneElectrons = emptyLoneElectronCounts();
+  const current = atom.loneElectrons[slot] || 0;
+  if (current >= COVALENT_LONE_ELECTRONS_PER_SLOT) return false;
+  atom.loneElectrons[slot] = current + 1;
+  return true;
+}
+
+function removeCovalentLoneElectron(state, atomIdx, slot, eIdx) {
+  const atom = state.atoms?.[atomIdx];
+  if (!atom?.loneElectrons || !slot) return false;
+  const current = atom.loneElectrons[slot] || 0;
+  if (current <= 0) return false;
+  atom.loneElectrons[slot] = current - 1;
+  return true;
+}
+
 /**
  * Covalent atom centres: diatomic in a row; central atom with satellites for 3+.
+ * Shell radii vary by element so H is smaller than O/C/N/Cl.
  */
-function layoutCovalentAtoms(atoms, bonds, { shellR = 52 } = {}) {
+function layoutCovalentAtoms(atoms, bonds) {
   const n = atoms.length;
-  const margin = shellR + 36;
-  const bondGap = 72;
+  const shellRadii = atoms.map((a) => covalentAtomMetrics(a.symbol).shellR);
+  const positions = new Array(n);
 
   if (n <= 2) {
-    const w = Math.max(280, margin * 2 + Math.max(n - 1, 0) * bondGap);
-    const h = Math.max(220, shellR * 2 + 80);
-    const cy = h / 2;
-    const positions = atoms.map((_, i) => ({
-      x: n === 1 ? w / 2 : margin + i * bondGap,
-      y: cy,
-    }));
-    // Centre the pair in the viewBox
-    if (n === 2) {
-      const span = bondGap;
-      const start = (w - span) / 2;
-      positions[0].x = start;
-      positions[1].x = start + span;
+    const r0 = shellRadii[0];
+    const r1 = n === 2 ? shellRadii[1] : r0;
+    const dist = n === 2 ? covalentBondDistance(r0, r1) : 0;
+    const bounds = covalentViewBounds(
+      n === 1
+        ? [{ x: 0, y: 0 }]
+        : [{ x: -dist / 2, y: 0 }, { x: dist / 2, y: 0 }],
+      n === 1 ? [r0] : [r0, r1]
+    );
+    if (n === 1) {
+      positions[0] = { x: bounds.w / 2, y: bounds.h / 2 };
+    } else {
+      positions[0] = { x: bounds.w / 2 - dist / 2, y: bounds.h / 2 };
+      positions[1] = { x: bounds.w / 2 + dist / 2, y: bounds.h / 2 };
     }
-    return { w, h, positions, shellR };
+    return { w: bounds.w, h: bounds.h, positions, shellRadii };
   }
 
-  // Find best central atom: most bonds, else first non-H, else index 0
   const degree = atoms.map(() => 0);
   (bonds || []).forEach((b) => {
     if (degree[b.a] != null) degree[b.a] += 1;
@@ -845,42 +1144,47 @@ function layoutCovalentAtoms(atoms, bonds, { shellR = 52 } = {}) {
   });
 
   const satellites = atoms.map((_, i) => i).filter((i) => i !== centre);
-  const radius = bondGap;
-  const w = Math.max(300, margin * 2 + radius * 2);
-  const h = Math.max(280, margin * 2 + radius * 2);
-  const cx = w / 2;
-  const cy = h / 2 + 4;
-  const positions = new Array(n);
-  positions[centre] = { x: cx, y: cy };
+  positions[centre] = { x: 0, y: 0 };
 
-  // Spread satellites: prefer bottom-left / bottom-right for water-like; else even circle
+  let angles;
+  if (satellites.length === 2) {
+    const half = (104 * Math.PI) / 180 / 2;
+    angles = [Math.PI / 2 + half, Math.PI / 2 - half];
+  } else if (satellites.length === 3) {
+    angles = [0, 1, 2].map((i) => (Math.PI / 2) + ((i - 1) * (2 * Math.PI) / 3));
+  } else if (satellites.length === 4) {
+    angles = [-Math.PI / 2, 0, Math.PI / 2, Math.PI];
+  } else {
+    angles = satellites.map((_, idx) => -Math.PI / 2 + (idx * 2 * Math.PI) / satellites.length);
+  }
+
+  const rCentre = shellRadii[centre];
   satellites.forEach((si, idx) => {
-    let ang;
-    if (satellites.length === 2) {
-      // Bent water-like (~104° visualised as ±52° from downward)
-      ang = Math.PI / 2 + (idx === 0 ? -0.55 : 0.55);
-    } else if (satellites.length === 3) {
-      ang = -Math.PI / 2 + (idx * 2 * Math.PI) / 3;
-    } else {
-      ang = -Math.PI / 2 + (idx * 2 * Math.PI) / satellites.length;
-    }
+    const dist = covalentBondDistance(rCentre, shellRadii[si]);
+    const ang = angles[idx] ?? 0;
     positions[si] = {
-      x: cx + radius * Math.cos(ang),
-      y: cy + radius * Math.sin(ang),
+      x: dist * Math.cos(ang),
+      y: dist * Math.sin(ang),
     };
   });
 
-  return { w: Math.ceil(w), h: Math.ceil(h), positions, shellR };
+  const bounds = covalentViewBounds(positions, shellRadii);
+  return {
+    w: bounds.w,
+    h: bounds.h,
+    positions: shiftCovalentLayout(positions, bounds),
+    shellRadii,
+  };
 }
 
 /**
- * Covalent bonding: outer shells overlap; shared electrons sit in the overlap;
- * lone pairs sit on the outer shell away from the bond (dot-and-cross style).
+ * Covalent bonding: outer shells overlap; shared electrons sit on each shell circle;
+ * lone pairs sit on the outer shell at top / bottom / left / right.
  */
 function renderCovalentDiagram(state, { interactive = true } = {}) {
   const atoms = state.atoms || [];
   const bonds = state.bonds || [];
-  const { w, h, positions, shellR } = layoutCovalentAtoms(atoms, bonds);
+  const { w, h, positions, shellRadii } = layoutCovalentAtoms(atoms, bonds);
   let svg = "";
 
   const bondDirs = atoms.map(() => []);
@@ -896,72 +1200,90 @@ function renderCovalentDiagram(state, { interactive = true } = {}) {
   // Outer shells (drawn first so electrons sit on top)
   atoms.forEach((atom, ai) => {
     const p = positions[ai];
+    const { coreR, fontSize } = covalentAtomMetrics(atom.symbol);
+    const shellR = shellRadii[ai];
     svg += `<circle cx="${p.x}" cy="${p.y}" r="${shellR}" fill="rgba(241,245,249,0.55)" stroke="#475569" stroke-width="2"/>`;
-    svg += `<circle class="chem-cov-atom" data-atom-idx="${ai}" cx="${p.x}" cy="${p.y}" r="16" fill="#1e293b" tabindex="${interactive ? "0" : "-1"}" role="${interactive ? "button" : "presentation"}" aria-label="${interactive ? `Cycle lone pairs on atom ${escapeHtml(atom.symbol)}` : ""}" style="cursor:${interactive ? "pointer" : "default"}"/>`;
-    svg += `<text x="${p.x}" y="${p.y + 5}" text-anchor="middle" fill="#f8fafc" font-size="13" font-weight="700" pointer-events="none">${escapeHtml(atom.symbol)}</text>`;
+    svg += `<circle class="chem-cov-atom" data-atom-idx="${ai}" cx="${p.x}" cy="${p.y}" r="${coreR}" fill="#1e293b" tabindex="-1" role="presentation" aria-hidden="true"/>`;
+    svg += `<text x="${p.x}" y="${p.y + 5}" text-anchor="middle" fill="#f8fafc" font-size="${fontSize}" font-weight="700" pointer-events="none">${escapeHtml(atom.symbol)}</text>`;
   });
 
-  // Shared pairs in the overlap region
+  // Shared electrons on each atom's shell circle (one dot / cross per side)
   bonds.forEach((bond, bi) => {
-    const pa = positions[bond.a];
-    const pb = positions[bond.b];
-    if (!pa || !pb) return;
-    const mx = (pa.x + pb.x) / 2;
-    const my = (pa.y + pb.y) / 2;
-    const ang = Math.atan2(pb.y - pa.y, pb.x - pa.x);
-    const nx = -Math.sin(ang);
-    const ny = Math.cos(ang);
-    const along = 7;
-    for (let p = 0; p < bond.sharedPairs; p++) {
-      const stack = (p - (bond.sharedPairs - 1) / 2) * 14;
-      const cx0 = mx - along * Math.cos(ang) + nx * stack;
-      const cy0 = my - along * Math.sin(ang) + ny * stack;
-      const cx1 = mx + along * Math.cos(ang) + nx * stack;
-      const cy1 = my + along * Math.sin(ang) + ny * stack;
-      svg += renderCovElectron(cx0, cy0, "dot", "#2563eb");
-      svg += renderCovElectron(cx1, cy1, "cross", "#dc2626");
+    const sharedPts = covalentSharedElectronPositions(bond, positions, shellRadii);
+
+    sharedPts.forEach((pt, ei) => {
+      const style = covSharedElectronStyle(bond, pt.atom);
+      const color = covSharedElectronColor(bond, pt.atom);
+      if (interactive) {
+        svg += renderCovElectronInteractive(pt.x, pt.y, style, color,
+          `data-cov-kind="shared" data-bond="${bi}" data-e="${ei}" aria-label="Remove shared electron ${ei + 1} on bond ${bi + 1}"`);
+      } else {
+        svg += renderCovElectron(pt.x, pt.y, style, color);
+      }
+    });
+
+    if (interactive && getBondSharedCount(bond) < covalentMaxSharedElectrons(bond)) {
+      const pa = positions[bond.a];
+      const pb = positions[bond.b];
+      const mx = (pa.x + pb.x) / 2;
+      const my = (pa.y + pb.y) / 2;
+      const hitR = Math.max(shellRadii[bond.a], shellRadii[bond.b]) * 0.45;
+      svg += `<circle class="chem-bond-hit" data-bond="${bi}" cx="${mx}" cy="${my}" r="${hitR}" fill="transparent" tabindex="0" role="button" aria-label="Add one shared electron on bond ${bi + 1}" style="cursor:pointer"/>`;
     }
-    if (interactive) {
-      svg += `<rect class="chem-bond-hit" data-bond="${bi}" x="${mx - 30}" y="${my - 36}" width="60" height="72" fill="transparent" tabindex="0" role="button" aria-label="Cycle shared pairs on bond ${bi + 1}" style="cursor:pointer"/>`;
-    }
-    svg += `<text x="${mx}" y="${my + 22}" text-anchor="middle" fill="#64748b" font-size="10">${bond.sharedPairs}/${bond.maxPairs} shared</text>`;
   });
 
-  // Lone pairs at cardinal positions: top / bottom / left / right
+  // Lone electrons at cardinal shell positions (one per click, up to 2 per slot)
   atoms.forEach((atom, ai) => {
     const p = positions[ai];
-    const dirs = bondDirs[ai] || [];
-    const style = ai % 2 === 0 ? "dot" : "cross";
-    const color = ai % 2 === 0 ? "#2563eb" : "#dc2626";
-    const cardinals = [
-      { ang: -Math.PI / 2 },
-      { ang: Math.PI / 2 },
-      { ang: Math.PI },
-      { ang: 0 },
-    ];
-    const free = cardinals.filter((c) => {
-      return !dirs.some((d) => {
-        let diff = Math.abs(c.ang - d) % (Math.PI * 2);
-        if (diff > Math.PI) diff = Math.PI * 2 - diff;
-        return diff < 0.7;
-      });
-    });
-    const slots = free.length ? free : cardinals;
-    for (let lp = 0; lp < atom.lonePairs; lp++) {
-      const ang = slots[lp % slots.length].ang;
+    const shellR = shellRadii[ai];
+    const style = covElectronStyle(ai);
+    const color = covElectronColor(ai);
+    const loneCounts = getAtomLoneElectronCounts(atom, bondDirs[ai]);
+
+    COVALENT_LONE_SLOTS.forEach((slot) => {
+      const ang = COVALENT_LONE_SLOT_ANGLES[slot];
       const lx = p.x + shellR * Math.cos(ang);
       const ly = p.y + shellR * Math.sin(ang);
+      const count = loneCounts[slot] || 0;
       const tx = -Math.sin(ang) * 5;
       const ty = Math.cos(ang) * 5;
-      svg += renderCovElectron(lx - tx, ly - ty, style, color);
-      svg += renderCovElectron(lx + tx, ly + ty, style, color);
+
+      if (count >= 1) {
+        const attrs = `data-cov-kind="lone" data-atom-idx="${ai}" data-slot="${slot}" data-e="0" aria-label="Remove lone electron on ${escapeHtml(atom.symbol)} ${slot}"`;
+        if (count >= 2) {
+          if (interactive) {
+            svg += renderCovElectronInteractive(lx - tx, ly - ty, style, color, attrs);
+            svg += renderCovElectronInteractive(lx + tx, ly + ty, style, color,
+              `data-cov-kind="lone" data-atom-idx="${ai}" data-slot="${slot}" data-e="1" aria-label="Remove lone electron on ${escapeHtml(atom.symbol)} ${slot}"`);
+          } else {
+            svg += renderCovElectron(lx - tx, ly - ty, style, color);
+            svg += renderCovElectron(lx + tx, ly + ty, style, color);
+          }
+        } else if (interactive) {
+          svg += renderCovElectronInteractive(lx, ly, style, color, attrs);
+        } else {
+          svg += renderCovElectron(lx, ly, style, color);
+        }
+      }
+
+      if (interactive && count < COVALENT_LONE_ELECTRONS_PER_SLOT) {
+        svg += `<circle class="chem-lone-slot-hit${count > 0 ? " chem-lone-slot-hit--active" : ""}" data-atom-idx="${ai}" data-slot="${slot}" cx="${lx}" cy="${ly}" r="16" fill="transparent" tabindex="0" role="button" aria-label="Add one lone electron ${slot} on ${escapeHtml(atom.symbol)}" style="cursor:pointer"/>`;
+      }
+    });
+
+    if (interactive) {
+      svg += `<circle class="chem-cov-shell-hit" data-atom-idx="${ai}" cx="${p.x}" cy="${p.y}" r="${shellR}" fill="none" stroke="transparent" stroke-width="20" pointer-events="stroke" tabindex="0" role="button" aria-label="Add lone electron on ${escapeHtml(atom.symbol)} outer shell" style="cursor:pointer"/>`;
     }
   });
+
+  const statusHtml = interactive
+    ? `<div class="chem-status" id="chemStatus">Tap overlap or shell edge to add one electron · tap an electron to remove it</div>`
+    : "";
 
   return `
     <div class="chem-diagram-wrap chem-diagram-wrap--responsive">
       <svg class="chem-svg chem-svg--fluid" viewBox="0 0 ${w} ${h}" width="100%" style="touch-action:manipulation;" preserveAspectRatio="xMidYMid meet">${svg}</svg>
-      <div class="chem-status" id="chemStatus">Outer shells · shared e⁻ in overlap (● / ✕)</div>
+      ${statusHtml}
     </div>`;
 }
 
@@ -987,17 +1309,13 @@ function renderPolymerDiagram(state, cfg) {
   ];
   const linkages = cfg.template?.linkageOptions || [];
   const mode = cfg.template?.mode || "addition";
-  const monomer = cfg.template?.monomerLabel || "ethene";
+  const chosen = options.find((o) => o.id === state.selectedRepeat);
+  const fallbackLabel = chosen?.label || "Select a repeat unit";
 
-  let svg = `
-    <svg viewBox="0 0 420 120" width="100%" style="max-width:440px;">
-      <text x="210" y="24" text-anchor="middle" fill="#64748b" font-size="12">Monomer: ${escapeHtml(monomer)}</text>
-      <line x1="40" y1="70" x2="100" y2="70" stroke="#94a3b8" stroke-width="2" stroke-dasharray="6 4"/>
-      <rect x="110" y="45" width="200" height="50" rx="6" fill="#eff6ff" stroke="#2563eb" stroke-width="2" stroke-dasharray="6 3"/>
-      <text x="210" y="75" text-anchor="middle" fill="#1e40af" font-size="13" font-weight="700">repeat unit</text>
-      <line x1="320" y1="70" x2="380" y2="70" stroke="#94a3b8" stroke-width="2" stroke-dasharray="6 4"/>
-      <text x="390" y="74" fill="#64748b" font-size="14">n</text>
-    </svg>`;
+  const svg = renderPolymerRepeatUnitSvg(state.selectedRepeat, {
+    fallbackLabel,
+    showTitle: false,
+  });
 
   const chips = options.map((o) => `
     <button type="button" class="btn chem-chip ${state.selectedRepeat === o.id ? "chem-chip-active" : ""}" data-chem-repeat="${escapeHtml(o.id)}">${escapeHtml(o.label)}</button>
@@ -1079,6 +1397,7 @@ function renderBody(state, cfg) {
     case "covalent_bonding": return renderCovalentDiagram(state);
     case "organic_structure": return renderOrganicDiagram(state, cfg);
     case "polymer_structure": return renderPolymerDiagram(state, cfg);
+    case "molecule_builder": return renderMoleculeBuilderDiagram(state, cfg);
     case "balance_equation": return renderBalanceEquation(state, cfg);
     default: return `<p class="bad">Unknown chemistry kind: ${escapeHtml(cfg.kind)}</p>`;
   }
@@ -1097,9 +1416,10 @@ export function renderChemistryWorkflow(q, key, presentation = "practice") {
   const kindLabels = {
     electron_shell: "Electron shell diagram",
     ionic_bonding: "",
-    covalent_bonding: "Covalent bonding",
+    covalent_bonding: "",
     organic_structure: "Organic structure",
     polymer_structure: "Polymer structure",
+    molecule_builder: "",
     balance_equation: "Balance the equation",
   };
   const kindLabel = Object.prototype.hasOwnProperty.call(kindLabels, cfg.kind)
@@ -1293,26 +1613,74 @@ export function wireChemistryWorkflow(q = null) {
     }
 
     if (cfg.kind === "covalent_bonding") {
+      const covElecHit = typeof t.closest === "function" ? t.closest(".chem-cov-electron-hit") : null;
+      if (covElecHit) {
+        e.preventDefault();
+        const kind = covElecHit.getAttribute("data-cov-kind");
+        if (kind === "shared") {
+          const bi = Number(covElecHit.getAttribute("data-bond"));
+          const bond = ensureBondSharedCount(state.bonds[bi]);
+          if (bond && bond.sharedCount > 0) {
+            bond.sharedCount -= 1;
+            writeState(state);
+            refreshDiagram();
+          }
+        } else if (kind === "lone") {
+          const ai = Number(covElecHit.getAttribute("data-atom-idx"));
+          const slot = covElecHit.getAttribute("data-slot");
+          if (removeCovalentLoneElectron(state, ai, slot)) {
+            writeState(state);
+            refreshDiagram();
+          }
+        }
+        return;
+      }
+
       const bondHit = typeof t.closest === "function" ? t.closest(".chem-bond-hit") : null;
       if (bondHit) {
+        e.preventDefault();
         const bi = Number(bondHit.getAttribute("data-bond"));
-        const bond = state.bonds[bi];
-        if (bond) {
-          bond.sharedPairs = (bond.sharedPairs + 1) % (bond.maxPairs + 1);
+        const bond = ensureBondSharedCount(state.bonds[bi]);
+        if (bond && bond.sharedCount < covalentMaxSharedElectrons(bond)) {
+          bond.sharedCount += 1;
           writeState(state);
           refreshDiagram();
         }
         return;
       }
-      const atomHit = typeof t.closest === "function" ? t.closest(".chem-cov-atom") : null;
-      if (atomHit) {
-        const ai = Number(atomHit.getAttribute("data-atom-idx"));
-        const atom = state.atoms[ai];
-        if (atom) {
-          const maxLone = atom.maxLone ?? 3;
-          atom.lonePairs = (atom.lonePairs + 1) % (maxLone + 1);
+
+      const slotHit = typeof t.closest === "function" ? t.closest(".chem-lone-slot-hit") : null;
+      if (slotHit) {
+        e.preventDefault();
+        const ai = Number(slotHit.getAttribute("data-atom-idx"));
+        const slot = slotHit.getAttribute("data-slot");
+        if (addCovalentLoneElectron(state, ai, slot)) {
           writeState(state);
           refreshDiagram();
+        }
+        return;
+      }
+
+      const shellHit = typeof t.closest === "function" ? t.closest(".chem-cov-shell-hit") : null;
+      if (shellHit) {
+        e.preventDefault();
+        const ai = Number(shellHit.getAttribute("data-atom-idx"));
+        const svg = shellHit.ownerSVGElement;
+        const { positions } = layoutCovalentAtoms(state.atoms || [], state.bonds || []);
+        const p = positions[ai];
+        if (svg && p) {
+          const pt = svg.createSVGPoint();
+          pt.x = e.clientX;
+          pt.y = e.clientY;
+          const ctm = svg.getScreenCTM()?.inverse();
+          if (ctm) {
+            const loc = pt.matrixTransform(ctm);
+            const slot = nearestCovalentLoneSlot(p.x, p.y, loc.x, loc.y);
+            if (addCovalentLoneElectron(state, ai, slot)) {
+              writeState(state);
+              refreshDiagram();
+            }
+          }
         }
         return;
       }
@@ -1371,6 +1739,68 @@ export function wireChemistryWorkflow(q = null) {
       }
     }
 
+    if (cfg.kind === "molecule_builder") {
+      const symBtn = typeof t.closest === "function" ? t.closest("[data-mol-symbol]") : null;
+      if (symBtn) {
+        state.selectedSymbol = symBtn.getAttribute("data-mol-symbol");
+        writeState(state);
+        refreshDiagram();
+        return;
+      }
+      const modeBtn = typeof t.closest === "function" ? t.closest("[data-mol-mode]") : null;
+      if (modeBtn) {
+        state.mode = modeBtn.getAttribute("data-mol-mode") === "bond" ? "bond" : "add";
+        state.bondFrom = null;
+        writeState(state);
+        refreshDiagram();
+        return;
+      }
+      const bondHit = typeof t.closest === "function" ? t.closest("[data-mol-bond]") : null;
+      if (bondHit) {
+        const bondIdx = Number(bondHit.getAttribute("data-mol-bond"));
+        if (Number.isFinite(bondIdx) && state.bonds?.[bondIdx]) {
+          state.bonds.splice(bondIdx, 1);
+          state.bondFrom = null;
+        }
+        writeState(state);
+        refreshDiagram();
+        return;
+      }
+      const atomHit = typeof t.closest === "function" ? t.closest("[data-mol-atom]") : null;
+      if (atomHit) {
+        const atomId = atomHit.getAttribute("data-mol-atom");
+        if (state.mode === "bond") {
+          if (!state.bondFrom) {
+            state.bondFrom = atomId;
+          } else if (state.bondFrom === atomId) {
+            state.bondFrom = null;
+          } else {
+            addMoleculeBond(state, state.bondFrom, atomId);
+            state.bondFrom = null;
+          }
+        }
+        writeState(state);
+        refreshDiagram();
+        const status = document.getElementById("chemStatus");
+        if (status) status.textContent = state.bondFrom ? "Tap the second atom to bond" : "";
+        return;
+      }
+      const canvasHit = typeof t.closest === "function" ? t.closest(".chem-mol-canvas-bg, .chem-mol-svg") : null;
+      if (canvasHit && state.mode !== "bond" && !atomHit && !bondHit) {
+        const svg = document.getElementById("chemMolBuilderSvg");
+        if (svg) {
+          const pt = svgPointFromClient(svg, e.clientX, e.clientY);
+          if (addMoleculeAtom(state, cfg, pt.x, pt.y)) {
+            writeState(state);
+            refreshDiagram();
+            const status = document.getElementById("chemStatus");
+            if (status) status.textContent = "";
+          }
+        }
+        return;
+      }
+    }
+
     if (cfg.kind === "balance_equation") {
       const tokenBtn = typeof t.closest === "function" ? t.closest("[data-chem-token]") : null;
       if (tokenBtn) {
@@ -1399,7 +1829,7 @@ export function wireChemistryWorkflow(q = null) {
     const t = e.target;
     if (!t || typeof t.closest !== "function") return;
     const interactive = t.closest(
-      ".chem-shell-hitarea, .chem-electron, .chem-bond-hit, .chem-cov-atom, .chem-org-bond, .chem-org-carbon"
+      ".chem-shell-hitarea, .chem-electron, .chem-bond-hit, .chem-lone-slot-hit, .chem-cov-shell-hit, .chem-cov-electron-hit, .chem-org-bond, .chem-org-carbon, .chem-mol-atom-hit, .chem-mol-bond-hit"
     );
     if (!interactive || !root.contains(interactive)) return;
     if (interactive.getAttribute("tabindex") === "-1") return;
@@ -1480,6 +1910,26 @@ export function collectChemistryResponse(q) {
       style: a.style,
     }));
     delete cloned.selectedElectron;
+  }
+  if (cloned.kind === "covalent_bonding") {
+    cloned.atoms = (cloned.atoms || []).map((a) => ({
+      symbol: a.symbol,
+      lonePairs: lonePairsFromElectronCounts(a.loneElectrons),
+    }));
+    cloned.bonds = (cloned.bonds || []).map((b) => ({
+      a: b.a,
+      b: b.b,
+      sharedPairs: sharedPairsFromElectronCount(getBondSharedCount(b)),
+      maxPairs: b.maxPairs,
+    }));
+  }
+  if (cloned.kind === "molecule_builder") {
+    cloned.atoms = (cloned.atoms || []).map(({ id, symbol, x, y }) => ({ id, symbol, x, y }));
+    cloned.bonds = (cloned.bonds || []).map(({ a, b }) => ({ a, b }));
+    delete cloned.selectedSymbol;
+    delete cloned.mode;
+    delete cloned.bondFrom;
+    delete cloned.nextAtomId;
   }
   return { type: "chemistry", kind: cfg?.kind, ...cloned };
 }
@@ -1713,6 +2163,8 @@ export function markChemistryResponse(q, resp, key, markPoints, cleanUrl) {
   } else if (kind === "polymer_structure") {
     const r = markPolymer(resp, answer);
     result = { ...r, earned: r.correct ? 1 : 0, available: 1, points: [{ id: "polymer", label: "Repeat unit", marks: 1, correct: r.correct }] };
+  } else if (kind === "molecule_builder") {
+    result = markMoleculeBuilder(resp, answer);
   } else if (kind === "balance_equation") {
     const r = markBalance(resp, answer);
     result = { ...r, earned: r.correct ? 1 : 0, available: 1, points: [{ id: "balance", label: "Coefficients", marks: 1, correct: r.correct }] };
@@ -1721,7 +2173,7 @@ export function markChemistryResponse(q, resp, key, markPoints, cleanUrl) {
   // Multi-point kinds: award up to q.max_marks using scheme points in order
   let total;
   let appliedPoints = result.points || [];
-  if ((kind === "ionic_bonding" || kind === "covalent_bonding") && appliedPoints.length) {
+  if ((kind === "ionic_bonding" || kind === "covalent_bonding" || kind === "molecule_builder") && appliedPoints.length) {
     // If teacher set fewer marks than the full scheme, keep highest-priority points only
     let remaining = max;
     appliedPoints = appliedPoints.map((p) => {
@@ -2008,6 +2460,34 @@ export const CHEMISTRY_PRESETS = {
     track: "combined",
     template: { compound: "NaCl", style: "compare", size: 3 },
     answer: { kind: "ionic_lattice", compound: "NaCl", style: "compare", size: 3 },
+  },
+  metallic_bonding: {
+    label: "Metallic bonding — delocalised electrons",
+    kind: "metallic_bonding",
+    track: "combined",
+    template: {},
+    answer: { kind: "metallic_bonding" },
+  },
+  particle_solid: {
+    label: "Particle model — solid",
+    kind: "particle_model",
+    track: "combined",
+    template: { state: "solid" },
+    answer: { kind: "particle_model", state: "solid" },
+  },
+  particle_liquid: {
+    label: "Particle model — liquid",
+    kind: "particle_model",
+    track: "combined",
+    template: { state: "liquid" },
+    answer: { kind: "particle_model", state: "liquid" },
+  },
+  particle_gas: {
+    label: "Particle model — gas",
+    kind: "particle_model",
+    track: "combined",
+    template: { state: "gas" },
+    answer: { kind: "particle_model", state: "gas" },
   },
   h2: {
     label: "H₂ covalent",
@@ -2399,6 +2879,29 @@ export const CHEMISTRY_PRESETS = {
     },
     answer: { kind: "polymer_structure", selectedRepeat: "amide_ru", selectedLinkage: "amide", name: "polyamide" },
   },
+  nh3_molecule: {
+    label: "Build NH₃ (molecule builder)",
+    kind: "molecule_builder",
+    recommendedMaxMarks: 2,
+    template: {
+      allowedSymbols: ["H", "N", "C", "O", "Cl"],
+      maxAtoms: 8,
+    },
+    answer: {
+      kind: "molecule_builder",
+      atoms: [
+        { id: "n", symbol: "N", x: 200, y: 120 },
+        { id: "h1", symbol: "H", x: 130, y: 120 },
+        { id: "h2", symbol: "H", x: 270, y: 120 },
+        { id: "h3", symbol: "H", x: 200, y: 190 },
+      ],
+      bonds: [
+        { a: "n", b: "h1" },
+        { a: "n", b: "h2" },
+        { a: "n", b: "h3" },
+      ],
+    },
+  },
   water_balance: {
     label: "Balance H₂ + O₂ → H₂O",
     kind: "balance_equation",
@@ -2788,6 +3291,23 @@ export function displayStateFromPresetOrConfig(presetOrConfig) {
       name: answer.name || cfg.template?.name || "",
     };
   }
+  if (kind === "molecule_builder") {
+    return deepClone({
+      kind,
+      atoms: answer.atoms || [],
+      bonds: answer.bonds || [],
+    });
+  }
+  if (kind === "metallic_bonding") {
+    return { kind: "metallic_bonding" };
+  }
+  if (kind === "particle_model") {
+    return {
+      kind: "particle_model",
+      state: answer.state || answer.phase || cfg.template?.state || "solid",
+      showLabel: !!(answer.showLabel || cfg.template?.showLabel),
+    };
+  }
   return null;
 }
 
@@ -2923,23 +3443,662 @@ export function renderDisplayedFormulaSvg(state, { interactive = false } = {}) {
   </svg>`;
 }
 
+/** GCSE-style addition-polymer repeat units (two-carbon backbone in parentheses). */
+const POLYMER_REPEAT_STRUCTURES = {
+  ch2ch2: { carbons: [{ top: "H", bottom: "H" }, { top: "H", bottom: "H" }] },
+  ch2chcl: { carbons: [{ top: "H", bottom: "H" }, { top: "H", bottom: "Cl" }] },
+  chclchcl: { carbons: [{ top: "H", bottom: "Cl" }, { top: "H", bottom: "Cl" }] },
+  chch2: { type: "text", label: "–CH=CH₂–" },
+  ch3: { type: "text", label: "–CH₃" },
+  ch3ch3: { type: "text", label: "–CH₃–CH₃–" },
+  ester_ru: { type: "text", label: "–OOC–R–COO–R–" },
+  amide_ru: { type: "text", label: "–NH–R–CO–" },
+  alkene_ru: { type: "text", label: "–CH₂–CH₂–" },
+};
+
+function polymerRepeatSpec(repeatId, fallbackLabel = "") {
+  const spec = POLYMER_REPEAT_STRUCTURES[repeatId];
+  if (spec) return spec;
+  if (fallbackLabel) return { type: "text", label: fallbackLabel };
+  return { type: "text", label: repeatId || "repeat unit" };
+}
+
+function renderPolymerCarbonSubstituent(cx, cy, symbol, dir, stroke = "#0f172a") {
+  const gap = 8;
+  const arm = 24;
+  if (dir === "top") {
+    return `
+      <line x1="${cx}" y1="${cy - gap}" x2="${cx}" y2="${cy - arm}" stroke="${stroke}" stroke-width="2.5"/>
+      <text x="${cx}" y="${cy - arm - 4}" text-anchor="middle" font-size="18" font-weight="700" fill="${stroke}">${escapeHtml(symbol)}</text>`;
+  }
+  return `
+    <line x1="${cx}" y1="${cy + gap}" x2="${cx}" y2="${cy + arm}" stroke="${stroke}" stroke-width="2.5"/>
+    <text x="${cx}" y="${cy + arm + 14}" text-anchor="middle" font-size="18" font-weight="700" fill="${stroke}">${escapeHtml(symbol)}</text>`;
+}
+
+/** Poly(ethene)-style repeat unit: —( H H )— with C—C backbone and subscript n. */
+export function renderPolymerRepeatUnitSvg(repeatId, {
+  title = "",
+  showTitle = false,
+  fallbackLabel = "",
+  linkage = "",
+} = {}) {
+  const spec = polymerRepeatSpec(repeatId, fallbackLabel);
+  const w = 320;
+  const h = showTitle ? 130 : 112;
+  const titleY = 20;
+  const cy = showTitle ? 68 : 58;
+  const cx1 = 118;
+  const cx2 = 202;
+  const gap = 9;
+  const extLeft = 28;
+  const extRight = 292;
+  const parenTop = cy - 34;
+  const parenBot = cy + 34;
+  const stroke = "#0f172a";
+
+  let inner = "";
+  if (spec.type === "text") {
+    inner = `
+      <text x="${w / 2}" y="${cy + 6}" text-anchor="middle" font-size="16" font-weight="700" fill="${stroke}">${escapeHtml(spec.label)}</text>`;
+  } else {
+    const [c1, c2] = spec.carbons;
+    inner += `<line x1="${extLeft}" y1="${cy}" x2="${cx1 - gap}" y2="${cy}" stroke="${stroke}" stroke-width="2.5"/>`;
+    inner += `<line x1="${cx2 + gap}" y1="${cy}" x2="${extRight}" y2="${cy}" stroke="${stroke}" stroke-width="2.5"/>`;
+    inner += `<path d="M 94 ${parenTop} Q 84 ${cy} 94 ${parenBot}" fill="none" stroke="${stroke}" stroke-width="2"/>`;
+    inner += `<path d="M 226 ${parenTop} Q 236 ${cy} 226 ${parenBot}" fill="none" stroke="${stroke}" stroke-width="2"/>`;
+    inner += `<line x1="${cx1 + gap}" y1="${cy}" x2="${cx2 - gap}" y2="${cy}" stroke="${stroke}" stroke-width="2.5"/>`;
+    inner += `<text x="${cx1}" y="${cy + 6}" text-anchor="middle" font-size="18" font-weight="700" fill="${stroke}">C</text>`;
+    inner += `<text x="${cx2}" y="${cy + 6}" text-anchor="middle" font-size="18" font-weight="700" fill="${stroke}">C</text>`;
+    inner += renderPolymerCarbonSubstituent(cx1, cy, c1.top, "top", stroke);
+    inner += renderPolymerCarbonSubstituent(cx1, cy, c1.bottom, "bottom", stroke);
+    inner += renderPolymerCarbonSubstituent(cx2, cy, c2.top, "top", stroke);
+    inner += renderPolymerCarbonSubstituent(cx2, cy, c2.bottom, "bottom", stroke);
+  }
+
+  const titleHtml = showTitle && title
+    ? `<text x="${w / 2}" y="${titleY}" text-anchor="middle" fill="#64748b" font-size="12">${escapeHtml(title)}</text>`
+    : "";
+  const linkHtml = linkage
+    ? `<text x="${w / 2}" y="${h - 6}" text-anchor="middle" fill="#0369a1" font-size="11">Linkage: ${escapeHtml(linkage)}</text>`
+    : "";
+
+  return `<svg class="chem-svg chem-polymer-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="100%" style="max-width:360px;display:block;margin:0 auto;">
+    ${titleHtml}
+    ${inner}
+    <text x="248" y="${parenBot + 8}" font-size="16" font-weight="700" fill="${stroke}">n</text>
+    ${linkHtml}
+  </svg>`;
+}
+
 function renderPolymerDisplaySvg(state, cfg = {}) {
   const template = cfg.template || {};
   const options = template.repeatOptions || [];
   const chosen = options.find((o) => o.id === state.selectedRepeat);
-  const label = chosen?.label || state.selectedRepeat || "repeat unit";
   const linkage = state.selectedLinkage
     ? (template.linkageOptions || []).find((l) => l.id === state.selectedLinkage)?.label || state.selectedLinkage
     : "";
   const title = state.name || template.name || template.monomerLabel || "polymer";
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 140" width="100%" style="max-width:440px;display:block;margin:0 auto;">
-    <text x="240" y="28" text-anchor="middle" fill="#64748b" font-size="13">${escapeHtml(title)}</text>
-    <line x1="40" y1="80" x2="100" y2="80" stroke="#94a3b8" stroke-width="2" stroke-dasharray="6 4"/>
-    <rect x="110" y="52" width="220" height="56" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
-    <text x="220" y="86" text-anchor="middle" fill="#1e40af" font-size="15" font-weight="700">${escapeHtml(label)}</text>
-    <line x1="340" y1="80" x2="400" y2="80" stroke="#94a3b8" stroke-width="2" stroke-dasharray="6 4"/>
-    <text x="420" y="86" fill="#0f172a" font-size="18" font-weight="700">n</text>
-    ${linkage ? `<text x="240" y="130" text-anchor="middle" fill="#0369a1" font-size="12">Linkage: ${escapeHtml(linkage)}</text>` : ""}
+  return renderPolymerRepeatUnitSvg(state.selectedRepeat, {
+    showTitle: false,
+    fallbackLabel: chosen?.label || state.selectedRepeat || "repeat unit",
+    linkage,
+  });
+}
+
+// ─── Molecule builder (displayed formula with single bonds) ───────────────────
+
+const MOLECULE_BUILDER_SYMBOLS = ["H", "C", "N", "O", "Cl"];
+
+function moleculeBuilderCaption(state) {
+  const atoms = state?.atoms || [];
+  const bonds = state?.bonds || [];
+  if (!atoms.length) return "No atoms placed";
+  const counts = {};
+  atoms.forEach((a) => { counts[a.symbol] = (counts[a.symbol] || 0) + 1; });
+  const formula = Object.entries(counts).map(([s, n]) => (n > 1 ? `${s}${n}` : s)).join("");
+  return `${formula || "molecule"} · ${bonds.length} bond${bonds.length === 1 ? "" : "s"}`;
+}
+
+function atomBondAnchors(ax, ay, bx, by, inset = 11) {
+  const dx = bx - ax;
+  const dy = by - ay;
+  const len = Math.hypot(dx, dy) || 1;
+  return {
+    x1: ax + (dx / len) * inset,
+    y1: ay + (dy / len) * inset,
+    x2: bx - (dx / len) * inset,
+    y2: by - (dy / len) * inset,
+  };
+}
+
+export function renderMoleculeBuilderSvg(state, { interactive = false, w = 400, h = 260 } = {}) {
+  const atoms = state?.atoms || [];
+  const bonds = state?.bonds || [];
+  const bondFrom = state?.bondFrom ?? null;
+  const stroke = "#0f172a";
+  let svg = `<rect class="chem-mol-canvas-bg" x="0" y="0" width="${w}" height="${h}" fill="#fff" ${interactive ? 'style="cursor:crosshair"' : ""}/>`;
+
+  bonds.forEach((bond, bondIdx) => {
+    const a = atoms.find((x) => x.id === bond.a);
+    const b = atoms.find((x) => x.id === bond.b);
+    if (!a || !b) return;
+    const pts = atomBondAnchors(a.x, a.y, b.x, b.y);
+    svg += `<line x1="${pts.x1}" y1="${pts.y1}" x2="${pts.x2}" y2="${pts.y2}" stroke="${stroke}" stroke-width="2.5"/>`;
+    if (interactive) {
+      svg += `<line class="chem-mol-bond-hit" data-mol-bond="${bondIdx}" x1="${pts.x1}" y1="${pts.y1}" x2="${pts.x2}" y2="${pts.y2}" stroke="transparent" stroke-width="16" style="cursor:pointer" tabindex="0" role="button" aria-label="Remove bond"/>`;
+    }
+  });
+
+  atoms.forEach((atom) => {
+    const selected = bondFrom === atom.id;
+    if (interactive) {
+      svg += `<circle class="chem-mol-atom-hit" data-mol-atom="${escapeHtml(atom.id)}" cx="${atom.x}" cy="${atom.y}" r="20" fill="transparent" tabindex="0" role="button" aria-label="${escapeHtml(atom.symbol)} atom" style="cursor:pointer"/>`;
+      if (selected) {
+        svg += `<circle cx="${atom.x}" cy="${atom.y}" r="22" fill="none" stroke="#2563eb" stroke-width="2" pointer-events="none"/>`;
+      }
+    }
+    svg += `<text x="${atom.x}" y="${atom.y + 6}" text-anchor="middle" font-size="18" font-weight="700" fill="${stroke}" pointer-events="none">${escapeHtml(atom.symbol)}</text>`;
+  });
+
+  const xmlns = interactive ? "" : ' xmlns="http://www.w3.org/2000/svg"';
+  return `<svg class="chem-svg chem-mol-svg" id="chemMolBuilderSvg"${xmlns} viewBox="0 0 ${w} ${h}" width="100%" style="max-width:440px;touch-action:manipulation;" preserveAspectRatio="xMidYMid meet">${svg}</svg>`;
+}
+
+function renderMoleculeBuilderDiagram(state, cfg) {
+  const allowed = cfg.template?.allowedSymbols || MOLECULE_BUILDER_SYMBOLS;
+  const svg = renderMoleculeBuilderSvg(state, { interactive: true });
+  const symbolChips = allowed.map((sym) => `
+    <button type="button" class="btn chem-chip ${state.selectedSymbol === sym ? "chem-chip-active" : ""}" data-mol-symbol="${escapeHtml(sym)}">${escapeHtml(sym)}</button>
+  `).join("");
+  const bondHint = state.bondFrom
+    ? `<span class="muted" style="font-size:0.8rem;align-self:center;">Tap the second atom to bond</span>`
+    : "";
+
+  return `
+    <div class="chem-diagram-wrap chem-diagram-wrap--responsive">
+      ${svg}
+      <div class="chem-toolbar" style="margin-top:8px;">
+        ${symbolChips}
+      </div>
+      <div class="chem-toolbar">
+        <button type="button" class="btn chem-chip ${state.mode !== "bond" ? "chem-chip-active" : ""}" data-mol-mode="add">Add atom</button>
+        <button type="button" class="btn chem-chip ${state.mode === "bond" ? "chem-chip-active" : ""}" data-mol-mode="bond">Add bond</button>
+        ${bondHint}
+      </div>
+      <div class="chem-status" id="chemStatus">${state.bondFrom ? "Tap the second atom to bond" : ""}</div>
+    </div>`;
+}
+
+export function normalizeMoleculeGraph(state) {
+  const atoms = [...(state?.atoms || [])].filter((a) => a?.id && a?.symbol);
+  const bonds = (state?.bonds || []).filter((b) => b?.a && b?.b);
+  const sorted = atoms.sort((a, b) => a.symbol.localeCompare(b.symbol) || String(a.id).localeCompare(String(b.id)));
+  const idMap = new Map(sorted.map((a, i) => [a.id, i]));
+  const syms = sorted.map((a) => a.symbol).join(",");
+  const edges = bonds.map((b) => {
+    const i = idMap.get(b.a);
+    const j = idMap.get(b.b);
+    if (i == null || j == null) return null;
+    return i < j ? `${i}-${j}` : `${j}-${i}`;
+  }).filter(Boolean).sort().join(",");
+  return `${syms}|${edges}`;
+}
+
+export function normalizeMoleculeAtomSymbols(state) {
+  const counts = {};
+  (state?.atoms || []).forEach((a) => {
+    if (a?.symbol) counts[a.symbol] = (counts[a.symbol] || 0) + 1;
+  });
+  return Object.keys(counts).sort().map((k) => `${k}:${counts[k]}`).join(",");
+}
+
+export function normalizeMoleculeBondEdges(state) {
+  const atoms = [...(state?.atoms || [])].filter((a) => a?.id && a?.symbol);
+  const bonds = (state?.bonds || []).filter((b) => b?.a && b?.b);
+  const sorted = atoms.sort((a, b) => a.symbol.localeCompare(b.symbol) || String(a.id).localeCompare(String(b.id)));
+  const idMap = new Map(sorted.map((a, i) => [a.id, i]));
+  return bonds.map((b) => {
+    const i = idMap.get(b.a);
+    const j = idMap.get(b.b);
+    if (i == null || j == null) return null;
+    return i < j ? `${i}-${j}` : `${j}-${i}`;
+  }).filter(Boolean).sort().join(",");
+}
+
+function markMoleculeBuilder(resp, answer) {
+  const atomsOk = normalizeMoleculeAtomSymbols(resp) === normalizeMoleculeAtomSymbols(answer);
+  const bondsOk = atomsOk && normalizeMoleculeBondEdges(resp) === normalizeMoleculeBondEdges(answer);
+  const points = [
+    {
+      id: "atoms",
+      label: "Correct atoms",
+      marks: 1,
+      correct: atomsOk,
+      feedback: atomsOk ? null : "Check you have the correct number of each atom.",
+    },
+    {
+      id: "bonds",
+      label: "Correct bonds",
+      marks: 1,
+      correct: bondsOk,
+      feedback: bondsOk ? null : atomsOk
+        ? "Check which atoms are joined by single bonds."
+        : "Fix the atoms first, then check the bonds.",
+    },
+  ];
+  const earned = points.filter((p) => p.correct).reduce((s, p) => s + p.marks, 0);
+  const available = points.reduce((s, p) => s + p.marks, 0);
+  const detail = earned === available
+    ? "Molecule structure correct"
+    : points.filter((p) => !p.correct).map((p) => p.feedback || p.label).join(" ");
+  return {
+    correct: earned === available && available > 0,
+    earned,
+    available,
+    points,
+    detail,
+  };
+}
+
+function svgPointFromClient(svg, clientX, clientY) {
+  if (!svg?.createSVGPoint) return { x: 0, y: 0 };
+  const pt = svg.createSVGPoint();
+  pt.x = clientX;
+  pt.y = clientY;
+  const ctm = svg.getScreenCTM();
+  if (!ctm) return { x: 0, y: 0 };
+  const sp = pt.matrixTransform(ctm.inverse());
+  return { x: sp.x, y: sp.y };
+}
+
+function addMoleculeAtom(state, cfg, x, y) {
+  const maxAtoms = cfg.template?.maxAtoms || 12;
+  if ((state.atoms || []).length >= maxAtoms) return false;
+  const id = `a${state.nextAtomId || 1}`;
+  state.nextAtomId = (state.nextAtomId || 1) + 1;
+  state.atoms = state.atoms || [];
+  state.atoms.push({
+    id,
+    symbol: state.selectedSymbol || "H",
+    x: Math.round(x),
+    y: Math.round(y),
+  });
+  return true;
+}
+
+function addMoleculeBond(state, aId, bId) {
+  if (!aId || !bId || aId === bId) return false;
+  state.bonds = state.bonds || [];
+  const exists = state.bonds.some((b) => (b.a === aId && b.b === bId) || (b.a === bId && b.b === aId));
+  if (exists) return false;
+  state.bonds.push({ a: aId, b: bId });
+  return true;
+}
+
+// ─── Metallic bonding (GCSE stem diagram) ────────────────────────────────────
+
+/** 2D close-packed metal atom sites — 3 + 2 + 2 staggered rows (matches textbook layout). */
+const METALLIC_LATTICE_SITES = [
+  { x: 0, y: 0 }, { x: 44, y: 0 }, { x: 88, y: 0 },
+  { x: 22, y: 38 }, { x: 66, y: 38 },
+  { x: 0, y: 76 }, { x: 44, y: 76 },
+];
+
+/** Valence-electron positions on each atom's inner shell (degrees). */
+const METALLIC_ELECTRON_ANGLES = [35, 150, 265, 65, 195, 115, 310];
+
+function metallicElectronPoint(cx, cy, shellR, deg) {
+  const rad = (deg * Math.PI) / 180;
+  return { x: cx + shellR * Math.cos(rad), y: cy + shellR * Math.sin(rad) };
+}
+
+function renderMetalAtomSvg(cx, cy, {
+  outerR = 22,
+  shellR = 14,
+  electronDeg = 0,
+  stroke = "#0f172a",
+} = {}) {
+  const e = metallicElectronPoint(cx, cy, shellR, electronDeg);
+  return `
+    <circle cx="${cx}" cy="${cy}" r="${outerR}" fill="#fff" stroke="${stroke}" stroke-width="2"/>
+    <circle cx="${cx}" cy="${cy}" r="${shellR}" fill="none" stroke="${stroke}" stroke-width="1.5" stroke-dasharray="4 3"/>
+    <text x="${cx}" y="${cy + 5}" text-anchor="middle" font-size="16" font-weight="700" fill="${stroke}">+</text>
+    <circle cx="${e.x}" cy="${e.y}" r="5" fill="#fff" stroke="${stroke}" stroke-width="1.2"/>
+    <text x="${e.x}" y="${e.y + 3.5}" text-anchor="middle" font-size="9" font-weight="700" fill="${stroke}">−</text>`;
+}
+
+function renderMetalIonSvg(cx, cy, {
+  r = 14,
+  stroke = "#0f172a",
+} = {}) {
+  const fontSize = r <= 14 ? 12 : 16;
+  const textY = cy + (r <= 14 ? 4 : 5);
+  return `
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="#fff" stroke="${stroke}" stroke-width="1.5" stroke-dasharray="5 4"/>
+    <text x="${cx}" y="${textY}" text-anchor="middle" font-size="${fontSize}" font-weight="700" fill="${stroke}">+</text>`;
+}
+
+/**
+ * GCSE metallic bonding diagram: metal atoms with valence electrons →
+ * positive ions in a sea of delocalised electrons.
+ */
+export function renderMetallicBondingSvg(_state = {}) {
+  const outerR = 22;
+  const ionR = 14;
+  const stroke = "#0f172a";
+  const leftOx = 34;
+  const leftOy = 26;
+  const rightOx = 246;
+  const rightOy = 26;
+
+  const clusterW = 88;
+  const clusterH = 76;
+  const clusterBoxW = clusterW + outerR * 2;
+  const clusterBoxH = clusterH + outerR * 2;
+
+  let leftSvg = "";
+  METALLIC_LATTICE_SITES.forEach((site, i) => {
+    leftSvg += renderMetalAtomSvg(
+      leftOx + outerR + site.x,
+      leftOy + outerR + site.y,
+      { electronDeg: METALLIC_ELECTRON_ANGLES[i] || 0, stroke },
+    );
+  });
+
+  const arrowY = leftOy + outerR + clusterH / 2;
+  const arrowSvg = `
+    <line x1="168" y1="${arrowY}" x2="214" y2="${arrowY}" stroke="${stroke}" stroke-width="3.5" stroke-linecap="round"/>
+    <polygon points="${214},${arrowY} ${206},${arrowY - 7} ${206},${arrowY + 7}" fill="${stroke}"/>`;
+
+  const seaX = rightOx;
+  const seaY = rightOy;
+  const seaW = clusterBoxW;
+  const seaH = clusterBoxH;
+  const seaRx = 14;
+  const seaFill = "#e5e7eb";
+
+  let rightSvg = `
+    <rect x="${seaX}" y="${seaY}" width="${seaW}" height="${seaH}" rx="${seaRx}" ry="${seaRx}" fill="${seaFill}" stroke="none"/>`;
+  METALLIC_LATTICE_SITES.forEach((site) => {
+    rightSvg += renderMetalIonSvg(
+      rightOx + outerR + site.x,
+      rightOy + outerR + site.y,
+      { r: ionR, stroke },
+    );
+  });
+
+  // Interstitial gap between middle-row ions — grey sea visible here, not on an ion
+  const gapX = rightOx + outerR + 44;
+  const gapY = rightOy + outerR + 38;
+  const labelY = seaY + seaH + 28;
+  const leaderFoot = labelY - 11;
+  const labelSvg = `
+    <line x1="${gapX}" y1="${gapY}" x2="${gapX}" y2="${leaderFoot}" stroke="${stroke}" stroke-width="1"/>
+    <text x="${gapX}" y="${labelY}" text-anchor="middle" font-size="13" font-weight="600" fill="${stroke}">Delocalised electrons</text>`;
+
+  const w = 420;
+  const h = labelY + 12;
+
+  return `<svg class="chem-svg chem-metallic-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="100%" style="max-width:440px;display:block;margin:0 auto;" preserveAspectRatio="xMidYMid meet" aria-label="Metallic bonding diagram">
+    ${leftSvg}
+    ${arrowSvg}
+    ${rightSvg}
+    ${labelSvg}
+  </svg>`;
+}
+
+// ─── Particle model (states of matter) ───────────────────────────────────────
+
+const PARTICLE_MODEL_BOX = 200;
+const PARTICLE_MODEL_R = 8.5;
+const PARTICLE_MODEL_STROKE = "#0f172a";
+
+function particleModelStateLabel(state) {
+  const key = String(state || "").toLowerCase();
+  if (key === "solid") return "Solid";
+  if (key === "liquid") return "Liquid";
+  if (key === "gas") return "Gas";
+  return "";
+}
+
+/** Regular lattice — particles touching neighbours. */
+function solidParticlePositions(box = PARTICLE_MODEL_BOX, r = PARTICLE_MODEL_R) {
+  const step = 2 * r;
+  const n = Math.floor((box - 2) / step);
+  const used = (n - 1) * step;
+  const pad = (box - used) / 2;
+  const pts = [];
+  for (let row = 0; row < n; row++) {
+    for (let col = 0; col < n; col++) {
+      pts.push({ x: pad + col * step, y: pad + row * step });
+    }
+  }
+  return pts;
+}
+
+/**
+ * Dense disordered packing — mostly touching, with irregular gaps.
+ * No overlaps; contacts bottom and side walls; slight free surface near top.
+ */
+function liquidParticlePositions(box = PARTICLE_MODEL_BOX, r = PARTICLE_MODEL_R) {
+  const left = 1 + r;
+  const right = box - 1 - r;
+  const bottom = box - 1 - r;
+  const topLimit = 1 + r + 2;
+  const minDist = 2 * r;
+  const pts = [];
+
+  let seed = 77;
+  const rnd = () => {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    return (seed >>> 8) / 0xffffff;
+  };
+
+  const canPlace = (x, y, ignoreIdx = -1) => {
+    if (x < left - 0.02 || x > right + 0.02 || y < topLimit - 0.02 || y > bottom + 0.02) return false;
+    for (let i = 0; i < pts.length; i++) {
+      if (i === ignoreIdx) continue;
+      if (Math.hypot(pts[i].x - x, pts[i].y - y) < minDist - 0.02) return false;
+    }
+    return true;
+  };
+
+  // Floor: wall-to-wall with a couple of intentional gaps
+  pts.push({ x: left, y: bottom });
+  let x = left + minDist;
+  let gapsLeft = 2;
+  while (x < right - minDist * 0.55) {
+    if (gapsLeft > 0 && rnd() < 0.25) {
+      x += r * (0.55 + rnd() * 0.65);
+      gapsLeft -= 1;
+    }
+    if (canPlace(x, bottom)) pts.push({ x, y: bottom });
+    x += minDist + (rnd() - 0.5) * r * 0.15;
+  }
+  if (canPlace(right, bottom)) pts.push({ x: right, y: bottom });
+
+  // Grow disordered cluster from existing particles (touching + occasional gaps)
+  const target = 92;
+  for (let attempt = 0; attempt < 10000 && pts.length < target; attempt++) {
+    const base = pts[Math.floor(rnd() * pts.length)];
+    const ang = rnd() * Math.PI * 2;
+    const dist = rnd() < 0.28
+      ? minDist + r * (0.45 + rnd() * 0.9) // clear gap
+      : minDist + (rnd() - 0.5) * 0.25; // near-touching
+    const nx = Math.min(right, Math.max(left, base.x + Math.cos(ang) * dist));
+    const ny = Math.min(bottom, Math.max(topLimit, base.y + Math.sin(ang) * dist));
+    if (canPlace(nx, ny)) pts.push({ x: nx, y: ny });
+  }
+
+  // Ensure visible side-wall contacts at a few heights
+  for (let k = 1; k <= 5; k++) {
+    const wy = bottom - k * minDist * (0.85 + rnd() * 0.2);
+    if (wy < topLimit + r) continue;
+    if (canPlace(left, wy)) pts.push({ x: left, y: wy });
+    if (canPlace(right, wy)) pts.push({ x: right, y: wy });
+  }
+
+  // Push-apart only (keeps gaps)
+  for (let iter = 0; iter < 40; iter++) {
+    for (let i = 0; i < pts.length; i++) {
+      for (let j = i + 1; j < pts.length; j++) {
+        const dx = pts[j].x - pts[i].x;
+        const dy = pts[j].y - pts[i].y;
+        const d = Math.hypot(dx, dy) || 0.001;
+        if (d < minDist) {
+          const push = (minDist - d) / 2 + 0.01;
+          const ux = dx / d;
+          const uy = dy / d;
+          pts[i].x -= ux * push;
+          pts[i].y -= uy * push;
+          pts[j].x += ux * push;
+          pts[j].y += uy * push;
+        }
+      }
+      pts[i].x = Math.min(right, Math.max(left, pts[i].x));
+      pts[i].y = Math.min(bottom, Math.max(topLimit, pts[i].y));
+    }
+  }
+
+  // Pin floor contacts without introducing overlaps where possible
+  for (const p of pts) {
+    if (p.y > bottom - 1.0) p.y = bottom;
+  }
+  const floor = pts.filter((p) => p.y >= bottom - 0.5).sort((a, b) => a.x - b.x);
+  if (floor.length) {
+    floor[0].x = left;
+    floor[floor.length - 1].x = right;
+  }
+
+  // Final overlap cleanup
+  for (let iter = 0; iter < 25; iter++) {
+    for (let i = 0; i < pts.length; i++) {
+      for (let j = i + 1; j < pts.length; j++) {
+        const dx = pts[j].x - pts[i].x;
+        const dy = pts[j].y - pts[i].y;
+        const d = Math.hypot(dx, dy) || 0.001;
+        if (d < minDist) {
+          const push = (minDist - d) / 2 + 0.01;
+          const ux = dx / d;
+          const uy = dy / d;
+          pts[i].x -= ux * push;
+          pts[i].y -= uy * push;
+          pts[j].x += ux * push;
+          pts[j].y += uy * push;
+        }
+      }
+      pts[i].x = Math.min(right, Math.max(left, pts[i].x));
+      pts[i].y = Math.min(bottom, Math.max(topLimit, pts[i].y));
+    }
+  }
+  for (const p of pts) {
+    if (p.y > bottom - 1.0) p.y = bottom;
+  }
+  const floor2 = pts.filter((p) => p.y >= bottom - 0.5).sort((a, b) => a.x - b.x);
+  if (floor2.length >= 2) {
+    floor2[0].x = left;
+    floor2[floor2.length - 1].x = right;
+  }
+
+  // One last pass after floor pin
+  for (let iter = 0; iter < 12; iter++) {
+    for (let i = 0; i < pts.length; i++) {
+      for (let j = i + 1; j < pts.length; j++) {
+        const dx = pts[j].x - pts[i].x;
+        const dy = pts[j].y - pts[i].y;
+        const d = Math.hypot(dx, dy) || 0.001;
+        if (d < minDist) {
+          const push = (minDist - d) / 2 + 0.02;
+          const ux = dx / d;
+          const uy = dy / d;
+          // Prefer moving non-floor / non-corner particles
+          const iFloor = pts[i].y >= bottom - 0.5;
+          const jFloor = pts[j].y >= bottom - 0.5;
+          if (iFloor && !jFloor) {
+            pts[j].x += ux * push * 2;
+            pts[j].y += uy * push * 2;
+          } else if (jFloor && !iFloor) {
+            pts[i].x -= ux * push * 2;
+            pts[i].y -= uy * push * 2;
+          } else {
+            pts[i].x -= ux * push;
+            pts[i].y -= uy * push;
+            pts[j].x += ux * push;
+            pts[j].y += uy * push;
+          }
+        }
+      }
+      pts[i].x = Math.min(right, Math.max(left, pts[i].x));
+      pts[i].y = Math.min(bottom, Math.max(topLimit, pts[i].y));
+      if (pts[i].y > bottom - 1.0) pts[i].y = bottom;
+    }
+  }
+
+  return pts;
+}
+
+/** Sparse particles spread through the whole container. */
+function gasParticlePositions(box = PARTICLE_MODEL_BOX) {
+  return [
+    { x: 34, y: 28 },
+    { x: 98, y: 22 },
+    { x: 162, y: 38 },
+    { x: 52, y: 72 },
+    { x: 128, y: 68 },
+    { x: 178, y: 95 },
+    { x: 28, y: 118 },
+    { x: 88, y: 112 },
+    { x: 148, y: 138 },
+    { x: 58, y: 168 },
+    { x: 118, y: 178 },
+    { x: 172, y: 162 },
+  ].map((p) => ({
+    x: (p.x / 200) * box,
+    y: (p.y / 200) * box,
+  }));
+}
+
+function particlePositionsForState(state, box = PARTICLE_MODEL_BOX, r = PARTICLE_MODEL_R) {
+  const key = String(state || "solid").toLowerCase();
+  if (key === "liquid") return liquidParticlePositions(box, r);
+  if (key === "gas") return gasParticlePositions(box);
+  return solidParticlePositions(box, r);
+}
+
+/**
+ * GCSE particle-model diagram for one state of matter (solid, liquid, or gas).
+ * Each call returns a separate SVG square (no text labels by default).
+ */
+export function renderParticleModelSvg(stateOrPhase = {}) {
+  const state = typeof stateOrPhase === "string"
+    ? stateOrPhase
+    : (stateOrPhase.state || stateOrPhase.phase || "solid");
+  const showLabel = typeof stateOrPhase === "object"
+    ? !!stateOrPhase.showLabel
+    : false;
+  const box = PARTICLE_MODEL_BOX;
+  const r = PARTICLE_MODEL_R;
+  const stroke = PARTICLE_MODEL_STROKE;
+  const label = particleModelStateLabel(state);
+  const pts = particlePositionsForState(state, box, r);
+
+  let particles = "";
+  for (const p of pts) {
+    particles += `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${r}" fill="none" stroke="${stroke}" stroke-width="1.4"/>`;
+  }
+
+  const labelY = box + 22;
+  const labelSvg = showLabel && label
+    ? `<text x="${box / 2}" y="${labelY}" text-anchor="middle" font-size="15" font-weight="600" fill="${stroke}">${escapeHtml(label)}</text>`
+    : "";
+  const h = showLabel && label ? box + 30 : box + 2;
+  const aria = label ? `${label} particle model` : "Particle model";
+
+  return `<svg class="chem-svg chem-particle-svg chem-particle-svg--${escapeHtml(String(state).toLowerCase())}" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${box} ${h}" width="100%" style="max-width:220px;display:block;margin:0 auto;" preserveAspectRatio="xMidYMid meet" aria-label="${escapeHtml(aria)}">
+    <rect x="1" y="1" width="${box - 2}" height="${box - 2}" fill="#fff" stroke="${stroke}" stroke-width="1.6"/>
+    ${particles}
+    ${labelSvg}
   </svg>`;
 }
 
@@ -3285,6 +4444,15 @@ export function renderStemDiagramSvg(presetIdOrConfig) {
   if (state.kind === "polymer_structure") {
     return renderPolymerDisplaySvg(state, cfg);
   }
+  if (state.kind === "molecule_builder") {
+    return renderMoleculeBuilderSvg(state, { interactive: false });
+  }
+  if (state.kind === "metallic_bonding") {
+    return renderMetallicBondingSvg(state);
+  }
+  if (state.kind === "particle_model") {
+    return renderParticleModelSvg(state);
+  }
   return "";
 }
 
@@ -3362,6 +4530,13 @@ export function stemPreviewHtml(presetIdOrConfig) {
         ? "ball-and-stick + space-filling"
         : "ball-and-stick";
     caption = `<p class="muted" style="margin:6px 0 0;font-size:0.75rem;text-align:center;">${escapeHtml(state.compound || "NaCl")} giant ionic lattice · ${styleLabel}</p>`;
+  } else if (state?.kind === "metallic_bonding") {
+    caption = `<p class="muted" style="margin:6px 0 0;font-size:0.75rem;text-align:center;">Metallic bonding · delocalised electrons</p>`;
+  } else if (state?.kind === "particle_model") {
+    const stateLabel = particleModelStateLabel(state.state);
+    caption = `<p class="muted" style="margin:6px 0 0;font-size:0.75rem;text-align:center;">Particle model · ${escapeHtml(stateLabel || "state of matter")}</p>`;
   }
   return `<div class="chem-stem-preview">${svg}${caption}</div>`;
 }
+
+export { layoutCovalentAtoms, covalentSharedElectronPositions, covSharedElectronStyle };

@@ -1266,10 +1266,12 @@ async function extractFlashcardInsights(att) {
 /** Correct chemistry / circuit / equipment diagram SVG for flashcard backs. */
 async function renderFlashcardChemistryDiagram(att) {
   const q = att?.questions || {};
-  if (q.question_type === "chemistry_interactive") {
-    const cfg = q.chemistry_config;
-    const expected = att?.feedback_payload?.chemistry?.expected || cfg?.answer;
-    if (!cfg && !expected) return "";
+  const cfg = q.chemistry_config;
+  const expected = att?.feedback_payload?.chemistry?.expected || cfg?.answer;
+  const chemStemKinds = new Set(["electron_shell", "ionic_bonding", "covalent_bonding", "ionic_lattice", "organic_structure", "polymer_structure", "molecule_builder", "metallic_bonding", "particle_model"]);
+  const showChemStem = (q.question_type === "chemistry_interactive" || chemStemKinds.has(cfg?.kind))
+    && (cfg || expected);
+  if (showChemStem) {
     try {
       const { loadChemistryWorkflow } = await import("./lazyChemistryWorkflow.js");
       const { renderStemDiagramSvg } = await loadChemistryWorkflow();
@@ -1705,8 +1707,17 @@ async function loadRevisionCards() {
       const insights = await extractFlashcardInsights(att);
       const chemDiagramHtml = await renderFlashcardChemistryDiagram(att);
       const questionImageUrl = (q.image_url || "").trim();
-      const hasQuestionImg = !!questionImageUrl;
-      const hasChemDiagram = !!chemDiagramHtml;
+      const isChemStemQuestion = q.chemistry_config?.answer
+        && q.question_type !== "chemistry_interactive"
+        && ["electron_shell", "ionic_bonding", "covalent_bonding", "ionic_lattice", "organic_structure", "polymer_structure"].includes(
+          typeof q.chemistry_config === "string"
+            ? (() => { try { return JSON.parse(q.chemistry_config).kind; } catch { return null; } })()
+            : q.chemistry_config?.kind
+        );
+      const chemStemFrontHtml = isChemStemQuestion ? chemDiagramHtml : "";
+      const chemStemBackHtml = isChemStemQuestion ? "" : chemDiagramHtml;
+      const hasQuestionImg = !!questionImageUrl || !!chemStemFrontHtml;
+      const hasChemDiagram = !!chemStemBackHtml;
       const selectedClass = flashcardSelectedIds.has(qid) ? " is-selected" : "";
 
       const uid = `card_${idx}`;
@@ -1718,6 +1729,7 @@ async function loadRevisionCards() {
               ${renderFlashcardHeader(headerMeta, "Tap for answer")}
               <div class="revision-card-body">
                 ${renderFlashcardQuestionImage(questionImageUrl)}
+                ${chemStemFrontHtml}
                 <p class="revision-card-prompt">${escapeHtml(q.prompt)}</p>
                 ${renderFlashcardMcqOptions(q)}
               </div>
@@ -1726,7 +1738,7 @@ async function loadRevisionCards() {
             <div class="card-back">
               ${renderFlashcardHeader("Examiner insight", "Tap to view question again")}
               <div class="revision-card-body revision-card-body--back">
-                ${chemDiagramHtml}
+                ${chemStemBackHtml}
                 <ul class="revision-card-insight-list">
                   ${renderFlashcardInsightList(insights)}
                 </ul>
@@ -3250,6 +3262,15 @@ function showAdvanceButton() {
   } catch (_) { /* ignore */ }
 }
 
+async function questionLayoutOptions(q, extra = {}) {
+  const { loadChemistryWorkflow } = await import("./lazyChemistryWorkflow.js");
+  const { buildChemistryStemHtml } = await loadChemistryWorkflow();
+  return {
+    chemStemHtml: buildChemistryStemHtml(q),
+    ...extra,
+  };
+}
+
 async function loadQuestion() {
   if (questionView) questionView.classList.remove("hidden");
   if (sessionSummary) sessionSummary.classList.add("hidden");
@@ -3327,11 +3348,11 @@ async function loadQuestion() {
     const presentation = getPresentationMode(sessionMode);
 
     if (qBox) {
-      qBox.innerHTML = renderQuestionLayout(currentQ, commandWordBanner, currentKey, {
+      qBox.innerHTML = renderQuestionLayout(currentQ, commandWordBanner, currentKey, await questionLayoutOptions(currentQ, {
         presentation,
         equationSheet: currentEquationSheet,
-        commandWordTooltips: tipsHidden
-      });
+        commandWordTooltips: tipsHidden,
+      }));
       const calcModule = await mountNumericQuestionWorkflow(
         currentQ,
         currentKey,
@@ -3353,11 +3374,11 @@ async function loadQuestion() {
     const tipsHidden = isCommandWordTipsHidden();
     const commandWordBanner = tipsHidden ? "" : getAQACommandWordHelper(currentQ.prompt);
     if (qBox) {
-      qBox.innerHTML = renderQuestionLayout(currentQ, commandWordBanner, currentKey, {
+      qBox.innerHTML = renderQuestionLayout(currentQ, commandWordBanner, currentKey, await questionLayoutOptions(currentQ, {
         presentation: "practice",
         equationSheet: null,
-        commandWordTooltips: tipsHidden
-      });
+        commandWordTooltips: tipsHidden,
+      }));
       await mountChemistryQuestionWorkflow(currentQ, currentKey, "practice");
       triggerMathTypeset();
       lastAnswerFocusState = null;
@@ -3371,11 +3392,11 @@ async function loadQuestion() {
     const tipsHidden = isCommandWordTipsHidden();
     const commandWordBanner = tipsHidden ? "" : getAQACommandWordHelper(currentQ.prompt);
     if (qBox) {
-      qBox.innerHTML = renderQuestionLayout(currentQ, commandWordBanner, currentKey, {
+      qBox.innerHTML = renderQuestionLayout(currentQ, commandWordBanner, currentKey, await questionLayoutOptions(currentQ, {
         presentation: "practice",
         equationSheet: null,
-        commandWordTooltips: tipsHidden
-      });
+        commandWordTooltips: tipsHidden,
+      }));
       await mountCircuitQuestionWorkflow(currentQ, currentKey, "practice");
       triggerMathTypeset();
       lastAnswerFocusState = null;
@@ -3389,11 +3410,11 @@ async function loadQuestion() {
     const tipsHidden = isCommandWordTipsHidden();
     const commandWordBanner = tipsHidden ? "" : getAQACommandWordHelper(currentQ.prompt);
     if (qBox) {
-      qBox.innerHTML = renderQuestionLayout(currentQ, commandWordBanner, currentKey, {
+      qBox.innerHTML = renderQuestionLayout(currentQ, commandWordBanner, currentKey, await questionLayoutOptions(currentQ, {
         presentation: "practice",
         equationSheet: null,
-        commandWordTooltips: tipsHidden
-      });
+        commandWordTooltips: tipsHidden,
+      }));
       await mountEquipmentQuestionWorkflow(currentQ, currentKey, "practice");
       triggerMathTypeset();
       lastAnswerFocusState = null;
@@ -3408,11 +3429,11 @@ async function loadQuestion() {
   const commandWordBanner = tipsHidden ? "" : getAQACommandWordHelper(currentQ.prompt);
 
   if (qBox) {
-    qBox.innerHTML = renderQuestionLayout(currentQ, commandWordBanner, currentKey, {
+    qBox.innerHTML = renderQuestionLayout(currentQ, commandWordBanner, currentKey, await questionLayoutOptions(currentQ, {
       presentation: "practice",
       equationSheet: null,
-      commandWordTooltips: tipsHidden
-    });
+      commandWordTooltips: tipsHidden,
+    }));
     triggerMathTypeset();
     wireAnswerLengthCounter();
     lastAnswerFocusState = null;

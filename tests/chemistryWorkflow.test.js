@@ -15,6 +15,13 @@ import {
   renderStemDiagramSvg,
   renderChemistryModelAnswerHtml,
   renderIonicLatticeSvg,
+  layoutCovalentAtoms,
+  covalentSharedElectronPositions,
+  covSharedElectronStyle,
+  renderPolymerRepeatUnitSvg,
+  normalizeMoleculeGraph,
+  renderMetallicBondingSvg,
+  renderParticleModelSvg,
 } from "../src/chemistryWorkflow.js";
 
 describe("chemistry shells helpers", () => {
@@ -190,6 +197,40 @@ describe("markChemistryResponse", () => {
     }
   });
 
+  it("places CH4 shared electrons on both atom shells", () => {
+    const preset = CHEMISTRY_PRESETS.ch4_covalent;
+    const { positions, shellRadii } = layoutCovalentAtoms(preset.answer.atoms, preset.answer.bonds);
+    for (const bond of preset.answer.bonds) {
+      const pts = covalentSharedElectronPositions(bond, positions, shellRadii);
+      assert.equal(pts.length, 2, "each C–H bond has one dot and one cross");
+      assert.equal(covSharedElectronStyle(bond, pts[0].atom), "dot");
+      assert.equal(covSharedElectronStyle(bond, pts[1].atom), "cross");
+      for (const pt of pts) {
+        const centre = positions[pt.atom];
+        const r = shellRadii[pt.atom];
+        const d = Math.hypot(pt.x - centre.x, pt.y - centre.y);
+        assert.ok(Math.abs(d - r) <= 1, `electron at distance ${d.toFixed(1)} should sit on shell radius ${r}`);
+      }
+    }
+  });
+
+  it("assigns dot and cross per bond side for ammonia", () => {
+    const preset = CHEMISTRY_PRESETS.nh3;
+    const { positions, shellRadii } = layoutCovalentAtoms(preset.answer.atoms, preset.answer.bonds);
+    for (const bond of preset.answer.bonds) {
+      assert.equal(covSharedElectronStyle(bond, bond.a), "dot");
+      assert.equal(covSharedElectronStyle(bond, bond.b), "cross");
+      const pts = covalentSharedElectronPositions(bond, positions, shellRadii);
+      assert.equal(pts.length, 2);
+      for (const pt of pts) {
+        const centre = positions[pt.atom];
+        const r = shellRadii[pt.atom];
+        const d = Math.hypot(pt.x - centre.x, pt.y - centre.y);
+        assert.ok(Math.abs(d - r) <= 1, `NH₃ electron should sit on shell (d=${d.toFixed(1)}, r=${r})`);
+      }
+    }
+  });
+
   it("marks ethene double bond", () => {
     const preset = CHEMISTRY_PRESETS.ethene;
     const q = { question_type: "chemistry_interactive", max_marks: 1, chemistry_config: { kind: preset.kind, template: preset.template } };
@@ -342,5 +383,191 @@ describe("ionic lattice stem diagrams", () => {
     assert.match(svg, /Ball-and-stick/);
     assert.match(svg, /Space-filling/);
     assert.match(svg, />Key</);
+  });
+});
+
+describe("polymer repeat-unit diagrams", () => {
+  it("renders poly(ethene) style with C backbone, H substituents, and n subscript", () => {
+    const svg = renderPolymerRepeatUnitSvg("ch2ch2");
+    assert.match(svg, />C</);
+    assert.match(svg, />H</);
+    assert.match(svg, />n</);
+    assert.match(svg, /<path /);
+    assert.doesNotMatch(svg, /<rect /);
+  });
+
+  it("renders PVC repeat unit with Cl on one carbon", () => {
+    const svg = renderPolymerRepeatUnitSvg("ch2chcl");
+    assert.match(svg, />Cl</);
+    assert.match(svg, />H</);
+  });
+});
+
+describe("metallic bonding diagrams", () => {
+  it("renders atoms-to-ions diagram with delocalised electron label", () => {
+    const svg = renderMetallicBondingSvg();
+    assert.match(svg, /<svg/);
+    assert.match(svg, />Delocalised electrons</);
+    assert.match(svg, />\+</);
+    assert.match(svg, />−</);
+    assert.ok((svg.match(/stroke-dasharray/g) || []).length >= 7);
+  });
+
+  it("renders via stem preset", () => {
+    const svg = renderStemDiagramSvg("metallic_bonding");
+    assert.match(svg, /chem-metallic-svg/);
+    assert.match(svg, />Delocalised electrons</);
+  });
+
+  it("renders model answer html", () => {
+    const html = renderChemistryModelAnswerHtml(CHEMISTRY_PRESETS.metallic_bonding.answer);
+    assert.match(html, />Delocalised electrons</);
+  });
+});
+
+describe("particle model diagrams", () => {
+  it("renders separate solid, liquid and gas SVGs without labels", () => {
+    const solid = renderParticleModelSvg({ state: "solid" });
+    const liquid = renderParticleModelSvg({ state: "liquid" });
+    const gas = renderParticleModelSvg({ state: "gas" });
+    assert.doesNotMatch(solid, />Solid</);
+    assert.doesNotMatch(liquid, />Liquid</);
+    assert.doesNotMatch(gas, />Gas</);
+    const solidCircles = (solid.match(/<circle /g) || []).length;
+    const liquidCircles = (liquid.match(/<circle /g) || []).length;
+    const gasCircles = (gas.match(/<circle /g) || []).length;
+    assert.ok(solidCircles >= 100);
+    assert.ok(liquidCircles > 55);
+    assert.ok(gasCircles >= 10 && gasCircles <= 14);
+    assert.ok(gasCircles < liquidCircles);
+  });
+
+  it("packs liquid particles without overlap and against bottom/sides", () => {
+    const r = 8.5;
+    const box = 200;
+    const left = 1 + r;
+    const right = box - 1 - r;
+    const bottom = box - 1 - r;
+    const minDist = 2 * r;
+    const svg = renderParticleModelSvg({ state: "liquid" });
+    const centres = [...svg.matchAll(/cx="([\d.]+)" cy="([\d.]+)"/g)].map((m) => ({
+      x: Number(m[1]),
+      y: Number(m[2]),
+    }));
+    assert.ok(centres.length > 50);
+    let nearTouch = 0;
+    let clearGaps = 0;
+    for (let i = 0; i < centres.length; i++) {
+      let nearest = Infinity;
+      for (let j = 0; j < centres.length; j++) {
+        if (i === j) continue;
+        const d = Math.hypot(centres[j].x - centres[i].x, centres[j].y - centres[i].y);
+        assert.ok(d >= minDist - 0.15, `overlap: ${d}`);
+        nearest = Math.min(nearest, d);
+      }
+      if (nearest <= minDist + 0.35) nearTouch += 1;
+      if (nearest >= minDist + r * 0.4) clearGaps += 1;
+    }
+    assert.ok(nearTouch >= centres.length * 0.45, "many particles should still touch neighbours");
+    assert.ok(clearGaps >= 4, "some particles should have visible gaps");
+    const onFloor = centres.filter((p) => Math.abs(p.y - bottom) < 0.6);
+    assert.ok(onFloor.length >= 3);
+    assert.ok(centres.some((p) => Math.abs(p.x - left) < 0.6));
+    assert.ok(centres.some((p) => Math.abs(p.x - right) < 0.6));
+  });
+
+  it("renders via stem presets", () => {
+    assert.match(renderStemDiagramSvg("particle_solid"), /chem-particle-svg--solid/);
+    assert.match(renderStemDiagramSvg("particle_liquid"), /chem-particle-svg--liquid/);
+    assert.match(renderStemDiagramSvg("particle_gas"), /chem-particle-svg--gas/);
+  });
+});
+
+describe("molecule builder", () => {
+  it("marks NH₃ graph correct regardless of atom ids", () => {
+    const preset = CHEMISTRY_PRESETS.nh3_molecule;
+    const q = {
+      question_type: "chemistry_interactive",
+      max_marks: 2,
+      chemistry_config: { kind: preset.kind, template: preset.template, answer: preset.answer },
+    };
+    const key = { key_type: "chemistry", key_payload: preset.answer };
+    const resp = {
+      kind: "molecule_builder",
+      atoms: [
+        { id: "a", symbol: "N", x: 100, y: 100 },
+        { id: "b", symbol: "H", x: 50, y: 100 },
+        { id: "c", symbol: "H", x: 150, y: 100 },
+        { id: "d", symbol: "H", x: 100, y: 160 },
+      ],
+      bonds: [{ a: "a", b: "b" }, { a: "a", b: "c" }, { a: "a", b: "d" }],
+    };
+    assert.equal(markChemistryResponse(q, resp, key, [], null).total, 2);
+  });
+
+  it("awards 1 mark for correct atoms only", () => {
+    const preset = CHEMISTRY_PRESETS.nh3_molecule;
+    const q = {
+      question_type: "chemistry_interactive",
+      max_marks: 2,
+      chemistry_config: { kind: preset.kind, template: preset.template, answer: preset.answer },
+    };
+    const key = { key_type: "chemistry", key_payload: preset.answer };
+    const resp = {
+      kind: "molecule_builder",
+      atoms: [
+        { id: "n", symbol: "N", x: 200, y: 120 },
+        { id: "h1", symbol: "H", x: 130, y: 120 },
+        { id: "h2", symbol: "H", x: 270, y: 120 },
+        { id: "h3", symbol: "H", x: 200, y: 190 },
+      ],
+      bonds: [],
+    };
+    assert.equal(markChemistryResponse(q, resp, key, [], null).total, 1);
+  });
+
+  it("rejects wrong molecule connectivity", () => {
+    const preset = CHEMISTRY_PRESETS.nh3_molecule;
+    const q = {
+      question_type: "chemistry_interactive",
+      max_marks: 2,
+      chemistry_config: { kind: preset.kind, template: preset.template, answer: preset.answer },
+    };
+    const key = { key_type: "chemistry", key_payload: preset.answer };
+    const resp = {
+      kind: "molecule_builder",
+      atoms: [
+        { id: "n", symbol: "N", x: 200, y: 120 },
+        { id: "h1", symbol: "H", x: 130, y: 120 },
+        { id: "h2", symbol: "H", x: 270, y: 120 },
+        { id: "h3", symbol: "H", x: 200, y: 190 },
+      ],
+      bonds: [{ a: "h1", b: "h2" }, { a: "h2", b: "h3" }],
+    };
+    assert.equal(markChemistryResponse(q, resp, key, [], null).total, 1);
+  });
+
+  it("normalizes graphs by symbols and edges only", () => {
+    const a = normalizeMoleculeGraph({
+      atoms: [{ id: "x", symbol: "N" }, { id: "y", symbol: "H" }],
+      bonds: [{ a: "x", b: "y" }],
+    });
+    const b = normalizeMoleculeGraph({
+      atoms: [{ id: "1", symbol: "H" }, { id: "2", symbol: "N" }],
+      bonds: [{ a: "2", b: "1" }],
+    });
+    assert.equal(a, b);
+  });
+
+  it("renders stem diagram for model answer", () => {
+    const preset = CHEMISTRY_PRESETS.nh3_molecule;
+    const svg = renderStemDiagramSvg({
+      kind: preset.kind,
+      template: preset.template,
+      answer: preset.answer,
+    });
+    assert.match(svg, />N</);
+    assert.match(svg, />H</);
+    assert.match(svg, /<line /);
   });
 });

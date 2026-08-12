@@ -2394,6 +2394,7 @@
                   <option value="covalent_bonding">Covalent bonding</option>
                   <option value="organic_structure">Organic structure</option>
                   <option value="polymer_structure">Polymer structure</option>
+                  <option value="molecule_builder">Molecule builder</option>
                   <option value="balance_equation">Balance equation</option>
                 </select>
               </div>
@@ -3785,6 +3786,7 @@
                 <option value="covalent_bonding">Covalent bonding</option>
                 <option value="organic_structure">Organic structure</option>
                 <option value="polymer_structure">Polymer structure</option>
+                <option value="molecule_builder">Molecule builder</option>
                 <option value="balance_equation">Balance equation</option>
               </select>
             </div>
@@ -11452,8 +11454,17 @@
   };
   
   function renderSandboxQuestion(q) {
+    renderSandboxQuestionAsync(q);
+  }
+
+  async function renderSandboxQuestionAsync(q) {
     const stage = document.getElementById("sandboxStage");
     if (!stage) return;
+
+    let chemStemHtml = "";
+    if (window.ChemWorkflow?.buildChemistryStemHtml) {
+      chemStemHtml = window.ChemWorkflow.buildChemistryStemHtml(q) || "";
+    }
 
     let imgHtml = q.image_url ? `<img src="${q.image_url}" style="max-width:100%; border-radius:8px; margin-bottom:12px; border:1px solid var(--border); display:block;"/>` : "";
     let html = `
@@ -11463,6 +11474,7 @@
           <span style="background:#e2e8f0; padding:2px 8px; border-radius:4px; font-weight:bold; font-size:0.75rem;">${q.max_marks} marks</span>
         </div>
         ${imgHtml}
+        ${chemStemHtml}
       </div>
     `;
     

@@ -65,6 +65,8 @@ export function renderQuestionLayout(q, commandWordBanner, currentKey, layoutOpt
     ? `<img src="${q.image_url}" style="max-width: 100%; border-radius: 8px; margin-bottom: 12px; border: 1px solid #e2e8f0; display: block;">` 
     : "";
 
+  const chemStemHtml = layoutOptions.chemStemHtml || "";
+
   let html = `
     <div class="item">
       <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 15px; margin-bottom: 8px;">
@@ -74,6 +76,7 @@ export function renderQuestionLayout(q, commandWordBanner, currentKey, layoutOpt
         </span>
       </div>
       ${imageHtml}
+      ${chemStemHtml}
       ${commandWordBanner}
     </div>
   `;

@@ -2294,6 +2294,7 @@ body.teacher-portal .input-group input:focus {
 .chem-shell-hitarea:focus,
 .chem-electron:focus,
 .chem-bond-hit:focus,
+.chem-lone-slot-hit:focus,
 .chem-cov-atom:focus,
 .chem-org-bond:focus,
 .chem-org-carbon:focus,
@@ -2304,9 +2305,28 @@ body.teacher-portal .input-group input:focus {
 .chem-shell-hitarea:focus-visible,
 .chem-electron:focus-visible,
 .chem-bond-hit:focus-visible,
+.chem-lone-slot-hit:focus-visible,
 .chem-cov-atom:focus-visible,
 .chem-org-bond:focus-visible,
 .chem-org-carbon:focus-visible {
+  stroke: var(--primary, #1d6fd0);
+  stroke-width: 3;
+  stroke-opacity: 1;
+}
+
+.chem-lone-slot-hit--active {
+  stroke: rgba(37, 99, 235, 0.35);
+  stroke-width: 2;
+  fill: rgba(37, 99, 235, 0.08);
+}
+
+.chem-cov-electron-hit:focus,
+.chem-cov-shell-hit:focus {
+  outline: none;
+}
+
+.chem-cov-electron-hit:focus-visible,
+.chem-cov-shell-hit:focus-visible {
   stroke: var(--primary, #1d6fd0);
   stroke-width: 3;
   stroke-opacity: 1;
