@@ -215,10 +215,14 @@ export async function renderFeedback(marking, currentQ, currentKey, currentMarkP
     const studentResp = marking.feedbackPayload?.chemistry?.student || null;
     const showCompare = !isPerfect && (expected.kind === "electron_shell" || expected.shells);
     html += renderChemistryModelAnswerHtml(expected, {
-      title: isPerfect ? "Model answer" : "Correct arrangement",
+      title: "Model answer",
       compare: showCompare ? studentResp : null,
       template: currentQ.chemistry_config?.template,
     });
+    const chemDetail = marking.feedbackPayload?.chemistry?.detail;
+    if (!isPerfect && chemDetail) {
+      html += `<div style="margin:8px 0 4px;font-size:0.88rem;color:#0f172a;">${escapeHtml(chemDetail)}</div>`;
+    }
   }
 
   if (currentQ.question_type === "circuit_interactive") {

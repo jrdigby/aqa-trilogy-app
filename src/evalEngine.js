@@ -18,6 +18,12 @@ function cleanMcqFeedbackText(text) {
   return String(text || "").replace(LEGACY_FLASHCARD_REVIEW_SUFFIX, "").trim();
 }
 
+/** True when text is (or contains) MathJax/$…$/mhchem that should not be wrapped in quotes. */
+function looksLikeInlineMath(text) {
+  const s = String(text || "");
+  return /\$[^$]+\$/.test(s) || /\\\(/.test(s) || /\\ce\{/.test(s);
+}
+
 /** Which AO earns the single MCQ mark — question metadata takes precedence over Section 3 mark points. */
 export function getMcqTargetAo(q, markPoints) {
   const ao2 = Number(q?.ao2_marks) || 0;
@@ -49,7 +55,9 @@ export function resolveMcqWrongFeedback(selectedAnswer, key, markPoints, targetC
   const optionFeedback = key?.key_payload?.option_feedback || {};
   const specificText = cleanMcqFeedbackText(optionFeedback[selectedAnswer]);
   const genericText = cleanMcqFeedbackText(markPoints?.[0]?.feedback_if_missing);
-  const fallbackText = `The correct answer is "${targetCorrect}".`;
+  const fallbackText = looksLikeInlineMath(targetCorrect)
+    ? `The correct answer is ${targetCorrect}.`
+    : `The correct answer is "${targetCorrect}".`;
   const imageUrl = markPoints?.[0]?.image_url || "";
 
   const contentBlocks = [];
@@ -109,6 +117,18 @@ export function parseKeywordExpression(expr) {
   return expr.split(",").map((s) => s.trim()).filter(Boolean);
 }
 
+/** True when the target is only digit shell numbers (e.g. 2,8,1 or 2 8 1|2.8.1). */
+export function isShellConfigKeyword(expr) {
+  if (!expr?.trim()) return false;
+  return expr.split("|").every((part) => /^[\d\s,.]+$/.test(part.trim()) && /\d/.test(part));
+}
+
+/** Normalise shell answers to canonical "2,8,1" form. */
+export function normalizeShellConfig(text) {
+  const nums = String(text || "").match(/\d+/g);
+  return nums ? nums.join(",") : "";
+}
+
 function escapeRegExp(str) {
   return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -154,6 +174,12 @@ function checkSynonymGroupMatch(groupExpr, studentWords, rawText) {
 // Core helper to check if a specific target concept matches, taking negations into account
 export function checkKeywordOrSynonymsMatch(targetExpr, studentWords, rawText) {
   if (!targetExpr) return false;
+  // Electron structures must match the full sequence (avoid "2,8" matching inside "2,8,1")
+  if (isShellConfigKeyword(targetExpr)) {
+    const studentNorm = normalizeShellConfig(rawText);
+    if (!studentNorm) return false;
+    return targetExpr.split("|").map((s) => normalizeShellConfig(s)).some((n) => n && n === studentNorm);
+  }
   const groups = parseKeywordExpression(targetExpr);
   return groups.every((group) => checkSynonymGroupMatch(group, studentWords, rawText));
 }

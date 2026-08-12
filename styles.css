@@ -3427,11 +3427,23 @@ body.teacher-detail-open {
   border: 1px solid #e2e8f0;
   border-radius: 10px;
   padding: 12px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.chem-diagram-wrap--responsive {
+  max-width: 100%;
 }
 
 .chem-svg {
   display: block;
   margin: 0 auto;
+}
+
+.chem-svg--fluid {
+  width: 100%;
+  height: auto;
+  max-width: 100%;
 }
 
 .chem-nucleus-inputs {
@@ -3455,6 +3467,59 @@ body.teacher-detail-open {
   font-size: 0.8rem;
   color: #475569;
   text-align: center;
+}
+
+.chem-ion-controls-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 10px;
+}
+
+@media (max-width: 520px) {
+  .chem-diagram-wrap {
+    padding: 8px;
+  }
+
+  .chem-ion-controls {
+    flex: 1 1 100%;
+    justify-content: center;
+  }
+}
+
+.chem-ion-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 0.82rem;
+}
+
+.chem-ion-label {
+  font-weight: 700;
+  min-width: 1.5em;
+}
+
+.chem-ion-btn {
+  padding: 4px 8px;
+  min-width: 32px;
+}
+
+.chem-ion-btn--active {
+  border-color: #2563eb;
+  background: #eff6ff;
+  color: #1e40af;
+}
+
+.chem-ion-charge {
+  min-width: 1.5em;
+  text-align: center;
+  font-weight: 700;
+  color: #b91c1c;
 }
 
 .chem-family-label {

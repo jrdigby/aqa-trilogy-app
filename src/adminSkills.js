@@ -94,6 +94,22 @@ function getSubjectForMode(mode) {
   return document.getElementById("subjectSelect")?.value || null;
 }
 
+function isBondingDiagramKind(mode = "creator") {
+  const qType = mode === "edit"
+    ? loadedEditQuestionType()
+    : document.getElementById("qType")?.value;
+  if (qType !== "chemistry_interactive") return false;
+  const kindEl = document.getElementById(mode === "edit" ? "editChemKind" : "ChemKind");
+  let kind = kindEl?.value || "";
+  if (!kind && mode === "edit") {
+    const qId = document.getElementById("editQuestionId")?.value;
+    const cache = window.loadedQuestionsCache || [];
+    const q = cache.find((x) => x.id === qId);
+    kind = q?.chemistry_config?.kind || "";
+  }
+  return kind === "ionic_bonding" || kind === "covalent_bonding";
+}
+
 function isMsPanelVisible(mode) {
   if (mode === "bulk") return true;
   const qTypeEl = mode === "edit" ? null : document.getElementById("qType");
@@ -101,7 +117,8 @@ function isMsPanelVisible(mode) {
     ? loadedEditQuestionType()
     : qTypeEl?.value;
   const mathsChk = document.getElementById(mode === "edit" ? "editChkMathsSkill" : "chkMathsSkill");
-  return qType === "numeric" || mathsChk?.checked === true;
+  if (qType === "numeric" || mathsChk?.checked === true) return true;
+  return isBondingDiagramKind(mode);
 }
 
 function loadedEditQuestionType() {
@@ -265,6 +282,18 @@ export function buildQuestionDraftForSkills(mode = "creator") {
   if (qType === "numeric" && window.CalcWorkflow) {
     calculation_config = window.CalcWorkflow.buildCalculationConfigFromForm(isEdit ? "edit" : "");
   }
+  let chemistry_config = null;
+  if (qType === "chemistry_interactive") {
+    const kindEl = document.getElementById(isEdit ? "editChemKind" : "ChemKind");
+    const kind = kindEl?.value || null;
+    if (kind) chemistry_config = { kind };
+    else if (isEdit) {
+      const qId = document.getElementById("editQuestionId")?.value;
+      const cache = window.loadedQuestionsCache || [];
+      const q = cache.find((x) => x.id === qId);
+      if (q?.chemistry_config) chemistry_config = q.chemistry_config;
+    }
+  }
   const markPoints = isEdit
     ? Array.from(document.querySelectorAll("#editMarkPointsWrapper .edit-mp-row, #editMarkPointsWrapper .mark-point-row")).map((row) => ({
         ao: row.querySelector(".edit-mp-ao")?.value,
@@ -278,6 +307,7 @@ export function buildQuestionDraftForSkills(mode = "creator") {
     is_maths_skill: isMaths,
     is_required_practical: isRp,
     calculation_config,
+    chemistry_config,
     subject: getSubjectForMode(mode),
   };
 }
@@ -501,6 +531,18 @@ export function initAdminSkillsUI(supabaseClient) {
         renderSkillPanels("creator");
       } else {
         triggerAuto();
+      }
+    });
+  });
+
+  ["ChemKind", "ChemPreset", "editChemKind", "editChemPreset"].forEach((id) => {
+    document.getElementById(id)?.addEventListener("change", () => {
+      const mode = id.startsWith("edit") ? "edit" : "creator";
+      syncSkillPanelsVisibility(mode);
+      if (window.AdminMetadata?.syncBondingDiagramAoAndSkills) {
+        window.AdminMetadata.syncBondingDiagramAoAndSkills(mode);
+      } else {
+        autoDetectSkills(mode, { mergeManual: true });
       }
     });
   });

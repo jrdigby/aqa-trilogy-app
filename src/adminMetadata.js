@@ -278,6 +278,43 @@ export function autoCreatorAoFromMarkPoints() {
   syncCreatorMetadataFromForm();
 }
 
+/** Ionic / covalent bonding diagrams: AO1 = max marks; refresh MS/WS auto-tags. */
+export function syncBondingDiagramAoAndSkills(mode = "creator") {
+  const isEdit = mode === "edit";
+  const qType = isEdit
+    ? (document.getElementById("editQuestionType")?.value || "")
+    : document.getElementById("qType")?.value;
+  if (qType !== "chemistry_interactive") return false;
+
+  const kind = document.getElementById(isEdit ? "editChemKind" : "ChemKind")?.value || "";
+  if (kind !== "ionic_bonding" && kind !== "covalent_bonding") return false;
+
+  const maxEl = document.getElementById(isEdit ? "editMaxMarks" : "maxMarks");
+  const max = parseInt(maxEl?.value, 10) || 1;
+  const ao1 = document.getElementById(isEdit ? "editAo1Marks" : "ao1Marks");
+  const ao2 = document.getElementById(isEdit ? "editAo2Marks" : "ao2Marks");
+  const ao3 = document.getElementById(isEdit ? "editAo3Marks" : "ao3Marks");
+  if (ao1) ao1.value = String(max);
+  if (ao2) ao2.value = "0";
+  if (ao3) ao3.value = "0";
+
+  // MS5b is a maths skill — keep the MS panel available and flag the question
+  const maths = document.getElementById(isEdit ? "editChkMathsSkill" : "chkMathsSkill");
+  if (maths) maths.checked = true;
+
+  updateAoValidationLabel(isEdit ? "edit" : "creator", max);
+  if (isEdit) refreshEditDifficultyBadge();
+  else refreshCreatorDifficultyBadge();
+
+  if (window.AdminSkills?.syncSkillPanelsVisibility) {
+    window.AdminSkills.syncSkillPanelsVisibility(mode);
+  }
+  if (window.AdminSkills?.autoDetectSkills) {
+    window.AdminSkills.autoDetectSkills(mode, { mergeManual: true });
+  }
+  return true;
+}
+
 export function validateCreatorMetadata({ block = true } = {}) {
   const qType = document.getElementById("qType")?.value;
   const maxMarks = qType === "mcq" ? 1 : (parseInt(document.getElementById("maxMarks")?.value, 10) || 1);
@@ -341,10 +378,17 @@ export function initCreatorMetadataUI() {
 
   tierSel?.addEventListener("change", () => syncCreatorMetadataFromForm({ autoDemand: true }));
   qPrompt?.addEventListener("input", refreshCreatorDifficultyBadge);
-  maxMarks?.addEventListener("change", () => syncCreatorMetadataFromForm());
+  maxMarks?.addEventListener("change", () => {
+    if (!syncBondingDiagramAoAndSkills("creator")) {
+      syncCreatorMetadataFromForm();
+    }
+  });
   qType?.addEventListener("change", () => {
     if (qType.value === "numeric") document.getElementById("chkMathsSkill").checked = true;
     syncCreatorMetadataFromForm();
+    if (qType.value === "chemistry_interactive") {
+      syncBondingDiagramAoAndSkills("creator");
+    }
   });
 
   ["ao1Marks", "ao2Marks", "ao3Marks"].forEach((id) => {
@@ -419,7 +463,16 @@ export function initEditMetadataListeners() {
 
   document.getElementById("editPrompt")?.addEventListener("input", refreshEditDifficultyBadge);
   document.getElementById("editTier")?.addEventListener("change", refreshEditDifficultyBadge);
-  document.getElementById("editMaxMarks")?.addEventListener("change", refreshEditDifficultyBadge);
+  document.getElementById("editMaxMarks")?.addEventListener("change", () => {
+    if (!syncBondingDiagramAoAndSkills("edit")) {
+      refreshEditDifficultyBadge();
+      const qType = document.getElementById("editQuestionType")?.value;
+      const maxMarks = qType === "mcq"
+        ? 1
+        : (parseInt(document.getElementById("editMaxMarks")?.value, 10) || 1);
+      updateAoValidationLabel("edit", maxMarks);
+    }
+  });
   document.getElementById("editDemandLevelSelect")?.addEventListener("change", refreshEditDifficultyBadge);
 
   ["editAo1Marks", "editAo2Marks", "editAo3Marks"].forEach((id) => {

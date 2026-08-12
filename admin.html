@@ -2383,7 +2383,7 @@
           <div id="chemistryPanel" class="hidden" style="margin-top: 16px;">
             <p class="muted" style="font-size: 0.8rem; line-height: 1.4; margin: 0 0 12px;">
               Students complete electron shells, bonding diagrams, organic/polymer structures (SVG), or balance equations.
-              Pick a preset for a ready-made mark scheme, or configure shells / equations manually.
+              Pick a preset for a ready-made mark scheme. Ionic: up to 3 marks (shells / charges / brackets; +1 for MgCl₂-style ratios). Covalent: 2 marks (shared pairs + lone pairs).
             </p>
             <div class="row" style="margin-bottom: 12px;">
               <div>
@@ -3375,7 +3375,7 @@
 
   <!-- MODAL WINDOW A: INTERACTIVE SANDBOX SIMULATOR -->
   <div id="sandboxModalOverlay" class="hidden" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(15,23,42,0.6); z-index:2000; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(4px);">
-    <div class="card" style="width:100%; max-width:650px; box-shadow:0 20px 25px -5px rgba(0,0,0,0.1); margin: 0 16px; border-radius:16px;">
+    <div class="card" style="width:100%; max-width:800px; box-shadow:0 20px 25px -5px rgba(0,0,0,0.1); margin: 0 16px; border-radius:16px;">
       <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:12px; margin-bottom:16px; flex-shrink:0;">
         <h3 style="margin:0; font-size:1.15rem; color:#1e293b;">🧪 Sandbox Sandbox Testing Playground</h3>
         <button onclick="closeSandboxModal()" style="border:none; background:none; font-size:1.4rem; cursor:pointer; color:var(--text-muted);">&times;</button>
@@ -5260,6 +5260,15 @@
         presetSel.value = prev;
       }
     }
+    // Sensible AQA defaults when switching kind without a preset
+    const maxMarks = document.getElementById("maxMarks");
+    if (maxMarks && !document.getElementById("ChemPreset")?.value) {
+      if (kind === "covalent_bonding") maxMarks.value = "2";
+      else if (kind === "ionic_bonding") maxMarks.value = "3";
+    }
+    if (window.AdminMetadata?.syncBondingDiagramAoAndSkills) {
+      window.AdminMetadata.syncBondingDiagramAoAndSkills("creator");
+    }
   }
 
   function syncShellsFromElectronInputs(prefix = "") {
@@ -5934,6 +5943,14 @@
     document.getElementById("editChemShellFields")?.classList.toggle("hidden", kind !== "electron_shell");
     document.getElementById("editChemOrganicFields")?.classList.toggle("hidden", kind !== "organic_structure");
     document.getElementById("editChemEqFields")?.classList.toggle("hidden", kind !== "balance_equation");
+    const maxMarks = document.getElementById("editMaxMarks");
+    if (maxMarks && !document.getElementById("editChemPreset")?.value) {
+      if (kind === "covalent_bonding") maxMarks.value = "2";
+      else if (kind === "ionic_bonding") maxMarks.value = "3";
+    }
+    if (window.AdminMetadata?.syncBondingDiagramAoAndSkills) {
+      window.AdminMetadata.syncBondingDiagramAoAndSkills("edit");
+    }
   });
   document.getElementById("editChemPreset")?.addEventListener("change", (e) => {
     if (window.ChemWorkflow && e.target.value) {
@@ -11492,7 +11509,7 @@
     stage.innerHTML = html;
     if (q.question_type === "numeric" && window.CalcWorkflow) {
       CalcWorkflow.wireStudentEquationSelectPreview(() => {
-        if (window.MathJax?.typesetPromise) window.MathJax.typesetPromise();
+        if (window.MathJax?.typesetPromise) window.MathJax.typesetPromise([stage]);
       }, q, currentSandboxedEquationSheet);
     }
     if (q.question_type === "chemistry_interactive" && window.ChemWorkflow) {
@@ -11504,9 +11521,9 @@
     if (q.question_type === "equipment_interactive" && window.EquipmentWorkflow) {
       EquipmentWorkflow.wireEquipmentWorkflow(q);
     }
-    // Trigger Math typesetting
-    if (window.MathJax && typeof window.MathJax.typesetPromise === "function") {
-      window.MathJax.typesetPromise();
+    // Typeset prompt + MCQ options (mhchem). Avoid <code> for math — MathJax skips it.
+    if (window.MathJax?.typesetPromise) {
+      window.MathJax.typesetPromise([stage]).catch(() => {});
     }
   }
 
@@ -11647,8 +11664,8 @@
 
       detailsHtml = `
         <div style="font-weight:bold; margin-bottom:8px;">MCQ Result: <span style="color:${isCorrect ? "var(--success)" : "var(--error)"}">${isCorrect ? "CORRECT" : "INCORRECT"}</span></div>
-        <div>Selected Option: <code>"${escapeHtml(resp.answer)}"</code></div>
-        <div>Expected Target Option: <code>"${escapeHtml(correct)}"</code></div>
+        <div>Selected Option: <span class="sandbox-math">${escapeHtml(resp.answer) || "—"}</span></div>
+        <div>Expected Target Option: <span class="sandbox-math">${escapeHtml(correct)}</span></div>
         ${feedbackHtml}
       `;
     } 
@@ -11692,13 +11709,13 @@
       const chemDetail = marking.feedbackPayload?.chemistry?.detail || "";
       const isCorrect = score === max && max > 0;
       const modelHtml = ChemWorkflow.renderChemistryModelAnswerHtml(expected, {
-        title: isCorrect ? "Model answer" : "Correct electron arrangement",
+        title: "Model answer",
         compare: (!isCorrect && (expected.kind === "electron_shell" || expected.shells)) ? resp : null,
         template: currentSandboxedQ.chemistry_config?.template,
       });
       detailsHtml = `
         <div style="font-weight:bold; margin-bottom:8px;">Chemistry diagram: <span style="color:${isCorrect ? "var(--success)" : "var(--error)"}">${isCorrect ? "CORRECT" : "INCORRECT"} — ${score}/${max}</span></div>
-        <div style="margin-bottom:8px;font-size:0.85rem;">${escapeHtml(chemDetail)}</div>
+        ${chemDetail ? `<div style="margin-bottom:8px;font-size:0.85rem;">${escapeHtml(chemDetail)}</div>` : ""}
         ${modelHtml}
       `;
     }
@@ -11830,6 +11847,10 @@
       </div>
       ${detailsHtml}
     `;
+
+    if (window.MathJax?.typesetPromise) {
+      window.MathJax.typesetPromise([feedbackPayload]).catch(() => {});
+    }
     
     btnSubmitSandbox.disabled = false;
   };

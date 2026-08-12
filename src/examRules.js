@@ -125,6 +125,7 @@ export function inferAoMarks(question) {
   const type = question.question_type || "";
   if (type === "mcq") return { ao1: max, ao2: 0, ao3: 0 };
   if (type === "numeric") return { ao1: 0, ao2: max, ao3: 0 };
+  if (type === "chemistry_interactive") return { ao1: max, ao2: 0, ao3: 0 };
   if (type === "extended_response") {
     const third = Math.floor(max / 3);
     return { ao1: third, ao2: third, ao3: max - third * 2 };
