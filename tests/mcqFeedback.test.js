@@ -55,6 +55,19 @@ test("wrong + neither → default correct-answer message", () => {
   assert.ok(missing[0].text.includes('The correct answer is "mitochondria"'));
 });
 
+test("wrong + neither → mhchem correct answer is not wrapped in quotes", () => {
+  const correct = "$\\ce{NaCl}$";
+  const missing = resolveMcqWrongFeedback(
+    "$\\ce{Na2Cl}$",
+    { key_type: "mcq", key_payload: { correct } },
+    [],
+    correct
+  );
+  assert.equal(missing.length, 1);
+  assert.ok(missing[0].text.includes("The correct answer is $\\ce{NaCl}$."));
+  assert.ok(!missing[0].text.includes('"$\\ce{NaCl}$"'));
+});
+
 test("correct → no missing entries via markResponse", async () => {
   const q = { question_type: "mcq", max_marks: 1 };
   const result = await markResponse(q, { answer: "mitochondria" }, key, markPointsGeneric);

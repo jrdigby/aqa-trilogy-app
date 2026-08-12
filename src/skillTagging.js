@@ -157,6 +157,15 @@ export function suggestSkillsForQuestion(draft, markPoints = []) {
     addSkill(ms, "MS3c", sources, "command word: calculate");
   }
 
+  const chemKind = draft.chemistry_config?.kind || draft.chemistry_kind || "";
+  const isBondingDiagram = qType === "chemistry_interactive"
+    && (chemKind === "ionic_bonding" || chemKind === "covalent_bonding");
+  if (isBondingDiagram) {
+    addSkill(ws, "WS1.2", sources, "chemistry: bonding diagram models");
+    addSkill(ws, "WS3.1", sources, "chemistry: bonding diagram presentation");
+    addSkill(ms, "MS5b", sources, "chemistry: 2D/3D bonding diagram");
+  }
+
   for (const mp of markPoints || []) {
     const text = (mp.point_text || "").toLowerCase();
     if (mp.ao === "AO3" && /evaluat|justif|conclud/.test(text)) {

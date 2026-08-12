@@ -28,6 +28,7 @@ export const ELEMENT_DATA = {
   Ar: { Z: 18, A: 40, shells: [2, 8, 8] },
   K:  { Z: 19, A: 39, shells: [2, 8, 8, 1] },
   Ca: { Z: 20, A: 40, shells: [2, 8, 8, 2] },
+  Br: { Z: 35, A: 80, shells: [2, 8, 18, 7] },
 };
 
 const SHELL_CAPS = [2, 8, 8, 18];
@@ -128,10 +129,7 @@ function renderIonBrackets(cx, cy, outerR, charge) {
   svg += `<path d="M${left + tip} ${top} L${left} ${top} L${left} ${bottom} L${left + tip} ${bottom}" fill="none" stroke="#0f172a" stroke-width="3" stroke-linecap="square" stroke-linejoin="miter"/>`;
   svg += `<path d="M${right - tip} ${top} L${right} ${top} L${right} ${bottom} L${right - tip} ${bottom}" fill="none" stroke="#0f172a" stroke-width="3" stroke-linecap="square" stroke-linejoin="miter"/>`;
   if (charge != null && charge !== 0) {
-    const label = charge > 0
-      ? (charge === 1 ? "+" : `+${charge}`)
-      : (charge === -1 ? "−" : `−${Math.abs(charge)}`);
-    svg += `<text x="${right + 6}" y="${top + 18}" fill="#b91c1c" font-size="20" font-weight="800">${label}</text>`;
+    svg += `<text x="${right + 6}" y="${top + 18}" fill="#b91c1c" font-size="20" font-weight="800">${fmtCharge(charge)}</text>`;
   }
   return svg;
 }
@@ -283,32 +281,25 @@ export function renderChemistryModelAnswerHtml(answer, opts = {}) {
           </div>
         </div>`;
     }
-  } else if (kind === "ionic_bonding" && answer.left && answer.right) {
-    const w = 520;
-    const h = 300;
-    diagram = `<svg class="chem-svg chem-answer-svg chem-answer-svg--wide" viewBox="0 0 ${w} ${h}" width="100%" style="display:block;margin:0 auto;">
-      ${renderAtomSvg({
-        cx: 130, cy: 150,
-        symbol: answer.left.symbol,
-        shells: answer.left.shells,
-        charge: answer.left.charge,
-        interactive: false,
-        brackets: true,
-        atomId: "ans-left",
-        maxShells: Math.max((answer.left.shells || []).length, 1),
-      })}
-      ${renderAtomSvg({
-        cx: 390, cy: 150,
-        symbol: answer.right.symbol,
-        shells: answer.right.shells,
-        charge: answer.right.charge,
-        interactive: false,
-        brackets: true,
-        atomId: "ans-right",
-        maxShells: Math.max((answer.right.shells || []).length, 1),
-      })}
-    </svg>`;
-    caption = `${answer.left.symbol}${fmtCharge(answer.left.charge)} and ${answer.right.symbol}${fmtCharge(answer.right.charge)}`;
+  } else if (kind === "ionic_bonding") {
+    const ions = ionicAnswerAtoms(answer);
+    if (!ions.length) return "";
+    const { w, h, positions, baseR, gap } = layoutIonicAtoms(ions);
+    const ionSvgs = ions.map((ion, i) => renderIonicDotCrossAtomSvg({
+      cx: positions[i].x,
+      cy: positions[i].y,
+      symbol: ion.symbol,
+      shells: ion.shells,
+      style: ion.style || (i % 2 === 0 ? "dot" : "cross"),
+      brackets: ion.brackets !== false,
+      charge: ion.charge,
+      interactive: false,
+      atomIdx: i,
+      baseR,
+      gap,
+    })).join("");
+    diagram = `<svg class="chem-svg chem-answer-svg chem-answer-svg--wide chem-svg--fluid" viewBox="0 0 ${w} ${h}" width="100%" style="display:block;margin:0 auto;" preserveAspectRatio="xMidYMid meet">${ionSvgs}</svg>`;
+    caption = ions.map((ion) => `${ion.symbol}${fmtCharge(ion.charge)}`).join(" + ");
   } else if (kind === "organic_structure") {
     diagram = renderDisplayedFormulaSvg({
       carbons: answer.carbons,
@@ -365,22 +356,17 @@ export function initialStateForConfig(cfg) {
     };
   }
   if (kind === "ionic_bonding") {
-    const left = cfg.template?.left || { symbol: "Na" };
-    const right = cfg.template?.right || { symbol: "Cl" };
-    const lData = ELEMENT_DATA[left.symbol] || ELEMENT_DATA.Na;
-    const rData = ELEMENT_DATA[right.symbol] || ELEMENT_DATA.Cl;
+    const specs = ionicTemplateAtoms(cfg.template);
     return {
       kind,
-      left: {
-        symbol: left.symbol,
-        shells: Array(Math.max(lData.shells.length, 3)).fill(0),
+      atoms: specs.map((spec) => ({
+        symbol: spec.symbol,
+        shells: shellsForElement(spec.symbol),
         charge: 0,
-      },
-      right: {
-        symbol: right.symbol,
-        shells: Array(Math.max(rData.shells.length, 3)).fill(0),
-        charge: 0,
-      },
+        brackets: false,
+        style: spec.style,
+      })),
+      selectedElectron: null,
       transferred: 0,
     };
   }
@@ -459,16 +445,11 @@ export function answerStateFromKey(cfg, key) {
 function toolbarHtml(cfg) {
   const kind = cfg.kind;
   let tools = "";
-  if (kind === "electron_shell" || kind === "ionic_bonding") {
+  if (kind === "electron_shell") {
     tools = `<p class="chem-hint">Tap a shell ring to add an electron. Tap an electron to remove it.</p>`;
   }
   if (kind === "ionic_bonding") {
-    tools += `
-      <div class="chem-toolbar">
-        <button type="button" class="btn chem-btn" data-chem-action="transfer-right" title="Transfer one electron metal → non-metal">Transfer e⁻ →</button>
-        <button type="button" class="btn chem-btn" data-chem-action="transfer-left" title="Undo transfer">← Undo transfer</button>
-        <button type="button" class="btn chem-btn" data-chem-action="auto-fill-neutral" title="Fill neutral atom shells from periodic table">Fill neutral atoms</button>
-      </div>`;
+    tools = `<p class="chem-hint">Tap an electron to select it, then tap another atom to transfer it. Toggle square brackets and set ion charges manually for each atom.</p>`;
   }
   if (kind === "covalent_bonding") {
     tools = `<p class="chem-hint">Tap the overlap to add a shared pair (dots + crosses). Tap an atom to add a lone pair on its outer shell.</p>`;
@@ -513,6 +494,129 @@ function occupiedShellCount(shells) {
   let n = list.length;
   while (n > 1 && !(Number(list[n - 1]) > 0)) n -= 1;
   return Math.max(n, 1);
+}
+
+/** Template atoms for ionic bonding (supports legacy left/right or atoms[]). */
+function ionicTemplateAtoms(template) {
+  if (Array.isArray(template?.atoms) && template.atoms.length) {
+    return template.atoms.map((a, i) => ({
+      symbol: a.symbol,
+      style: a.style || (i % 2 === 0 ? "dot" : "cross"),
+    }));
+  }
+  const left = template?.left || { symbol: "Na" };
+  const right = template?.right || { symbol: "Cl" };
+  return [
+    { symbol: left.symbol, style: "dot" },
+    { symbol: right.symbol, style: "cross" },
+  ];
+}
+
+/** Answer / response atoms for ionic bonding. */
+function ionicAnswerAtoms(obj) {
+  if (Array.isArray(obj?.atoms) && obj.atoms.length) return obj.atoms;
+  if (obj?.left && obj?.right) return [obj.left, obj.right];
+  return [];
+}
+
+function ionicStateAtoms(state) {
+  return ionicAnswerAtoms(state);
+}
+
+/**
+ * Ionic dot-and-cross: only the outer (valence) shell is drawn.
+ * Metal cations keep an empty valence shell (electron removed) — not the full shell inside.
+ * Non-metals always show their actual outer-shell electrons, regardless of charge setting.
+ */
+function ionicOuterShellDisplay(shells, charge = 0, symbol = "") {
+  const list = Array.isArray(shells) ? shells.map((n) => Number(n) || 0) : [];
+  const idx = Math.max(0, list.length - 1);
+  const count = list[idx] || 0;
+  const ch = Number(charge) || 0;
+  const data = ELEMENT_DATA[symbol];
+  const Z = data?.Z;
+  const totalE = list.reduce((a, b) => a + b, 0);
+  const isMetal = data && Array.isArray(data.shells) && data.shells.length >= 2
+    && (data.shells[data.shells.length - 1] <= 2); // Group 1/2 valence
+
+  // Trailing empty valence shell already present (e.g. Na after transfer → [2,8,0])
+  if (count === 0 && list.length > 0) {
+    return { shellIndex: idx, count: 0 };
+  }
+  // Mark-scheme metal cations stored without trailing empty shell (e.g. Na⁺ as [2,8])
+  if (isMetal && ch > 0 && count > 0 && Z != null && totalE < Z) {
+    return { shellIndex: idx + 1, count: 0 };
+  }
+  return { shellIndex: idx, count };
+}
+
+/** Dot/cross ionic atom — outer shell only (including empty valence shell on cations). */
+function renderIonicDotCrossAtomSvg(opts) {
+  const {
+    cx, cy, symbol, shells, style = "dot", brackets = false, charge = 0,
+    interactive = true, atomIdx = 0, selectedElectron = null,
+    baseR = 28, gap = 22,
+  } = opts;
+  const shellList = Array.isArray(shells) ? shells : [];
+  const color = style === "cross" ? "#dc2626" : "#2563eb";
+  let svg = "";
+
+  svg += `<circle cx="${cx}" cy="${cy}" r="14" fill="#1e293b"/>`;
+  svg += `<text x="${cx}" y="${cy + 4}" text-anchor="middle" fill="#f8fafc" font-size="11" font-weight="700" pointer-events="none">${escapeHtml(symbol)}</text>`;
+
+  const { shellIndex: outerIdx, count: outerCount } = ionicOuterShellDisplay(shellList, charge, symbol);
+  const r = baseR;
+
+  if (interactive) {
+    svg += `<circle class="chem-ion-shell-hit" data-atom-idx="${atomIdx}" data-shell="${outerIdx}" cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#93c5fd" stroke-opacity="0.35" stroke-width="18" pointer-events="stroke" tabindex="0" role="button" aria-label="Transfer electron to ${escapeHtml(symbol)}" style="cursor:pointer"/>`;
+  }
+
+  svg += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#64748b" stroke-width="1.5" stroke-dasharray="4 3" style="pointer-events:none"/>`;
+  const pts = electronPositions(cx, cy, r, outerCount, Math.min(outerIdx, 3));
+  pts.forEach((pt, ei) => {
+    const sel = selectedElectron?.atomIdx === atomIdx
+      && selectedElectron?.shell === outerIdx
+      && selectedElectron?.e === ei;
+    if (sel) {
+      svg += `<circle cx="${pt.x}" cy="${pt.y}" r="10" fill="none" stroke="#f59e0b" stroke-width="2.5" pointer-events="none"/>`;
+    }
+    svg += renderCovElectron(pt.x, pt.y, style, color);
+    if (interactive) {
+      svg += `<circle class="chem-ion-electron" data-atom-idx="${atomIdx}" data-shell="${outerIdx}" data-e="${ei}" cx="${pt.x}" cy="${pt.y}" r="14" fill="transparent" stroke="none" tabindex="0" role="button" aria-label="Select electron on ${escapeHtml(symbol)}" style="cursor:pointer;pointer-events:all"/>`;
+    }
+  });
+
+  if (brackets) {
+    svg += renderIonBrackets(cx, cy, atomOuterRadius(1, baseR, gap), charge);
+  } else if (charge != null && Number(charge) !== 0) {
+    svg += `<text x="${cx + baseR + 10}" y="${cy - baseR + 4}" fill="#b91c1c" font-size="18" font-weight="800">${fmtCharge(Number(charge))}</text>`;
+  }
+  return svg;
+}
+
+function transferIonicElectron(state, fromIdx, fromShell, toIdx) {
+  const atoms = state.atoms;
+  if (!atoms || fromIdx === toIdx || fromIdx < 0 || toIdx < 0) return false;
+  const from = atoms[fromIdx];
+  const to = atoms[toIdx];
+  if (!from || !to) return false;
+  const fromShells = [...from.shells];
+  if ((fromShells[fromShell] || 0) <= 0) return false;
+  fromShells[fromShell] -= 1;
+  from.shells = fromShells;
+
+  // Prefer the outermost shell index — including an empty valence shell on cations
+  const toShells = [...to.shells];
+  let toShell = Math.max(0, toShells.length - 1);
+  const cap = SHELL_CAPS[toShell] ?? 8;
+  if ((toShells[toShell] || 0) >= cap) {
+    toShells.push(0);
+    toShell = toShells.length - 1;
+  }
+  toShells[toShell] = (toShells[toShell] || 0) + 1;
+  to.shells = toShells;
+  state.transferred = (state.transferred || 0) + 1;
+  return true;
 }
 
 /**
@@ -569,40 +673,204 @@ function renderShellDiagram(state, cfg) {
     </div>`;
 }
 
+/** Half-extent of an ionic atom including brackets / charge label. */
+function ionicAtomExtent(atom, { baseR = 28, gap = 22 } = {}) {
+  // Outer shell only — brackets / free-standing charge need extra width
+  const shellCount = 1;
+  const outer = atomOuterRadius(shellCount, baseR, gap);
+  const hasCharge = atom?.charge != null && Number(atom.charge) !== 0;
+  const bracketPad = atom?.brackets ? 18 : 8;
+  const chargeW = (atom?.brackets || hasCharge) ? 36 : 0;
+  return {
+    shellCount,
+    halfW: outer + bracketPad + chargeW / 2,
+    halfH: outer + bracketPad,
+    chargeW,
+  };
+}
+
+/**
+ * Responsive ionic layout: horizontal when it fits, otherwise wrap / stack.
+ * Returns viewBox size and centre positions with padding so brackets are not clipped.
+ */
+function layoutIonicAtoms(atoms, { baseR = 28, gap = 22, titleH = 8 } = {}) {
+  const n = Math.max(atoms.length, 1);
+  const extents = atoms.map((a) => ionicAtomExtent(a, { baseR, gap }));
+  const padX = 16;
+  const padY = 12;
+  const minGap = 28;
+
+  // Prefer a single row if total width is reasonable; else wrap to 2 rows / stack.
+  const rowWidths = (row) => {
+    let w = padX * 2;
+    row.forEach((i, idx) => {
+      w += extents[i].halfW * 2;
+      if (idx < row.length - 1) w += minGap;
+    });
+    return w;
+  };
+
+  let rows;
+  if (n <= 2) {
+    rows = [atoms.map((_, i) => i)];
+  } else {
+    // 3 ions: try one row; if too wide (>520), put central metal alone or wrap 2+1
+    const all = atoms.map((_, i) => i);
+    if (rowWidths(all) <= 520) {
+      rows = [all];
+    } else {
+      // Put first atom (usually metal) centred on row 1, others on row 2 — or split evenly
+      const mid = Math.ceil(n / 2);
+      rows = [all.slice(0, mid), all.slice(mid)];
+    }
+  }
+
+  const rowHs = rows.map((row) => Math.max(...row.map((i) => extents[i].halfH * 2), 80));
+  const rowWs = rows.map((row) => rowWidths(row));
+  const w = Math.max(...rowWs, 280);
+  const h = titleH + padY + rowHs.reduce((a, b) => a + b, 0) + (rows.length - 1) * 20 + padY;
+
+  const positions = new Array(n);
+  let yCursor = titleH + padY;
+  rows.forEach((row, ri) => {
+    const rowH = rowHs[ri];
+    const cy = yCursor + rowH / 2;
+    const totalAtomW = row.reduce((s, i) => s + extents[i].halfW * 2, 0);
+    const gaps = Math.max(row.length - 1, 0);
+    const free = Math.max(w - padX * 2 - totalAtomW, gaps * minGap);
+    const gapEach = gaps ? free / gaps : 0;
+    let x = padX;
+    row.forEach((i, idx) => {
+      const half = extents[i].halfW;
+      // Bias left so charge label on the right stays inside viewBox
+      const chargeBias = extents[i].chargeW / 2;
+      positions[i] = { x: x + half - chargeBias / 2, y: cy, ...extents[i] };
+      x += half * 2 + (idx < gaps ? gapEach : 0);
+    });
+    yCursor += rowH + 20;
+  });
+
+  return { w: Math.ceil(w), h: Math.ceil(h), positions, baseR, gap };
+}
+
 function renderIonicDiagram(state) {
-  const w = 560;
-  const h = 320;
-  const leftSvg = renderAtomSvg({
-    cx: 140, cy: 160,
-    symbol: state.left.symbol,
-    shells: state.left.shells,
-    charge: state.left.charge,
-    atomId: "left",
-    brackets: true,
-    maxShells: Math.max(state.left.shells.length, 3),
-  });
-  const rightSvg = renderAtomSvg({
-    cx: 400, cy: 160,
-    symbol: state.right.symbol,
-    shells: state.right.shells,
-    charge: state.right.charge,
-    atomId: "right",
-    brackets: true,
-    maxShells: Math.max(state.right.shells.length, 3),
-  });
+  const atoms = ionicStateAtoms(state);
+  const { w, h, positions, baseR, gap } = layoutIonicAtoms(atoms);
+  const selected = state.selectedElectron || null;
+  const ionSvgs = atoms.map((atom, i) => renderIonicDotCrossAtomSvg({
+    cx: positions[i].x,
+    cy: positions[i].y,
+    symbol: atom.symbol,
+    shells: atom.shells,
+    style: atom.style || (i % 2 === 0 ? "dot" : "cross"),
+    brackets: !!atom.brackets,
+    charge: atom.charge,
+    interactive: true,
+    atomIdx: i,
+    selectedElectron: selected,
+    baseR,
+    gap,
+  })).join("");
+  const controls = atoms.map((atom, i) => `
+    <div class="chem-ion-controls" data-atom-idx="${i}">
+      <span class="chem-ion-label">${escapeHtml(atom.symbol)}</span>
+      <button type="button" class="btn chem-btn chem-ion-btn${atom.brackets ? " chem-ion-btn--active" : ""}" data-chem-action="toggle-brackets" data-atom-idx="${i}" title="Toggle square brackets">[ ]</button>
+      <button type="button" class="btn chem-btn chem-ion-btn" data-chem-action="charge-down" data-atom-idx="${i}" title="Decrease charge">−</button>
+      <span class="chem-ion-charge">${fmtCharge(atom.charge) || "0"}</span>
+      <button type="button" class="btn chem-btn chem-ion-btn" data-chem-action="charge-up" data-atom-idx="${i}" title="Increase charge">+</button>
+    </div>`).join("");
+  const chargeSummary = atoms.map((a) => `${a.symbol}${fmtCharge(a.charge) || ""}`).join("  ");
   return `
-    <div class="chem-diagram-wrap">
-      <svg class="chem-svg" viewBox="0 0 ${w} ${h}" width="100%" style="max-width:580px;touch-action:manipulation;">
-        ${leftSvg}${rightSvg}
-        <text x="280" y="28" text-anchor="middle" fill="#64748b" font-size="12">Ionic bonding</text>
+    <div class="chem-diagram-wrap chem-diagram-wrap--responsive">
+      <svg class="chem-svg chem-svg--fluid" viewBox="0 0 ${w} ${h}" width="100%" style="touch-action:manipulation;" preserveAspectRatio="xMidYMid meet">
+        ${ionSvgs}
       </svg>
-      <div class="chem-status" id="chemStatus">Transferred: ${state.transferred || 0} e⁻ · Charges: ${state.left.symbol}${fmtCharge(state.left.charge)}  ${state.right.symbol}${fmtCharge(state.right.charge)}</div>
+      <div class="chem-ion-controls-row">${controls}</div>
+      <div class="chem-status" id="chemStatus">Transferred: ${state.transferred || 0} e⁻ · ${chargeSummary}</div>
     </div>`;
 }
 
+/** Unicode superscript digits for ionic charge magnitude (e.g. 2 → ²). */
+const SUPER_DIGITS = "⁰¹²³⁴⁵⁶⁷⁸⁹";
+
+function toSuperscriptDigits(n) {
+  return String(Math.abs(n)).replace(/[0-9]/g, (d) => SUPER_DIGITS[Number(d)]);
+}
+
+/** GCSE ion charge as superscripts: ⁺, ⁻, ²⁺, ²⁻ (number then sign). */
 function fmtCharge(c) {
   if (!c) return "";
-  return c > 0 ? `⁺${c === 1 ? "" : c}` : `⁻${c === -1 ? "" : Math.abs(c)}`;
+  const mag = Math.abs(c);
+  const sign = c > 0 ? "⁺" : "⁻";
+  return mag === 1 ? sign : `${toSuperscriptDigits(mag)}${sign}`;
+}
+
+/**
+ * Covalent atom centres: diatomic in a row; central atom with satellites for 3+.
+ */
+function layoutCovalentAtoms(atoms, bonds, { shellR = 52 } = {}) {
+  const n = atoms.length;
+  const margin = shellR + 36;
+  const bondGap = 72;
+
+  if (n <= 2) {
+    const w = Math.max(280, margin * 2 + Math.max(n - 1, 0) * bondGap);
+    const h = Math.max(220, shellR * 2 + 80);
+    const cy = h / 2;
+    const positions = atoms.map((_, i) => ({
+      x: n === 1 ? w / 2 : margin + i * bondGap,
+      y: cy,
+    }));
+    // Centre the pair in the viewBox
+    if (n === 2) {
+      const span = bondGap;
+      const start = (w - span) / 2;
+      positions[0].x = start;
+      positions[1].x = start + span;
+    }
+    return { w, h, positions, shellR };
+  }
+
+  // Find best central atom: most bonds, else first non-H, else index 0
+  const degree = atoms.map(() => 0);
+  (bonds || []).forEach((b) => {
+    if (degree[b.a] != null) degree[b.a] += 1;
+    if (degree[b.b] != null) degree[b.b] += 1;
+  });
+  let centre = 0;
+  let best = -1;
+  atoms.forEach((a, i) => {
+    const score = degree[i] * 10 + (a.symbol === "H" ? 0 : 5);
+    if (score > best) { best = score; centre = i; }
+  });
+
+  const satellites = atoms.map((_, i) => i).filter((i) => i !== centre);
+  const radius = bondGap;
+  const w = Math.max(300, margin * 2 + radius * 2);
+  const h = Math.max(280, margin * 2 + radius * 2);
+  const cx = w / 2;
+  const cy = h / 2 + 4;
+  const positions = new Array(n);
+  positions[centre] = { x: cx, y: cy };
+
+  // Spread satellites: prefer bottom-left / bottom-right for water-like; else even circle
+  satellites.forEach((si, idx) => {
+    let ang;
+    if (satellites.length === 2) {
+      // Bent water-like (~104° visualised as ±52° from downward)
+      ang = Math.PI / 2 + (idx === 0 ? -0.55 : 0.55);
+    } else if (satellites.length === 3) {
+      ang = -Math.PI / 2 + (idx * 2 * Math.PI) / 3;
+    } else {
+      ang = -Math.PI / 2 + (idx * 2 * Math.PI) / satellites.length;
+    }
+    positions[si] = {
+      x: cx + radius * Math.cos(ang),
+      y: cy + radius * Math.sin(ang),
+    };
+  });
+
+  return { w: Math.ceil(w), h: Math.ceil(h), positions, shellR };
 }
 
 /**
@@ -610,21 +878,13 @@ function fmtCharge(c) {
  * lone pairs sit on the outer shell away from the bond (dot-and-cross style).
  */
 function renderCovalentDiagram(state, { interactive = true } = {}) {
-  const n = state.atoms.length;
-  const shellR = 52;
-  const gap = 72; // centre spacing → shells overlap by ~32px
-  const margin = 70;
-  const w = Math.max(340, margin * 2 + Math.max(n - 1, 0) * gap);
-  const h = 240;
-  const cy = 120;
+  const atoms = state.atoms || [];
+  const bonds = state.bonds || [];
+  const { w, h, positions, shellR } = layoutCovalentAtoms(atoms, bonds);
   let svg = "";
-  const positions = state.atoms.map((_, i) => ({
-    x: margin + i * gap,
-    y: cy,
-  }));
 
-  const bondDirs = state.atoms.map(() => []);
-  state.bonds.forEach((bond) => {
+  const bondDirs = atoms.map(() => []);
+  bonds.forEach((bond) => {
     const pa = positions[bond.a];
     const pb = positions[bond.b];
     if (!pa || !pb) return;
@@ -634,7 +894,7 @@ function renderCovalentDiagram(state, { interactive = true } = {}) {
   });
 
   // Outer shells (drawn first so electrons sit on top)
-  state.atoms.forEach((atom, ai) => {
+  atoms.forEach((atom, ai) => {
     const p = positions[ai];
     svg += `<circle cx="${p.x}" cy="${p.y}" r="${shellR}" fill="rgba(241,245,249,0.55)" stroke="#475569" stroke-width="2"/>`;
     svg += `<circle class="chem-cov-atom" data-atom-idx="${ai}" cx="${p.x}" cy="${p.y}" r="16" fill="#1e293b" tabindex="${interactive ? "0" : "-1"}" role="${interactive ? "button" : "presentation"}" aria-label="${interactive ? `Cycle lone pairs on atom ${escapeHtml(atom.symbol)}` : ""}" style="cursor:${interactive ? "pointer" : "default"}"/>`;
@@ -642,7 +902,7 @@ function renderCovalentDiagram(state, { interactive = true } = {}) {
   });
 
   // Shared pairs in the overlap region
-  state.bonds.forEach((bond, bi) => {
+  bonds.forEach((bond, bi) => {
     const pa = positions[bond.a];
     const pb = positions[bond.b];
     if (!pa || !pb) return;
@@ -651,7 +911,7 @@ function renderCovalentDiagram(state, { interactive = true } = {}) {
     const ang = Math.atan2(pb.y - pa.y, pb.x - pa.x);
     const nx = -Math.sin(ang);
     const ny = Math.cos(ang);
-    const along = 7; // slightly offset each atom's electron along bond
+    const along = 7;
     for (let p = 0; p < bond.sharedPairs; p++) {
       const stack = (p - (bond.sharedPairs - 1) / 2) * 14;
       const cx0 = mx - along * Math.cos(ang) + nx * stack;
@@ -664,20 +924,20 @@ function renderCovalentDiagram(state, { interactive = true } = {}) {
     if (interactive) {
       svg += `<rect class="chem-bond-hit" data-bond="${bi}" x="${mx - 30}" y="${my - 36}" width="60" height="72" fill="transparent" tabindex="0" role="button" aria-label="Cycle shared pairs on bond ${bi + 1}" style="cursor:pointer"/>`;
     }
-    svg += `<text x="${mx}" y="${my + shellR + 18}" text-anchor="middle" fill="#64748b" font-size="10">${bond.sharedPairs}/${bond.maxPairs} shared</text>`;
+    svg += `<text x="${mx}" y="${my + 22}" text-anchor="middle" fill="#64748b" font-size="10">${bond.sharedPairs}/${bond.maxPairs} shared</text>`;
   });
 
   // Lone pairs at cardinal positions: top / bottom / left / right
-  state.atoms.forEach((atom, ai) => {
+  atoms.forEach((atom, ai) => {
     const p = positions[ai];
     const dirs = bondDirs[ai] || [];
     const style = ai % 2 === 0 ? "dot" : "cross";
     const color = ai % 2 === 0 ? "#2563eb" : "#dc2626";
     const cardinals = [
-      { ang: -Math.PI / 2 }, // top
-      { ang: Math.PI / 2 },  // bottom
-      { ang: Math.PI },      // left
-      { ang: 0 },            // right
+      { ang: -Math.PI / 2 },
+      { ang: Math.PI / 2 },
+      { ang: Math.PI },
+      { ang: 0 },
     ];
     const free = cardinals.filter((c) => {
       return !dirs.some((d) => {
@@ -691,7 +951,6 @@ function renderCovalentDiagram(state, { interactive = true } = {}) {
       const ang = slots[lp % slots.length].ang;
       const lx = p.x + shellR * Math.cos(ang);
       const ly = p.y + shellR * Math.sin(ang);
-      // Pair spread perpendicular to the radial direction
       const tx = -Math.sin(ang) * 5;
       const ty = Math.cos(ang) * 5;
       svg += renderCovElectron(lx - tx, ly - ty, style, color);
@@ -700,8 +959,8 @@ function renderCovalentDiagram(state, { interactive = true } = {}) {
   });
 
   return `
-    <div class="chem-diagram-wrap">
-      <svg class="chem-svg" viewBox="0 0 ${w} ${h}" width="100%" style="max-width:560px;touch-action:manipulation;">${svg}</svg>
+    <div class="chem-diagram-wrap chem-diagram-wrap--responsive">
+      <svg class="chem-svg chem-svg--fluid" viewBox="0 0 ${w} ${h}" width="100%" style="touch-action:manipulation;" preserveAspectRatio="xMidYMid meet">${svg}</svg>
       <div class="chem-status" id="chemStatus">Outer shells · shared e⁻ in overlap (● / ✕)</div>
     </div>`;
 }
@@ -835,18 +1094,21 @@ export function renderChemistryWorkflow(q, key, presentation = "practice") {
   liveState = deepClone(state);
   liveConfig = deepClone(cfg);
 
-  const kindLabel = {
+  const kindLabels = {
     electron_shell: "Electron shell diagram",
-    ionic_bonding: "Ionic bonding",
+    ionic_bonding: "",
     covalent_bonding: "Covalent bonding",
     organic_structure: "Organic structure",
     polymer_structure: "Polymer structure",
     balance_equation: "Balance the equation",
-  }[cfg.kind] || "Chemistry";
+  };
+  const kindLabel = Object.prototype.hasOwnProperty.call(kindLabels, cfg.kind)
+    ? kindLabels[cfg.kind]
+    : "Chemistry";
 
   return `
     <div class="item chem-workflow" id="chemistryWorkflowRoot" data-chem-kind="${escapeHtml(cfg.kind)}">
-      <div class="chem-title">${escapeHtml(kindLabel)}</div>
+      ${kindLabel ? `<div class="chem-title">${escapeHtml(kindLabel)}</div>` : ""}
       ${toolbarHtml(cfg)}
       <div id="chemDiagramMount">${renderBody(state, cfg)}</div>
       <button type="button" class="btn chem-btn" data-chem-action="reset" style="margin-top:8px;">Reset diagram</button>
@@ -905,10 +1167,12 @@ function removeElectron(shells, shellIndex) {
 }
 
 function computeIonicCharges(state, cfg) {
-  const leftZ = ELEMENT_DATA[state.left.symbol]?.Z || 0;
-  const rightZ = ELEMENT_DATA[state.right.symbol]?.Z || 0;
-  state.left.charge = leftZ - totalElectrons(state.left.shells);
-  state.right.charge = rightZ - totalElectrons(state.right.shells);
+  // Legacy helper — ionic dot/cross uses manual charges; kept for any external callers.
+  const atoms = ionicStateAtoms(state);
+  atoms.forEach((atom) => {
+    const z = ELEMENT_DATA[atom.symbol]?.Z || 0;
+    atom.charge = z - totalElectrons(atom.shells);
+  });
   return state;
 }
 
@@ -947,21 +1211,12 @@ export function wireChemistryWorkflow(q = null) {
       return;
     }
 
-    if (cfg.kind === "electron_shell" || cfg.kind === "ionic_bonding") {
+    if (cfg.kind === "electron_shell") {
       const hit = shellTarget(t);
       if (hit) {
         e.preventDefault();
-        const atomId = hit.getAttribute("data-atom");
         const shell = Number(hit.getAttribute("data-shell"));
-        if (cfg.kind === "electron_shell") {
-          state.shells = addElectron(state.shells, shell);
-        } else if (atomId === "left") {
-          state.left.shells = addElectron(state.left.shells, shell);
-          computeIonicCharges(state, cfg);
-        } else if (atomId === "right") {
-          state.right.shells = addElectron(state.right.shells, shell);
-          computeIonicCharges(state, cfg);
-        }
+        state.shells = addElectron(state.shells, shell);
         writeState(state);
         refreshDiagram();
         return;
@@ -971,17 +1226,8 @@ export function wireChemistryWorkflow(q = null) {
         : null;
       if (elec) {
         e.preventDefault();
-        const atomId = elec.getAttribute("data-atom");
         const shell = Number(elec.getAttribute("data-shell"));
-        if (cfg.kind === "electron_shell") {
-          state.shells = removeElectron(state.shells, shell);
-        } else if (atomId === "left") {
-          state.left.shells = removeElectron(state.left.shells, shell);
-          computeIonicCharges(state, cfg);
-        } else if (atomId === "right") {
-          state.right.shells = removeElectron(state.right.shells, shell);
-          computeIonicCharges(state, cfg);
-        }
+        state.shells = removeElectron(state.shells, shell);
         writeState(state);
         refreshDiagram();
         return;
@@ -989,54 +1235,56 @@ export function wireChemistryWorkflow(q = null) {
     }
 
     if (cfg.kind === "ionic_bonding") {
-      if (action === "fill-neutral" || action === "auto-fill-neutral") {
-        state.left.shells = shellsForElement(state.left.symbol);
-        state.right.shells = shellsForElement(state.right.symbol);
-        state.transferred = 0;
-        computeIonicCharges(state, cfg);
+      const ionElec = typeof t.closest === "function" ? t.closest(".chem-ion-electron") : null;
+      if (ionElec) {
+        e.preventDefault();
+        const atomIdx = Number(ionElec.getAttribute("data-atom-idx"));
+        const shell = Number(ionElec.getAttribute("data-shell"));
+        const eIdx = Number(ionElec.getAttribute("data-e"));
+        const sel = state.selectedElectron;
+        if (sel && sel.atomIdx === atomIdx && sel.shell === shell && sel.e === eIdx) {
+          // Click same electron again → deselect
+          state.selectedElectron = null;
+        } else if (sel && (sel.atomIdx !== atomIdx || sel.shell !== shell || sel.e !== eIdx)) {
+          if (transferIonicElectron(state, sel.atomIdx, sel.shell, atomIdx)) {
+            state.selectedElectron = null;
+          }
+        } else {
+          state.selectedElectron = { atomIdx, shell, e: eIdx };
+        }
         writeState(state);
         refreshDiagram();
         return;
       }
-      if (action === "transfer-right") {
-        // Remove from outer shell of left, add to outer of right
-        const lShells = [...state.left.shells];
-        let from = lShells.length - 1;
-        while (from >= 0 && lShells[from] === 0) from--;
-        if (from >= 0 && lShells[from] > 0) {
-          lShells[from] -= 1;
-          state.left.shells = lShells;
-          const rShells = [...state.right.shells];
-          let to = rShells.length - 1;
-          const cap = SHELL_CAPS[to] ?? 8;
-          if (rShells[to] >= cap) {
-            rShells.push(0);
-            to = rShells.length - 1;
+      const ionShell = typeof t.closest === "function" ? t.closest(".chem-ion-shell-hit") : null;
+      if (ionShell) {
+        e.preventDefault();
+        const atomIdx = Number(ionShell.getAttribute("data-atom-idx"));
+        const sel = state.selectedElectron;
+        if (sel && sel.atomIdx !== atomIdx) {
+          if (transferIonicElectron(state, sel.atomIdx, sel.shell, atomIdx)) {
+            state.selectedElectron = null;
           }
-          rShells[to] = (rShells[to] || 0) + 1;
-          state.right.shells = rShells;
-          state.transferred = (state.transferred || 0) + 1;
-          computeIonicCharges(state, cfg);
           writeState(state);
           refreshDiagram();
         }
         return;
       }
-      if (action === "transfer-left") {
-        if ((state.transferred || 0) <= 0) return;
-        const rShells = [...state.right.shells];
-        let from = rShells.length - 1;
-        while (from >= 0 && rShells[from] === 0) from--;
-        if (from >= 0 && rShells[from] > 0) {
-          rShells[from] -= 1;
-          state.right.shells = rShells;
-          const lShells = [...state.left.shells];
-          let to = lShells.length - 1;
-          while (to > 0 && lShells[to] === 0 && to > from) to--;
-          lShells[to] = (lShells[to] || 0) + 1;
-          state.left.shells = lShells;
-          state.transferred -= 1;
-          computeIonicCharges(state, cfg);
+      if (action === "toggle-brackets") {
+        const ai = Number(actionBtn?.getAttribute("data-atom-idx"));
+        if (state.atoms?.[ai]) {
+          state.atoms[ai].brackets = !state.atoms[ai].brackets;
+          writeState(state);
+          refreshDiagram();
+        }
+        return;
+      }
+      if (action === "charge-up" || action === "charge-down") {
+        const ai = Number(actionBtn?.getAttribute("data-atom-idx"));
+        const atom = state.atoms?.[ai];
+        if (atom) {
+          const delta = action === "charge-up" ? 1 : -1;
+          atom.charge = Math.max(-3, Math.min(3, (Number(atom.charge) || 0) + delta));
           writeState(state);
           refreshDiagram();
         }
@@ -1222,7 +1470,18 @@ export function wireChemistryWorkflow(q = null) {
 export function collectChemistryResponse(q) {
   const cfg = getChemistryConfig(q);
   const state = readState() || initialStateForConfig(cfg);
-  return { type: "chemistry", kind: cfg?.kind, ...deepClone(state) };
+  const cloned = deepClone(state);
+  if (cloned.kind === "ionic_bonding" && Array.isArray(cloned.atoms)) {
+    cloned.atoms = cloned.atoms.map((a) => ({
+      symbol: a.symbol,
+      shells: normalizeShellArray(a.shells),
+      charge: Number(a.charge) || 0,
+      brackets: !!a.brackets,
+      style: a.style,
+    }));
+    delete cloned.selectedElectron;
+  }
+  return { type: "chemistry", kind: cfg?.kind, ...cloned };
 }
 
 // ─── Marking ────────────────────────────────────────────────────────────────
@@ -1265,17 +1524,134 @@ function markShell(resp, answer) {
 }
 
 function markIonic(resp, answer) {
-  const leftOk = arraysEqual(resp.left?.shells, answer.left?.shells)
-    && Number(resp.left?.charge) === Number(answer.left?.charge);
-  const rightOk = arraysEqual(resp.right?.shells, answer.right?.shells)
-    && Number(resp.right?.charge) === Number(answer.right?.charge);
-  return { correct: leftOk && rightOk, detail: leftOk && rightOk ? "Ionic structures correct" : "Check electron transfer and charges" };
+  const rAtoms = ionicAnswerAtoms(resp);
+  const ansAtoms = ionicAnswerAtoms(answer);
+  const points = [];
+
+  if (!ansAtoms.length) {
+    return {
+      correct: false,
+      earned: 0,
+      available: 0,
+      points: [],
+      detail: "No mark scheme for ionic bonding",
+    };
+  }
+
+  // Match by order first; also allow composition check for ratio mark
+  const shellsOk = rAtoms.length === ansAtoms.length
+    && ansAtoms.every((a, i) => arraysEqual(
+      normalizeShellArray(rAtoms[i]?.shells),
+      normalizeShellArray(a.shells),
+    ));
+  const chargesOk = rAtoms.length === ansAtoms.length
+    && ansAtoms.every((a, i) => Number(rAtoms[i]?.charge) === Number(a.charge));
+  const bracketsOk = rAtoms.length === ansAtoms.length
+    && ansAtoms.every((a, i) => !!rAtoms[i]?.brackets === !!a.brackets);
+
+  points.push({
+    id: "shells",
+    label: "Electron arrangements",
+    marks: 1,
+    correct: shellsOk,
+    feedback: shellsOk ? null : "Electron arrangement incorrect",
+  });
+  points.push({
+    id: "charges",
+    label: "Ion charges",
+    marks: 1,
+    correct: chargesOk,
+    feedback: chargesOk ? null : "Check the charge on each ion (group number).",
+  });
+  points.push({
+    id: "brackets",
+    label: "Square brackets",
+    marks: 1,
+    correct: bracketsOk,
+    feedback: bracketsOk ? null : "Show square brackets around each ion.",
+  });
+
+  const needsRatio = answer.ratioMark === true
+    || ansAtoms.length > 2
+    || (answer.left == null && ansAtoms.length > 2);
+  if (needsRatio) {
+    const countBy = (list) => {
+      const m = {};
+      (list || []).forEach((a) => {
+        const s = a?.symbol || "?";
+        m[s] = (m[s] || 0) + 1;
+      });
+      return m;
+    };
+    const aCounts = countBy(ansAtoms);
+    const rCounts = countBy(rAtoms);
+    const ratioOk = Object.keys(aCounts).length > 0
+      && Object.keys(aCounts).every((s) => aCounts[s] === rCounts[s])
+      && Object.keys(rCounts).every((s) => aCounts[s] === rCounts[s])
+      && shellsOk;
+    const formula = Object.entries(aCounts).map(([s, c]) => (c > 1 ? `${s}×${c}` : s)).join(" : ");
+    points.push({
+      id: "ratio",
+      label: "Ion ratio / formula",
+      marks: 1,
+      correct: ratioOk,
+      feedback: ratioOk ? null : `Show the correct ratio of ions (${formula}).`,
+    });
+  }
+
+  const earned = points.filter((p) => p.correct).reduce((s, p) => s + p.marks, 0);
+  const available = points.reduce((s, p) => s + p.marks, 0);
+  const wrong = points.filter((p) => !p.correct);
+  let detail = "Ionic structures correct";
+  if (wrong.length) {
+    // If electron arrangement is wrong, that is the primary message (not mixed with charge tips)
+    const shellsPoint = points.find((p) => p.id === "shells");
+    if (shellsPoint && !shellsPoint.correct) {
+      detail = "Electron arrangement incorrect";
+    } else {
+      detail = wrong.map((p) => p.feedback || p.label).join(" ");
+    }
+  }
+  return {
+    correct: earned === available && available > 0,
+    earned,
+    available,
+    points,
+    detail,
+  };
 }
 
 function markCovalent(resp, answer) {
   const bondsOk = (answer.bonds || []).every((b, i) => Number(resp.bonds?.[i]?.sharedPairs) === Number(b.sharedPairs));
   const loneOk = (answer.atoms || []).every((a, i) => Number(resp.atoms?.[i]?.lonePairs) === Number(a.lonePairs));
-  return { correct: bondsOk && loneOk, detail: bondsOk && loneOk ? "Covalent structure correct" : "Check shared pairs and lone pairs" };
+  const points = [
+    {
+      id: "shared",
+      label: "Shared pairs",
+      marks: 1,
+      correct: bondsOk,
+      feedback: bondsOk ? null : "Check the number of shared electron pairs in each bond.",
+    },
+    {
+      id: "lone",
+      label: "Lone pairs",
+      marks: 1,
+      correct: loneOk,
+      feedback: loneOk ? null : "Check the non-bonding (lone) pairs on each atom.",
+    },
+  ];
+  const earned = points.filter((p) => p.correct).reduce((s, p) => s + p.marks, 0);
+  const available = points.reduce((s, p) => s + p.marks, 0);
+  const detail = earned === available
+    ? "Covalent structure correct"
+    : points.filter((p) => !p.correct).map((p) => p.feedback || p.label).join(" ");
+  return {
+    correct: earned === available && available > 0,
+    earned,
+    available,
+    points,
+    detail,
+  };
 }
 
 function normalizeGroups(groups) {
@@ -1320,19 +1696,63 @@ export function markChemistryResponse(q, resp, key, markPoints, cleanUrl) {
   const answer = key?.key_payload || cfg?.answer || {};
   const kind = cfg?.kind || resp?.kind || answer.kind;
 
-  let result = { correct: false, detail: "Unable to mark" };
-  if (kind === "electron_shell") result = markShell(resp, answer);
-  else if (kind === "ionic_bonding") result = markIonic(resp, answer);
+  let result = { correct: false, detail: "Unable to mark", earned: 0, available: 0, points: [] };
+  if (kind === "electron_shell") {
+    const r = markShell(resp, answer);
+    result = {
+      ...r,
+      earned: r.correct ? 1 : 0,
+      available: 1,
+      points: [{ id: "shells", label: "Electron arrangement", marks: 1, correct: r.correct }],
+    };
+  } else if (kind === "ionic_bonding") result = markIonic(resp, answer);
   else if (kind === "covalent_bonding") result = markCovalent(resp, answer);
-  else if (kind === "organic_structure") result = markOrganic(resp, answer);
-  else if (kind === "polymer_structure") result = markPolymer(resp, answer);
-  else if (kind === "balance_equation") result = markBalance(resp, answer);
+  else if (kind === "organic_structure") {
+    const r = markOrganic(resp, answer);
+    result = { ...r, earned: r.correct ? 1 : 0, available: 1, points: [{ id: "organic", label: "Structure", marks: 1, correct: r.correct }] };
+  } else if (kind === "polymer_structure") {
+    const r = markPolymer(resp, answer);
+    result = { ...r, earned: r.correct ? 1 : 0, available: 1, points: [{ id: "polymer", label: "Repeat unit", marks: 1, correct: r.correct }] };
+  } else if (kind === "balance_equation") {
+    const r = markBalance(resp, answer);
+    result = { ...r, earned: r.correct ? 1 : 0, available: 1, points: [{ id: "balance", label: "Coefficients", marks: 1, correct: r.correct }] };
+  }
 
-  const total = result.correct ? max : 0;
-  if (total) ao.AO1 = max;
+  // Multi-point kinds: award up to q.max_marks using scheme points in order
+  let total;
+  let appliedPoints = result.points || [];
+  if ((kind === "ionic_bonding" || kind === "covalent_bonding") && appliedPoints.length) {
+    // If teacher set fewer marks than the full scheme, keep highest-priority points only
+    let remaining = max;
+    appliedPoints = appliedPoints.map((p) => {
+      const take = Math.min(p.marks, remaining);
+      remaining -= take;
+      return { ...p, marks: take, active: take > 0 };
+    }).filter((p) => p.active);
+    total = appliedPoints.filter((p) => p.correct).reduce((s, p) => s + p.marks, 0);
+  } else {
+    total = result.correct ? max : 0;
+  }
+
+  if (total) ao.AO1 = total;
 
   const missing = [];
-  if (!result.correct) {
+  const shellsFailed = appliedPoints.some((p) => p.id === "shells" && !p.correct);
+  const pointsForMissing = (kind === "ionic_bonding" && shellsFailed)
+    ? appliedPoints.filter((p) => p.id === "shells")
+    : appliedPoints.filter((p) => !p.correct);
+  pointsForMissing.filter((p) => !p.correct).forEach((p) => {
+    const tip = p.feedback || p.label || result.detail;
+    missing.push({
+      ao: "AO1",
+      label: p.label,
+      feedback: tip,
+      text: tip,
+      flashcard_text: tip,
+      resource_url: cleanUrl || null,
+    });
+  });
+  if (!appliedPoints.length && !result.correct) {
     const tip = answer.feedback || result.detail || "Check the diagram against the mark scheme.";
     missing.push({
       ao: "AO1",
@@ -1344,19 +1764,28 @@ export function markChemistryResponse(q, resp, key, markPoints, cleanUrl) {
     });
   }
 
+  const quality = total >= max && max > 0 ? 5 : total > 0 ? 3 : 1;
+
+  // Prefer a focused model-answer heading for ionic partial feedback
+  let modelTitle = "Model answer";
+
   return {
     total,
     max,
     ao,
     maxAo,
     missing,
-    quality: total ? 5 : 1,
+    quality,
     feedbackPayload: {
       missing,
       chemistry: {
         kind,
-        correct: result.correct,
+        correct: total >= max && max > 0,
         detail: result.detail,
+        modelTitle,
+        earned: total,
+        available: max,
+        points: appliedPoints,
         student: deepClone(resp),
         expected: deepClone(answer),
       },
@@ -1382,17 +1811,208 @@ export const CHEMISTRY_PRESETS = {
   nacl: {
     label: "NaCl ionic bonding",
     kind: "ionic_bonding",
-    template: { left: { symbol: "Na" }, right: { symbol: "Cl" } },
+    recommendedMaxMarks: 3,
+    template: { atoms: [{ symbol: "Na", style: "dot" }, { symbol: "Cl", style: "cross" }] },
     answer: {
       kind: "ionic_bonding",
-      left: { symbol: "Na", shells: [2, 8], charge: 1 },
-      right: { symbol: "Cl", shells: [2, 8, 8], charge: -1 },
+      atoms: [
+        { symbol: "Na", shells: [2, 8], charge: 1, brackets: true, style: "dot" },
+        { symbol: "Cl", shells: [2, 8, 8], charge: -1, brackets: true, style: "cross" },
+      ],
       transferred: 1,
     },
+  },
+  licl: {
+    label: "LiCl ionic bonding",
+    kind: "ionic_bonding",
+    recommendedMaxMarks: 3,
+    template: { atoms: [{ symbol: "Li", style: "dot" }, { symbol: "Cl", style: "cross" }] },
+    answer: {
+      kind: "ionic_bonding",
+      atoms: [
+        { symbol: "Li", shells: [2], charge: 1, brackets: true, style: "dot" },
+        { symbol: "Cl", shells: [2, 8, 8], charge: -1, brackets: true, style: "cross" },
+      ],
+      transferred: 1,
+    },
+  },
+  kbr: {
+    label: "KBr ionic bonding",
+    kind: "ionic_bonding",
+    recommendedMaxMarks: 3,
+    template: { atoms: [{ symbol: "K", style: "dot" }, { symbol: "Br", style: "cross" }] },
+    answer: {
+      kind: "ionic_bonding",
+      atoms: [
+        { symbol: "K", shells: [2, 8, 8], charge: 1, brackets: true, style: "dot" },
+        { symbol: "Br", shells: [2, 8, 18, 8], charge: -1, brackets: true, style: "cross" },
+      ],
+      transferred: 1,
+    },
+  },
+  mgo: {
+    label: "MgO ionic bonding",
+    kind: "ionic_bonding",
+    recommendedMaxMarks: 3,
+    template: { atoms: [{ symbol: "Mg", style: "dot" }, { symbol: "O", style: "cross" }] },
+    answer: {
+      kind: "ionic_bonding",
+      atoms: [
+        { symbol: "Mg", shells: [2, 8], charge: 2, brackets: true, style: "dot" },
+        { symbol: "O", shells: [2, 8], charge: -2, brackets: true, style: "cross" },
+      ],
+      transferred: 2,
+    },
+  },
+  cao: {
+    label: "CaO ionic bonding",
+    kind: "ionic_bonding",
+    recommendedMaxMarks: 3,
+    template: { atoms: [{ symbol: "Ca", style: "dot" }, { symbol: "O", style: "cross" }] },
+    answer: {
+      kind: "ionic_bonding",
+      atoms: [
+        { symbol: "Ca", shells: [2, 8, 8], charge: 2, brackets: true, style: "dot" },
+        { symbol: "O", shells: [2, 8], charge: -2, brackets: true, style: "cross" },
+      ],
+      transferred: 2,
+    },
+  },
+  na2o: {
+    label: "Na₂O ionic bonding (2:1)",
+    kind: "ionic_bonding",
+    recommendedMaxMarks: 4,
+    template: {
+      atoms: [
+        { symbol: "Na", style: "dot" },
+        { symbol: "Na", style: "dot" },
+        { symbol: "O", style: "cross" },
+      ],
+    },
+    answer: {
+      kind: "ionic_bonding",
+      ratioMark: true,
+      atoms: [
+        { symbol: "Na", shells: [2, 8], charge: 1, brackets: true, style: "dot" },
+        { symbol: "Na", shells: [2, 8], charge: 1, brackets: true, style: "dot" },
+        { symbol: "O", shells: [2, 8], charge: -2, brackets: true, style: "cross" },
+      ],
+      transferred: 2,
+    },
+  },
+  k2s: {
+    label: "K₂S ionic bonding (2:1)",
+    kind: "ionic_bonding",
+    recommendedMaxMarks: 4,
+    template: {
+      atoms: [
+        { symbol: "K", style: "dot" },
+        { symbol: "K", style: "dot" },
+        { symbol: "S", style: "cross" },
+      ],
+    },
+    answer: {
+      kind: "ionic_bonding",
+      ratioMark: true,
+      atoms: [
+        { symbol: "K", shells: [2, 8, 8], charge: 1, brackets: true, style: "dot" },
+        { symbol: "K", shells: [2, 8, 8], charge: 1, brackets: true, style: "dot" },
+        { symbol: "S", shells: [2, 8, 8], charge: -2, brackets: true, style: "cross" },
+      ],
+      transferred: 2,
+    },
+  },
+  li2o: {
+    label: "Li₂O ionic bonding (2:1)",
+    kind: "ionic_bonding",
+    recommendedMaxMarks: 4,
+    template: {
+      atoms: [
+        { symbol: "Li", style: "dot" },
+        { symbol: "Li", style: "dot" },
+        { symbol: "O", style: "cross" },
+      ],
+    },
+    answer: {
+      kind: "ionic_bonding",
+      ratioMark: true,
+      atoms: [
+        { symbol: "Li", shells: [2], charge: 1, brackets: true, style: "dot" },
+        { symbol: "Li", shells: [2], charge: 1, brackets: true, style: "dot" },
+        { symbol: "O", shells: [2, 8], charge: -2, brackets: true, style: "cross" },
+      ],
+      transferred: 2,
+    },
+  },
+  mgcl2: {
+    label: "MgCl₂ ionic bonding (1:2)",
+    kind: "ionic_bonding",
+    recommendedMaxMarks: 4,
+    template: {
+      atoms: [
+        { symbol: "Mg", style: "dot" },
+        { symbol: "Cl", style: "cross" },
+        { symbol: "Cl", style: "cross" },
+      ],
+    },
+    answer: {
+      kind: "ionic_bonding",
+      ratioMark: true,
+      atoms: [
+        { symbol: "Mg", shells: [2, 8], charge: 2, brackets: true, style: "dot" },
+        { symbol: "Cl", shells: [2, 8, 8], charge: -1, brackets: true, style: "cross" },
+        { symbol: "Cl", shells: [2, 8, 8], charge: -1, brackets: true, style: "cross" },
+      ],
+      transferred: 2,
+    },
+  },
+  cacl2: {
+    label: "CaCl₂ ionic bonding (1:2)",
+    kind: "ionic_bonding",
+    recommendedMaxMarks: 4,
+    template: {
+      atoms: [
+        { symbol: "Ca", style: "dot" },
+        { symbol: "Cl", style: "cross" },
+        { symbol: "Cl", style: "cross" },
+      ],
+    },
+    answer: {
+      kind: "ionic_bonding",
+      ratioMark: true,
+      atoms: [
+        { symbol: "Ca", shells: [2, 8, 8], charge: 2, brackets: true, style: "dot" },
+        { symbol: "Cl", shells: [2, 8, 8], charge: -1, brackets: true, style: "cross" },
+        { symbol: "Cl", shells: [2, 8, 8], charge: -1, brackets: true, style: "cross" },
+      ],
+      transferred: 2,
+    },
+  },
+  nacl_lattice_ball: {
+    label: "NaCl giant ionic lattice (ball-and-stick)",
+    kind: "ionic_lattice",
+    track: "combined",
+    template: { compound: "NaCl", style: "ball_stick", size: 3 },
+    answer: { kind: "ionic_lattice", compound: "NaCl", style: "ball_stick", size: 3 },
+  },
+  nacl_lattice_space: {
+    label: "NaCl giant ionic lattice (space-filling)",
+    kind: "ionic_lattice",
+    track: "combined",
+    template: { compound: "NaCl", style: "space_filling", size: 3 },
+    answer: { kind: "ionic_lattice", compound: "NaCl", style: "space_filling", size: 3 },
+  },
+  nacl_lattice_compare: {
+    label: "NaCl giant ionic lattice (both models)",
+    kind: "ionic_lattice",
+    track: "combined",
+    template: { compound: "NaCl", style: "compare", size: 3 },
+    answer: { kind: "ionic_lattice", compound: "NaCl", style: "compare", size: 3 },
   },
   h2: {
     label: "H₂ covalent",
     kind: "covalent_bonding",
+    recommendedMaxMarks: 2,
     template: {
       atoms: [{ symbol: "H", maxLone: 0 }, { symbol: "H", maxLone: 0 }],
       bonds: [{ a: 0, b: 1, maxPairs: 1 }],
@@ -1403,9 +2023,24 @@ export const CHEMISTRY_PRESETS = {
       bonds: [{ a: 0, b: 1, sharedPairs: 1, maxPairs: 1 }],
     },
   },
+  cl2: {
+    label: "Cl₂ covalent",
+    kind: "covalent_bonding",
+    recommendedMaxMarks: 2,
+    template: {
+      atoms: [{ symbol: "Cl", maxLone: 3 }, { symbol: "Cl", maxLone: 3 }],
+      bonds: [{ a: 0, b: 1, maxPairs: 1 }],
+    },
+    answer: {
+      kind: "covalent_bonding",
+      atoms: [{ symbol: "Cl", lonePairs: 3 }, { symbol: "Cl", lonePairs: 3 }],
+      bonds: [{ a: 0, b: 1, sharedPairs: 1, maxPairs: 1 }],
+    },
+  },
   o2: {
     label: "O₂ covalent (double)",
     kind: "covalent_bonding",
+    recommendedMaxMarks: 2,
     template: {
       atoms: [{ symbol: "O", maxLone: 2 }, { symbol: "O", maxLone: 2 }],
       bonds: [{ a: 0, b: 1, maxPairs: 2 }],
@@ -1414,6 +2049,130 @@ export const CHEMISTRY_PRESETS = {
       kind: "covalent_bonding",
       atoms: [{ symbol: "O", lonePairs: 2 }, { symbol: "O", lonePairs: 2 }],
       bonds: [{ a: 0, b: 1, sharedPairs: 2, maxPairs: 2 }],
+    },
+  },
+  n2: {
+    label: "N₂ covalent (triple)",
+    kind: "covalent_bonding",
+    recommendedMaxMarks: 2,
+    template: {
+      atoms: [{ symbol: "N", maxLone: 1 }, { symbol: "N", maxLone: 1 }],
+      bonds: [{ a: 0, b: 1, maxPairs: 3 }],
+    },
+    answer: {
+      kind: "covalent_bonding",
+      atoms: [{ symbol: "N", lonePairs: 1 }, { symbol: "N", lonePairs: 1 }],
+      bonds: [{ a: 0, b: 1, sharedPairs: 3, maxPairs: 3 }],
+    },
+  },
+  hcl: {
+    label: "HCl covalent",
+    kind: "covalent_bonding",
+    recommendedMaxMarks: 2,
+    template: {
+      atoms: [{ symbol: "H", maxLone: 0 }, { symbol: "Cl", maxLone: 3 }],
+      bonds: [{ a: 0, b: 1, maxPairs: 1 }],
+    },
+    answer: {
+      kind: "covalent_bonding",
+      atoms: [{ symbol: "H", lonePairs: 0 }, { symbol: "Cl", lonePairs: 3 }],
+      bonds: [{ a: 0, b: 1, sharedPairs: 1, maxPairs: 1 }],
+    },
+  },
+  h2o: {
+    label: "H₂O covalent (water)",
+    kind: "covalent_bonding",
+    recommendedMaxMarks: 2,
+    template: {
+      atoms: [
+        { symbol: "O", maxLone: 2 },
+        { symbol: "H", maxLone: 0 },
+        { symbol: "H", maxLone: 0 },
+      ],
+      bonds: [
+        { a: 0, b: 1, maxPairs: 1 },
+        { a: 0, b: 2, maxPairs: 1 },
+      ],
+    },
+    answer: {
+      kind: "covalent_bonding",
+      atoms: [
+        { symbol: "O", lonePairs: 2 },
+        { symbol: "H", lonePairs: 0 },
+        { symbol: "H", lonePairs: 0 },
+      ],
+      bonds: [
+        { a: 0, b: 1, sharedPairs: 1, maxPairs: 1 },
+        { a: 0, b: 2, sharedPairs: 1, maxPairs: 1 },
+      ],
+    },
+  },
+  nh3: {
+    label: "NH₃ covalent (ammonia)",
+    kind: "covalent_bonding",
+    recommendedMaxMarks: 2,
+    template: {
+      atoms: [
+        { symbol: "N", maxLone: 1 },
+        { symbol: "H", maxLone: 0 },
+        { symbol: "H", maxLone: 0 },
+        { symbol: "H", maxLone: 0 },
+      ],
+      bonds: [
+        { a: 0, b: 1, maxPairs: 1 },
+        { a: 0, b: 2, maxPairs: 1 },
+        { a: 0, b: 3, maxPairs: 1 },
+      ],
+    },
+    answer: {
+      kind: "covalent_bonding",
+      atoms: [
+        { symbol: "N", lonePairs: 1 },
+        { symbol: "H", lonePairs: 0 },
+        { symbol: "H", lonePairs: 0 },
+        { symbol: "H", lonePairs: 0 },
+      ],
+      bonds: [
+        { a: 0, b: 1, sharedPairs: 1, maxPairs: 1 },
+        { a: 0, b: 2, sharedPairs: 1, maxPairs: 1 },
+        { a: 0, b: 3, sharedPairs: 1, maxPairs: 1 },
+      ],
+    },
+  },
+  ch4_covalent: {
+    label: "CH₄ covalent (methane)",
+    kind: "covalent_bonding",
+    recommendedMaxMarks: 2,
+    template: {
+      atoms: [
+        { symbol: "C", maxLone: 0 },
+        { symbol: "H", maxLone: 0 },
+        { symbol: "H", maxLone: 0 },
+        { symbol: "H", maxLone: 0 },
+        { symbol: "H", maxLone: 0 },
+      ],
+      bonds: [
+        { a: 0, b: 1, maxPairs: 1 },
+        { a: 0, b: 2, maxPairs: 1 },
+        { a: 0, b: 3, maxPairs: 1 },
+        { a: 0, b: 4, maxPairs: 1 },
+      ],
+    },
+    answer: {
+      kind: "covalent_bonding",
+      atoms: [
+        { symbol: "C", lonePairs: 0 },
+        { symbol: "H", lonePairs: 0 },
+        { symbol: "H", lonePairs: 0 },
+        { symbol: "H", lonePairs: 0 },
+        { symbol: "H", lonePairs: 0 },
+      ],
+      bonds: [
+        { a: 0, b: 1, sharedPairs: 1, maxPairs: 1 },
+        { a: 0, b: 2, sharedPairs: 1, maxPairs: 1 },
+        { a: 0, b: 3, sharedPairs: 1, maxPairs: 1 },
+        { a: 0, b: 4, sharedPairs: 1, maxPairs: 1 },
+      ],
     },
   },
   ethene: {
@@ -1747,6 +2506,28 @@ export function applyChemistryPresetToForm(prefix, presetId) {
   if (!preset) return;
   const kindEl = document.getElementById(`${p}ChemKind`);
   if (kindEl) kindEl.value = preset.kind;
+  if (preset.recommendedMaxMarks) {
+    const maxEl = document.getElementById(p === "edit" ? "editMaxMarks" : "maxMarks");
+    if (maxEl) {
+      const v = String(preset.recommendedMaxMarks);
+      if (![...maxEl.options].some((o) => o.value === v)) {
+        const opt = document.createElement("option");
+        opt.value = v;
+        opt.textContent = Number(v) === 1 ? "1 mark" : `${v} marks`;
+        maxEl.appendChild(opt);
+      }
+      maxEl.value = v;
+    }
+  }
+  if (preset.kind === "ionic_bonding" || preset.kind === "covalent_bonding") {
+    const mode = p === "edit" ? "edit" : "creator";
+    // Defer so ChemKind / maxMarks DOM values are committed
+    setTimeout(() => {
+      if (window.AdminMetadata?.syncBondingDiagramAoAndSkills) {
+        window.AdminMetadata.syncBondingDiagramAoAndSkills(mode);
+      }
+    }, 0);
+  }
   if (preset.kind === "electron_shell") {
     const t = preset.template;
     const a = preset.answer;
@@ -1973,7 +2754,16 @@ export function displayStateFromPresetOrConfig(presetOrConfig) {
     };
   }
   if (kind === "ionic_bonding") {
-    return deepClone({ kind, ...answer });
+    const atoms = ionicAnswerAtoms(answer);
+    return { kind, atoms: deepClone(atoms), transferred: answer.transferred };
+  }
+  if (kind === "ionic_lattice") {
+    return {
+      kind,
+      compound: answer.compound || cfg.template?.compound || "NaCl",
+      style: answer.style || cfg.template?.style || "ball_stick",
+      size: answer.size || cfg.template?.size || 3,
+    };
   }
   if (kind === "covalent_bonding") {
     return deepClone({ kind, ...answer });
@@ -2153,6 +2943,276 @@ function renderPolymerDisplaySvg(state, cfg = {}) {
   </svg>`;
 }
 
+/** Compound ion styles for giant ionic lattice stem diagrams. */
+const IONIC_LATTICE_COMPOUNDS = {
+  NaCl: {
+    // Ball-and-stick: small dark Na⁺, larger pale Cl⁻ (+ key) — compact radii so sticks show
+    // Space-filling: small pale Na⁺, larger dark Cl⁻ with +/- labels
+    cation: { symbol: "Na", charge: "+", rBall: 5, rSpace: 15, fill: "#4b5563", fillAlt: "#c4c9d1" },
+    anion: { symbol: "Cl", charge: "−", rBall: 8, rSpace: 23, fill: "#d1d5db", fillAlt: "#374151" },
+  },
+};
+
+/**
+ * Cube view: clear upright front face; depth recesses behind + left + up
+ * so the left and top faces are also visible. Bottom-front ions are nearest.
+ *
+ * i → right along the front face
+ * j → into the cube (front → back)
+ * k → up (bottom → top)
+ * depth: larger = further (paint first)
+ */
+function cubeLatticePoint(i, j, k, { ox, oy, s }) {
+  const left = s * 0.70; // recess to the left
+  const up = s * 0.45; // recess upward (SVG y decreases)
+  return {
+    x: ox + i * s - j * left,
+    y: oy - k * s - j * up,
+    // Back furthest; within a face, higher ions slightly further so bottom sits in front
+    depth: j * 1000 + k * 20 - i,
+  };
+}
+
+function latticeIonAt(i, j, k, compound) {
+  const isCation = (i + j + k) % 2 === 0;
+  return isCation ? compound.cation : compound.anion;
+}
+
+function latticeIonRadius(site, space) {
+  return space ? site.ion.rSpace : site.ion.rBall;
+}
+
+/** Shorten a centre-to-centre bond so it meets each ion's surface. */
+function shortenBondToSurfaces(a, b, ra, rb) {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const len = Math.hypot(dx, dy);
+  if (len < 1e-6) return null;
+  const ux = dx / len;
+  const uy = dy / len;
+  if (ra + rb >= len - 0.5) return null;
+  return {
+    x1: a.x + ux * ra,
+    y1: a.y + uy * ra,
+    x2: b.x - ux * rb,
+    y2: b.y - uy * rb,
+  };
+}
+
+/**
+ * Clip a line segment against a circle (returns 0–2 visible sub-segments as t in [0,1]).
+ */
+function clipSegmentByCircle(x1, y1, x2, y2, cx, cy, r) {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const fx = x1 - cx;
+  const fy = y1 - cy;
+  const a = dx * dx + dy * dy;
+  const b = 2 * (fx * dx + fy * dy);
+  const c = fx * fx + fy * fy - r * r;
+  const disc = b * b - 4 * a * c;
+  if (a < 1e-12 || disc <= 0) {
+    // No intersection — keep fully if midpoint outside
+    const mx = (x1 + x2) / 2;
+    const my = (y1 + y2) / 2;
+    return (mx - cx) ** 2 + (my - cy) ** 2 >= r * r ? [[0, 1]] : [];
+  }
+  const sqrt = Math.sqrt(disc);
+  let t0 = (-b - sqrt) / (2 * a);
+  let t1 = (-b + sqrt) / (2 * a);
+  if (t0 > t1) [t0, t1] = [t1, t0];
+
+  const parts = [];
+  if (t0 > 0) parts.push([0, Math.min(1, t0)]);
+  if (t1 < 1) parts.push([Math.max(0, t1), 1]);
+  return parts.filter(([u, v]) => v - u > 0.02);
+}
+
+/** Subtract circle hits from a list of [t0,t1] segments. */
+function subtractCircleFromSegments(segs, x1, y1, x2, y2, cx, cy, r) {
+  const next = [];
+  for (const [u, v] of segs) {
+    const sx1 = x1 + (x2 - x1) * u;
+    const sy1 = y1 + (y2 - y1) * u;
+    const sx2 = x1 + (x2 - x1) * v;
+    const sy2 = y1 + (y2 - y1) * v;
+    const kept = clipSegmentByCircle(sx1, sy1, sx2, sy2, cx, cy, r);
+    for (const [a, b] of kept) {
+      // remap local 0–1 back to parent [u,v]
+      next.push([u + (v - u) * a, u + (v - u) * b]);
+    }
+  }
+  return next;
+}
+
+/**
+ * Isometric giant ionic lattice (ball-and-stick / space-filling / side-by-side).
+ * Stem / question diagrams only — not an interactive student widget.
+ */
+export function renderIonicLatticeSvg(state = {}) {
+  const compoundId = state.compound || "NaCl";
+  const compound = IONIC_LATTICE_COMPOUNDS[compoundId] || IONIC_LATTICE_COMPOUNDS.NaCl;
+  const style = state.style || "ball_stick";
+  const size = Math.max(2, Math.min(4, Number(state.size) || 3));
+
+  if (style === "compare") {
+    const left = renderIonicLatticePanel(compound, "ball_stick", size);
+    const right = renderIonicLatticePanel(compound, "space_filling", size);
+    const gap = 36;
+    const w = left.w + gap + right.w;
+    const h = Math.max(left.h, right.h) + 28;
+    return `<svg xmlns="http://www.w3.org/2000/svg" class="chem-svg chem-svg--fluid" viewBox="0 0 ${w} ${h}" width="100%" style="max-width:760px;height:auto;display:block;margin:0 auto;" preserveAspectRatio="xMidYMid meet">
+      <g transform="translate(0,0)">${left.inner}</g>
+      <g transform="translate(${left.w + gap},0)">${right.inner}</g>
+      <text x="${left.w / 2}" y="${h - 8}" text-anchor="middle" fill="#475569" font-size="12">Ball-and-stick</text>
+      <text x="${left.w + gap + right.w / 2}" y="${h - 8}" text-anchor="middle" fill="#475569" font-size="12">Space-filling</text>
+    </svg>`;
+  }
+
+  const panel = renderIonicLatticePanel(compound, style, size);
+  const maxW = style === "ball_stick" ? 520 : 440;
+  return `<svg xmlns="http://www.w3.org/2000/svg" class="chem-svg chem-svg--fluid" viewBox="0 0 ${panel.w} ${panel.h}" width="100%" style="max-width:${maxW}px;height:auto;display:block;margin:0 auto;" preserveAspectRatio="xMidYMid meet">${panel.inner}</svg>`;
+}
+
+function renderIonicLatticePanel(compound, style, size) {
+  const space = style === "space_filling";
+  const showKey = !space;
+
+  const s = space
+    ? compound.cation.rSpace + compound.anion.rSpace - 2
+    : 48;
+  const maxR = space
+    ? Math.max(compound.cation.rSpace, compound.anion.rSpace)
+    : Math.max(compound.cation.rBall, compound.anion.rBall);
+  const keyW = showKey ? 100 : 0;
+  const pad = maxR + 20;
+
+  const corners = [
+    [0, 0, 0], [size - 1, 0, 0], [0, size - 1, 0], [size - 1, size - 1, 0],
+    [0, 0, size - 1], [size - 1, 0, size - 1], [0, size - 1, size - 1], [size - 1, size - 1, size - 1],
+  ].map(([i, j, k]) => cubeLatticePoint(i, j, k, { ox: 0, oy: 0, s }));
+  const minX = Math.min(...corners.map((p) => p.x));
+  const maxX = Math.max(...corners.map((p) => p.x));
+  const minY = Math.min(...corners.map((p) => p.y));
+  const maxY = Math.max(...corners.map((p) => p.y));
+  const ox = pad - minX;
+  const oy = pad - minY;
+  const latticeW = Math.ceil(maxX - minX + pad * 2);
+  const w = latticeW + keyW;
+  const h = Math.ceil(maxY - minY + pad * 2);
+
+  const sites = [];
+  for (let i = 0; i < size; i++) {
+    for (let j = 0; j < size; j++) {
+      for (let k = 0; k < size; k++) {
+        const p = cubeLatticePoint(i, j, k, { ox, oy, s });
+        sites.push({
+          i, j, k, ...p,
+          ion: latticeIonAt(i, j, k, compound),
+          r: 0,
+        });
+      }
+    }
+  }
+  for (const site of sites) site.r = latticeIonRadius(site, space);
+
+  const drawables = [];
+
+  if (!space) {
+    const byKey = new Map(sites.map((site) => [`${site.i},${site.j},${site.k}`, site]));
+    const seen = new Set();
+    for (const site of sites) {
+      for (const [di, dj, dk] of [[1, 0, 0], [0, 1, 0], [0, 0, 1]]) {
+        const ni = site.i + di;
+        const nj = site.j + dj;
+        const nk = site.k + dk;
+        if (ni >= size || nj >= size || nk >= size) continue;
+        // Omit middle-row horizontal sticks on front / middle / back faces (clearer cube)
+        if (di === 1 && dj === 0 && dk === 0 && site.k > 0 && site.k < size - 1) continue;
+        const t = byKey.get(`${ni},${nj},${nk}`);
+        if (!t) continue;
+        const bkey = `${site.i},${site.j},${site.k}-${ni},${nj},${nk}`;
+        if (seen.has(bkey)) continue;
+        seen.add(bkey);
+
+        const shortened = shortenBondToSurfaces(site, t, site.r, t.r);
+        if (!shortened) continue;
+
+        let segs = [[0, 1]];
+        const bondDepth = (site.depth + t.depth) / 2;
+        // Hide bond where a nearer ion overlaps it on screen
+        for (const other of sites) {
+          if (other === site || other === t) continue;
+          if (other.depth >= bondDepth) continue; // further away — cannot occlude
+          segs = subtractCircleFromSegments(
+            segs,
+            shortened.x1, shortened.y1, shortened.x2, shortened.y2,
+            other.x, other.y, other.r + 0.8
+          );
+          if (!segs.length) break;
+        }
+
+        for (const [u, v] of segs) {
+          if (v - u < 0.03) continue;
+          drawables.push({
+            type: "bond",
+            depth: bondDepth,
+            x1: shortened.x1 + (shortened.x2 - shortened.x1) * u,
+            y1: shortened.y1 + (shortened.y2 - shortened.y1) * u,
+            x2: shortened.x1 + (shortened.x2 - shortened.x1) * v,
+            y2: shortened.y1 + (shortened.y2 - shortened.y1) * v,
+          });
+        }
+      }
+    }
+  }
+
+  for (const site of sites) {
+    drawables.push({
+      type: "sphere",
+      depth: site.depth,
+      x: site.x,
+      y: site.y,
+      r: site.r,
+      fill: space ? site.ion.fillAlt : site.ion.fill,
+      charge: site.ion.charge,
+      isAnion: site.ion === compound.anion,
+    });
+  }
+
+  // Furthest first; spheres slightly after bonds at equal depth so ends tuck under ions
+  drawables.sort((a, b) => {
+    if (b.depth !== a.depth) return b.depth - a.depth;
+    if (a.type === b.type) return 0;
+    return a.type === "bond" ? -1 : 1;
+  });
+
+  let inner = "";
+  for (const d of drawables) {
+    if (d.type === "bond") {
+      inner += `<line x1="${d.x1}" y1="${d.y1}" x2="${d.x2}" y2="${d.y2}" stroke="#475569" stroke-width="2" stroke-linecap="round"/>`;
+      continue;
+    }
+    inner += `<circle cx="${d.x}" cy="${d.y}" r="${d.r}" fill="${d.fill}" stroke="#0f172a" stroke-width="1.2"/>`;
+    if (space) {
+      const labelFill = d.isAnion ? "#f8fafc" : "#0f172a";
+      inner += `<text x="${d.x}" y="${d.y + 5}" text-anchor="middle" fill="${labelFill}" font-size="13" font-weight="800">${d.charge}</text>`;
+    }
+  }
+
+  if (showKey) {
+    const kx = latticeW + 12;
+    const ky = Math.max(36, h / 2 - 36);
+    inner += `<text x="${kx}" y="${ky - 18}" fill="#0f172a" font-size="13" font-weight="700">Key</text>`;
+    inner += `<circle cx="${kx + 10}" cy="${ky}" r="${compound.cation.rBall}" fill="${compound.cation.fill}" stroke="#0f172a" stroke-width="1"/>`;
+    inner += `<text x="${kx + 28}" y="${ky + 4}" fill="#0f172a" font-size="13" font-weight="600">${escapeHtml(compound.cation.symbol)}⁺</text>`;
+    inner += `<circle cx="${kx + 10}" cy="${ky + 40}" r="${compound.anion.rBall}" fill="${compound.anion.fill}" stroke="#0f172a" stroke-width="1"/>`;
+    inner += `<text x="${kx + 28}" y="${ky + 44}" fill="#0f172a" font-size="13" font-weight="600">${escapeHtml(compound.anion.symbol)}⁻</text>`;
+  }
+
+  return { w, h, inner };
+}
+
 /**
  * Render a complete stem diagram as an SVG element string (filled answer, not blank interactive).
  */
@@ -2191,30 +3251,25 @@ export function renderStemDiagramSvg(presetIdOrConfig) {
     </svg>`;
   }
   if (state.kind === "ionic_bonding") {
-    const w = 560;
-    const h = 320;
-    return `<svg xmlns="http://www.w3.org/2000/svg" class="chem-svg" viewBox="0 0 ${w} ${h}" width="100%" style="max-width:520px;display:block;margin:0 auto;">
-      ${renderAtomSvg({
-        cx: 140, cy: 160,
-        symbol: state.left.symbol,
-        shells: state.left.shells,
-        charge: state.left.charge,
-        interactive: false,
-        brackets: true,
-        atomId: "stem-l",
-        maxShells: Math.max(state.left.shells.length, 1),
-      })}
-      ${renderAtomSvg({
-        cx: 400, cy: 160,
-        symbol: state.right.symbol,
-        shells: state.right.shells,
-        charge: state.right.charge,
-        interactive: false,
-        brackets: true,
-        atomId: "stem-r",
-        maxShells: Math.max(state.right.shells.length, 1),
-      })}
-    </svg>`;
+    const ions = ionicStateAtoms(state);
+    const { w, h, positions, baseR, gap } = layoutIonicAtoms(ions);
+    const ionSvgs = ions.map((ion, i) => renderIonicDotCrossAtomSvg({
+      cx: positions[i].x,
+      cy: positions[i].y,
+      symbol: ion.symbol,
+      shells: ion.shells,
+      style: ion.style || (i % 2 === 0 ? "dot" : "cross"),
+      brackets: ion.brackets !== false,
+      charge: ion.charge,
+      interactive: false,
+      atomIdx: i,
+      baseR,
+      gap,
+    })).join("");
+    return `<svg xmlns="http://www.w3.org/2000/svg" class="chem-svg chem-svg--fluid" viewBox="0 0 ${w} ${h}" width="100%" style="display:block;margin:0 auto;" preserveAspectRatio="xMidYMid meet">${ionSvgs}</svg>`;
+  }
+  if (state.kind === "ionic_lattice") {
+    return renderIonicLatticeSvg(state);
   }
   if (state.kind === "covalent_bonding") {
     const wrap = renderCovalentDiagram(state, { interactive: false });
@@ -2300,6 +3355,13 @@ export function stemPreviewHtml(presetIdOrConfig) {
     } else {
       caption = `<p class="muted" style="margin:6px 0 0;font-size:0.75rem;text-align:center;">${escapeHtml(state.symbol)} · shells [${escapeHtml(shells)}]</p>`;
     }
+  } else if (state?.kind === "ionic_lattice") {
+    const styleLabel = state.style === "space_filling"
+      ? "space-filling"
+      : state.style === "compare"
+        ? "ball-and-stick + space-filling"
+        : "ball-and-stick";
+    caption = `<p class="muted" style="margin:6px 0 0;font-size:0.75rem;text-align:center;">${escapeHtml(state.compound || "NaCl")} giant ionic lattice · ${styleLabel}</p>`;
   }
   return `<div class="chem-stem-preview">${svg}${caption}</div>`;
 }

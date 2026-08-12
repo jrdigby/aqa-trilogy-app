@@ -95,3 +95,15 @@ test("pipe-only expressions remain backward compatible", () => {
   const words = "resists motion".replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "").split(/\s+/);
   assert.equal(checkKeywordOrSynonymsMatch("opposes|resists", words, "resists motion"), true);
 });
+
+test("electron structure — accepts comma and spaced variants exactly", async () => {
+  const q = { question_type: "short_text", max_marks: 1, ao1_marks: 1, ao2_marks: 0, ao3_marks: 0 };
+  const key = { key_type: "keywords", key_payload: { required: ["2,8,1"], optional: [], min_optional: 0 } };
+
+  assert.equal((await markResponse(q, { text: "2,8,1" }, key, [])).total, 1);
+  assert.equal((await markResponse(q, { text: "2, 8, 1" }, key, [])).total, 1);
+  assert.equal((await markResponse(q, { text: "2 8 1" }, key, [])).total, 1);
+  assert.equal((await markResponse(q, { text: "2.8.1" }, key, [])).total, 1);
+  assert.equal((await markResponse(q, { text: "2,8" }, key, [])).total, 0);
+  assert.equal((await markResponse(q, { text: "2,8,8,1" }, key, [])).total, 0);
+});
