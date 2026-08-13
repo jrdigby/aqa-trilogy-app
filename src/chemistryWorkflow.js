@@ -1,6 +1,7 @@
 /**
  * Chemistry interactive workflows — custom SVG (shells, bonding, organic, polymers)
- * and coefficient-based equation balancing. Structured JSON answers for deterministic marking.
+ * and equation balancing (coefficients, optional case-sensitive formulas, state symbols).
+ * Structured JSON answers for deterministic marking.
  */
 
 import { triggerMathTypeset } from "./mathEngine.js";
@@ -117,6 +118,98 @@ function escapeHtml(s) {
 
 function deepClone(v) {
   return JSON.parse(JSON.stringify(v));
+}
+
+const STATE_SYMBOLS = ["s", "l", "g", "aq"];
+const STATE_SUFFIX_RE = /^(.*)\((s|l|g|aq)\)$/i;
+
+/** Parse one authoring token such as `H2(g):left` or `?NaCl(aq):left`. */
+export function parseEquationSpeciesToken(raw) {
+  const part = String(raw || "").trim();
+  if (!part) return null;
+  const pieces = part.split(":");
+  let side = "left";
+  let formulaPart = part;
+  if (pieces.length >= 2) {
+    const last = pieces[pieces.length - 1].trim().toLowerCase();
+    if (last === "left" || last === "right") {
+      side = last;
+      formulaPart = pieces.slice(0, -1).join(":").trim();
+    }
+  }
+  let studentEntersFormula = false;
+  if (formulaPart.startsWith("?")) {
+    studentEntersFormula = true;
+    formulaPart = formulaPart.slice(1).trim();
+  }
+  let state = "";
+  const stateMatch = formulaPart.match(STATE_SUFFIX_RE);
+  if (stateMatch) {
+    formulaPart = stateMatch[1].trim();
+    state = stateMatch[2].toLowerCase();
+  }
+  if (!formulaPart) return null;
+  const species = { formula: formulaPart, side };
+  if (state) species.state = state;
+  if (studentEntersFormula) species.studentEntersFormula = true;
+  return species;
+}
+
+export function parseEquationSpeciesList(raw) {
+  return String(raw || "")
+    .split(",")
+    .map((part) => parseEquationSpeciesToken(part))
+    .filter(Boolean);
+}
+
+export function formatEquationSpeciesToken(sp) {
+  if (!sp?.formula) return "";
+  const prefix = sp.studentEntersFormula ? "?" : "";
+  const state = sp.state ? `(${sp.state})` : "";
+  return `${prefix}${sp.formula}${state}:${sp.side || "left"}`;
+}
+
+export function formatEquationSpeciesList(species) {
+  return (species || []).map(formatEquationSpeciesToken).filter(Boolean).join(", ");
+}
+
+export function equationRequiresStates(species) {
+  return (species || []).some((sp) => STATE_SYMBOLS.includes(String(sp?.state || "")));
+}
+
+export function equationHasStudentFormulas(species) {
+  return (species || []).some((sp) => sp?.studentEntersFormula);
+}
+
+function formatBalanceCaption(answer, cfg) {
+  const species = answer?.species || cfg?.template?.species || [];
+  const coeffs = answer?.coeffs || [];
+  if (!species.length) {
+    return Array.isArray(coeffs) ? `Coefficients: [${coeffs.join(", ")}]` : "";
+  }
+  const parts = [];
+  species.forEach((sp, i) => {
+    if (i > 0 && sp.side !== species[i - 1].side) parts.push("→");
+    else if (i > 0) parts.push("+");
+    const c = Number(coeffs[i]);
+    const coeffLabel = Number.isFinite(c) && c > 1 ? String(c) : "";
+    const st = sp.state ? `(${sp.state})` : "";
+    parts.push(`${coeffLabel}${sp.formula}${st}`);
+  });
+  return parts.join(" ");
+}
+
+function renderStateSelect(value, attr, extra = false) {
+  const selected = String(value || "");
+  const cls = extra ? "chem-state-select chem-extra-state" : "chem-state-select";
+  const options = [
+    ["", "—"],
+    ["s", "(s)"],
+    ["l", "(l)"],
+    ["g", "(g)"],
+    ["aq", "(aq)"],
+  ].map(([v, lab]) => `<option value="${v}"${selected === v ? " selected" : ""}>${lab}</option>`).join("");
+  return `<select class="${cls}" ${attr} aria-label="State symbol">${options}</select>`;
 }
 
 // ─── Electron positions on a shell ──────────────────────────────────────────
@@ -371,7 +464,7 @@ export function renderChemistryModelAnswerHtml(answer, opts = {}) {
     const stateLabel = particleModelStateLabel(answer.state || answer.phase);
     caption = stateLabel ? `Particle model — ${stateLabel}` : "Particle model";
   } else if (kind === "balance_equation" && Array.isArray(answer.coeffs)) {
-    caption = `Coefficients: [${answer.coeffs.join(", ")}]`;
+    caption = formatBalanceCaption(answer, { template: opts.template || {} });
   } else if (kind === "covalent_bonding") {
     const wrap = renderCovalentDiagram({
       kind: "covalent_bonding",
@@ -490,6 +583,8 @@ export function initialStateForConfig(cfg) {
       kind,
       subtype: cfg.template?.subtype || "symbol",
       coeffs: species.map(() => 1),
+      formulas: species.map(() => ""),
+      states: species.map(() => ""),
       extraSpecies: [],
     };
   }
@@ -1345,6 +1440,7 @@ function renderPolymerDiagram(state, cfg) {
 function renderBalanceEquation(state, cfg) {
   const species = cfg.template?.species || [];
   const arrow = cfg.template?.arrow || "->";
+  const requireStates = equationRequiresStates(species);
   const parts = [];
   species.forEach((sp, i) => {
     if (i > 0 && sp.side !== species[i - 1].side) {
@@ -1352,10 +1448,17 @@ function renderBalanceEquation(state, cfg) {
     } else if (i > 0) {
       parts.push(`<span class="chem-eq-plus"> + </span>`);
     }
+    const formulaHtml = sp.studentEntersFormula
+      ? `<input type="text" class="chem-formula-input" data-formula-idx="${i}" value="${escapeHtml(state.formulas?.[i] || "")}" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Chemical formula" />`
+      : `<span class="chem-species">$\\ce{${sp.formula}}$</span>`;
+    const stateHtml = requireStates
+      ? renderStateSelect(state.states?.[i] || "", `data-state-idx="${i}"`)
+      : "";
     parts.push(`
       <span class="chem-eq-term">
         <input type="number" min="0" max="99" class="chem-coeff" data-coeff-idx="${i}" value="${state.coeffs?.[i] ?? 1}" />
-        <span class="chem-species">$\\ce{${sp.formula}}$</span>
+        ${formulaHtml}
+        ${stateHtml}
       </span>`);
   });
 
@@ -1372,6 +1475,7 @@ function renderBalanceEquation(state, cfg) {
           <span class="chem-eq-term">
             <input type="number" min="0" max="99" class="chem-extra-coeff" data-extra-idx="${i}" value="${ex.coeff ?? 1}"/>
             <span>$\\ce{${ex.formula}}$</span>
+            ${requireStates ? renderStateSelect(ex.state || "", `data-extra-state-idx="${i}"`, true) : ""}
             <select class="chem-extra-side" data-extra-idx="${i}">
               <option value="left" ${ex.side === "left" ? "selected" : ""}>reactant</option>
               <option value="right" ${ex.side === "right" ? "selected" : ""}>product</option>
@@ -1809,6 +1913,7 @@ export function wireChemistryWorkflow(q = null) {
           formula: tokenBtn.getAttribute("data-chem-token"),
           coeff: 1,
           side: "left",
+          state: "",
         });
         writeState(state);
         refreshDiagram();
@@ -1870,6 +1975,19 @@ export function wireChemistryWorkflow(q = null) {
       const i = Number(t.getAttribute("data-extra-idx"));
       if (state.extraSpecies[i]) state.extraSpecies[i].side = t.value;
       writeState(state);
+      return;
+    }
+    if (t.classList?.contains("chem-state-select") && t.hasAttribute("data-state-idx")) {
+      const i = Number(t.getAttribute("data-state-idx"));
+      state.states = state.states || [];
+      state.states[i] = t.value || "";
+      writeState(state);
+      return;
+    }
+    if (t.classList?.contains("chem-extra-state")) {
+      const i = Number(t.getAttribute("data-extra-state-idx"));
+      if (state.extraSpecies[i]) state.extraSpecies[i].state = t.value || "";
+      writeState(state);
     }
   });
 
@@ -1892,6 +2010,11 @@ export function wireChemistryWorkflow(q = null) {
     } else if (t.classList?.contains("chem-extra-coeff")) {
       const i = Number(t.getAttribute("data-extra-idx"));
       if (state.extraSpecies?.[i]) state.extraSpecies[i].coeff = Number(t.value) || 0;
+      writeState(state);
+    } else if (t.classList?.contains("chem-formula-input")) {
+      const i = Number(t.getAttribute("data-formula-idx"));
+      state.formulas = state.formulas || [];
+      state.formulas[i] = t.value;
       writeState(state);
     }
   });
@@ -2126,16 +2249,75 @@ function markPolymer(resp, answer) {
   return { correct: repOk && linkOk, detail: repOk && linkOk ? "Polymer repeat unit correct" : "Incorrect repeat unit or linkage" };
 }
 
-function markBalance(resp, answer) {
+function markBalance(resp, answer, cfg = null) {
+  const species = answer.species || cfg?.template?.species || [];
   const student = normalizeCoeffs(resp.coeffs || []);
   const target = normalizeCoeffs(answer.coeffs || []);
   const coeffsOk = arraysEqual(student, target);
+  const extrasNeedStates = (answer.extraSpecies || []).some((x) => STATE_SYMBOLS.includes(String(x?.state || "")));
   let extrasOk = true;
   if (Array.isArray(answer.extraSpecies) && answer.extraSpecies.length) {
-    const norm = (list) => list.map((x) => `${x.side}:${x.formula}:${normalizeCoeffs([x.coeff])[0]}`).sort().join("|");
+    const norm = (list) => list.map((x) => {
+      const base = `${x.side}:${x.formula}:${normalizeCoeffs([x.coeff])[0]}`;
+      return extrasNeedStates ? `${base}:${x.state || ""}` : base;
+    }).sort().join("|");
     extrasOk = norm(resp.extraSpecies || []) === norm(answer.extraSpecies || []);
   }
-  return { correct: coeffsOk && extrasOk, detail: coeffsOk && extrasOk ? "Equation balanced" : "Coefficients (or species) not balanced" };
+
+  const formulaSpecies = species.filter((sp) => sp.studentEntersFormula);
+  const formulasInPlay = formulaSpecies.length > 0;
+  const formulasOk = !formulasInPlay || formulaSpecies.every((sp) => {
+    const idx = species.indexOf(sp);
+    return String(resp.formulas?.[idx] ?? "").trim() === sp.formula;
+  });
+
+  const statesInPlay = equationRequiresStates(species);
+  const statesOk = !statesInPlay || species.every((sp, i) => {
+    if (!STATE_SYMBOLS.includes(String(sp.state || ""))) return true;
+    return String(resp.states?.[i] || "") === sp.state;
+  });
+
+  const points = [
+    {
+      id: "coeffs",
+      label: "Coefficients",
+      marks: 1,
+      correct: coeffsOk && extrasOk,
+      feedback: coeffsOk && extrasOk ? null : "Coefficients (or extra species) not balanced",
+    },
+  ];
+  if (formulasInPlay) {
+    points.push({
+      id: "formulas",
+      label: "Chemical formulas",
+      marks: 1,
+      correct: formulasOk,
+      feedback: formulasOk ? null : "Check chemical formula case (Co is cobalt, CO is carbon monoxide).",
+    });
+  }
+  if (statesInPlay) {
+    points.push({
+      id: "states",
+      label: "State symbols",
+      marks: 1,
+      correct: statesOk,
+      feedback: statesOk ? null : "State symbols must be lowercase (s), (l), (g), (aq).",
+    });
+  }
+
+  const earned = points.filter((p) => p.correct).reduce((s, p) => s + p.marks, 0);
+  const available = points.reduce((s, p) => s + p.marks, 0);
+  const allOk = earned === available && available > 0;
+  const detail = allOk
+    ? "Equation balanced"
+    : points.filter((p) => !p.correct).map((p) => p.feedback || p.label).join(" ");
+  return {
+    correct: allOk,
+    earned,
+    available,
+    points,
+    detail,
+  };
 }
 
 export function markChemistryResponse(q, resp, key, markPoints, cleanUrl) {
@@ -2166,14 +2348,25 @@ export function markChemistryResponse(q, resp, key, markPoints, cleanUrl) {
   } else if (kind === "molecule_builder") {
     result = markMoleculeBuilder(resp, answer);
   } else if (kind === "balance_equation") {
-    const r = markBalance(resp, answer);
-    result = { ...r, earned: r.correct ? 1 : 0, available: 1, points: [{ id: "balance", label: "Coefficients", marks: 1, correct: r.correct }] };
+    result = markBalance(resp, answer, cfg);
   }
 
   // Multi-point kinds: award up to q.max_marks using scheme points in order
   let total;
   let appliedPoints = result.points || [];
-  if ((kind === "ionic_bonding" || kind === "covalent_bonding" || kind === "molecule_builder") && appliedPoints.length) {
+  if (kind === "balance_equation" && appliedPoints.length) {
+    if (max <= 1) {
+      total = appliedPoints.every((p) => p.correct) ? max : 0;
+    } else {
+      let remaining = max;
+      appliedPoints = appliedPoints.map((p) => {
+        const take = Math.min(p.marks, remaining);
+        remaining -= take;
+        return { ...p, marks: take, active: take > 0 };
+      }).filter((p) => p.active);
+      total = appliedPoints.filter((p) => p.correct).reduce((s, p) => s + p.marks, 0);
+    }
+  } else if ((kind === "ionic_bonding" || kind === "covalent_bonding" || kind === "molecule_builder") && appliedPoints.length) {
     // If teacher set fewer marks than the full scheme, keep highest-priority points only
     let remaining = max;
     appliedPoints = appliedPoints.map((p) => {
@@ -2916,6 +3109,54 @@ export const CHEMISTRY_PRESETS = {
     },
     answer: { kind: "balance_equation", coeffs: [2, 1, 2], extraSpecies: [] },
   },
+  water_balance_states: {
+    label: "Balance H₂(g) + O₂(g) → H₂O(l)",
+    kind: "balance_equation",
+    recommendedMaxMarks: 2,
+    template: {
+      subtype: "symbol",
+      arrow: "->",
+      species: [
+        { formula: "H2", side: "left", state: "g" },
+        { formula: "O2", side: "left", state: "g" },
+        { formula: "H2O", side: "right", state: "l" },
+      ],
+    },
+    answer: {
+      kind: "balance_equation",
+      coeffs: [2, 1, 2],
+      extraSpecies: [],
+      species: [
+        { formula: "H2", side: "left", state: "g" },
+        { formula: "O2", side: "left", state: "g" },
+        { formula: "H2O", side: "right", state: "l" },
+      ],
+    },
+  },
+  nacl_aq_formula: {
+    label: "Complete Na⁺ + Cl⁻ → NaCl(aq)",
+    kind: "balance_equation",
+    recommendedMaxMarks: 3,
+    template: {
+      subtype: "ionic",
+      arrow: "->",
+      species: [
+        { formula: "Na^{+}", side: "left", state: "aq" },
+        { formula: "Cl^{-}", side: "left", state: "aq" },
+        { formula: "NaCl", side: "right", state: "aq", studentEntersFormula: true },
+      ],
+    },
+    answer: {
+      kind: "balance_equation",
+      coeffs: [1, 1, 1],
+      extraSpecies: [],
+      species: [
+        { formula: "Na^{+}", side: "left", state: "aq" },
+        { formula: "Cl^{-}", side: "left", state: "aq" },
+        { formula: "NaCl", side: "right", state: "aq", studentEntersFormula: true },
+      ],
+    },
+  },
   half_cu: {
     label: "Half-equation Cu²⁺ + e⁻ → Cu",
     kind: "balance_equation",
@@ -2974,15 +3215,12 @@ export function buildChemistryConfigFromForm(prefix = "") {
     const raw = document.getElementById(`${p}ChemEqSpecies`)?.value || "H2:left, O2:left, H2O:right";
     const coeffsRaw = document.getElementById(`${p}ChemEqCoeffs`)?.value || "2,1,2";
     const subtype = document.getElementById(`${p}ChemEqSubtype`)?.value || "symbol";
-    const species = raw.split(",").map((part) => {
-      const [formula, side] = part.trim().split(":").map((x) => x.trim());
-      return { formula, side: side || "left" };
-    }).filter((s) => s.formula);
+    const species = parseEquationSpeciesList(raw);
     const coeffs = coeffsRaw.split(",").map((c) => Number(c.trim()) || 0);
     return {
       kind,
       template: { subtype, arrow: "->", species, allowedTokens: ["e-", "H+", "H2O", "OH-"] },
-      answer: { kind, coeffs, extraSpecies: [] },
+      answer: { kind, coeffs, extraSpecies: [], species: deepClone(species) },
     };
   }
 
@@ -3062,7 +3300,7 @@ export function applyChemistryPresetToForm(prefix, presetId) {
     const a = preset.answer;
     const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
     set(`${p}ChemEqSubtype`, t.subtype || "symbol");
-    set(`${p}ChemEqSpecies`, (t.species || []).map((s) => `${s.formula}:${s.side}`).join(", "));
+    set(`${p}ChemEqSpecies`, formatEquationSpeciesList(t.species || a.species || []));
     set(`${p}ChemEqCoeffs`, (a.coeffs || []).join(","));
   }
 }

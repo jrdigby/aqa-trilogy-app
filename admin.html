@@ -2484,7 +2484,12 @@
                 </div>
               </div>
               <label style="margin-top:8px;">Species (formula:side, comma-separated)</label>
-              <input type="text" id="ChemEqSpecies" placeholder="H2:left, O2:left, H2O:right" value="H2:left, O2:left, H2O:right" style="width:100%;" />
+              <input type="text" id="ChemEqSpecies" placeholder="H2(g):left, O2(g):left, H2O(l):right" value="H2:left, O2:left, H2O:right" style="width:100%;" />
+              <p class="muted" style="font-size:0.75rem;margin:4px 0 0;line-height:1.4;">
+                <code>H2:left</code> shows the formula (coefficients only).
+                <code>H2(g):left</code> adds a state-symbol dropdown — use <code>(s)</code> <code>(l)</code> <code>(g)</code> <code>(aq)</code> on every species.
+                Prefix <code>?</code> for a blank case-sensitive formula box, e.g. <code>?NaCl(aq):right</code>.
+              </p>
             </div>
             <p id="chemPresetHint" class="muted" style="font-size: 0.78rem;">
               Use a preset, or set custom protons/electrons/neutrons (shells auto-fill) or custom organic carbons/family.
@@ -3877,6 +3882,10 @@
             </div>
             <label style="margin-top:8px;">Species</label>
             <input type="text" id="editChemEqSpecies" style="width:100%;" />
+            <p class="muted" style="font-size:0.75rem;margin:4px 0 0;line-height:1.4;">
+              <code>H2(g):left</code> = shown formula + state dropdown.
+              <code>?NaCl(aq):right</code> = student types <code>NaCl</code> (case-sensitive) and picks <code>(aq)</code>.
+            </p>
           </div>
           <p id="editChemSummary" class="muted" style="font-size:0.78rem;margin-top:10px;"></p>
         </div>
@@ -10759,7 +10768,9 @@
           const a = cfg.answer || keyData?.key_payload || {};
           const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v ?? ""; };
           set("editChemEqSubtype", t.subtype || "symbol");
-          set("editChemEqSpecies", (t.species || []).map((s) => `${s.formula}:${s.side}`).join(", "));
+          set("editChemEqSpecies", (window.ChemWorkflow?.formatEquationSpeciesList
+            ? window.ChemWorkflow.formatEquationSpeciesList(t.species || a.species || [])
+            : (t.species || []).map((s) => `${s.studentEntersFormula ? "?" : ""}${s.formula}${s.state ? `(${s.state})` : ""}:${s.side}`).join(", ")));
           set("editChemEqCoeffs", (a.coeffs || []).join(","));
         }
         const shellF = document.getElementById("editChemShellFields");

@@ -22,6 +22,9 @@ import {
   normalizeMoleculeGraph,
   renderMetallicBondingSvg,
   renderParticleModelSvg,
+  parseEquationSpeciesToken,
+  parseEquationSpeciesList,
+  formatEquationSpeciesList,
 } from "../src/chemistryWorkflow.js";
 
 describe("chemistry shells helpers", () => {
@@ -569,5 +572,196 @@ describe("molecule builder", () => {
     assert.match(svg, />N</);
     assert.match(svg, />H</);
     assert.match(svg, /<line /);
+  });
+});
+
+describe("equation species authoring", () => {
+  it("parses ?NaCl(aq):left as a student-entered formula with state", () => {
+    assert.deepEqual(parseEquationSpeciesToken("?NaCl(aq):left"), {
+      formula: "NaCl",
+      side: "left",
+      state: "aq",
+      studentEntersFormula: true,
+    });
+  });
+
+  it("parses H2(g):left as a pre-filled formula with state", () => {
+    assert.deepEqual(parseEquationSpeciesToken("H2(g):left"), {
+      formula: "H2",
+      side: "left",
+      state: "g",
+    });
+  });
+
+  it("parses legacy H2:left without state", () => {
+    assert.deepEqual(parseEquationSpeciesToken("H2:left"), {
+      formula: "H2",
+      side: "left",
+    });
+  });
+
+  it("round-trips a mixed species list", () => {
+    const raw = "H2(g):left, ?NaCl(aq):right";
+    const parsed = parseEquationSpeciesList(raw);
+    assert.equal(formatEquationSpeciesList(parsed), raw);
+  });
+});
+
+describe("balance equation formulas and states", () => {
+  it("still marks water_balance equivalent multiples with no states", () => {
+    const preset = CHEMISTRY_PRESETS.water_balance;
+    const q = {
+      question_type: "chemistry_interactive",
+      max_marks: 1,
+      chemistry_config: { kind: preset.kind, template: preset.template },
+    };
+    const key = { key_type: "chemistry", key_payload: preset.answer };
+    const resp = { kind: "balance_equation", coeffs: [4, 2, 4] };
+    assert.equal(markChemistryResponse(q, resp, key, [], null).total, 1);
+  });
+
+  it("awards full marks for correct lowercase states and coeffs", () => {
+    const preset = CHEMISTRY_PRESETS.water_balance_states;
+    const q = {
+      question_type: "chemistry_interactive",
+      max_marks: 2,
+      chemistry_config: { kind: preset.kind, template: preset.template, answer: preset.answer },
+    };
+    const key = { key_type: "chemistry", key_payload: preset.answer };
+    const resp = {
+      kind: "balance_equation",
+      coeffs: [2, 1, 2],
+      states: ["g", "g", "l"],
+    };
+    const result = markChemistryResponse(q, resp, key, [], null);
+    assert.equal(result.total, 2);
+    assert.equal(result.quality, 5);
+  });
+
+  it("loses the state mark when a state is blank or wrong case", () => {
+    const preset = CHEMISTRY_PRESETS.water_balance_states;
+    const q = {
+      question_type: "chemistry_interactive",
+      max_marks: 2,
+      chemistry_config: { kind: preset.kind, template: preset.template, answer: preset.answer },
+    };
+    const key = { key_type: "chemistry", key_payload: preset.answer };
+    const blank = markChemistryResponse(
+      q,
+      { kind: "balance_equation", coeffs: [2, 1, 2], states: ["g", "g", ""] },
+      key,
+      [],
+      null
+    );
+    assert.equal(blank.total, 1);
+    const wrongCase = markChemistryResponse(
+      q,
+      { kind: "balance_equation", coeffs: [2, 1, 2], states: ["g", "g", "L"] },
+      key,
+      [],
+      null
+    );
+    assert.equal(wrongCase.total, 1);
+    assert.match(wrongCase.feedbackPayload.chemistry.detail, /State symbols must be lowercase/);
+  });
+
+  it("requires all dimensions on a 1-mark states question", () => {
+    const preset = CHEMISTRY_PRESETS.water_balance_states;
+    const q = {
+      question_type: "chemistry_interactive",
+      max_marks: 1,
+      chemistry_config: { kind: preset.kind, template: preset.template, answer: preset.answer },
+    };
+    const key = { key_type: "chemistry", key_payload: preset.answer };
+    const result = markChemistryResponse(
+      q,
+      { kind: "balance_equation", coeffs: [2, 1, 2], states: ["g", "g", ""] },
+      key,
+      [],
+      null
+    );
+    assert.equal(result.total, 0);
+  });
+
+  it("accepts exact-case NaCl and rejects nacl / NACL", () => {
+    const preset = CHEMISTRY_PRESETS.nacl_aq_formula;
+    const q = {
+      question_type: "chemistry_interactive",
+      max_marks: 3,
+      chemistry_config: { kind: preset.kind, template: preset.template, answer: preset.answer },
+    };
+    const key = { key_type: "chemistry", key_payload: preset.answer };
+    const ok = markChemistryResponse(
+      q,
+      { kind: "balance_equation", coeffs: [1, 1, 1], formulas: ["", "", "NaCl"], states: ["aq", "aq", "aq"] },
+      key,
+      [],
+      null
+    );
+    assert.equal(ok.total, 3);
+    assert.equal(
+      markChemistryResponse(
+        q,
+        { kind: "balance_equation", coeffs: [1, 1, 1], formulas: ["", "", "nacl"], states: ["aq", "aq", "aq"] },
+        key,
+        [],
+        null
+      ).total,
+      2
+    );
+    assert.equal(
+      markChemistryResponse(
+        q,
+        { kind: "balance_equation", coeffs: [1, 1, 1], formulas: ["", "", "NACL"], states: ["aq", "aq", "aq"] },
+        key,
+        [],
+        null
+      ).total,
+      2
+    );
+  });
+
+  it("does not treat Co as a match for CO", () => {
+    const species = [
+      { formula: "C", side: "left", state: "s" },
+      { formula: "O2", side: "left", state: "g" },
+      { formula: "CO", side: "right", state: "g", studentEntersFormula: true },
+    ];
+    const q = {
+      question_type: "chemistry_interactive",
+      max_marks: 3,
+      chemistry_config: {
+        kind: "balance_equation",
+        template: { subtype: "symbol", species },
+        answer: { kind: "balance_equation", coeffs: [2, 1, 2], species },
+      },
+    };
+    const key = { key_type: "chemistry", key_payload: q.chemistry_config.answer };
+    assert.equal(
+      markChemistryResponse(
+        q,
+        { kind: "balance_equation", coeffs: [2, 1, 2], formulas: ["", "", "CO"], states: ["s", "g", "g"] },
+        key,
+        [],
+        null
+      ).total,
+      3
+    );
+    const co = markChemistryResponse(
+      q,
+      { kind: "balance_equation", coeffs: [2, 1, 2], formulas: ["", "", "Co"], states: ["s", "g", "g"] },
+      key,
+      [],
+      null
+    );
+    assert.equal(co.total, 2);
+    assert.match(co.feedbackPayload.chemistry.detail, /formula case/);
+  });
+
+  it("shows formulas and states on the model-answer caption", () => {
+    const preset = CHEMISTRY_PRESETS.water_balance_states;
+    const html = renderChemistryModelAnswerHtml(preset.answer, { template: preset.template });
+    assert.match(html, /2H2\(g\)/);
+    assert.match(html, /H2O\(l\)/);
   });
 });
