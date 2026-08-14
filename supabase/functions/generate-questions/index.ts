@@ -5,7 +5,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type"
 };
 
-const MAX_QUESTIONS = 12;
+const MAX_QUESTIONS = 20;
 const GEMINI_CALL_TIMEOUT_MS = 50_000;
 const FUNCTION_BUDGET_MS = 130_000;
 const SPEC_TEXT_MAX_CHARS = 1200;
@@ -67,6 +67,12 @@ function recipeMaxMarks(recipe) {
   return 1;
 }
 
+function isRecallShortTextRecipe(recipe) {
+  return recipe?.question_type === "short_text"
+    && Number(recipe?.max_marks) === 1
+    && recipe?.demand_level === "standard_45";
+}
+
 const MCQ_FOCUS_ANGLES = [
   "Core recall — key term, symbol, unit, or single fact from the spec.",
   "Applied scenario — short unfamiliar context; student applies knowledge.",
@@ -81,6 +87,14 @@ const SHORT_TEXT_FOCUS_ANGLES = [
   "Compare or link — relationship between two spec ideas.",
   "Apply — short novel context requiring spec knowledge in an answer.",
   "Evaluate evidence — use a described observation to justify a conclusion."
+];
+
+const RECALL_SHORT_TEXT_FOCUS_ANGLES = [
+  "State — key term, symbol, unit, or single fact from the spec.",
+  "Name — identify a substance, structure, particle, or piece of apparatus.",
+  "Give — provide one quantity, value, formula, or property from the spec.",
+  "Define — one-sentence definition of a spec term.",
+  "Identify — recognise a labelled part, variable, hazard symbol, or classification."
 ];
 
 const EXTENDED_FOCUS_ANGLES = [
@@ -162,6 +176,9 @@ function isNearDuplicateQuestion(candidate, priorSameType) {
 }
 
 const FILLER_PATTERN = /check the specification point carefully|distractor \d/i;
+const OPEN_ENDED_COMMANDS = new Set([
+  "explain", "describe", "suggest", "compare", "evaluate", "justify", "discuss", "analyse", "analyze"
+]);
 
 function optionDistinctness(options = [], correct = "") {
   const trimmed = options.map((o) => String(o || "").trim()).filter(Boolean);
@@ -188,6 +205,25 @@ function countScientificPointsForGate(raw) {
   return 0;
 }
 
+function passesRecallShortTextGate(question, recipe) {
+  const prompt = String(question?.prompt || "").trim();
+  const commandWord = String(question?.command_word || "").toLowerCase().trim();
+  const markPoints = Array.isArray(question?.mark_points) ? question.mark_points : [];
+
+  if (prompt.length < 12 || prompt.length > 280) return false;
+  if (OPEN_ENDED_COMMANDS.has(commandWord)) return false;
+  if (/^(explain|describe|suggest|compare|evaluate|justify|discuss|analyse|analyze)\b/i.test(prompt)) {
+    return false;
+  }
+  if (Number(recipe?.max_marks) !== 1 || markPoints.length !== 1) return false;
+
+  const keywords = String(markPoints[0]?.keywords || markPoints[0]?.point_text || "").trim();
+  if (!keywords) return false;
+  const synonyms = keywords.split("|").map((s) => s.trim()).filter(Boolean);
+  if (synonyms.length > 3 || keywords.length > 80) return false;
+  return true;
+}
+
 function passesQualityGate(question, recipe, priorSameType = []) {
   const type = recipe?.question_type || question?.question_type;
   const prompt = String(question?.prompt || "").trim();
@@ -202,6 +238,12 @@ function passesQualityGate(question, recipe, priorSameType = []) {
     if (!String(question.level_2_descriptor || "").trim()) return false;
     if (maxMarks === 6 && !String(question.level_3_descriptor || "").trim()) return false;
     return true;
+  }
+
+  if (type === "short_text") {
+    if (isRecallShortTextRecipe(recipe)) return passesRecallShortTextGate(question, recipe);
+    const markPoints = Array.isArray(question?.mark_points) ? question.mark_points : [];
+    return prompt.length >= 12 && prompt.length <= 280 && markPoints.length >= 1;
   }
 
   if (type !== "mcq") return true;
@@ -239,6 +281,9 @@ function buildAvoidByType(avoidQuestions) {
 function typeHintForRecipe(recipe) {
   const marks = recipeMaxMarks(recipe);
   if (recipe.question_type === "short_text") {
+    if (isRecallShortTextRecipe(recipe)) {
+      return "short_text RECALL (1-mark): exactly 1 mark_point with a tight keywords string (max 3 synonyms separated by |). command_word MUST be one of: state, name, give, define, identify. Do NOT use explain, describe, suggest, compare, evaluate, justify, or discuss. The answer must be a brief factual recall (word, phrase, symbol, unit, name, or value) — NOT an extended explanation. max_marks 1, ao1=1 ao2=0 ao3=0. Feedback max 12 words.";
+    }
     const aoHint = marks === 1
       ? "max_marks 1, ao1=1 ao2=0 ao3=0"
       : "max_marks 2, ao1=1 ao2=1 ao3=0";
@@ -255,9 +300,10 @@ function typeHintForRecipe(recipe) {
   return "mcq: exactly 4 options, one correct answer, three distractors based on common science misconceptions for the topic, option_feedback for each wrong option only (3 entries), max_marks 1, ao1=1. Wrong-option feedback max 12 words each.";
 }
 
-function focusAnglesForType(questionType) {
-  if (questionType === "short_text") return SHORT_TEXT_FOCUS_ANGLES;
-  if (questionType === "extended_response") return EXTENDED_FOCUS_ANGLES;
+function focusAnglesForRecipe(recipe) {
+  if (isRecallShortTextRecipe(recipe)) return RECALL_SHORT_TEXT_FOCUS_ANGLES;
+  if (recipe.question_type === "short_text") return SHORT_TEXT_FOCUS_ANGLES;
+  if (recipe.question_type === "extended_response") return EXTENDED_FOCUS_ANGLES;
   return MCQ_FOCUS_ANGLES;
 }
 
@@ -278,7 +324,7 @@ function buildSingleQuestionPrompt(payload, recipe, context = {}) {
   const marks = recipeMaxMarks(recipe);
   const typeHint = typeHintForRecipe(recipe);
 
-  const angles = focusAnglesForType(recipe.question_type);
+  const angles = focusAnglesForRecipe(recipe);
   const focusAngle = angles[(avoidSameType.length + sameTypeIndex + focusOffset) % angles.length];
 
   const usedCommands = [...new Set(allPrior.map((q) => q.command_word).filter(Boolean))];

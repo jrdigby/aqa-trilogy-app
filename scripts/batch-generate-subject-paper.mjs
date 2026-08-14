@@ -238,10 +238,13 @@ function processResults({ results, errors, keyMeta }, runMeta) {
       const quality = evaluateQuestionQuality({
         question_type: draft.question.question_type,
         prompt: draft.question.prompt,
+        command_word: draft.question.command_word,
+        demand_level: draft.question.demand_level,
         options: draft.question.options,
         correct: draft.answer_key?.key_payload?.correct,
         option_feedback: draft.answer_key?.key_payload?.option_feedback,
         max_marks: draft.question.max_marks,
+        mark_points: draft.answer_key?.key_payload?.mark_points,
         key_payload: draft.answer_key?.key_payload
       }, { priorQuestions: prior });
 
@@ -252,6 +255,10 @@ function processResults({ results, errors, keyMeta }, runMeta) {
       prior.push({
         prompt: draft.question.prompt,
         correct: draft.answer_key?.key_payload?.correct
+          || (draft.answer_key?.key_payload?.mark_points || [])
+            .map((mp) => mp.keywords || mp.point_text)
+            .filter(Boolean)
+            .join("; ")
       });
 
       const enriched = attachImportMeta(draft, {

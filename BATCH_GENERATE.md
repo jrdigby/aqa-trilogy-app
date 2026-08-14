@@ -16,10 +16,13 @@ Two pipelines seed the question bank. Both output **Studio-compatible JSON** for
 | MCQ | low | 3 |
 | MCQ | standard | 3 |
 | MCQ | standard_45 (4–5) | 2 |
+| Short text (recall) | standard_45 | 3 |
 | Extended 4-mark | standard_45 | 2 |
+| Extended 4-mark | standard_67 | 2 |
+| Extended 4-mark | high_89 | 2 |
 | Extended 6-mark | standard_67 | 2 |
 
-**12 questions per spec point** · `tier=both` · no short text · no numeric (use Batch Numeric Generator).
+**19 questions per spec point** · `tier=both` · recall short text only (1-mark, keyword-marked) · no numeric (use Batch Numeric Generator).
 
 Template MCQ batch adds **3 low MCQs per spec** for chemistry (optional — filter duplicates when reviewing).
 

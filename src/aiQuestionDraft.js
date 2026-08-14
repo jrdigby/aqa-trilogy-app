@@ -13,7 +13,7 @@ import { evaluateQuestionQuality } from "./questionQualityGate.js";
 
 export { getDemandOptionsForTier, formatDemandLabel };
 
-const STUDIO_MAX_QUESTIONS = 12;
+const STUDIO_MAX_QUESTIONS = 20;
 
 const SHORT_TYPES = new Set(["short_text", "short text", "short-text"]);
 const EXTENDED_TYPES = new Set([
@@ -837,10 +837,13 @@ export async function generateQuestionStudioBatch(supabaseClient, {
       const quality = evaluateQuestionQuality({
         question_type: d?.question?.question_type,
         prompt: d?.question?.prompt,
+        command_word: d?.question?.command_word,
+        demand_level: d?.question?.demand_level,
         options: d?.question?.options,
         correct: d?.answer_key?.key_payload?.correct,
         option_feedback: d?.answer_key?.key_payload?.option_feedback,
         max_marks: d?.question?.max_marks,
+        mark_points: d?.answer_key?.key_payload?.mark_points,
         key_payload: d?.answer_key?.key_payload
       }, { priorQuestions: prior });
       if (!quality.pass) {

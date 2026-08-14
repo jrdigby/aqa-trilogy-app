@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   evaluateMcqQuality,
   evaluateExtendedQuality,
+  evaluateShortTextQuality,
   isNearDuplicatePrompt
 } from "../src/questionQualityGate.js";
 
@@ -61,6 +62,47 @@ test("evaluateExtendedQuality — requires rubric fields", () => {
     key_payload: { key_scientific_points: "One point only" }
   });
   assert.equal(bad.pass, false);
+});
+
+test("evaluateShortTextQuality — accepts recall 1-mark answer", () => {
+  const result = evaluateShortTextQuality({
+    question_type: "short_text",
+    demand_level: "standard_45",
+    command_word: "state",
+    prompt: "State the unit of electric current.",
+    max_marks: 1,
+    mark_points: [{ keywords: "ampere|A", feedback: "Current is measured in amperes." }]
+  });
+  assert.equal(result.pass, true);
+});
+
+test("evaluateShortTextQuality — rejects explain-type recall stem", () => {
+  const result = evaluateShortTextQuality({
+    question_type: "short_text",
+    demand_level: "standard_45",
+    command_word: "explain",
+    prompt: "Explain why metals conduct electricity.",
+    max_marks: 1,
+    mark_points: [{ keywords: "delocalised electrons", feedback: "Too open-ended." }]
+  });
+  assert.equal(result.pass, false);
+  assert.ok(result.reasons.some((r) => /open-ended/i.test(r)));
+});
+
+test("evaluateShortTextQuality — rejects broad keyword lists", () => {
+  const result = evaluateShortTextQuality({
+    question_type: "short_text",
+    demand_level: "standard_45",
+    command_word: "name",
+    prompt: "Name the particle with a positive charge in the nucleus.",
+    max_marks: 1,
+    mark_points: [{
+      keywords: "proton|positive|nucleus|charge|particle|ion|atom",
+      feedback: "Too many synonyms."
+    }]
+  });
+  assert.equal(result.pass, false);
+  assert.ok(result.reasons.some((r) => /synonym/i.test(r)));
 });
 
 test("isNearDuplicatePrompt — detects high overlap", () => {

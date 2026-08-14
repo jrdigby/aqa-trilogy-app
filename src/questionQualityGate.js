@@ -3,6 +3,9 @@
  */
 
 const FILLER_PATTERN = /check the specification point carefully|distractor \d/i;
+const OPEN_ENDED_COMMANDS = new Set([
+  "explain", "describe", "suggest", "compare", "evaluate", "justify", "discuss", "analyse", "analyze"
+]);
 
 export function normalizeCompareText(text) {
   return String(text || "")
@@ -153,6 +156,58 @@ export function evaluateExtendedQuality(payload, context = {}) {
   return { pass: reasons.length === 0, reasons };
 }
 
+function isRecallShortText(payload, context = {}) {
+  if (context.recallOnly) return true;
+  return payload?.question_type === "short_text"
+    && Number(payload?.max_marks) === 1
+    && (payload?.demand_level || context.demand_level) === "standard_45";
+}
+
+/**
+ * @returns {{ pass: boolean, reasons: string[] }}
+ */
+export function evaluateShortTextQuality(payload, context = {}) {
+  const reasons = [];
+  const prompt = String(payload?.prompt || "").trim();
+  const commandWord = String(payload?.command_word || "").toLowerCase().trim();
+  const maxMarks = Number(payload?.max_marks) === 1 ? 1 : 2;
+  const markPoints = Array.isArray(payload?.mark_points) ? payload.mark_points : [];
+  const recall = isRecallShortText(payload, context);
+
+  if (prompt.length < 12) reasons.push("stem too short");
+  if (prompt.length > 280) reasons.push("stem too long");
+
+  if (recall) {
+    if (OPEN_ENDED_COMMANDS.has(commandWord)) reasons.push("open-ended command word");
+    if (/^(explain|describe|suggest|compare|evaluate|justify|discuss|analyse|analyze)\b/i.test(prompt)) {
+      reasons.push("open-ended stem");
+    }
+    if (maxMarks !== 1) reasons.push("recall short text must be 1 mark");
+    if (markPoints.length !== 1) reasons.push("recall must have exactly 1 mark point");
+
+    const keywords = String(markPoints[0]?.keywords || markPoints[0]?.point_text || "").trim();
+    if (!keywords) reasons.push("missing keywords");
+    if (keywords) {
+      const synonyms = keywords.split("|").map((s) => s.trim()).filter(Boolean);
+      if (synonyms.length > 3) reasons.push("too many keyword synonyms");
+      if (keywords.length > 80) reasons.push("keywords too broad");
+    }
+  } else if (markPoints.length < 1) {
+    reasons.push("missing mark points");
+  }
+
+  const prior = context.priorQuestions || [];
+  const answerKey = markPoints
+    .map((mp) => mp.keywords || mp.point_text)
+    .filter(Boolean)
+    .join("; ");
+  if (isNearDuplicatePrompt(prompt, prior, answerKey)) {
+    reasons.push("duplicate or near-duplicate stem");
+  }
+
+  return { pass: reasons.length === 0, reasons };
+}
+
 /**
  * Evaluate normalized draft or raw AI payload.
  */
@@ -165,6 +220,23 @@ export function evaluateQuestionQuality(raw, context = {}) {
       key_payload: raw.key_payload || raw.answer_key?.key_payload || raw
     };
     return evaluateExtendedQuality(payload, context);
+  }
+
+  if (type === "short_text") {
+    const payload = {
+      question_type: "short_text",
+      prompt: raw.prompt || raw.question?.prompt,
+      command_word: raw.command_word || raw.question?.command_word,
+      max_marks: raw.max_marks || raw.question?.max_marks,
+      demand_level: raw.demand_level || raw.question?.demand_level,
+      mark_points: raw.mark_points
+        || raw.answer_key?.key_payload?.mark_points
+        || raw.key_payload?.mark_points
+    };
+    return evaluateShortTextQuality(payload, {
+      ...context,
+      demand_level: payload.demand_level
+    });
   }
 
   const payload = {
@@ -188,7 +260,12 @@ export function filterByQualityGate(items, context = {}) {
       passed.push(item);
       prior.push({
         prompt: item.prompt || item.question?.prompt,
-        correct: item.correct || item.answer_key?.key_payload?.correct
+        correct: item.correct
+          || item.answer_key?.key_payload?.correct
+          || (item.answer_key?.key_payload?.mark_points || item.mark_points || [])
+            .map((mp) => mp.keywords || mp.point_text)
+            .filter(Boolean)
+            .join("; ")
       });
     } else {
       rejected.push({ item, reasons: result.reasons });
