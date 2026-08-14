@@ -216,6 +216,21 @@
       resize: vertical;
     }
 
+    #panelBatchMcq .batch-ai-er-textarea {
+      min-height: 9.5rem;
+      height: auto;
+      resize: vertical;
+      line-height: 1.4;
+    }
+
+    #panelBatchMcq .batch-ai-er-textarea.batch-ai-er-guidelines {
+      min-height: 10.5rem;
+    }
+
+    #panelBatchMcq .batch-ai-er-textarea.batch-ai-er-scientific-points {
+      min-height: 12rem;
+    }
+
     #panelBatchMcq .batch-ai-image-row {
       margin-top: 6px;
       padding: 6px 8px;
@@ -1106,7 +1121,7 @@
     #panelCreator textarea,
     #editForm textarea,
     #panelBatchNumeric textarea,
-    #panelBatchMcq textarea:not(.batch-ai-textarea-compact):not(.batch-mcq-prompt-edit),
+    #panelBatchMcq textarea:not(.batch-ai-textarea-compact):not(.batch-mcq-prompt-edit):not(.batch-ai-er-textarea),
     #panelAudit textarea {
       min-height: 80px;
       resize: vertical;
@@ -8269,14 +8284,14 @@
       ? `<p style="font-size:0.72rem;color:var(--text-muted);margin:4px 0 0;">Top band for a 4-mark question — describe a complete answer worth full marks.</p>`
       : "";
     const lvl3Block = isFourMark
-      ? `<div>
+      ? `<div style="grid-column:1/-1;">
               <label style="font-size:0.72rem;font-weight:600;color:var(--text-muted);">${escapeHtml(lvl3Label)}</label>
               <p style="font-size:0.76rem;color:var(--text-muted);margin:6px 0 0;">Not used for 4-mark extended responses (Levels 1–2 only; Level 2 = full marks).</p>
               <input type="hidden" class="batch-ai-er-lvl3" data-batch-mcq-idx="${i}" value="N/A for 4-mark" />
             </div>`
-      : `<div>
+      : `<div style="grid-column:1/-1;">
               <label style="font-size:0.72rem;font-weight:600;">${escapeHtml(lvl3Label)}</label>
-              <textarea class="batch-ai-er-lvl3 batch-ai-textarea-compact" data-batch-mcq-idx="${i}" rows="3" style="width:100%;font-size:0.76rem;padding:6px;margin-top:4px;">${escapeHtml(lvl3)}</textarea>
+              <textarea class="batch-ai-er-lvl3 batch-ai-er-textarea" data-batch-mcq-idx="${i}" rows="6" style="width:100%;font-size:0.76rem;padding:6px;margin-top:4px;">${escapeHtml(lvl3)}</textarea>
             </div>`;
     return `
       <tr style="border-bottom:1px solid var(--border);background:#f8fafc;" data-batch-mcq-detail="${i}">
@@ -8284,22 +8299,22 @@
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px 14px;">
             <div style="grid-column:1/-1;">
               <label style="font-size:0.72rem;font-weight:600;">Marking guidelines</label>
-              <textarea class="batch-ai-er-guidelines batch-ai-textarea-compact" data-batch-mcq-idx="${i}" rows="3" style="width:100%;font-size:0.78rem;padding:6px;margin-top:4px;">${escapeHtml(payload.marking_guidelines || "")}</textarea>
+              <textarea class="batch-ai-er-guidelines batch-ai-er-textarea" data-batch-mcq-idx="${i}" rows="7" style="width:100%;font-size:0.78rem;padding:6px;margin-top:4px;">${escapeHtml(payload.marking_guidelines || "")}</textarea>
             </div>
             <div style="grid-column:1/-1;">
               <label style="font-size:0.72rem;font-weight:600;">Key scientific points (local feedback checklist)</label>
               <p style="font-size:0.72rem;color:var(--text-muted);margin:4px 0 0;">One point per line. Used for local fallback keyword matching and the student self-assessment checklist.</p>
-              <textarea class="batch-ai-er-scientific-points batch-ai-textarea-compact" data-batch-mcq-idx="${i}" rows="5" style="width:100%;font-size:0.78rem;padding:6px;margin-top:4px;" placeholder="e.g. Weight acts downwards from the centre of mass">${escapeHtml(scientificPoints)}</textarea>
+              <textarea class="batch-ai-er-scientific-points batch-ai-er-textarea" data-batch-mcq-idx="${i}" rows="8" style="width:100%;font-size:0.78rem;padding:6px;margin-top:4px;" placeholder="e.g. Weight acts downwards from the centre of mass">${escapeHtml(scientificPoints)}</textarea>
             </div>
             ${lvl3Block}
-            <div>
+            <div style="grid-column:1/-1;">
               <label style="font-size:0.72rem;font-weight:600;">${escapeHtml(lvl2Label)}</label>
               ${lvl2Hint}
-              <textarea class="batch-ai-er-lvl2 batch-ai-textarea-compact" data-batch-mcq-idx="${i}" rows="3" style="width:100%;font-size:0.76rem;padding:6px;margin-top:4px;" placeholder="${isFourMark ? "Complete, coherent answer covering all key points…" : "Most ideas present but incomplete links…"}">${escapeHtml(lvl2)}</textarea>
+              <textarea class="batch-ai-er-lvl2 batch-ai-er-textarea" data-batch-mcq-idx="${i}" rows="6" style="width:100%;font-size:0.76rem;padding:6px;margin-top:4px;" placeholder="${isFourMark ? "Complete, coherent answer covering all key points…" : "Most ideas present but incomplete links…"}">${escapeHtml(lvl2)}</textarea>
             </div>
-            <div>
+            <div style="grid-column:1/-1;">
               <label style="font-size:0.72rem;font-weight:600;">${escapeHtml(lvl1Label)}</label>
-              <textarea class="batch-ai-er-lvl1 batch-ai-textarea-compact" data-batch-mcq-idx="${i}" rows="3" style="width:100%;font-size:0.76rem;padding:6px;margin-top:4px;">${escapeHtml(lvl1)}</textarea>
+              <textarea class="batch-ai-er-lvl1 batch-ai-er-textarea" data-batch-mcq-idx="${i}" rows="6" style="width:100%;font-size:0.76rem;padding:6px;margin-top:4px;">${escapeHtml(lvl1)}</textarea>
             </div>
             <div>${renderBatchAoInputs(i, q, Number(q.max_marks) === 4 ? 4 : 6)}</div>
           </div>
