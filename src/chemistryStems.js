@@ -9,9 +9,9 @@ const CHEMISTRY_STEMS = {
     "Which statement gives the correct meaning of {focus}?"
   ],
   bonding: [
-    "Which statement about {focus} bonding is correct?",
+    "Which statement about {focus} is correct?",
     "Which statement describes bonding in {focus} correctly?",
-    "Which statement about how {focus} is bonded is correct?"
+    "Which statement about how particles are bonded in {focus} is correct?"
   ],
   reaction: [
     "Which statement about the reaction involving {focus} is correct?",
@@ -89,6 +89,14 @@ function fillStem(template, focus, topic) {
     .replace(/\{topic\}/g, topic || "this topic");
 }
 
+function formatMcqStem(template, cmd, focus, topic) {
+  const filled = fillStem(template, focus, topic);
+  if (/^which\s/i.test(filled)) {
+    return `${cmd} ${filled.charAt(0).toLowerCase()}${filled.slice(1)}`;
+  }
+  return `${cmd} ${filled}`;
+}
+
 /**
  * Map claim types to chemistry stem categories.
  */
@@ -133,13 +141,13 @@ export function buildChemistryPromptForClaim(claim, topicName, commandWord, dema
   }
 
   const pool = CHEMISTRY_STEMS[category] || CHEMISTRY_STEMS.fact;
-  const claimGist = String(claim?.text || focus).replace(/\.$/, "").trim();
-  const shortGist = claimGist.length > 72 ? `${claimGist.slice(0, 71).trim()}…` : claimGist;
-  if (demandLevel === "low" && shortGist.length >= 20) {
-    return `State which statement correctly describes: ${shortGist}?`;
-  }
-  const template = pickStem(pool, rng, varietyIndex);
-  return `${cmd} ${fillStem(template, focus, topic)}`;
+  const lowStems = [
+    `A student revises ${topic}. ${cmd} which statement about ${focus} is correct?`,
+    `${cmd} which statement about ${focus} in ${topic} is correct?`,
+    `${cmd} which statement about ${focus} is correct according to the specification?`,
+    ...pool.map((template) => formatMcqStem(template, cmd, focus, topic))
+  ];
+  return pickStem(lowStems, rng, varietyIndex);
 }
 
 export { CHEMISTRY_STEMS };

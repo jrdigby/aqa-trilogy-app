@@ -21,9 +21,29 @@ test("chemistryClaimCategory — detects bonding topics", () => {
 test("buildChemistryPromptForClaim — produces varied chemistry stem", () => {
   const claims = parseSpecClaims(bondingSpec.spec_text, bondingSpec.topic_name);
   const stem = buildChemistryPromptForClaim(claims[0], bondingSpec.topic_name, "state", "low", () => 0.1);
-  assert.match(stem, /ionic|covalent|bond/i);
+  assert.match(stem, /ionic|covalent|bond|Chemical bonds/i);
   assert.ok(stem.length >= 20);
+  assert.doesNotMatch(stem, /correctly describes:/i);
+  assert.doesNotMatch(stem, new RegExp(claims[0].text.slice(0, 40).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"));
 });
+
+test("buildChemistryPromptForClaim — stem does not embed claim text", () => {
+  const claims = parseSpecClaims(bondingSpec.spec_text, bondingSpec.topic_name);
+  for (let i = 0; i < 5; i++) {
+    const stem = buildChemistryPromptForClaim(claims[0], bondingSpec.topic_name, "state", "low", () => i / 5, i);
+    assert.doesNotMatch(stem, /correctly describes:/i);
+    assert.ok(tokenOverlap(stem, claims[0].text) < 0.55, `stem too close to claim: ${stem}`);
+  }
+});
+
+function tokenOverlap(a, b) {
+  const wordsA = new Set(a.toLowerCase().split(/\W+/).filter((w) => w.length > 2));
+  const wordsB = new Set(b.toLowerCase().split(/\W+/).filter((w) => w.length > 2));
+  if (!wordsA.size || !wordsB.size) return 0;
+  let shared = 0;
+  for (const w of wordsA) if (wordsB.has(w)) shared++;
+  return shared / Math.min(wordsA.size, wordsB.size);
+}
 
 test("generateMcqQuestionsForRecipes — chemistry bonding spec produces drafts", () => {
   const { drafts, errors, skipped = [] } = generateMcqQuestionsForRecipes(

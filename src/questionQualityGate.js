@@ -113,6 +113,10 @@ export function evaluateMcqQuality(payload, context = {}) {
     reasons.push("duplicate correct answer in batch");
   }
 
+  if (correct && correct.length >= 30 && tokenOverlapRatio(prompt, correct) >= 0.55) {
+    reasons.push("stem reveals the correct answer");
+  }
+
   return { pass: reasons.length === 0, reasons };
 }
 

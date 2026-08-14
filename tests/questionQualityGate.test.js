@@ -105,6 +105,22 @@ test("evaluateShortTextQuality — rejects broad keyword lists", () => {
   assert.ok(result.reasons.some((r) => /synonym/i.test(r)));
 });
 
+test("evaluateMcqQuality — rejects stem that reveals correct answer", () => {
+  const correct = "Ionic bonding occurs in compounds formed from metals combined with non-metals.";
+  const result = evaluateMcqQuality({
+    prompt: `State which statement correctly describes: ${correct}`,
+    options: [correct, "Wrong one", "Wrong two", "Wrong three"],
+    correct,
+    option_feedback: {
+      "Wrong one": "Ionic bonding transfers electrons.",
+      "Wrong two": "Sharing is covalent bonding.",
+      "Wrong three": "Metals form metallic bonds."
+    }
+  });
+  assert.equal(result.pass, false);
+  assert.ok(result.reasons.some((r) => /reveals/i.test(r)));
+});
+
 test("isNearDuplicatePrompt — detects high overlap", () => {
   assert.equal(
     isNearDuplicatePrompt(
