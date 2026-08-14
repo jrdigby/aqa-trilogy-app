@@ -15,8 +15,10 @@ import {
 } from "./mcqSpecParser.js";
 import {
   generateMisconceptionDistractors,
-  buildMisconceptionFeedbackMap
+  buildMisconceptionFeedbackMap,
+  InsufficientDistractorsError
 } from "./mcqMisconceptions.js";
+import { evaluateMcqQuality } from "./questionQualityGate.js";
 
 const DEMAND_COMMAND_WORDS = {
   low: ["state", "give", "name", "define", "identify"],
@@ -104,6 +106,23 @@ function buildAvoidTexts(avoidDrafts = []) {
   return set;
 }
 
+function draftToPriorQuestion(draft) {
+  return {
+    prompt: draft?.question?.prompt,
+    correct: draft?.answer_key?.key_payload?.correct
+  };
+}
+
+function mcqPayloadFromDraft(draft) {
+  return {
+    prompt: draft?.question?.prompt,
+    options: draft?.question?.options,
+    correct: draft?.answer_key?.key_payload?.correct,
+    option_feedback: draft?.answer_key?.key_payload?.option_feedback,
+    distractor_sources: draft?._meta?.distractor_sources
+  };
+}
+
 function pickClaimAvoidingReuse(claims, usedIds, avoidTexts, rng) {
   if (!claims?.length) return null;
   const unused = claims.filter((c) => !usedIds.has(c.id) && !avoidTexts.has(normalizeCompareText(c.text)));
@@ -124,21 +143,23 @@ export function generateMcqQuestionsForRecipes(spec, specPoint, recipes = [], op
   const avoidTexts = buildAvoidTexts(avoidDrafts);
 
   if (!recipes.length) {
-    return { drafts: [], errors: [], seed };
+    return { drafts: [], errors: [], skipped: [], seed };
   }
 
   if (!specPoint?.spec_text && !specPoint?.topic_name) {
-    return { drafts: [], errors: [{ message: "Spec point has no content to generate from" }], seed };
+    return { drafts: [], errors: [{ message: "Spec point has no content to generate from" }], skipped: [], seed };
   }
 
   const claims = parseSpecClaims(specPoint.spec_text, specPoint.topic_name);
   if (!claims.length) {
-    return { drafts: [], errors: [{ message: "Could not parse any claims from spec point text" }], seed };
+    return { drafts: [], errors: [{ message: "Could not parse any claims from spec point text" }], skipped: [], seed };
   }
 
   const drafts = [];
   const errors = [];
+  const skipped = [];
   const usedClaimIds = new Set();
+  const priorQuestions = avoidDrafts.map(draftToPriorQuestion);
 
   for (const recipe of recipes) {
     try {
@@ -147,18 +168,30 @@ export function generateMcqQuestionsForRecipes(spec, specPoint, recipes = [], op
         demand_level: demandLevel,
         _claims: claims,
         _usedClaimIds: usedClaimIds,
-        _claim: pickClaimAvoidingReuse(claims, usedClaimIds, avoidTexts, rng)
+        _varietyIndex: drafts.length + priorQuestions.length,
+        _claim: pickClaimAvoidingReuse(claims, usedClaimIds, avoidTexts, rng),
+        _avoidTexts: [...avoidTexts].map((t) => t)
       };
       if (enriched._claim) usedClaimIds.add(enriched._claim.id);
       const draft = generateMcqQuestion(spec, enriched, specPoint, rng);
+      const quality = evaluateMcqQuality(mcqPayloadFromDraft(draft), { priorQuestions });
+      if (!quality.pass) {
+        skipped.push({ recipe, reasons: quality.reasons });
+        continue;
+      }
       draft._meta = { ...draft._meta, source: "template" };
       drafts.push(draft);
+      priorQuestions.push(draftToPriorQuestion(draft));
     } catch (err) {
+      if (err instanceof InsufficientDistractorsError) {
+        skipped.push({ recipe, reasons: [err.message] });
+        continue;
+      }
       errors.push({ variant: recipe, message: err.message || String(err) });
     }
   }
 
-  return { drafts, errors, seed };
+  return { drafts, errors, skipped, seed };
 }
 
 export function generateMcqQuestion(spec, variantDesc, specPoint, rng = Math.random) {
@@ -167,7 +200,9 @@ export function generateMcqQuestion(spec, variantDesc, specPoint, rng = Math.ran
   const demandLevel = variantDesc.demand_level || spec.demand_level || "low";
   const topic = specPoint.topic_name || "this topic";
   const subject = (spec.subject || specPoint.subject || "physics").toLowerCase();
-  const commandWord = spec.command_word || commandWordForDemand(demandLevel, rng);
+  const commandWord = demandLevel === "low"
+    ? "state"
+    : (spec.command_word || commandWordForDemand(demandLevel, rng));
 
   const claims = variantDesc._claims || parseSpecClaims(specPoint.spec_text, topic);
   const claim = variantDesc._claim
@@ -184,12 +219,14 @@ export function generateMcqQuestion(spec, variantDesc, specPoint, rng = Math.ran
     siblingClaims,
     specRef: specPoint.spec_ref,
     rng,
-    count: 3
+    count: 3,
+    avoidTexts: (variantDesc._avoidTexts || []).map((t) => String(t))
   });
 
   const distractors = distractorObjs.map((d) => d.text);
   const options = shuffle([correct, ...distractors], rng);
-  const prompt = buildPromptForClaim(claim, topic, commandWord, demandLevel);
+  const varietyIndex = variantDesc._varietyIndex ?? variantDesc._usedClaimIds?.size ?? 0;
+  const prompt = buildPromptForClaim(claim, topic, commandWord, demandLevel, subject, rng, varietyIndex);
 
   const tier = normalizeQuestionTierForDb(spec.tier || "both");
   const ao1 = spec.ao1_marks != null ? spec.ao1_marks : 1;
@@ -244,43 +281,24 @@ export function generateMcqQuestion(spec, variantDesc, specPoint, rng = Math.ran
 }
 
 export function generateMcqBatch(spec, specPoint) {
-  const seed = spec.seed != null ? spec.seed : Date.now();
-  const rng = mulberry32(seed);
   const descriptors = expandDemandRecipes(spec.recipes || spec.variants?.recipes || []);
+  const seed = spec.seed != null ? spec.seed : Date.now();
 
   if (!descriptors.length) {
-    return { drafts: [], errors: [{ message: "No recipes requested (all counts are 0)" }], seed };
+    return { drafts: [], errors: [{ message: "No recipes requested (all counts are 0)" }], skipped: [], seed };
   }
 
   if (!specPoint?.spec_text && !specPoint?.topic_name) {
-    return { drafts: [], errors: [{ message: "Spec point has no content to generate from" }], seed };
+    return { drafts: [], errors: [{ message: "Spec point has no content to generate from" }], skipped: [], seed };
   }
 
   const claims = parseSpecClaims(specPoint.spec_text, specPoint.topic_name);
   if (!claims.length) {
-    return { drafts: [], errors: [{ message: "Could not parse any claims from spec point text" }], seed };
+    return { drafts: [], errors: [{ message: "Could not parse any claims from spec point text" }], skipped: [], seed };
   }
 
-  const drafts = [];
-  const errors = [];
-  const usedClaimIds = new Set();
-
-  for (const desc of descriptors) {
-    try {
-      const enriched = {
-        ...desc,
-        _claims: claims,
-        _usedClaimIds: usedClaimIds,
-        _claim: pickClaimWithoutReuse(claims, usedClaimIds, rng)
-      };
-      if (enriched._claim) usedClaimIds.add(enriched._claim.id);
-      drafts.push(generateMcqQuestion(spec, enriched, specPoint, rng));
-    } catch (err) {
-      errors.push({ variant: desc, message: err.message || String(err) });
-    }
-  }
-
-  return { drafts, errors, seed };
+  const recipes = descriptors.map((d) => ({ question_type: "mcq", demand_level: d.demand_level }));
+  return generateMcqQuestionsForRecipes(spec, specPoint, recipes, { avoidDrafts: [] });
 }
 
 export function remapMcqOptionFeedback(oldOptions, optionFeedback = {}, oldCorrect, newCorrect, newOptions = oldOptions) {

@@ -1,4 +1,5 @@
 // Parse AQA spec point text into testable factual claims for MCQ generation.
+import { buildChemistryPromptForClaim } from "./chemistryStems.js";
 
 function cleanFragment(text) {
   return String(text || "")
@@ -16,6 +17,16 @@ function sentenceCase(text) {
 function classifyClaim(text) {
   const lower = text.toLowerCase();
   if (/\b(is defined as|means|refers to|is the|are the)\b/.test(lower)) return "definition";
+  if (/\b(ionic|covalent|metallic|bond|molecule|macromolecule|polymer)\b/.test(lower)) return "bonding";
+  if (/\b(acid|alkali|ph|neutral|salt|hydrogen ion|hydroxide)\b/.test(lower)) return "acidity";
+  if (/\b(electrolysis|electrode|anode|cathode|electrolyte)\b/.test(lower)) return "electrolysis";
+  if (/\b(mole|concentration|avogadro|relative formula|atom economy|yield)\b/.test(lower)) return "quantitative";
+  if (/\b(exothermic|endothermic|activation energy|enthalpy)\b/.test(lower)) return "energy";
+  if (/\b(rate|catalyst|equilibrium|reversible|collision)\b/.test(lower)) return "rate";
+  if (/\b(alkane|alkene|hydrocarbon|crude oil|fraction|combustion)\b/.test(lower)) return "organic";
+  if (/\b(chromatography|purity|formulation|rf)\b/.test(lower)) return "analysis";
+  if (/\b(reaction|reacts|displacement|oxidation|reduction)\b/.test(lower)) return "reaction";
+  if (/\b(giant|simple molecular|structure|melting point|conduct)\b/.test(lower)) return "structure";
   if (/\b(is transferred|are transferred|transfers|transferred|transfers energy)\b/.test(lower)) return "transfer";
   if (/\b(increases|decreases|changes|becomes|converted|transformed)\b/.test(lower)) return "change";
   if (/\b(causes?|results? in|leads to|because|due to)\b/.test(lower)) return "causal";
@@ -101,32 +112,65 @@ export function pickClaimWithoutReuse(claims, usedIds, rng) {
   return pool[idx];
 }
 
-export function buildPromptForClaim(claim, topicName, commandWord, demandLevel) {
+export function buildPromptForClaim(claim, topicName, commandWord, demandLevel, subject = "physics", rng = Math.random, varietyIndex = 0) {
+  const subj = String(subject || "physics").toLowerCase();
+  if (subj === "chemistry") {
+    return buildChemistryPromptForClaim(claim, topicName, commandWord, demandLevel, rng, varietyIndex);
+  }
+
   const cmd = commandWord ? commandWord.charAt(0).toUpperCase() + commandWord.slice(1) : "State";
   const topic = topicName || "this topic";
   const focus = claim?.focus || topic;
   const type = claim?.type || "fact";
 
   const contextual = {
-    definition: `Which statement correctly describes ${focus}?`,
-    transfer: `Which statement about how ${focus} is involved in energy or matter transfer is correct?`,
-    storage: `Which statement about energy stores and ${focus} is correct?`,
-    change: `Which statement about the change described for ${focus} is correct?`,
-    causal: `Which statement correctly explains the cause or effect involving ${focus}?`,
-    capability: `Which statement about what can happen to ${focus} is correct?`,
-    comparison: `Which comparison involving ${focus} is correct?`,
-    fact: `Which statement about ${focus} is correct according to the specification?`
+    definition: [
+      `Which statement correctly describes ${focus}?`,
+      `Which definition of ${focus} is correct?`
+    ],
+    transfer: [
+      `Which statement about how ${focus} is involved in energy or matter transfer is correct?`,
+      `Which statement about energy transfer involving ${focus} is correct?`
+    ],
+    storage: [
+      `Which statement about energy stores and ${focus} is correct?`,
+      `Which statement about stored energy and ${focus} is correct?`
+    ],
+    change: [
+      `Which statement about the change described for ${focus} is correct?`,
+      `Which statement about how ${focus} changes is correct?`
+    ],
+    causal: [
+      `Which statement correctly explains the cause or effect involving ${focus}?`,
+      `Which cause-and-effect statement about ${focus} is correct?`
+    ],
+    capability: [
+      `Which statement about what can happen to ${focus} is correct?`,
+      `Which statement about the behaviour of ${focus} is correct?`
+    ],
+    comparison: [
+      `Which comparison involving ${focus} is correct?`,
+      `Which statement comparing ideas about ${focus} is correct?`
+    ],
+    fact: [
+      `Which statement about ${focus} is correct according to the specification?`,
+      `Which statement about ${focus} in ${topic} is correct?`,
+      `A student revises ${topic}. Which statement about ${focus} is correct?`
+    ]
   };
+
+  const pool = contextual[type] || contextual.fact;
+  const template = pool[varietyIndex % pool.length];
 
   if (demandLevel === "standard_67" || demandLevel === "high_89") {
     return `${cmd} which statement best matches the specification for ${topic} — ${focus}?`;
   }
 
   if (demandLevel === "standard" || demandLevel === "standard_45") {
-    return `${cmd} ${contextual[type] || contextual.fact}`;
+    return `${cmd} ${template}`;
   }
 
-  return `${cmd} ${contextual[type] || contextual.fact}`;
+  return `${cmd} ${template}`;
 }
 
 export { cleanFragment, sentenceCase, splitIntoSentences };

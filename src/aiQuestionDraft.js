@@ -5,12 +5,15 @@ import { normalizeQuestionTierForDb } from "./sciencePath.js";
 import {
   formatDemandLabel,
   getDemandOptionsForTier,
-  syncDraftFromPreviewEdits as syncMcqDraftFromPreviewEdits
+  syncDraftFromPreviewEdits as syncMcqDraftFromPreviewEdits,
+  generateMcqQuestionsForRecipes,
+  isLowDemandMcqRecipe
 } from "./mcqBatchGenerator.js";
+import { evaluateQuestionQuality } from "./questionQualityGate.js";
 
 export { getDemandOptionsForTier, formatDemandLabel };
 
-const STUDIO_MAX_QUESTIONS = 12;
+const STUDIO_MAX_QUESTIONS = 20;
 
 const SHORT_TYPES = new Set(["short_text", "short text", "short-text"]);
 const EXTENDED_TYPES = new Set([
@@ -309,7 +312,7 @@ function normalizeShortTextQuestion(raw, context, demandLevel) {
       tier,
       max_marks: maxMarks,
       marking_method: "keyword",
-      command_word: raw?.command_word || "describe",
+      command_word: raw?.command_word || (maxMarks === 1 ? "state" : "describe"),
       demand_level: demandLevel,
       ao1_marks: ao1,
       ao2_marks: ao2,
@@ -716,8 +719,8 @@ export function computeGapFillRecipes(targetExpanded, existingDrafts = []) {
   return out;
 }
 
-export function splitTemplateAndAiRecipes(recipes = []) {
-  // Kept for tests; all recipes use Gemini in Question Studio.
+export function splitTemplateAndAiRecipes(recipes = [], options = {}) {
+  // Template MCQ batch discontinued — all recipes go to Gemini.
   return { templateRecipes: [], aiRecipes: [...recipes] };
 }
 
@@ -754,7 +757,7 @@ function withDraftDifficulty(draft, computeDifficulty) {
 }
 
 /**
- * Question Studio batch via Gemini Flash-Lite. Appends when gap-fill applies.
+ * Question Studio batch — all recipes go to Gemini.
  */
 export async function generateQuestionStudioBatch(supabaseClient, {
   spec,
@@ -775,28 +778,80 @@ export async function generateQuestionStudioBatch(supabaseClient, {
     };
   }
 
-  if (toGenerate.length > STUDIO_MAX_QUESTIONS) {
-    throw new Error(`Maximum ${STUDIO_MAX_QUESTIONS} questions per request — reduce recipe counts`);
-  }
-
-  const authorPrompt = String(spec.author_prompt || "").trim();
-
-  const aiResult = await invokeGenerateQuestions(supabaseClient, {
-    subject: spec.subject,
-    paper: spec.paper,
-    tier: spec.tier,
-    spec_ref: specPoint.spec_ref,
-    topic_name: specPoint.topic_name,
-    spec_text: specPoint.spec_text,
-    author_prompt: authorPrompt || undefined,
-    recipes: toGenerate,
-    avoid_questions: draftsToAvoidQuestions(existingDrafts),
-    focus_offset: Math.floor(Math.random() * 5)
+  const { templateRecipes, aiRecipes } = splitTemplateAndAiRecipes(toGenerate, {
+    subject: spec.subject || specPoint?.subject
   });
 
-  const drafts = (aiResult.drafts || []).map((d) => withDraftDifficulty(d, computeDifficulty));
-  const warnings = [...(aiResult.warnings || [])];
-  drafts.forEach((d, i) => {
+  const warnings = [];
+  const newDrafts = [];
+  const subject = String(spec.subject || specPoint?.subject || "").toLowerCase();
+
+  if (templateRecipes.length) {
+    const templateResult = generateMcqQuestionsForRecipes(
+      { ...spec, subject },
+      specPoint,
+      templateRecipes,
+      { avoidDrafts: existingDrafts }
+    );
+    for (const skip of templateResult.skipped || []) {
+      warnings.push(`Template MCQ skipped: ${(skip.reasons || []).join("; ")}`);
+    }
+    for (const err of templateResult.errors || []) {
+      warnings.push(`Template MCQ error: ${err.message}`);
+    }
+    newDrafts.push(...(templateResult.drafts || []).map((d) => withDraftDifficulty(d, computeDifficulty)));
+  }
+
+  if (aiRecipes.length > STUDIO_MAX_QUESTIONS) {
+    throw new Error(`Maximum ${STUDIO_MAX_QUESTIONS} AI questions per request — reduce recipe counts`);
+  }
+
+  let model = templateRecipes.length ? "template-mcq" : null;
+
+  if (aiRecipes.length) {
+    const authorPrompt = String(spec.author_prompt || "").trim();
+    const aiResult = await invokeGenerateQuestions(supabaseClient, {
+      subject: spec.subject,
+      paper: spec.paper,
+      tier: spec.tier,
+      spec_ref: specPoint.spec_ref,
+      topic_name: specPoint.topic_name,
+      spec_text: specPoint.spec_text,
+      author_prompt: authorPrompt || undefined,
+      recipes: aiRecipes,
+      avoid_questions: draftsToAvoidQuestions([...existingDrafts, ...newDrafts]),
+      focus_offset: Math.floor(Math.random() * 5)
+    });
+
+    const prior = draftsToAvoidQuestions([...existingDrafts, ...newDrafts]);
+    for (const d of aiResult.drafts || []) {
+      const quality = evaluateQuestionQuality({
+        question_type: d?.question?.question_type,
+        prompt: d?.question?.prompt,
+        command_word: d?.question?.command_word,
+        demand_level: d?.question?.demand_level,
+        options: d?.question?.options,
+        correct: d?.answer_key?.key_payload?.correct,
+        option_feedback: d?.answer_key?.key_payload?.option_feedback,
+        max_marks: d?.question?.max_marks,
+        mark_points: d?.mark_points,
+        key_payload: d?.answer_key?.key_payload
+      }, { priorQuestions: prior });
+      if (!quality.pass) {
+        warnings.push(`AI draft rejected by quality gate: ${quality.reasons.join("; ")}`);
+        continue;
+      }
+      prior.push({
+        prompt: d?.question?.prompt,
+        correct: d?.answer_key?.key_payload?.correct
+      });
+      newDrafts.push(withDraftDifficulty(d, computeDifficulty));
+    }
+    warnings.push(...(aiResult.warnings || []));
+    model = aiResult.model || model;
+  }
+
+  newDrafts.forEach((d, i) => {
     if (d?.question?.question_type !== "extended_response") return;
     const gaps = getExtendedResponseDetailGaps(d.answer_key?.key_payload, d.question.max_marks);
     if (gaps.includes("key scientific points")) {
@@ -807,9 +862,9 @@ export async function generateQuestionStudioBatch(supabaseClient, {
   });
 
   return {
-    drafts,
+    drafts: newDrafts,
     warnings,
-    model: aiResult.model,
+    model,
     appended: gapFill
   };
 }

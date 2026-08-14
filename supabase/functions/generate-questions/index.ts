@@ -5,7 +5,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type"
 };
 
-const MAX_QUESTIONS = 12;
+const MAX_QUESTIONS = 20;
 const GEMINI_CALL_TIMEOUT_MS = 50_000;
 const FUNCTION_BUDGET_MS = 130_000;
 const SPEC_TEXT_MAX_CHARS = 1200;
@@ -14,7 +14,7 @@ const RECIPE_GAP_MS = 600;
 const RETRYABLE_STATUSES = new Set([429, 500, 503, 504]);
 const RETRY_BACKOFF_MS = [1200, 2500, 5000, 8000, 12000];
 
-const GEMINI_MODEL = Deno.env.get("GEMINI_MODEL") || "gemini-2.5-flash-lite";
+const GEMINI_MODEL = Deno.env.get("GEMINI_MODEL") || "gemini-2.5-flash";
 
 function jsonResponse(body, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -67,6 +67,12 @@ function recipeMaxMarks(recipe) {
   return 1;
 }
 
+function isRecallShortTextRecipe(recipe) {
+  return recipe?.question_type === "short_text"
+    && Number(recipe?.max_marks) === 1
+    && recipe?.demand_level === "standard_45";
+}
+
 const MCQ_FOCUS_ANGLES = [
   "Core recall — key term, symbol, unit, or single fact from the spec.",
   "Applied scenario — short unfamiliar context; student applies knowledge.",
@@ -81,6 +87,14 @@ const SHORT_TEXT_FOCUS_ANGLES = [
   "Compare or link — relationship between two spec ideas.",
   "Apply — short novel context requiring spec knowledge in an answer.",
   "Evaluate evidence — use a described observation to justify a conclusion."
+];
+
+const RECALL_SHORT_TEXT_FOCUS_ANGLES = [
+  "State — key term, symbol, unit, or single fact from the spec.",
+  "Name — identify a substance, structure, particle, or piece of apparatus.",
+  "Give — provide one quantity, value, formula, or property from the spec.",
+  "Define — one-sentence definition of a spec term.",
+  "Identify — recognise a labelled part, variable, hazard symbol, or classification."
 ];
 
 const EXTENDED_FOCUS_ANGLES = [
@@ -135,14 +149,47 @@ function tokenOverlapRatio(a, b) {
   return shared / Math.min(wordsA.size, wordsB.size);
 }
 
+function stemCore(text) {
+  return normalizeForCompare(text)
+    .replace(/^state which statement correctly describes:\s*/i, "")
+    .trim();
+}
+
+function stemSignature(text) {
+  const core = stemCore(text) || normalizeForCompare(text);
+  const STEM_BOILERPLATE = /\b(state|give|name|define|identify|which|statement|statements|about|correct|according|the|specification|for|this|topic|student|investigates|revises|lesson|during|an|experiment|in|a|on|exam|style|best|applies|focusing|describe|explain|suggest|compare|evaluate|justify|discuss|higher|tier|demand)\b/gi;
+  const stripped = core.replace(STEM_BOILERPLATE, " ").replace(/\s+/g, " ").trim();
+  return stripped || core;
+}
+
+function overlapThresholdForDemand(demandLevel) {
+  if (demandLevel === "standard_67" || demandLevel === "high_89") return 0.92;
+  if (demandLevel === "standard_45") return 0.88;
+  if (demandLevel === "standard") return 0.8;
+  return 0.72;
+}
+
+function priorMatchesScope(prev, candidate) {
+  if (candidate.question_type && prev?.question_type && prev.question_type !== candidate.question_type) {
+    return false;
+  }
+  if (candidate.demand_level && prev?.demand_level && prev.demand_level !== candidate.demand_level) {
+    return false;
+  }
+  return true;
+}
+
 function isNearDuplicateQuestion(candidate, priorSameType) {
-  const prompt = normalizeForCompare(candidate.prompt);
-  if (!prompt) return false;
+  const signature = stemSignature(candidate.prompt);
+  if (!signature) return false;
+  const threshold = overlapThresholdForDemand(candidate.demand_level);
+
   for (const prev of priorSameType) {
-    const prevPrompt = normalizeForCompare(prev.prompt);
-    if (!prevPrompt) continue;
-    if (prompt === prevPrompt) return true;
-    if (tokenOverlapRatio(prompt, prevPrompt) >= 0.72) return true;
+    if (!priorMatchesScope(prev, candidate)) continue;
+    const prevSignature = stemSignature(prev.prompt);
+    if (!prevSignature) continue;
+    if (signature === prevSignature) return true;
+    if (tokenOverlapRatio(signature, prevSignature) >= threshold) return true;
     if (
       candidate.question_type === "mcq"
       && prev.correct
@@ -153,6 +200,96 @@ function isNearDuplicateQuestion(candidate, priorSameType) {
     }
   }
   return false;
+}
+
+const FILLER_PATTERN = /check the specification point carefully|distractor \d/i;
+const OPEN_ENDED_COMMANDS = new Set([
+  "explain", "describe", "suggest", "compare", "evaluate", "justify", "discuss", "analyse", "analyze"
+]);
+
+function optionDistinctness(options = [], correct = "") {
+  const trimmed = options.map((o) => String(o || "").trim()).filter(Boolean);
+  if (trimmed.length < 4) return false;
+  const correctNorm = normalizeForCompare(correct);
+  for (let i = 0; i < trimmed.length; i++) {
+    for (let j = i + 1; j < trimmed.length; j++) {
+      const a = normalizeForCompare(trimmed[i]);
+      const b = normalizeForCompare(trimmed[j]);
+      if (a === b) return false;
+      const bothWrong = a !== correctNorm && b !== correctNorm;
+      if (bothWrong && tokenOverlapRatio(trimmed[i], trimmed[j]) >= 0.85) return false;
+    }
+  }
+  return true;
+}
+
+function countScientificPointsForGate(raw) {
+  if (!raw) return 0;
+  if (Array.isArray(raw)) return raw.filter(Boolean).length;
+  if (typeof raw === "string") {
+    return raw.split(/\r?\n|;/).map((s) => s.trim()).filter((s) => s.length > 8).length;
+  }
+  return 0;
+}
+
+function passesRecallShortTextGate(question, recipe) {
+  const prompt = String(question?.prompt || "").trim();
+  const commandWord = String(question?.command_word || "").toLowerCase().trim();
+  const markPoints = Array.isArray(question?.mark_points) ? question.mark_points : [];
+
+  if (prompt.length < 12 || prompt.length > 280) return false;
+  if (OPEN_ENDED_COMMANDS.has(commandWord)) return false;
+  if (/^(explain|describe|suggest|compare|evaluate|justify|discuss|analyse|analyze)\b/i.test(prompt)) {
+    return false;
+  }
+  if (Number(recipe?.max_marks) !== 1 || markPoints.length !== 1) return false;
+
+  const keywords = String(markPoints[0]?.keywords || markPoints[0]?.point_text || "").trim();
+  if (!keywords) return false;
+  const synonyms = keywords.split("|").map((s) => s.trim()).filter(Boolean);
+  if (synonyms.length > 4 || keywords.length > 100) return false;
+  return true;
+}
+
+function passesQualityGate(question, recipe, priorSameType = []) {
+  const type = recipe?.question_type || question?.question_type;
+  const prompt = String(question?.prompt || "").trim();
+  if (isNearDuplicateQuestion(question, priorSameType)) return false;
+
+  if (type === "extended_response") {
+    const maxMarks = Number(recipe?.max_marks) === 4 ? 4 : 6;
+    if (prompt.length < 30) return false;
+    if (countScientificPointsForGate(question.key_scientific_points) < 2) return false;
+    if (!String(question.marking_guidelines || "").trim()) return false;
+    if (!String(question.level_1_descriptor || "").trim()) return false;
+    if (!String(question.level_2_descriptor || "").trim()) return false;
+    if (maxMarks === 6 && !String(question.level_3_descriptor || "").trim()) return false;
+    return true;
+  }
+
+  if (type === "short_text") {
+    if (isRecallShortTextRecipe(recipe)) return passesRecallShortTextGate(question, recipe);
+    const markPoints = Array.isArray(question?.mark_points) ? question.mark_points : [];
+    return prompt.length >= 12 && prompt.length <= 280 && markPoints.length >= 1;
+  }
+
+  if (type !== "mcq") return true;
+
+  const options = Array.isArray(question?.options) ? question.options : [];
+  const correct = String(question?.correct || "").trim();
+  if (prompt.length < 20 || prompt.length > 280) return false;
+  if (!correct || !optionDistinctness(options, correct)) return false;
+  if (!options.some((o) => normalizeForCompare(o) === normalizeForCompare(correct))) return false;
+  if (FILLER_PATTERN.test(options.join(" "))) return false;
+
+  const wrongOptions = options.filter((o) => normalizeForCompare(o) !== normalizeForCompare(correct));
+  const feedback = question.option_feedback || [];
+  const feedbackCount = Array.isArray(feedback)
+    ? feedback.filter((f) => String(f?.feedback || "").trim().length >= 8).length
+    : Object.keys(feedback).filter((k) => k !== correct && String(feedback[k] || "").trim().length >= 8).length;
+  if (feedbackCount < Math.min(3, wrongOptions.length)) return false;
+
+  return true;
 }
 
 function buildAvoidByType(avoidQuestions) {
@@ -171,6 +308,9 @@ function buildAvoidByType(avoidQuestions) {
 function typeHintForRecipe(recipe) {
   const marks = recipeMaxMarks(recipe);
   if (recipe.question_type === "short_text") {
+    if (isRecallShortTextRecipe(recipe)) {
+      return "short_text RECALL (1-mark): exactly 1 mark_point with a tight keywords string (max 3 synonyms separated by |). command_word MUST be one of: state, name, give, define, identify. Do NOT use explain, describe, suggest, compare, evaluate, justify, or discuss. The answer must be a brief factual recall (word, phrase, symbol, unit, name, or value) — NOT an extended explanation. max_marks 1, ao1=1 ao2=0 ao3=0. Feedback max 12 words.";
+    }
     const aoHint = marks === 1
       ? "max_marks 1, ao1=1 ao2=0 ao3=0"
       : "max_marks 2, ao1=1 ao2=1 ao3=0";
@@ -187,9 +327,10 @@ function typeHintForRecipe(recipe) {
   return "mcq: exactly 4 options, one correct answer, three distractors based on common science misconceptions for the topic, option_feedback for each wrong option only (3 entries), max_marks 1, ao1=1. Wrong-option feedback max 12 words each.";
 }
 
-function focusAnglesForType(questionType) {
-  if (questionType === "short_text") return SHORT_TEXT_FOCUS_ANGLES;
-  if (questionType === "extended_response") return EXTENDED_FOCUS_ANGLES;
+function focusAnglesForRecipe(recipe) {
+  if (isRecallShortTextRecipe(recipe)) return RECALL_SHORT_TEXT_FOCUS_ANGLES;
+  if (recipe.question_type === "short_text") return SHORT_TEXT_FOCUS_ANGLES;
+  if (recipe.question_type === "extended_response") return EXTENDED_FOCUS_ANGLES;
   return MCQ_FOCUS_ANGLES;
 }
 
@@ -210,7 +351,7 @@ function buildSingleQuestionPrompt(payload, recipe, context = {}) {
   const marks = recipeMaxMarks(recipe);
   const typeHint = typeHintForRecipe(recipe);
 
-  const angles = focusAnglesForType(recipe.question_type);
+  const angles = focusAnglesForRecipe(recipe);
   const focusAngle = angles[(avoidSameType.length + sameTypeIndex + focusOffset) % angles.length];
 
   const usedCommands = [...new Set(allPrior.map((q) => q.command_word).filter(Boolean))];
@@ -725,12 +866,13 @@ async function generateQuestionsForRecipes(payload, recipes, requestId, admin = 
         const pointsOk = recipe.question_type !== "extended_response"
           || countScientificPoints(question.key_scientific_points) >= 2;
         const distinctOk = !isNearDuplicateQuestion(question, allPrior);
+        const qualityOk = passesQualityGate(question, recipe, allPrior);
 
-        if (pointsOk && distinctOk) break;
+        if (pointsOk && distinctOk && qualityOk) break;
 
         console.warn(JSON.stringify({
           requestId,
-          event: pointsOk ? "duplicate_detected" : "missing_scientific_points",
+          event: !qualityOk ? "quality_gate_failed" : pointsOk ? "duplicate_detected" : "missing_scientific_points",
           index: i + 1,
           attempt: diversityAttempt + 1,
           pointCount: countScientificPoints(question.key_scientific_points),
@@ -741,6 +883,9 @@ async function generateQuestionsForRecipes(payload, recipes, requestId, admin = 
         if (diversityAttempt === maxAttempts - 1) {
           if (!distinctOk) {
             warnings.push(`Question ${i + 1} (${recipe.question_type} · ${recipe.demand_level}): may be similar to another in this batch — please review`);
+          }
+          if (!qualityOk) {
+            warnings.push(`Question ${i + 1} (${recipe.question_type} · ${recipe.demand_level}): failed quality gate — please review or regenerate`);
           }
           if (!pointsOk) {
             warnings.push(

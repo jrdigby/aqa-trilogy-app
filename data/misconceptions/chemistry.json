@@ -1,0 +1,417 @@
+{
+  "subject": "chemistry",
+  "term_swaps": [
+    {
+      "pattern": "\\bionic\\b",
+      "wrong": "covalent",
+      "feedback": "Ionic bonding involves electron transfer; covalent bonding involves sharing pairs of electrons."
+    },
+    {
+      "pattern": "\\bcovalent\\b",
+      "wrong": "ionic",
+      "feedback": "Covalent bonding shares electrons; ionic bonding transfers electrons between ions."
+    },
+    {
+      "pattern": "\\banode\\b",
+      "wrong": "cathode",
+      "feedback": "At the anode, oxidation occurs; reduction occurs at the cathode."
+    },
+    {
+      "pattern": "\\bcathode\\b",
+      "wrong": "anode",
+      "feedback": "Reduction happens at the cathode; oxidation happens at the anode."
+    },
+    {
+      "pattern": "\\bexothermic\\b",
+      "wrong": "endothermic",
+      "feedback": "Exothermic reactions transfer energy to the surroundings; endothermic reactions take energy in."
+    },
+    {
+      "pattern": "\\bendothermic\\b",
+      "wrong": "exothermic",
+      "feedback": "Endothermic reactions absorb energy from the surroundings; exothermic reactions release energy."
+    },
+    {
+      "pattern": "\\balkane\\b",
+      "wrong": "alkene",
+      "feedback": "Alkanes are saturated hydrocarbons; alkenes contain a carbon–carbon double bond."
+    },
+    {
+      "pattern": "\\balkene\\b",
+      "wrong": "alkane",
+      "feedback": "Alkenes are unsaturated; alkanes have only single C–C bonds."
+    },
+    {
+      "pattern": "\\bacid\\b",
+      "wrong": "alkali",
+      "feedback": "Acids have pH below 7; alkalis have pH above 7."
+    },
+    {
+      "pattern": "\\balkali\\b",
+      "wrong": "acid",
+      "feedback": "Alkalis are bases that dissolve in water; acids produce H⁺ ions in aqueous solution."
+    },
+    {
+      "pattern": "\\bproton\\b",
+      "wrong": "neutron",
+      "feedback": "Protons are positively charged and in the nucleus; neutrons have no charge."
+    },
+    {
+      "pattern": "\\bneutron\\b",
+      "wrong": "proton",
+      "feedback": "Neutrons have no charge; protons are positively charged."
+    },
+    {
+      "pattern": "\\belectron\\b",
+      "wrong": "neutron",
+      "feedback": "Electrons are in shells around the nucleus; neutrons are in the nucleus."
+    },
+    {
+      "pattern": "\\bmolecule\\b",
+      "wrong": "atom",
+      "feedback": "A molecule contains two or more atoms chemically bonded together."
+    },
+    {
+      "pattern": "\\bcompound\\b",
+      "wrong": "element",
+      "feedback": "A compound contains atoms of different elements chemically combined."
+    },
+    {
+      "pattern": "\\belement\\b",
+      "wrong": "compound",
+      "feedback": "An element contains only one type of atom."
+    },
+    {
+      "pattern": "\\boxidation\\b",
+      "wrong": "reduction",
+      "feedback": "Oxidation is loss of electrons; reduction is gain of electrons."
+    },
+    {
+      "pattern": "\\breduction\\b",
+      "wrong": "oxidation",
+      "feedback": "Reduction is gain of electrons; oxidation is loss of electrons."
+    }
+  ],
+  "groups": [
+    {
+      "keywords": ["atom", "proton", "neutron", "electron", "nucleus", "shell", "isotope", "mass number", "atomic"],
+      "options": [
+        {
+          "text": "The mass number is the number of protons only",
+          "feedback": "Mass number is protons plus neutrons in the nucleus."
+        },
+        {
+          "text": "Electrons have a positive charge",
+          "feedback": "Electrons are negatively charged; protons are positive."
+        },
+        {
+          "text": "All atoms of an element must have the same number of neutrons",
+          "feedback": "Isotopes of an element have the same number of protons but different numbers of neutrons."
+        },
+        {
+          "text": "The nucleus contains electrons in shells",
+          "feedback": "Electrons occupy shells outside the nucleus; the nucleus contains protons and neutrons."
+        },
+        {
+          "text": "Atomic number counts protons and neutrons together",
+          "feedback": "Atomic number is the number of protons only."
+        }
+      ]
+    },
+    {
+      "keywords": ["periodic", "group", "period", "metal", "non-metal", "transition"],
+      "options": [
+        {
+          "text": "Elements in the same group have the same number of electron shells",
+          "feedback": "Elements in the same group have the same number of electrons in the outer shell."
+        },
+        {
+          "text": "Reactivity of Group 1 metals decreases down the group",
+          "feedback": "Group 1 metals become more reactive down the group."
+        },
+        {
+          "text": "Noble gases react easily because they have a full outer shell",
+          "feedback": "Noble gases are unreactive because they already have a full outer shell of electrons."
+        },
+        {
+          "text": "All metals are more reactive than all non-metals",
+          "feedback": "Reactivity depends on the element and reaction — compare specific metals and non-metals."
+        }
+      ]
+    },
+    {
+      "keywords": ["ionic", "covalent", "bond", "electron", "transfer", "share", "metal", "non-metal"],
+      "options": [
+        {
+          "text": "Ionic compounds share pairs of electrons between atoms",
+          "feedback": "Ionic bonding involves transfer of electrons to form ions; sharing is covalent bonding."
+        },
+        {
+          "text": "Covalent bonds form when a metal transfers electrons to a non-metal",
+          "feedback": "That describes ionic bonding between metals and non-metals."
+        },
+        {
+          "text": "Ionic compounds conduct electricity well as solids",
+          "feedback": "Ionic compounds conduct when molten or dissolved in water — not as solid crystals."
+        },
+        {
+          "text": "A covalent bond is a weak force between separate molecules",
+          "feedback": "That describes an intermolecular force; covalent bonds hold atoms together in a molecule."
+        },
+        {
+          "text": "Ions in an ionic lattice are neutral particles",
+          "feedback": "Ions have charge; the compound is neutral overall because positive and negative charges balance."
+        }
+      ]
+    },
+    {
+      "keywords": ["giant", "simple", "molecule", "macromolecule", "polymer", "diamond", "graphite", "graphene", "structure", "melting"],
+      "options": [
+        {
+          "text": "Simple covalent substances have high melting points because covalent bonds are strong",
+          "feedback": "Simple molecules have weak intermolecular forces — it is these that melt, not the covalent bonds."
+        },
+        {
+          "text": "Diamond conducts electricity because it contains delocalised electrons",
+          "feedback": "Diamond does not conduct — each carbon is bonded to four others with no free electrons."
+        },
+        {
+          "text": "Graphite is soft because it has weak covalent bonds between carbon atoms",
+          "feedback": "Graphite is soft because layers slide over each other; covalent bonds within layers are strong."
+        },
+        {
+          "text": "Polymers are small molecules with low melting points",
+          "feedback": "Polymers are large macromolecules; many have high melting points due to strong bonds."
+        }
+      ]
+    },
+    {
+      "keywords": ["mole", "concentration", "avogadro", "amount", "dm3", "mol", "rfm", "mr", "mass"],
+      "options": [
+        {
+          "text": "One mole of any substance always has a mass of 1 g",
+          "feedback": "The mass of one mole depends on relative formula mass — it is not always 1 g."
+        },
+        {
+          "text": "Concentration is measured in moles per cubic centimetre only",
+          "feedback": "Concentration is often mol/dm³; check units carefully in calculations."
+        },
+        {
+          "text": "The relative formula mass is the mass of one atom of the substance",
+          "feedback": "Relative formula mass compares to carbon-12; it relates to one mole of particles."
+        },
+        {
+          "text": "Avogadro's constant is the number of grams in one mole",
+          "feedback": "It is the number of particles in one mole (about 6 × 10²³), not a mass."
+        }
+      ]
+    },
+    {
+      "keywords": ["acid", "alkali", "base", "ph", "neutral", "salt", "hydrogen", "hydroxide"],
+      "options": [
+        {
+          "text": "All acids must contain oxygen in their formula",
+          "feedback": "Acids produce H⁺ ions in aqueous solution — they do not have to contain oxygen."
+        },
+        {
+          "text": "Neutralisation produces only water",
+          "feedback": "Neutralisation of an acid and alkali also produces a salt."
+        },
+        {
+          "text": "A solution with pH 7 is always a strong acid",
+          "feedback": "pH 7 is neutral; acids have pH below 7."
+        },
+        {
+          "text": "Alkalis release hydrogen ions in water",
+          "feedback": "Alkalis produce hydroxide ions (OH⁻) in aqueous solution."
+        },
+        {
+          "text": "Strong acids are always more concentrated than weak acids",
+          "feedback": "Strength and concentration are different — a dilute strong acid can be less concentrated than a concentrated weak acid."
+        }
+      ]
+    },
+    {
+      "keywords": ["electrolysis", "electrode", "anode", "cathode", "electrolyte", "ion"],
+      "options": [
+        {
+          "text": "Positive ions move to the anode during electrolysis",
+          "feedback": "Positive ions (cations) move to the cathode; anions move to the anode."
+        },
+        {
+          "text": "Electrolysis can occur in solid ionic compounds without melting them",
+          "feedback": "Ionic compounds must be molten or in solution so ions are free to move."
+        },
+        {
+          "text": "At the cathode, negative ions lose electrons",
+          "feedback": "Negative ions move to the anode where they lose electrons (oxidation)."
+        },
+        {
+          "text": "The electrolyte is always a metal",
+          "feedback": "The electrolyte is a molten or aqueous ionic compound that conducts."
+        }
+      ]
+    },
+    {
+      "keywords": ["exothermic", "endothermic", "activation", "energy", "bond", "enthalpy"],
+      "options": [
+        {
+          "text": "Exothermic reactions do not need any energy to start",
+          "feedback": "Activation energy is still needed to break bonds and start the reaction."
+        },
+        {
+          "text": "Endothermic reactions release thermal energy to the surroundings",
+          "feedback": "Endothermic reactions take in energy from the surroundings."
+        },
+        {
+          "text": "Breaking bonds releases energy overall",
+          "feedback": "Breaking bonds requires energy; making bonds releases energy."
+        },
+        {
+          "text": "A reaction cannot be exothermic if the temperature falls",
+          "feedback": "Some exothermic reactions feel cold if heat is absorbed from the surroundings to supply activation energy."
+        }
+      ]
+    },
+    {
+      "keywords": ["rate", "catalyst", "collision", "temperature", "concentration", "pressure", "surface area"],
+      "options": [
+        {
+          "text": "A catalyst is used up during a chemical reaction",
+          "feedback": "Catalysts speed up reactions without being used up chemically."
+        },
+        {
+          "text": "Increasing temperature always decreases the rate of reaction",
+          "feedback": "Higher temperature gives particles more kinetic energy — more frequent successful collisions."
+        },
+        {
+          "text": "Decreasing concentration always speeds up a reaction",
+          "feedback": "Lower concentration means fewer particles per unit volume — fewer collisions per second."
+        },
+        {
+          "text": "A catalyst increases the yield of product at equilibrium",
+          "feedback": "Catalysts increase rate of attainment of equilibrium but do not change the position of equilibrium."
+        }
+      ]
+    },
+    {
+      "keywords": ["reversible", "equilibrium", "dynamic", "closed system", "shift"],
+      "options": [
+        {
+          "text": "At equilibrium, the concentrations of reactants and products are equal",
+          "feedback": "At equilibrium, forward and reverse rates are equal — concentrations are not necessarily equal."
+        },
+        {
+          "text": "A reversible reaction stops when equilibrium is reached",
+          "feedback": "Equilibrium is dynamic — both forward and reverse reactions continue."
+        },
+        {
+          "text": "Equilibrium can only be reached in an open system",
+          "feedback": "A closed system is needed so substances cannot escape."
+        }
+      ]
+    },
+    {
+      "keywords": ["alkane", "alkene", "crude", "fraction", "hydrocarbon", "petroleum", "combustion"],
+      "options": [
+        {
+          "text": "Alkenes are saturated hydrocarbons",
+          "feedback": "Alkenes are unsaturated — they contain a C=C double bond."
+        },
+        {
+          "text": "Cracking always produces only smaller alkanes",
+          "feedback": "Cracking can produce alkenes as well as smaller alkanes."
+        },
+        {
+          "text": "Complete combustion of hydrocarbons produces carbon monoxide and water only",
+          "feedback": "Complete combustion produces carbon dioxide and water."
+        },
+        {
+          "text": "All fractions from crude oil have the same boiling point",
+          "feedback": "Fractional distillation separates fractions with different boiling points."
+        }
+      ]
+    },
+    {
+      "keywords": ["polymer", "monomer", "addition", "condensation", "plastic"],
+      "options": [
+        {
+          "text": "Polymers are always made from many different types of monomer",
+          "feedback": "Addition polymers are made from one type of alkene monomer repeated."
+        },
+        {
+          "text": "Condensation polymerisation produces only the polymer with no other products",
+          "feedback": "Condensation polymerisation also produces a small molecule such as water."
+        },
+        {
+          "text": "All plastics are biodegradable",
+          "feedback": "Many common plastics are not biodegradable and persist in the environment."
+        }
+      ]
+    },
+    {
+      "keywords": ["chromatography", "purity", "rf", "solvent", "formulation", "mixture"],
+      "options": [
+        {
+          "text": "Rf value can be greater than 1.0 for a pure substance",
+          "feedback": "Rf is always between 0 and 1 for a substance in a given solvent system."
+        },
+        {
+          "text": "A pure substance shows several spots on a chromatogram",
+          "feedback": "A pure substance typically gives one spot (unless it decomposes)."
+        },
+        {
+          "text": "The solvent front and the substance travel the same distance",
+          "feedback": "Rf compares distance moved by substance to distance moved by solvent front."
+        }
+      ]
+    },
+    {
+      "keywords": ["reactivity", "displacement", "metal", "ore", "extraction", "electrolysis"],
+      "options": [
+        {
+          "text": "A more reactive metal can be displaced from its compound by a less reactive metal",
+          "feedback": "A more reactive metal displaces a less reactive metal from its compound."
+        },
+        {
+          "text": "All metals can be extracted by heating with carbon",
+          "feedback": "Very reactive metals such as aluminium are extracted by electrolysis, not carbon reduction."
+        },
+        {
+          "text": "Rusting is the reaction of iron with nitrogen in the air",
+          "feedback": "Rusting involves iron reacting with oxygen and water."
+        }
+      ]
+    },
+    {
+      "keywords": ["fuel cell", "battery", "cell", "hydrogen", "electrode"],
+      "options": [
+        {
+          "text": "Fuel cells store chemical energy like a rechargeable battery",
+          "feedback": "Fuel cells are supplied continuously with fuel; they do not store energy like a battery."
+        },
+        {
+          "text": "In a hydrogen fuel cell, hydrogen is burned in a flame to produce electricity",
+          "feedback": "A fuel cell uses an electrochemical reaction, not combustion in a flame."
+        }
+      ]
+    },
+    {
+      "keywords": ["life cycle", "finite", "renewable", "recycle", "resource", "alloy", "corrosion"],
+      "options": [
+        {
+          "text": "All metals are renewable resources because they can be recycled",
+          "feedback": "Metal ores are finite; recycling reduces demand but does not make ores renewable."
+        },
+        {
+          "text": "An alloy is a compound with a fixed ratio of metal and non-metal atoms",
+          "feedback": "An alloy is a mixture of a metal with other elements."
+        },
+        {
+          "text": "Corrosion of iron can be prevented only by painting",
+          "feedback": "Sacrificial protection, galvanising, and alloying can also prevent rusting."
+        }
+      ]
+    }
+  ]
+}

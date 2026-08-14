@@ -1,5 +1,6 @@
 // Misconception-based distractor generation for batch MCQs.
 import { cleanFragment, sentenceCase } from "./mcqSpecParser.js";
+import { CHEMISTRY_TERM_SWAPS, CHEMISTRY_MISCONCEPTION_GROUPS } from "./chemistryCatalog.js";
 
 const TERM_SWAPS = [
   {
@@ -93,7 +94,7 @@ const CONDITION_INVERSIONS = [
     feedback: "Check the condition described in the specification — raised above vs lowered below matters."
   },
   {
-    pattern: /only when/gi,
+    pattern: /\bonly when\b/gi,
     replace: "even when not",
     feedback: "This removes an important condition — read the 'only when' clause carefully."
   },
@@ -164,47 +165,7 @@ const SUBJECT_MISCONCEPTIONS = {
       ]
     }
   ],
-  chemistry: [
-    {
-      keywords: ["atom", "ion", "bond", "electron"],
-      options: [
-        {
-          text: "Ionic bonding involves sharing pairs of electrons",
-          feedback: "Ionic bonding involves transfer of electrons; covalent bonding involves sharing."
-        },
-        {
-          text: "Covalent bonds form when electrons are transferred from metal to non-metal",
-          feedback: "That describes ionic bonding, not covalent bonding."
-        }
-      ]
-    },
-    {
-      keywords: ["acid", "alkali", "ph", "neutral"],
-      options: [
-        {
-          text: "All acids contain oxygen",
-          feedback: "Acids produce H⁺ ions in aqueous solution — they do not have to contain oxygen."
-        },
-        {
-          text: "A neutralisation reaction produces only water",
-          feedback: "Neutralisation also produces a salt as well as water."
-        }
-      ]
-    },
-    {
-      keywords: ["exothermic", "endothermic", "reaction"],
-      options: [
-        {
-          text: "Exothermic reactions do not need any energy to start",
-          feedback: "Activation energy is still needed to start many exothermic reactions."
-        },
-        {
-          text: "Endothermic reactions release thermal energy to the surroundings",
-          feedback: "Endothermic reactions take in energy from the surroundings."
-        }
-      ]
-    }
-  ],
+  chemistry: CHEMISTRY_MISCONCEPTION_GROUPS,
   biology: [
     {
       keywords: ["respiration", "photosynthesis", "energy"],
@@ -257,6 +218,22 @@ const SUBJECT_MISCONCEPTIONS = {
   ]
 };
 
+function chemistryTermSwapsToPatterns() {
+  return CHEMISTRY_TERM_SWAPS.map((swap) => ({
+    pattern: new RegExp(swap.pattern, "gi"),
+    wrong: swap.wrong,
+    feedback: swap.feedback
+  }));
+}
+
+function termSwapsForSubject(subject) {
+  const s = String(subject || "").toLowerCase();
+  if (s === "chemistry") {
+    return [...chemistryTermSwapsToPatterns(), ...TERM_SWAPS];
+  }
+  return TERM_SWAPS;
+}
+
 function shorten(text, maxLen = 160) {
   const t = cleanFragment(text);
   if (t.length <= maxLen) return t;
@@ -279,15 +256,17 @@ function applyPatternSwap(text, { pattern, wrong, replace }) {
   return sentenceCase(swapped);
 }
 
-function siblingDistractor(correct, siblingClaims) {
+function siblingDistractors(correct, siblingClaims, limit = 2) {
+  const out = [];
   for (const sib of siblingClaims) {
     if (cleanFragment(sib).toLowerCase() === cleanFragment(correct).toLowerCase()) continue;
-    return {
+    out.push({
       text: shorten(sib),
-      feedback: `This is true for a different point in the specification — it does not answer this question.`
-    };
+      feedback: "This is true for a different point in the specification — it does not answer this question."
+    });
+    if (out.length >= limit) break;
   }
-  return null;
+  return out;
 }
 
 function subjectMisconceptions(subject, claimText, topicName) {
@@ -302,8 +281,17 @@ function subjectMisconceptions(subject, claimText, topicName) {
   return matches;
 }
 
+export class InsufficientDistractorsError extends Error {
+  constructor(message, partial = []) {
+    super(message);
+    this.name = "InsufficientDistractorsError";
+    this.partial = partial;
+  }
+}
+
 /**
  * @returns {Array<{ text: string, feedback: string, source: string }>}
+ * @throws {InsufficientDistractorsError} when fewer than count real distractors
  */
 export function generateMisconceptionDistractors(correct, claim, context = {}) {
   const {
@@ -311,32 +299,31 @@ export function generateMisconceptionDistractors(correct, claim, context = {}) {
     topicName = "",
     siblingClaims = [],
     rng = Math.random,
-    count = 3
+    count = 3,
+    avoidTexts = []
   } = context;
+
+  const avoidSet = new Set(
+    (avoidTexts || []).map((t) => cleanFragment(t).toLowerCase()).filter(Boolean)
+  );
+  avoidSet.add(cleanFragment(correct).toLowerCase());
 
   const results = [];
   const seen = new Set([cleanFragment(correct).toLowerCase()]);
 
   function add(item) {
     const norm = cleanFragment(item.text).toLowerCase();
-    if (!norm || seen.has(norm) || norm === cleanFragment(correct).toLowerCase()) return;
+    if (!norm || seen.has(norm) || avoidSet.has(norm)) return;
+    if (norm === cleanFragment(correct).toLowerCase()) return;
     seen.add(norm);
     results.push(item);
   }
 
-  // 1. Transform the correct statement using misconception patterns
-  for (const swap of TERM_SWAPS) {
+  for (const swap of termSwapsForSubject(subject)) {
     if (results.length >= count) break;
-    const text = applyPatternSwap(correct, {
-      pattern: swap.pattern,
-      wrong: swap.wrong
-    });
+    const text = applyPatternSwap(correct, swap);
     if (text) {
-      add({
-        text,
-        feedback: swap.feedback,
-        source: "term_confusion"
-      });
+      add({ text, feedback: swap.feedback, source: "term_confusion" });
     }
   }
 
@@ -356,11 +343,11 @@ export function generateMisconceptionDistractors(correct, claim, context = {}) {
     }
   }
 
-  // 2. Sibling claims from the same spec point (plausible but wrong for this question)
-  const sib = siblingDistractor(correct, siblingClaims);
-  if (sib) add({ ...sib, source: "sibling_claim" });
+  for (const sib of siblingDistractors(correct, siblingClaims, 2)) {
+    if (results.length >= count) break;
+    add({ ...sib, source: "sibling_claim" });
+  }
 
-  // 3. Subject-specific common misconceptions
   const subjectOpts = subjectMisconceptions(subject, correct, topicName);
   const shuffled = [...subjectOpts].sort(() => (rng() ?? Math.random()) - 0.5);
   for (const opt of shuffled) {
@@ -368,7 +355,6 @@ export function generateMisconceptionDistractors(correct, claim, context = {}) {
     add({ text: opt.text, feedback: opt.feedback, source: "subject_catalog" });
   }
 
-  // 4. Partial truth — drop qualifying clause after "when" or "only"
   const partial = correct.replace(/\s+when\s+.+$/i, "").replace(/\s+only\s+.+$/i, "");
   if (partial.length >= 20 && partial !== correct) {
     add({
@@ -378,19 +364,11 @@ export function generateMisconceptionDistractors(correct, claim, context = {}) {
     });
   }
 
-  while (results.length < count) {
-    const filler = shorten(
-      `${topicName || "This topic"} — check the specification point carefully (distractor ${results.length + 1}).`
+  if (results.length < count) {
+    throw new InsufficientDistractorsError(
+      `Only ${results.length} of ${count} distractors for "${shorten(correct, 60)}"`,
+      results
     );
-    const norm = cleanFragment(filler).toLowerCase();
-    if (!seen.has(norm)) {
-      seen.add(norm);
-      results.push({
-        text: filler,
-        feedback: `Review ${topicName || "this topic"} in specification ${context.specRef || "content"}.`,
-        source: "filler"
-      });
-    } else break;
   }
 
   return results.slice(0, count);

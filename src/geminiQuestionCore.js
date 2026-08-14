@@ -23,6 +23,14 @@ const SHORT_TEXT_FOCUS_ANGLES = [
   "Evaluate evidence — use a described observation to justify a conclusion."
 ];
 
+const RECALL_SHORT_TEXT_FOCUS_ANGLES = [
+  "State — key term, symbol, unit, or single fact from the spec.",
+  "Name — identify a substance, structure, particle, or piece of apparatus.",
+  "Give — provide one quantity, value, formula, or property from the spec.",
+  "Define — one-sentence definition of a spec term.",
+  "Identify — recognise a labelled part, variable, hazard symbol, or classification."
+];
+
 const EXTENDED_FOCUS_ANGLES = [
   "Explain a process or mechanism in a structured extended answer.",
   "Apply ideas to an unfamiliar practical or real-world context.",
@@ -42,6 +50,12 @@ export function truncateAuthorPrompt(text) {
   if (!raw) return "";
   if (raw.length <= AUTHOR_PROMPT_MAX_CHARS) return raw;
   return `${raw.slice(0, AUTHOR_PROMPT_MAX_CHARS)}… [truncated]`;
+}
+
+export function isRecallShortTextRecipe(recipe) {
+  return recipe?.question_type === "short_text"
+    && Number(recipe?.max_marks) === 1
+    && recipe?.demand_level === "standard_45";
 }
 
 function recipeMaxMarks(recipe) {
@@ -83,6 +97,9 @@ export function summarizeQuestionKey(question) {
 function typeHintForRecipe(recipe) {
   const marks = recipeMaxMarks(recipe);
   if (recipe.question_type === "short_text") {
+    if (isRecallShortTextRecipe(recipe)) {
+      return "short_text RECALL (1-mark): exactly 1 mark_point with a tight keywords string (max 3 synonyms separated by |). command_word MUST be one of: state, name, give, define, identify. Do NOT use explain, describe, suggest, compare, evaluate, justify, or discuss. The answer must be a brief factual recall (word, phrase, symbol, unit, name, or value) — NOT an extended explanation. max_marks 1, ao1=1 ao2=0 ao3=0. Feedback max 12 words.";
+    }
     const aoHint = marks === 1
       ? "max_marks 1, ao1=1 ao2=0 ao3=0"
       : "max_marks 2, ao1=1 ao2=1 ao3=0";
@@ -99,9 +116,10 @@ function typeHintForRecipe(recipe) {
   return "mcq: exactly 4 options, one correct answer, three distractors based on common science misconceptions for the topic, option_feedback for each wrong option only (3 entries), max_marks 1, ao1=1. Wrong-option feedback max 12 words each.";
 }
 
-function focusAnglesForType(questionType) {
-  if (questionType === "short_text") return SHORT_TEXT_FOCUS_ANGLES;
-  if (questionType === "extended_response") return EXTENDED_FOCUS_ANGLES;
+function focusAnglesForRecipe(recipe) {
+  if (isRecallShortTextRecipe(recipe)) return RECALL_SHORT_TEXT_FOCUS_ANGLES;
+  if (recipe.question_type === "short_text") return SHORT_TEXT_FOCUS_ANGLES;
+  if (recipe.question_type === "extended_response") return EXTENDED_FOCUS_ANGLES;
   return MCQ_FOCUS_ANGLES;
 }
 
@@ -122,7 +140,7 @@ export function buildSingleQuestionPrompt(payload, recipe, context = {}) {
   const marks = recipeMaxMarks(recipe);
   const typeHint = typeHintForRecipe(recipe);
 
-  const angles = focusAnglesForType(recipe.question_type);
+  const angles = focusAnglesForRecipe(recipe);
   const focusAngle = angles[(avoidSameType.length + sameTypeIndex + focusOffset) % angles.length];
 
   const usedCommands = [...new Set(allPrior.map((q) => q.command_word).filter(Boolean))];
