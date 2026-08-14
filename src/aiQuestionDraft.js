@@ -757,7 +757,7 @@ function withDraftDifficulty(draft, computeDifficulty) {
 }
 
 /**
- * Question Studio batch — template MCQs for chemistry low demand; Gemini for the rest.
+ * Question Studio batch — all recipes go to Gemini.
  */
 export async function generateQuestionStudioBatch(supabaseClient, {
   spec,
