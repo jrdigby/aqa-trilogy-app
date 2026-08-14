@@ -4,8 +4,10 @@ import {
   evaluateMcqQuality,
   evaluateExtendedQuality,
   evaluateShortTextQuality,
+  evaluateQuestionQuality,
   isNearDuplicatePrompt
 } from "../src/questionQualityGate.js";
+import { normalizeAiQuestions } from "../src/aiQuestionDraft.js";
 
 test("evaluateMcqQuality — accepts valid MCQ", () => {
   const result = evaluateMcqQuality({
@@ -97,7 +99,7 @@ test("evaluateShortTextQuality — rejects broad keyword lists", () => {
     prompt: "Name the particle with a positive charge in the nucleus.",
     max_marks: 1,
     mark_points: [{
-      keywords: "proton|positive|nucleus|charge|particle|ion|atom",
+      keywords: "proton|positive|nucleus|charge|particle|ion|atom|cation",
       feedback: "Too many synonyms."
     }]
   });
@@ -119,6 +121,54 @@ test("evaluateMcqQuality — rejects stem that reveals correct answer", () => {
   });
   assert.equal(result.pass, false);
   assert.ok(result.reasons.some((r) => /reveals/i.test(r)));
+});
+
+test("evaluateQuestionQuality — short text draft uses mark_points on draft root", () => {
+  const [draft] = normalizeAiQuestions([{
+    question_type: "short_text",
+    demand_level: "standard_45",
+    command_word: "state",
+    prompt: "State the unit of electric current.",
+    max_marks: 1,
+    mark_points: [{ ao: "AO1", keywords: "ampere|A", feedback: "Current is measured in amperes." }]
+  }], { tier: "both" });
+
+  const result = evaluateQuestionQuality({
+    question_type: draft.question.question_type,
+    prompt: draft.question.prompt,
+    command_word: draft.question.command_word,
+    demand_level: draft.question.demand_level,
+    max_marks: draft.question.max_marks,
+    mark_points: draft.mark_points
+  });
+  assert.equal(result.pass, true);
+});
+
+test("isNearDuplicatePrompt — allows similar boilerplate across demand bands", () => {
+  const prior = [{
+    question_type: "mcq",
+    demand_level: "low",
+    prompt: "State which statement about ionic bonding is correct?",
+    correct: "Ionic compounds have high melting points."
+  }];
+  assert.equal(
+    isNearDuplicatePrompt(
+      "State which statement about ionic bonding is correct?",
+      prior,
+      "Ionic compounds have high melting points.",
+      { questionType: "mcq", demandLevel: "low" }
+    ),
+    true
+  );
+  assert.equal(
+    isNearDuplicatePrompt(
+      "State which statement about ionic bonding is correct?",
+      prior,
+      "Ionic compounds conduct when molten.",
+      { questionType: "mcq", demandLevel: "standard_45" }
+    ),
+    false
+  );
 });
 
 test("isNearDuplicatePrompt — detects high overlap", () => {

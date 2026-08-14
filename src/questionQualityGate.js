@@ -7,6 +7,8 @@ const OPEN_ENDED_COMMANDS = new Set([
   "explain", "describe", "suggest", "compare", "evaluate", "justify", "discuss", "analyse", "analyze"
 ]);
 
+const STEM_BOILERPLATE = /\b(state|give|name|define|identify|which|statement|statements|about|correct|according|the|specification|for|this|topic|student|investigates|revises|lesson|during|an|experiment|in|a|on|exam|style|best|applies|focusing|describe|explain|suggest|compare|evaluate|justify|discuss|higher|tier|demand)\b/gi;
+
 export function normalizeCompareText(text) {
   return String(text || "")
     .toLowerCase()
@@ -26,6 +28,13 @@ export function tokenOverlapRatio(a, b) {
   return shared / Math.min(wordsA.size, wordsB.size);
 }
 
+export function overlapThresholdForDemand(demandLevel) {
+  if (demandLevel === "standard_67" || demandLevel === "high_89") return 0.92;
+  if (demandLevel === "standard_45") return 0.88;
+  if (demandLevel === "standard") return 0.8;
+  return 0.72;
+}
+
 function stemCore(text) {
   return normalizeCompareText(text)
     .replace(/^state which statement correctly describes:\s*/i, "")
@@ -33,15 +42,36 @@ function stemCore(text) {
     .trim();
 }
 
-export function isNearDuplicatePrompt(candidatePrompt, priorQuestions = [], candidateCorrect = "") {
-  const prompt = stemCore(candidatePrompt) || normalizeCompareText(candidatePrompt);
-  if (!prompt) return false;
+/** Strip exam boilerplate so MCQ stems at different demand levels are not falsely flagged. */
+export function stemSignature(text) {
+  const core = stemCore(text) || normalizeCompareText(text);
+  const stripped = core.replace(STEM_BOILERPLATE, " ").replace(/\s+/g, " ").trim();
+  return stripped || core;
+}
+
+function priorMatchesScope(prev, options = {}) {
+  const { questionType, demandLevel } = options;
+  if (questionType && prev?.question_type && prev.question_type !== questionType) return false;
+  if (demandLevel && prev?.demand_level && prev.demand_level !== demandLevel) return false;
+  return true;
+}
+
+export function isNearDuplicatePrompt(candidatePrompt, priorQuestions = [], candidateCorrect = "", options = {}) {
+  const signature = stemSignature(candidatePrompt);
+  if (!signature) return false;
   const correctNorm = normalizeCompareText(candidateCorrect);
+  const threshold = overlapThresholdForDemand(options.demandLevel);
+
   for (const prev of priorQuestions) {
-    const prevCore = stemCore(prev.prompt || prev) || normalizeCompareText(prev.prompt || prev);
-    if (!prevCore) continue;
-    if (prompt === prevCore) return true;
-    if (tokenOverlapRatio(prompt, prevCore) >= 0.72) return true;
+    if (!priorMatchesScope(prev, options)) continue;
+
+    const prevPrompt = String(prev.prompt || prev || "");
+    const prevSignature = stemSignature(prevPrompt);
+    if (!prevSignature) continue;
+
+    if (signature === prevSignature) return true;
+    if (tokenOverlapRatio(signature, prevSignature) >= threshold) return true;
+
     const prevCorrect = normalizeCompareText(prev.correct);
     if (correctNorm && prevCorrect && prevCorrect === correctNorm) return true;
   }
@@ -77,6 +107,8 @@ export function evaluateMcqQuality(payload, context = {}) {
   const correct = String(payload?.correct || "").trim();
   const optionFeedback = payload?.option_feedback || {};
   const distractorSources = payload?.distractor_sources || [];
+  const demandLevel = payload?.demand_level || context.demandLevel;
+  const questionType = payload?.question_type || context.questionType || "mcq";
 
   if (prompt.length < 20) reasons.push("stem too short");
   if (prompt.length > 280) reasons.push("stem too long");
@@ -106,10 +138,11 @@ export function evaluateMcqQuality(payload, context = {}) {
   }
 
   const prior = context.priorQuestions || [];
-  if (isNearDuplicatePrompt(prompt, prior, correct)) {
+  if (isNearDuplicatePrompt(prompt, prior, correct, { questionType, demandLevel })) {
     reasons.push("duplicate or near-duplicate stem");
   }
-  if (correct && prior.some((p) => normalizeCompareText(p.correct) === normalizeCompareText(correct))) {
+  if (correct && prior.some((p) => priorMatchesScope(p, { questionType, demandLevel })
+    && normalizeCompareText(p.correct) === normalizeCompareText(correct))) {
     reasons.push("duplicate correct answer in batch");
   }
 
@@ -138,6 +171,8 @@ export function evaluateExtendedQuality(payload, context = {}) {
   const maxMarks = Number(payload?.max_marks) === 4 ? 4 : 6;
   const rubric = payload?.key_payload || payload || {};
   const points = countScientificPoints(rubric.key_scientific_points);
+  const demandLevel = payload?.demand_level || context.demandLevel;
+  const questionType = payload?.question_type || context.questionType || "extended_response";
 
   if (prompt.length < 30) reasons.push("stem too short");
   if (points < 2) reasons.push("fewer than 2 key scientific points");
@@ -153,7 +188,7 @@ export function evaluateExtendedQuality(payload, context = {}) {
   }
 
   const prior = context.priorQuestions || [];
-  if (isNearDuplicatePrompt(prompt, prior)) {
+  if (isNearDuplicatePrompt(prompt, prior, "", { questionType, demandLevel })) {
     reasons.push("duplicate or near-duplicate stem");
   }
 
@@ -177,6 +212,8 @@ export function evaluateShortTextQuality(payload, context = {}) {
   const maxMarks = Number(payload?.max_marks) === 1 ? 1 : 2;
   const markPoints = Array.isArray(payload?.mark_points) ? payload.mark_points : [];
   const recall = isRecallShortText(payload, context);
+  const demandLevel = payload?.demand_level || context.demand_level;
+  const questionType = payload?.question_type || "short_text";
 
   if (prompt.length < 12) reasons.push("stem too short");
   if (prompt.length > 280) reasons.push("stem too long");
@@ -189,12 +226,14 @@ export function evaluateShortTextQuality(payload, context = {}) {
     if (maxMarks !== 1) reasons.push("recall short text must be 1 mark");
     if (markPoints.length !== 1) reasons.push("recall must have exactly 1 mark point");
 
-    const keywords = String(markPoints[0]?.keywords || markPoints[0]?.point_text || "").trim();
+    const keywords = String(
+      markPoints[0]?.keywords || markPoints[0]?.point_text || ""
+    ).trim();
     if (!keywords) reasons.push("missing keywords");
     if (keywords) {
       const synonyms = keywords.split("|").map((s) => s.trim()).filter(Boolean);
-      if (synonyms.length > 3) reasons.push("too many keyword synonyms");
-      if (keywords.length > 80) reasons.push("keywords too broad");
+      if (synonyms.length > 4) reasons.push("too many keyword synonyms");
+      if (keywords.length > 100) reasons.push("keywords too broad");
     }
   } else if (markPoints.length < 1) {
     reasons.push("missing mark points");
@@ -205,7 +244,7 @@ export function evaluateShortTextQuality(payload, context = {}) {
     .map((mp) => mp.keywords || mp.point_text)
     .filter(Boolean)
     .join("; ");
-  if (isNearDuplicatePrompt(prompt, prior, answerKey)) {
+  if (isNearDuplicatePrompt(prompt, prior, answerKey, { questionType, demandLevel })) {
     reasons.push("duplicate or near-duplicate stem");
   }
 
@@ -217,13 +256,17 @@ export function evaluateShortTextQuality(payload, context = {}) {
  */
 export function evaluateQuestionQuality(raw, context = {}) {
   const type = raw?.question_type || raw?.question?.question_type || "mcq";
+  const demandLevel = raw?.demand_level || raw?.question?.demand_level || context.demandLevel;
+
   if (type === "extended_response") {
     const payload = {
+      question_type: "extended_response",
+      demand_level: demandLevel,
       prompt: raw.prompt || raw.question?.prompt,
       max_marks: raw.max_marks || raw.question?.max_marks,
       key_payload: raw.key_payload || raw.answer_key?.key_payload || raw
     };
-    return evaluateExtendedQuality(payload, context);
+    return evaluateExtendedQuality(payload, { ...context, demandLevel });
   }
 
   if (type === "short_text") {
@@ -232,25 +275,27 @@ export function evaluateQuestionQuality(raw, context = {}) {
       prompt: raw.prompt || raw.question?.prompt,
       command_word: raw.command_word || raw.question?.command_word,
       max_marks: raw.max_marks || raw.question?.max_marks,
-      demand_level: raw.demand_level || raw.question?.demand_level,
+      demand_level: demandLevel,
       mark_points: raw.mark_points
         || raw.answer_key?.key_payload?.mark_points
         || raw.key_payload?.mark_points
     };
     return evaluateShortTextQuality(payload, {
       ...context,
-      demand_level: payload.demand_level
+      demand_level: demandLevel
     });
   }
 
   const payload = {
+    question_type: "mcq",
+    demand_level: demandLevel,
     prompt: raw.prompt || raw.question?.prompt,
     options: raw.options || raw.question?.options,
     correct: raw.correct || raw.answer_key?.key_payload?.correct,
     option_feedback: raw.option_feedback || raw.answer_key?.key_payload?.option_feedback,
     distractor_sources: raw.distractor_sources || raw._meta?.distractor_sources
   };
-  return evaluateMcqQuality(payload, context);
+  return evaluateMcqQuality(payload, { ...context, demandLevel });
 }
 
 export function filterByQualityGate(items, context = {}) {
@@ -263,10 +308,12 @@ export function filterByQualityGate(items, context = {}) {
     if (result.pass) {
       passed.push(item);
       prior.push({
+        question_type: item.question_type || item.question?.question_type,
+        demand_level: item.demand_level || item.question?.demand_level,
         prompt: item.prompt || item.question?.prompt,
         correct: item.correct
           || item.answer_key?.key_payload?.correct
-          || (item.answer_key?.key_payload?.mark_points || item.mark_points || [])
+          || (item.mark_points || item.answer_key?.key_payload?.mark_points || [])
             .map((mp) => mp.keywords || mp.point_text)
             .filter(Boolean)
             .join("; ")

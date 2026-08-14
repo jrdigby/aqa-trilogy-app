@@ -1,13 +1,14 @@
 # Syllabus batch question generation
 
-Two pipelines seed the question bank. Both output **Studio-compatible JSON** for review before commit.
+Gemini batch output is **Studio-compatible JSON** for review before commit.
 
-## Pipelines
+## Pipeline
 
-| Pipeline | Script | Model | Best for |
-|----------|--------|-------|----------|
-| **Template MCQ** | `batch-generate-mcq-template.mjs` | None (local) | Chemistry low-demand MCQs |
-| **Gemini batch** | `batch-generate-subject-paper.mjs` | `gemini-2.5-flash` | MCQ standard+ and extended response |
+| Script | Model | Output |
+|--------|-------|--------|
+| `batch-generate-subject-paper.mjs` | `gemini-2.5-flash` | MCQ, recall short text, extended response |
+
+> **Note:** The local template MCQ batch (`batch-generate-mcq-template.mjs`) is discontinued. All chemistry MCQs are generated via Gemini. Use **MCQ → SA** in Studio to convert good MCQs to 1-mark short answer if needed.
 
 ## Gemini recipe matrix (per spec point)
 
@@ -24,8 +25,6 @@ Two pipelines seed the question bank. Both output **Studio-compatible JSON** for
 
 **19 questions per spec point** · `tier=both` · recall short text only (1-mark, keyword-marked) · no numeric (use Batch Numeric Generator).
 
-Template MCQ batch adds **3 low MCQs per spec** for chemistry (optional — filter duplicates when reviewing).
-
 ## Prerequisites
 
 ```bash
@@ -39,14 +38,6 @@ SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 # optional (default gemini-2.5-flash):
 GEMINI_MODEL=gemini-2.5-flash
 ```
-
-## Run template MCQ batch (chemistry, local)
-
-```bash
-node scripts/batch-generate-mcq-template.mjs --subject chemistry --paper paper1
-```
-
-Output: `batch-output/chemistry/paper1/template-mcq/by-spec-ref/*.json`
 
 ## Run Gemini batch job
 
@@ -65,15 +56,15 @@ Output: `batch-output/chemistry/paper1/by-spec-ref/*.json`
 
 ## Quality gate
 
-Both pipelines reject drafts that fail automated checks (duplicate stems, filler distractors, missing rubric fields, invalid MCQ options). Rejected items appear in `warnings` — re-run Studio gap-fill or adjust recipes.
+Rejects drafts that fail automated checks (duplicate stems within the same type+demand band, filler distractors, missing rubric fields, invalid MCQ options, open-ended recall short text). Rejected items appear in `warnings` — re-run Studio gap-fill or adjust recipes.
 
 ## Import into admin
 
 1. Open **AI Question Studio** in `admin.html`
-2. **Import JSON** — template or Gemini `by-spec-ref/*.json`
+2. **Import JSON** — Gemini `by-spec-ref/*.json`
 3. Review → **Commit all**
 
-Studio **Generate** uses template MCQs for chemistry `low` demand and Gemini Flash for other recipes.
+Studio **Generate** sends all recipes to Gemini Flash.
 
 ## Deploy note
 

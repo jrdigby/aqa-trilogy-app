@@ -155,14 +155,41 @@ function stemCore(text) {
     .trim();
 }
 
+function stemSignature(text) {
+  const core = stemCore(text) || normalizeForCompare(text);
+  const STEM_BOILERPLATE = /\b(state|give|name|define|identify|which|statement|statements|about|correct|according|the|specification|for|this|topic|student|investigates|revises|lesson|during|an|experiment|in|a|on|exam|style|best|applies|focusing|describe|explain|suggest|compare|evaluate|justify|discuss|higher|tier|demand)\b/gi;
+  const stripped = core.replace(STEM_BOILERPLATE, " ").replace(/\s+/g, " ").trim();
+  return stripped || core;
+}
+
+function overlapThresholdForDemand(demandLevel) {
+  if (demandLevel === "standard_67" || demandLevel === "high_89") return 0.92;
+  if (demandLevel === "standard_45") return 0.88;
+  if (demandLevel === "standard") return 0.8;
+  return 0.72;
+}
+
+function priorMatchesScope(prev, candidate) {
+  if (candidate.question_type && prev?.question_type && prev.question_type !== candidate.question_type) {
+    return false;
+  }
+  if (candidate.demand_level && prev?.demand_level && prev.demand_level !== candidate.demand_level) {
+    return false;
+  }
+  return true;
+}
+
 function isNearDuplicateQuestion(candidate, priorSameType) {
-  const prompt = stemCore(candidate.prompt) || normalizeForCompare(candidate.prompt);
-  if (!prompt) return false;
+  const signature = stemSignature(candidate.prompt);
+  if (!signature) return false;
+  const threshold = overlapThresholdForDemand(candidate.demand_level);
+
   for (const prev of priorSameType) {
-    const prevPrompt = stemCore(prev.prompt) || normalizeForCompare(prev.prompt);
-    if (!prevPrompt) continue;
-    if (prompt === prevPrompt) return true;
-    if (tokenOverlapRatio(prompt, prevPrompt) >= 0.72) return true;
+    if (!priorMatchesScope(prev, candidate)) continue;
+    const prevSignature = stemSignature(prev.prompt);
+    if (!prevSignature) continue;
+    if (signature === prevSignature) return true;
+    if (tokenOverlapRatio(signature, prevSignature) >= threshold) return true;
     if (
       candidate.question_type === "mcq"
       && prev.correct
@@ -220,7 +247,7 @@ function passesRecallShortTextGate(question, recipe) {
   const keywords = String(markPoints[0]?.keywords || markPoints[0]?.point_text || "").trim();
   if (!keywords) return false;
   const synonyms = keywords.split("|").map((s) => s.trim()).filter(Boolean);
-  if (synonyms.length > 3 || keywords.length > 80) return false;
+  if (synonyms.length > 4 || keywords.length > 100) return false;
   return true;
 }
 

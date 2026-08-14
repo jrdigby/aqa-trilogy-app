@@ -244,7 +244,7 @@ function processResults({ results, errors, keyMeta }, runMeta) {
         correct: draft.answer_key?.key_payload?.correct,
         option_feedback: draft.answer_key?.key_payload?.option_feedback,
         max_marks: draft.question.max_marks,
-        mark_points: draft.answer_key?.key_payload?.mark_points,
+        mark_points: draft.mark_points,
         key_payload: draft.answer_key?.key_payload
       }, { priorQuestions: prior });
 
@@ -253,9 +253,11 @@ function processResults({ results, errors, keyMeta }, runMeta) {
         continue;
       }
       prior.push({
+        question_type: draft.question.question_type,
+        demand_level: draft.question.demand_level,
         prompt: draft.question.prompt,
         correct: draft.answer_key?.key_payload?.correct
-          || (draft.answer_key?.key_payload?.mark_points || [])
+          || (draft.mark_points || [])
             .map((mp) => mp.keywords || mp.point_text)
             .filter(Boolean)
             .join("; ")

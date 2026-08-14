@@ -312,7 +312,7 @@ function normalizeShortTextQuestion(raw, context, demandLevel) {
       tier,
       max_marks: maxMarks,
       marking_method: "keyword",
-      command_word: raw?.command_word || "describe",
+      command_word: raw?.command_word || (maxMarks === 1 ? "state" : "describe"),
       demand_level: demandLevel,
       ao1_marks: ao1,
       ao2_marks: ao2,
@@ -720,17 +720,8 @@ export function computeGapFillRecipes(targetExpanded, existingDrafts = []) {
 }
 
 export function splitTemplateAndAiRecipes(recipes = [], options = {}) {
-  const subject = String(options.subject || "").toLowerCase();
-  const templateRecipes = [];
-  const aiRecipes = [];
-  for (const recipe of recipes) {
-    if (subject === "chemistry" && isLowDemandMcqRecipe(recipe)) {
-      templateRecipes.push(recipe);
-    } else {
-      aiRecipes.push(recipe);
-    }
-  }
-  return { templateRecipes, aiRecipes };
+  // Template MCQ batch discontinued — all recipes go to Gemini.
+  return { templateRecipes: [], aiRecipes: [...recipes] };
 }
 
 export function draftsToAvoidQuestions(drafts = []) {
@@ -843,7 +834,7 @@ export async function generateQuestionStudioBatch(supabaseClient, {
         correct: d?.answer_key?.key_payload?.correct,
         option_feedback: d?.answer_key?.key_payload?.option_feedback,
         max_marks: d?.question?.max_marks,
-        mark_points: d?.answer_key?.key_payload?.mark_points,
+        mark_points: d?.mark_points,
         key_payload: d?.answer_key?.key_payload
       }, { priorQuestions: prior });
       if (!quality.pass) {

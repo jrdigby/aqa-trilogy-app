@@ -1,7 +1,6 @@
 /**
  * Default recipe matrix for syllabus-wide Gemini batch generation (per spec point).
  * Numeric questions use the Batch Numeric Generator — not included here.
- * Low-demand MCQs can also be produced locally via batch-generate-mcq-template.mjs
  */
 
 export const SYLLABUS_BATCH_RECIPES = [
@@ -15,12 +14,12 @@ export const SYLLABUS_BATCH_RECIPES = [
   { question_type: "extended_response", demand_level: "standard_67", max_marks: 6, count: 2 }
 ];
 
-/** Template-only low MCQs (local, no Gemini) — chemistry first */
+/** @deprecated Template MCQ batch discontinued — kept for reference only */
 export const TEMPLATE_MCQ_BATCH_RECIPES = [
   { question_type: "mcq", demand_level: "low", count: 3 }
 ];
 
-/** 19 Gemini + template questions per spec point when both pipelines run */
+/** 19 Gemini questions per spec point */
 export const SYLLABUS_BATCH_QUESTIONS_PER_SPEC = SYLLABUS_BATCH_RECIPES.reduce(
   (n, r) => n + (r.count || 0),
   0

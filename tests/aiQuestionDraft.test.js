@@ -451,14 +451,14 @@ test("computeGapFillRecipes — distinguishes short text mark counts", () => {
   assert.equal(gap.filter((r) => r.max_marks === 2).length, 1);
 });
 
-test("splitTemplateAndAiRecipes — chemistry low MCQ uses template path", () => {
+test("splitTemplateAndAiRecipes — all recipes use Gemini path", () => {
   const recipes = expandRecipes([
     { question_type: "mcq", demand_level: "low", count: 2 },
     { question_type: "mcq", demand_level: "standard", count: 1 }
   ]);
   const { templateRecipes, aiRecipes } = splitTemplateAndAiRecipes(recipes, { subject: "chemistry" });
-  assert.equal(templateRecipes.length, 2);
-  assert.equal(aiRecipes.length, 1);
+  assert.equal(templateRecipes.length, 0);
+  assert.equal(aiRecipes.length, 3);
 });
 
 test("splitTemplateAndAiRecipes — physics keeps all on AI path", () => {
