@@ -16,6 +16,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { expandRecipes, normalizeAiQuestions } from "../src/aiQuestionDraft.js";
 import { SYLLABUS_BATCH_RECIPES } from "../src/batchQuestionRecipes.js";
+import { evaluateQuestionQuality } from "../src/questionQualityGate.js";
 import {
   buildGeminiGenerateRequest,
   buildRecipeContexts,
@@ -39,7 +40,7 @@ import { loadEnv } from "./lib/loadEnv.mjs";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, "..");
 loadEnv(ROOT);
-const DEFAULT_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash-lite";
+const DEFAULT_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 const DEFAULT_AUDIENCE = "both";
 
 function parseArgs(argv) {
@@ -139,11 +140,15 @@ function buildBatchRequests(specPoints, { subject, paper, courseTrack, tier, mod
     for (const ctx of contexts) {
       const { recipe, sameTypeIndex, sameTypeTotal, batchIndex } = ctx;
       const temperature = sameTypeIndex > 0 ? 0.62 : 0.4;
+      const qType = recipe.question_type === "extended_response"
+        ? "extended_response"
+        : "mcq";
+      const priorSameType = [];
       const prompt = buildSingleQuestionPrompt(payload, recipe, {
         batchIndex,
         sameTypeIndex,
         sameTypeTotal,
-        priorSameType: [],
+        priorSameType,
         avoidSameType: [],
         focusOffset: sameTypeIndex
       });
@@ -169,7 +174,8 @@ function buildBatchRequests(specPoints, { subject, paper, courseTrack, tier, mod
         batchIndex,
         sameTypeIndex,
         model,
-        prompt
+        prompt,
+        qType
       });
     }
   }
@@ -209,6 +215,7 @@ function attachImportMeta(draft, meta) {
 function processResults({ results, errors, keyMeta }, runMeta) {
   const bySpecRef = new Map();
   const globalWarnings = [...errors.map((e) => `${e.key || "?"}: ${e.message}`)];
+  const priorBySpec = new Map();
 
   for (const [key, rawText] of results.entries()) {
     const meta = keyMeta.get(key);
@@ -224,6 +231,29 @@ function processResults({ results, errors, keyMeta }, runMeta) {
         globalWarnings.push(`${key}: empty prompt after normalize`);
         continue;
       }
+
+      const specKey = sp.spec_ref;
+      if (!priorBySpec.has(specKey)) priorBySpec.set(specKey, []);
+      const prior = priorBySpec.get(specKey);
+      const quality = evaluateQuestionQuality({
+        question_type: draft.question.question_type,
+        prompt: draft.question.prompt,
+        options: draft.question.options,
+        correct: draft.answer_key?.key_payload?.correct,
+        option_feedback: draft.answer_key?.key_payload?.option_feedback,
+        max_marks: draft.question.max_marks,
+        key_payload: draft.answer_key?.key_payload
+      }, { priorQuestions: prior });
+
+      if (!quality.pass) {
+        globalWarnings.push(`${key} (${sp.spec_ref}): quality gate rejected — ${quality.reasons.join("; ")}`);
+        continue;
+      }
+      prior.push({
+        prompt: draft.question.prompt,
+        correct: draft.answer_key?.key_payload?.correct
+      });
+
       const enriched = attachImportMeta(draft, {
         spec_ref: sp.spec_ref,
         subject: runMeta.subject,

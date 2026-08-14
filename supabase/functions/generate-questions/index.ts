@@ -14,7 +14,7 @@ const RECIPE_GAP_MS = 600;
 const RETRYABLE_STATUSES = new Set([429, 500, 503, 504]);
 const RETRY_BACKOFF_MS = [1200, 2500, 5000, 8000, 12000];
 
-const GEMINI_MODEL = Deno.env.get("GEMINI_MODEL") || "gemini-2.5-flash-lite";
+const GEMINI_MODEL = Deno.env.get("GEMINI_MODEL") || "gemini-2.5-flash";
 
 function jsonResponse(body, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -135,11 +135,17 @@ function tokenOverlapRatio(a, b) {
   return shared / Math.min(wordsA.size, wordsB.size);
 }
 
+function stemCore(text) {
+  return normalizeForCompare(text)
+    .replace(/^state which statement correctly describes:\s*/i, "")
+    .trim();
+}
+
 function isNearDuplicateQuestion(candidate, priorSameType) {
-  const prompt = normalizeForCompare(candidate.prompt);
+  const prompt = stemCore(candidate.prompt) || normalizeForCompare(candidate.prompt);
   if (!prompt) return false;
   for (const prev of priorSameType) {
-    const prevPrompt = normalizeForCompare(prev.prompt);
+    const prevPrompt = stemCore(prev.prompt) || normalizeForCompare(prev.prompt);
     if (!prevPrompt) continue;
     if (prompt === prevPrompt) return true;
     if (tokenOverlapRatio(prompt, prevPrompt) >= 0.72) return true;
@@ -153,6 +159,68 @@ function isNearDuplicateQuestion(candidate, priorSameType) {
     }
   }
   return false;
+}
+
+const FILLER_PATTERN = /check the specification point carefully|distractor \d/i;
+
+function optionDistinctness(options = [], correct = "") {
+  const trimmed = options.map((o) => String(o || "").trim()).filter(Boolean);
+  if (trimmed.length < 4) return false;
+  const correctNorm = normalizeForCompare(correct);
+  for (let i = 0; i < trimmed.length; i++) {
+    for (let j = i + 1; j < trimmed.length; j++) {
+      const a = normalizeForCompare(trimmed[i]);
+      const b = normalizeForCompare(trimmed[j]);
+      if (a === b) return false;
+      const bothWrong = a !== correctNorm && b !== correctNorm;
+      if (bothWrong && tokenOverlapRatio(trimmed[i], trimmed[j]) >= 0.85) return false;
+    }
+  }
+  return true;
+}
+
+function countScientificPointsForGate(raw) {
+  if (!raw) return 0;
+  if (Array.isArray(raw)) return raw.filter(Boolean).length;
+  if (typeof raw === "string") {
+    return raw.split(/\r?\n|;/).map((s) => s.trim()).filter((s) => s.length > 8).length;
+  }
+  return 0;
+}
+
+function passesQualityGate(question, recipe, priorSameType = []) {
+  const type = recipe?.question_type || question?.question_type;
+  const prompt = String(question?.prompt || "").trim();
+  if (isNearDuplicateQuestion(question, priorSameType)) return false;
+
+  if (type === "extended_response") {
+    const maxMarks = Number(recipe?.max_marks) === 4 ? 4 : 6;
+    if (prompt.length < 30) return false;
+    if (countScientificPointsForGate(question.key_scientific_points) < 2) return false;
+    if (!String(question.marking_guidelines || "").trim()) return false;
+    if (!String(question.level_1_descriptor || "").trim()) return false;
+    if (!String(question.level_2_descriptor || "").trim()) return false;
+    if (maxMarks === 6 && !String(question.level_3_descriptor || "").trim()) return false;
+    return true;
+  }
+
+  if (type !== "mcq") return true;
+
+  const options = Array.isArray(question?.options) ? question.options : [];
+  const correct = String(question?.correct || "").trim();
+  if (prompt.length < 20 || prompt.length > 280) return false;
+  if (!correct || !optionDistinctness(options, correct)) return false;
+  if (!options.some((o) => normalizeForCompare(o) === normalizeForCompare(correct))) return false;
+  if (FILLER_PATTERN.test(options.join(" "))) return false;
+
+  const wrongOptions = options.filter((o) => normalizeForCompare(o) !== normalizeForCompare(correct));
+  const feedback = question.option_feedback || [];
+  const feedbackCount = Array.isArray(feedback)
+    ? feedback.filter((f) => String(f?.feedback || "").trim().length >= 8).length
+    : Object.keys(feedback).filter((k) => k !== correct && String(feedback[k] || "").trim().length >= 8).length;
+  if (feedbackCount < Math.min(3, wrongOptions.length)) return false;
+
+  return true;
 }
 
 function buildAvoidByType(avoidQuestions) {
@@ -725,12 +793,13 @@ async function generateQuestionsForRecipes(payload, recipes, requestId, admin = 
         const pointsOk = recipe.question_type !== "extended_response"
           || countScientificPoints(question.key_scientific_points) >= 2;
         const distinctOk = !isNearDuplicateQuestion(question, allPrior);
+        const qualityOk = passesQualityGate(question, recipe, allPrior);
 
-        if (pointsOk && distinctOk) break;
+        if (pointsOk && distinctOk && qualityOk) break;
 
         console.warn(JSON.stringify({
           requestId,
-          event: pointsOk ? "duplicate_detected" : "missing_scientific_points",
+          event: !qualityOk ? "quality_gate_failed" : pointsOk ? "duplicate_detected" : "missing_scientific_points",
           index: i + 1,
           attempt: diversityAttempt + 1,
           pointCount: countScientificPoints(question.key_scientific_points),
@@ -741,6 +810,9 @@ async function generateQuestionsForRecipes(payload, recipes, requestId, admin = 
         if (diversityAttempt === maxAttempts - 1) {
           if (!distinctOk) {
             warnings.push(`Question ${i + 1} (${recipe.question_type} · ${recipe.demand_level}): may be similar to another in this batch — please review`);
+          }
+          if (!qualityOk) {
+            warnings.push(`Question ${i + 1} (${recipe.question_type} · ${recipe.demand_level}): failed quality gate — please review or regenerate`);
           }
           if (!pointsOk) {
             warnings.push(
