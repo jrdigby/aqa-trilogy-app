@@ -1268,7 +1268,7 @@ async function renderFlashcardChemistryDiagram(att) {
   const q = att?.questions || {};
   const cfg = q.chemistry_config;
   const expected = att?.feedback_payload?.chemistry?.expected || cfg?.answer;
-  const chemStemKinds = new Set(["electron_shell", "ionic_bonding", "covalent_bonding", "ionic_lattice", "organic_structure", "polymer_structure", "molecule_builder", "metallic_bonding", "particle_model"]);
+  const chemStemKinds = new Set(["electron_shell", "ionic_bonding", "covalent_bonding", "ionic_lattice", "organic_structure", "polymer_structure", "molecule_builder", "metallic_bonding", "particle_model", "carbon_allotrope"]);
   const showChemStem = (q.question_type === "chemistry_interactive" || chemStemKinds.has(cfg?.kind))
     && (cfg || expected);
   if (showChemStem) {
@@ -1709,7 +1709,7 @@ async function loadRevisionCards() {
       const questionImageUrl = (q.image_url || "").trim();
       const isChemStemQuestion = q.chemistry_config?.answer
         && q.question_type !== "chemistry_interactive"
-        && ["electron_shell", "ionic_bonding", "covalent_bonding", "ionic_lattice", "organic_structure", "polymer_structure"].includes(
+        && ["electron_shell", "ionic_bonding", "covalent_bonding", "ionic_lattice", "organic_structure", "polymer_structure", "molecule_builder", "metallic_bonding", "particle_model", "carbon_allotrope"].includes(
           typeof q.chemistry_config === "string"
             ? (() => { try { return JSON.parse(q.chemistry_config).kind; } catch { return null; } })()
             : q.chemistry_config?.kind

@@ -216,19 +216,83 @@
       resize: vertical;
     }
 
+    #panelBatchMcq .batch-ai-er-layout {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    #panelBatchMcq .batch-ai-er-row {
+      display: grid;
+      gap: 10px 14px;
+      align-items: stretch;
+    }
+
+    #panelBatchMcq .batch-ai-er-row--guidelines {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    #panelBatchMcq .batch-ai-er-row--levels {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    #panelBatchMcq .batch-ai-er-field {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    #panelBatchMcq .batch-ai-er-field > label {
+      margin-bottom: 0;
+    }
+
+    #panelBatchMcq .batch-ai-er-field > p {
+      flex: 0 0 auto;
+    }
+
     #panelBatchMcq .batch-ai-er-textarea {
+      flex: 0 0 auto;
+      width: 100%;
+      box-sizing: border-box;
       min-height: 9.5rem;
-      height: auto;
+      height: 9.5rem;
       resize: vertical;
       line-height: 1.4;
+      font-size: 0.76rem;
+      padding: 6px;
+      margin-top: 4px;
     }
 
-    #panelBatchMcq .batch-ai-er-textarea.batch-ai-er-guidelines {
+    #panelBatchMcq .batch-ai-er-row--guidelines .batch-ai-er-textarea {
       min-height: 10.5rem;
+      height: 10.5rem;
+      font-size: 0.78rem;
     }
 
-    #panelBatchMcq .batch-ai-er-textarea.batch-ai-er-scientific-points {
-      min-height: 12rem;
+    #panelBatchMcq .batch-ai-er-lvl3-na {
+      flex: 0 0 auto;
+      min-height: 9.5rem;
+      height: 9.5rem;
+      margin-top: 4px;
+      padding: 8px;
+      border: 1px dashed var(--border);
+      border-radius: 4px;
+      background: #f1f5f9;
+      color: var(--text-muted);
+      font-size: 0.76rem;
+      line-height: 1.4;
+      box-sizing: border-box;
+    }
+
+    #panelBatchMcq .batch-ai-er-detail-hidden {
+      display: none;
+    }
+
+    @media (max-width: 1100px) {
+      #panelBatchMcq .batch-ai-er-row--guidelines,
+      #panelBatchMcq .batch-ai-er-row--levels {
+        grid-template-columns: 1fr;
+      }
     }
 
     #panelBatchMcq .batch-ai-image-row {
@@ -7680,6 +7744,8 @@
 
   // ====== AI QUESTION STUDIO (batch panel) ======
   let batchMcqPreviewDrafts = [];
+  /** Collapsed extended-response detail rows (default expanded). Keyed by draft object. */
+  const batchMcqErCollapsed = new WeakMap();
   const AI_STUDIO_MAX_QUESTIONS = 20;
 
   function readBatchMcqRecipes() {
@@ -8273,6 +8339,7 @@
     const payload = d.answer_key?.key_payload || {};
     const levels = payload.level_descriptors || {};
     const isFourMark = Number(q.max_marks) === 4;
+    const collapsed = batchMcqErCollapsed.get(d) === true;
     const lvl3 = isFourMark ? "N/A for 4-mark" : (levels[AiQuestionDraft.LEVEL_3_KEY] || "");
     const lvl2 = levels[AiQuestionDraft.LEVEL_2_KEY] || "";
     const lvl1 = levels[AiQuestionDraft.LEVEL_1_KEY] || "";
@@ -8284,37 +8351,41 @@
       ? `<p style="font-size:0.72rem;color:var(--text-muted);margin:4px 0 0;">Top band for a 4-mark question — describe a complete answer worth full marks.</p>`
       : "";
     const lvl3Block = isFourMark
-      ? `<div style="grid-column:1/-1;">
+      ? `<div class="batch-ai-er-field">
               <label style="font-size:0.72rem;font-weight:600;color:var(--text-muted);">${escapeHtml(lvl3Label)}</label>
-              <p style="font-size:0.76rem;color:var(--text-muted);margin:6px 0 0;">Not used for 4-mark extended responses (Levels 1–2 only; Level 2 = full marks).</p>
+              <div class="batch-ai-er-lvl3-na">Not used for 4-mark extended responses (Levels 1–2 only; Level 2 = full marks).</div>
               <input type="hidden" class="batch-ai-er-lvl3" data-batch-mcq-idx="${i}" value="N/A for 4-mark" />
             </div>`
-      : `<div style="grid-column:1/-1;">
+      : `<div class="batch-ai-er-field">
               <label style="font-size:0.72rem;font-weight:600;">${escapeHtml(lvl3Label)}</label>
-              <textarea class="batch-ai-er-lvl3 batch-ai-er-textarea" data-batch-mcq-idx="${i}" rows="6" style="width:100%;font-size:0.76rem;padding:6px;margin-top:4px;">${escapeHtml(lvl3)}</textarea>
+              <textarea class="batch-ai-er-lvl3 batch-ai-er-textarea" data-batch-mcq-idx="${i}" rows="6">${escapeHtml(lvl3)}</textarea>
             </div>`;
     return `
-      <tr style="border-bottom:1px solid var(--border);background:#f8fafc;" data-batch-mcq-detail="${i}">
+      <tr style="border-bottom:1px solid var(--border);background:#f8fafc;" data-batch-mcq-detail="${i}" class="${collapsed ? "batch-ai-er-detail-hidden" : ""}">
         <td colspan="10" style="padding:8px 12px 10px;">
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px 14px;">
-            <div style="grid-column:1/-1;">
-              <label style="font-size:0.72rem;font-weight:600;">Marking guidelines</label>
-              <textarea class="batch-ai-er-guidelines batch-ai-er-textarea" data-batch-mcq-idx="${i}" rows="7" style="width:100%;font-size:0.78rem;padding:6px;margin-top:4px;">${escapeHtml(payload.marking_guidelines || "")}</textarea>
+          <div class="batch-ai-er-layout">
+            <div class="batch-ai-er-row batch-ai-er-row--guidelines">
+              <div class="batch-ai-er-field">
+                <label style="font-size:0.72rem;font-weight:600;">Marking guidelines</label>
+                <textarea class="batch-ai-er-guidelines batch-ai-er-textarea" data-batch-mcq-idx="${i}" rows="7">${escapeHtml(payload.marking_guidelines || "")}</textarea>
+              </div>
+              <div class="batch-ai-er-field">
+                <label style="font-size:0.72rem;font-weight:600;">Key scientific points (local feedback checklist)</label>
+                <p style="font-size:0.72rem;color:var(--text-muted);margin:4px 0 0;">One point per line. Used for local fallback keyword matching and the student self-assessment checklist.</p>
+                <textarea class="batch-ai-er-scientific-points batch-ai-er-textarea" data-batch-mcq-idx="${i}" rows="8" placeholder="e.g. Weight acts downwards from the centre of mass">${escapeHtml(scientificPoints)}</textarea>
+              </div>
             </div>
-            <div style="grid-column:1/-1;">
-              <label style="font-size:0.72rem;font-weight:600;">Key scientific points (local feedback checklist)</label>
-              <p style="font-size:0.72rem;color:var(--text-muted);margin:4px 0 0;">One point per line. Used for local fallback keyword matching and the student self-assessment checklist.</p>
-              <textarea class="batch-ai-er-scientific-points batch-ai-er-textarea" data-batch-mcq-idx="${i}" rows="8" style="width:100%;font-size:0.78rem;padding:6px;margin-top:4px;" placeholder="e.g. Weight acts downwards from the centre of mass">${escapeHtml(scientificPoints)}</textarea>
-            </div>
-            ${lvl3Block}
-            <div style="grid-column:1/-1;">
-              <label style="font-size:0.72rem;font-weight:600;">${escapeHtml(lvl2Label)}</label>
-              ${lvl2Hint}
-              <textarea class="batch-ai-er-lvl2 batch-ai-er-textarea" data-batch-mcq-idx="${i}" rows="6" style="width:100%;font-size:0.76rem;padding:6px;margin-top:4px;" placeholder="${isFourMark ? "Complete, coherent answer covering all key points…" : "Most ideas present but incomplete links…"}">${escapeHtml(lvl2)}</textarea>
-            </div>
-            <div style="grid-column:1/-1;">
-              <label style="font-size:0.72rem;font-weight:600;">${escapeHtml(lvl1Label)}</label>
-              <textarea class="batch-ai-er-lvl1 batch-ai-er-textarea" data-batch-mcq-idx="${i}" rows="6" style="width:100%;font-size:0.76rem;padding:6px;margin-top:4px;">${escapeHtml(lvl1)}</textarea>
+            <div class="batch-ai-er-row batch-ai-er-row--levels">
+              ${lvl3Block}
+              <div class="batch-ai-er-field">
+                <label style="font-size:0.72rem;font-weight:600;">${escapeHtml(lvl2Label)}</label>
+                ${lvl2Hint}
+                <textarea class="batch-ai-er-lvl2 batch-ai-er-textarea" data-batch-mcq-idx="${i}" rows="6" placeholder="${isFourMark ? "Complete, coherent answer covering all key points…" : "Most ideas present but incomplete links…"}">${escapeHtml(lvl2)}</textarea>
+              </div>
+              <div class="batch-ai-er-field">
+                <label style="font-size:0.72rem;font-weight:600;">${escapeHtml(lvl1Label)}</label>
+                <textarea class="batch-ai-er-lvl1 batch-ai-er-textarea" data-batch-mcq-idx="${i}" rows="6">${escapeHtml(lvl1)}</textarea>
+              </div>
             </div>
             <div>${renderBatchAoInputs(i, q, Number(q.max_marks) === 4 ? 4 : 6)}</div>
           </div>
@@ -8374,10 +8445,15 @@
       const typeLabel = AiQuestionDraft.questionTypeLabel(q.question_type);
       const promptEsc = escapeHtml(q.prompt || "");
       const summary = batchDraftSummary(d);
+      const isExtended = q.question_type === "extended_response";
+      const erCollapsed = isExtended && batchMcqErCollapsed.get(d) === true;
       const demandSel = `
         <select class="batch-mcq-demand select-fit" data-batch-mcq-idx="${i}" style="font-size:0.72rem;min-width:6.5rem;">
           ${batchMcqDemandOptionsHtml(q.demand_level || "low", tier)}
         </select>`;
+      const erCollapseBtn = isExtended
+        ? `<button type="button" class="btn btn-secondary batch-ai-er-collapse-btn" onclick="toggleBatchMcqErCollapse(${i})" aria-expanded="${erCollapsed ? "false" : "true"}">${erCollapsed ? "Expand" : "Collapse"}</button>`
+        : "";
 
       return `
         <tr style="border-top:1px solid var(--border);" data-batch-mcq-idx="${i}">
@@ -8404,6 +8480,7 @@
           <td style="padding:6px 8px;font-size:0.72rem;max-width:80px;overflow:hidden;text-overflow:ellipsis;vertical-align:top;" data-batch-mcq-summary title="${escapeHtml(summary)}">${escapeHtml(summary)}</td>
           <td style="padding:6px 8px;vertical-align:top;">
             <div class="batch-mcq-ops-stack">
+              ${erCollapseBtn}
               <button type="button" class="btn btn-secondary" onclick="launchBatchMcqSandboxPreview(${i})" style="background:#3b82f6;color:#fff;">Test</button>
               <button type="button" class="btn btn-danger" onclick="removeBatchMcqDraft(${i})">Remove</button>
             </div>
@@ -8507,6 +8584,9 @@
 
     if (window.AdminMetadata) {
       updated.question.difficulty = window.AdminMetadata.computeQuestionDifficulty(updated.question);
+    }
+    if (batchMcqErCollapsed.get(draft) === true) {
+      batchMcqErCollapsed.set(updated, true);
     }
     batchMcqPreviewDrafts[idx] = updated;
     return updated;
@@ -8643,6 +8723,20 @@
     const commitBtn = document.getElementById("btnBatchMcqCommit");
     if (commitBtn) commitBtn.disabled = batchMcqPreviewDrafts.length === 0;
     document.getElementById("batchMcqStatus").textContent = `${batchMcqPreviewDrafts.length} draft(s) in preview.`;
+  };
+
+  window.toggleBatchMcqErCollapse = function(index) {
+    const draft = batchMcqPreviewDrafts[index];
+    if (!draft || draft.question?.question_type !== "extended_response") return;
+    const next = batchMcqErCollapsed.get(draft) !== true;
+    batchMcqErCollapsed.set(draft, next);
+    const detail = document.querySelector(`tr[data-batch-mcq-detail="${index}"]`);
+    const btn = document.querySelector(`tr[data-batch-mcq-idx="${index}"] .batch-ai-er-collapse-btn`);
+    if (detail) detail.classList.toggle("batch-ai-er-detail-hidden", next);
+    if (btn) {
+      btn.textContent = next ? "Expand" : "Collapse";
+      btn.setAttribute("aria-expanded", next ? "false" : "true");
+    }
   };
 
   window.launchBatchMcqSandboxPreview = async function(index) {

@@ -5,6 +5,10 @@
  */
 
 import { triggerMathTypeset } from "./mathEngine.js";
+import {
+  CARBON_ALLOTROPE_LABELS,
+  renderCarbonAllotropeSvg,
+} from "./carbonAllotropeDiagrams.js";
 
 // ─── Element data (GCSE-relevant) ───────────────────────────────────────────
 
@@ -41,6 +45,7 @@ const CHEM_STEM_KINDS = new Set([
   "ionic_lattice",
   "metallic_bonding",
   "particle_model",
+  "carbon_allotrope",
   "organic_structure",
   "polymer_structure",
   "molecule_builder",
@@ -463,6 +468,9 @@ export function renderChemistryModelAnswerHtml(answer, opts = {}) {
     diagram = renderParticleModelSvg(answer);
     const stateLabel = particleModelStateLabel(answer.state || answer.phase);
     caption = stateLabel ? `Particle model — ${stateLabel}` : "Particle model";
+  } else if (kind === "carbon_allotrope") {
+    diagram = renderCarbonAllotropeSvg(answer.allotrope);
+    caption = CARBON_ALLOTROPE_LABELS[answer.allotrope] || answer.allotrope || "Carbon allotrope";
   } else if (kind === "balance_equation" && Array.isArray(answer.coeffs)) {
     caption = formatBalanceCaption(answer, { template: opts.template || {} });
   } else if (kind === "covalent_bonding") {
@@ -2682,6 +2690,34 @@ export const CHEMISTRY_PRESETS = {
     template: { state: "gas" },
     answer: { kind: "particle_model", state: "gas" },
   },
+  carbon_graphite: {
+    label: "Graphite (carbon allotrope)",
+    kind: "carbon_allotrope",
+    track: "combined",
+    template: { allotrope: "graphite" },
+    answer: { kind: "carbon_allotrope", allotrope: "graphite" },
+  },
+  carbon_diamond: {
+    label: "Diamond (carbon allotrope)",
+    kind: "carbon_allotrope",
+    track: "combined",
+    template: { allotrope: "diamond" },
+    answer: { kind: "carbon_allotrope", allotrope: "diamond" },
+  },
+  carbon_buckminsterfullerene: {
+    label: "Buckminsterfullerene (C₆₀)",
+    kind: "carbon_allotrope",
+    track: "combined",
+    template: { allotrope: "buckminsterfullerene" },
+    answer: { kind: "carbon_allotrope", allotrope: "buckminsterfullerene" },
+  },
+  carbon_nanotube: {
+    label: "Carbon nanotube",
+    kind: "carbon_allotrope",
+    track: "combined",
+    template: { allotrope: "carbon_nanotube" },
+    answer: { kind: "carbon_allotrope", allotrope: "carbon_nanotube" },
+  },
   h2: {
     label: "H₂ covalent",
     kind: "covalent_bonding",
@@ -3544,6 +3580,12 @@ export function displayStateFromPresetOrConfig(presetOrConfig) {
       kind: "particle_model",
       state: answer.state || answer.phase || cfg.template?.state || "solid",
       showLabel: !!(answer.showLabel || cfg.template?.showLabel),
+    };
+  }
+  if (kind === "carbon_allotrope") {
+    return {
+      kind: "carbon_allotrope",
+      allotrope: answer.allotrope || cfg.template?.allotrope || "graphite",
     };
   }
   return null;
@@ -4690,6 +4732,9 @@ export function renderStemDiagramSvg(presetIdOrConfig) {
   }
   if (state.kind === "particle_model") {
     return renderParticleModelSvg(state);
+  }
+  if (state.kind === "carbon_allotrope") {
+    return renderCarbonAllotropeSvg(state.allotrope);
   }
   return "";
 }
