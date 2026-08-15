@@ -4316,7 +4316,7 @@
 
 <!-- Supabase Script Integrations & Business Logic -->
 <script type="module">
-  import { supabaseClient } from "./src/dbClient.js";
+  import { supabaseClient, fetchAllRows } from "./src/dbClient.js";
   import * as CalcWorkflow from "./src/calculationWorkflow.js";
   import * as NumericGen from "./src/numericQuestionGenerator.js";
   import * as ChemWorkflow from "./src/chemistryWorkflow.js";
@@ -10590,9 +10590,12 @@
         else combinedIds.push(row.id);
       });
 
-      const { data: allMarkPoints } = await supabaseClient
-        .from("mark_points")
-        .select("question_id, point_text, feedback_if_missing");
+      const allMarkPoints = await fetchAllRows(() =>
+        supabaseClient
+          .from("mark_points")
+          .select("question_id, point_text, feedback_if_missing")
+          .order("question_id")
+      );
 
       auditMarkPointStatsMap = {};
       auditCheckPointsCounterMap = {};
