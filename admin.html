@@ -3225,7 +3225,7 @@
             </div>
             <div class="field-fit">
               <label>Count</label>
-              <input type="number" id="chemQuantCount" class="input-compact" min="1" max="40" value="5" style="width:4rem;" />
+              <input type="number" id="chemQuantCount" class="input-compact" min="1" max="80" value="5" style="width:4rem;" />
             </div>
             <div class="field-fit">
               <label>Seed</label>
@@ -3282,20 +3282,24 @@
             <h4 style="margin:0;">Preview — edit prompts before commit</h4>
             <p id="chemQuantPreviewCount" class="muted" style="font-size:0.82rem;margin:8px 0 0;"></p>
           </div>
-          <table style="margin:0;min-width:900px;font-size:0.8rem;">
+          <table style="margin:0;min-width:1200px;font-size:0.8rem;">
             <thead>
               <tr>
                 <th style="width:36px;">#</th>
                 <th style="width:120px;">Variant</th>
                 <th>Prompt</th>
                 <th style="width:56px;">Type</th>
+                <th style="width:100px;">Demand</th>
+                <th style="width:48px;">Diff</th>
+                <th style="width:64px;">AO</th>
+                <th style="width:88px;">MS/WS</th>
                 <th style="width:48px;">Marks</th>
                 <th style="width:80px;">Answer</th>
                 <th style="width:140px;text-align:right;">Ops</th>
               </tr>
             </thead>
             <tbody id="chemQuantPreviewBody">
-              <tr><td colspan="7" style="padding:24px;text-align:center;color:var(--text-muted);">Generate preview to see drafts.</td></tr>
+              <tr><td colspan="11" style="padding:24px;text-align:center;color:var(--text-muted);">Generate preview to see drafts.</td></tr>
             </tbody>
           </table>
           <pre id="chemQuantLog" class="hidden" style="background:#1e293b;color:#38bdf8;padding:12px;border-radius:8px;font-size:0.75rem;max-height:200px;overflow-y:auto;margin:12px 16px 16px;"></pre>
@@ -8090,6 +8094,14 @@
     return "—";
   }
 
+  function chemQuantDemandLabel(draft) {
+    const level = draft?.question?.demand_level;
+    if (window.AdminMetadata?.formatDemandLabel) {
+      return window.AdminMetadata.formatDemandLabel(level) || "—";
+    }
+    return level || "—";
+  }
+
   function renderChemQuantPreviewTable(drafts, errors) {
     const tbody = document.getElementById("chemQuantPreviewBody");
     const countEl = document.getElementById("chemQuantPreviewCount");
@@ -8097,7 +8109,7 @@
     if (!tbody) return;
 
     if (!drafts.length && !errors.length) {
-      tbody.innerHTML = '<tr><td colspan="7" style="padding:24px;text-align:center;color:var(--text-muted);">No drafts generated.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="11" style="padding:24px;text-align:center;color:var(--text-muted);">No drafts generated.</td></tr>';
       if (countEl) countEl.textContent = "";
       return;
     }
@@ -8105,6 +8117,12 @@
     tbody.innerHTML = drafts.map((d, i) => {
       const q = d.question;
       const variant = ChemQuantGen.summarizeChemDraft(d);
+      const demand = chemQuantDemandLabel(d);
+      const diff = window.AdminMetadata
+        ? window.AdminMetadata.computeQuestionDifficulty(q)
+        : (q.difficulty ?? 2);
+      const aoSplit = batchDraftAoSplit(q);
+      const skillsBadge = batchDraftSkillsBadge(d);
       return `
         <tr style="border-top:1px solid var(--border);" data-chem-quant-idx="${i}">
           <td style="padding:10px 12px;font-weight:700;">${i + 1}</td>
@@ -8113,6 +8131,10 @@
             <textarea class="chem-quant-prompt-edit" data-chem-quant-idx="${i}" rows="4" style="width:100%;font-size:0.8rem;font-family:inherit;padding:6px;border:1px solid #cbd5e1;border-radius:4px;">${escapeHtml(q.prompt || "")}</textarea>
           </td>
           <td style="padding:10px 12px;font-size:0.76rem;">${escapeHtml(q.question_type || "")}</td>
+          <td style="padding:10px 12px;font-size:0.76rem;">${escapeHtml(demand)}</td>
+          <td style="padding:10px 12px;text-align:center;"><span class="difficulty-badge difficulty-badge--compact">${diff}</span></td>
+          <td style="padding:10px 12px;font-size:0.72rem;font-family:monospace;">${escapeHtml(aoSplit)}</td>
+          <td style="padding:10px 12px;font-size:0.7rem;font-family:monospace;max-width:100px;overflow:hidden;text-overflow:ellipsis;" title="${escapeHtml(skillsBadge)}">${escapeHtml(skillsBadge)}</td>
           <td style="padding:10px 12px;font-weight:700;">${q.max_marks}</td>
           <td style="padding:10px 12px;font-size:0.76rem;">${escapeHtml(chemQuantAnswerSummary(d))}</td>
           <td style="padding:10px 12px;text-align:right;white-space:nowrap;">
@@ -8135,7 +8157,7 @@
 
     if (errors.length && logEl) {
       logEl.classList.remove("hidden");
-      logEl.textContent = errors.map((e) => `⚠ #${e.index}: ${e.message}`).join("\n");
+      logEl.textContent = errors.map((e) => `⚠ ${e.index == null ? "pool" : `#${e.index}`}: ${e.message}`).join("\n");
     } else if (logEl) {
       logEl.classList.add("hidden");
       logEl.textContent = "";
@@ -8191,33 +8213,71 @@
     if (specId) await autoFillChemQuantLinkedSpec(specId);
   });
 
-  document.getElementById("btnChemQuantPreview")?.addEventListener("click", () => {
+  document.getElementById("btnChemQuantPreview")?.addEventListener("click", async () => {
     const scenario = document.getElementById("chemQuantScenario")?.value || "rfm";
     const count = parseInt(document.getElementById("chemQuantCount")?.value, 10) || 5;
     const seedRaw = document.getElementById("chemQuantSeed")?.value;
     const seed = seedRaw === "" || seedRaw == null ? undefined : Number(seedRaw);
     const eqForm = document.getElementById("chemQuantEqForm")?.value || "mix";
     const balanceSubtype = document.getElementById("chemQuantBalanceSubtype")?.value || "";
-
-    const spec = {
-      scenario,
-      count,
-      seed,
-      paper: document.getElementById("chemQuantPaper")?.value || "paper1",
-      tier: document.getElementById("chemQuantTier")?.value || "both",
-      courseTrack: document.getElementById("chemQuantCourseTrack")?.value || "combined",
-      audience: document.getElementById("chemQuantAudience")?.value || "both",
-      equation_form: eqForm === "mix" ? undefined : eqForm,
-      balance_subtype: balanceSubtype || undefined
-    };
-
-    const { drafts, errors, seed: usedSeed } = ChemQuantGen.generateChemBatch(spec);
-    chemQuantPreviewDrafts = drafts;
-    renderChemQuantPreviewTable(drafts, errors);
-    const commitBtn = document.getElementById("btnChemQuantCommit");
-    if (commitBtn) commitBtn.disabled = drafts.length === 0;
     const status = document.getElementById("chemQuantStatus");
-    if (status) status.textContent = `Generated ${drafts.length} draft(s) (seed ${usedSeed}).`;
+    const previewBtn = document.getElementById("btnChemQuantPreview");
+    if (previewBtn) previewBtn.disabled = true;
+    if (status) status.textContent = "Generating…";
+
+    try {
+      let excludeFormulas = [];
+      let excludeBalanceKeys = [];
+      if (scenario === "rfm" || scenario === "percent_by_mass") {
+        try {
+          excludeFormulas = await ChemQuantGen.loadExcludedFormulas(supabaseClient, scenario);
+        } catch (fetchErr) {
+          console.warn("chemQuant exclude formulas:", fetchErr);
+          showAdminToast(`Could not check existing bank compounds: ${fetchErr.message}`, true);
+        }
+      } else if (scenario === "balance") {
+        try {
+          excludeBalanceKeys = await ChemQuantGen.loadExcludedBalanceKeys(supabaseClient);
+        } catch (fetchErr) {
+          console.warn("chemQuant exclude balance keys:", fetchErr);
+          showAdminToast(`Could not check existing bank equations: ${fetchErr.message}`, true);
+        }
+      }
+
+      const spec = {
+        scenario,
+        count,
+        seed,
+        paper: document.getElementById("chemQuantPaper")?.value || "paper1",
+        tier: document.getElementById("chemQuantTier")?.value || "both",
+        courseTrack: document.getElementById("chemQuantCourseTrack")?.value || "combined",
+        audience: document.getElementById("chemQuantAudience")?.value || "both",
+        equation_form: eqForm === "mix" ? undefined : eqForm,
+        balance_subtype: balanceSubtype || undefined,
+        excludeFormulas,
+        excludeBalanceKeys
+      };
+
+      const { drafts, errors, seed: usedSeed } = ChemQuantGen.generateChemBatch(spec);
+      chemQuantPreviewDrafts = drafts;
+      renderChemQuantPreviewTable(drafts, errors);
+      const commitBtn = document.getElementById("btnChemQuantCommit");
+      if (commitBtn) commitBtn.disabled = drafts.length === 0;
+      let excludedNote = "";
+      if (excludeFormulas.length) {
+        excludedNote = ` Skipped ${excludeFormulas.length} formula(s) already in the bank.`;
+      } else if (excludeBalanceKeys.length) {
+        excludedNote = ` Skipped ${excludeBalanceKeys.length} equation(s) already in the bank.`;
+      }
+      if (status) {
+        status.textContent = `Generated ${drafts.length} draft(s) (seed ${usedSeed}).${excludedNote}`;
+      }
+    } catch (err) {
+      showAdminToast(err.message || String(err), true);
+      if (status) status.textContent = err.message || String(err);
+    } finally {
+      if (previewBtn) previewBtn.disabled = false;
+    }
   });
 
   document.getElementById("btnChemQuantClear")?.addEventListener("click", () => {

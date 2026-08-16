@@ -19,6 +19,20 @@ describe("apparatus catalogue", () => {
     assert.ok(APPARATUS_IDS.includes("beaker"));
     assert.ok(APPARATUS_IDS.includes("microscope"));
     assert.ok(APPARATUS_IDS.includes("ray_box"));
+    assert.ok(APPARATUS_IDS.includes("measuring_cylinder"));
+  });
+
+  it("measuring cylinder draw includes 1 cm3 scale ticks and volume labels", async () => {
+    const { APPARATUS } = await import("../src/equipmentWorkflow.js");
+    const svg = APPARATUS.measuring_cylinder.draw(0, 0, 1);
+    assert.match(svg, />10</);
+    assert.match(svg, />40</);
+    assert.match(svg, /cm/);
+    // 41 scale ticks (0..40) plus 2 walls + bottom line
+    assert.ok((svg.match(/<line /g) || []).length >= 44);
+    assert.equal((svg.match(/stroke-width="1"\/>/g) || []).length, 32);
+    assert.equal((svg.match(/stroke-width="1\.5"\/>/g) || []).length, 4);
+    assert.equal((svg.match(/stroke-width="2"\/>/g) || []).length, 5);
   });
 });
 

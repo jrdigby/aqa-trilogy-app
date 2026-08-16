@@ -4,12 +4,12 @@
 
 | Scenario | Student format | Marking |
 |----------|----------------|---------|
-| Relative formula mass | MCQ + short_text (same stem/data) | 1 mark; low-demand MCQ distractors |
-| Conservation of mass | MCQ + short_text (word + symbol equations) | 1 mark |
-| Percentage by mass | Multi-step `numeric` (no equation sheet) | 3 marks: element mass → ratio → %; ECF on later steps |
-| Concentration (find c) | Multi-step `numeric` (no equation sheet) | AQA answer bands (correct→3; near-misses→2) + multi-path working fallback |
-| Concentration (find mass) | Multi-step `numeric` (no equation sheet) | Same marking model; syllabus rearrange: mass from known c and volume |
-| Balancing equations | Keep interactive balancer (`balance_equation`) | Batch-author only; remove from Diagram panel |
+| Relative formula mass | MCQ + short_text (same stem/data) | 1 mark; MCQ Low FT / short_text Standard FT; MS1a, WS4.3 |
+| Conservation of mass | MCQ + short_text (word + symbol equations) | 1 mark; MCQ Low FT, short_text Standard FT; MS1a, WS4.3 |
+| Percentage by mass | Multi-step `numeric` (no equation sheet) | 3 marks: element mass → ratio → %; ECF on later steps; MS1a, MS1c, WS4.3 |
+| Concentration (find c) | Multi-step `numeric` (no equation sheet) | Std 4–5; MS1a, MS1c, MS3c |
+| Concentration (find mass) | Multi-step `numeric` (no equation sheet) | Std 4–5; MS1a, MS1c, MS3c, MS3b |
+| Balancing equations | Keep interactive balancer (`balance_equation`) | WS4.3; ionic/half HT-only (Std 4–5) |
 
 **Hard rule:** Do **not** create chemistry (or biology) equation sheets. Chemistry students recall equations; Batch Numeric / sheet recall stays physics-only.
 
@@ -67,7 +67,7 @@ For each compound:
 - Prompt: “Calculate the relative formula mass of …” with Ar values given in the stem (or a standard Ar table reference).
 - **MCQ**: correct Mr + 3 distractors from formula mistakes (e.g. Na₂O: 39+16, 23+16, 46+32).
 - **short_text**: same prompt; `key_type: "keywords"` with required string of the number (same pattern as electron-structure short_text seeds), or a numeric-tolerant keyword payload if the app already accepts decimal strings (Cl compounds → 35.5).
-- Demand: `low`; `is_maths_skill: true`; link to C5.3.1 / quantitative chem spec points when selected in admin.
+- Demand: MCQ `low` (Low FT); short_text `standard` (Standard FT); `is_maths_skill: true`; link to C5.3.1 / quantitative chem spec points when selected in admin.
 
 Admin: generate N compounds → preview pairs → edit → commit both types.
 

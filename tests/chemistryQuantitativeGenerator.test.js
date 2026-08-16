@@ -11,8 +11,15 @@ import {
   generateConcentrationFindMDraft,
   concentrationFindCNearMisses,
   listCompounds,
-  listBalanceEquations
+  listBalanceEquations,
+  selectUniqueCompounds,
+  selectUniqueBalanceEquations,
+  balanceEquationSignature,
+  extractBalanceSignatureFromPrompt,
+  extractFormulaFromChemPrompt,
+  formulasFromPrompts
 } from "../src/chemistryQuantitativeGenerator.js";
+import { relativeFormulaMass } from "../src/chemistryFormula.js";
 import {
   markPercentByMassResponse,
   markMultiPathCalculationResponse,
@@ -39,9 +46,77 @@ describe("generateChemBatch RFM", () => {
     assert.equal(drafts[0].question.question_type, "mcq");
     assert.equal(drafts[1].question.question_type, "short_text");
     assert.equal(drafts[0].question.demand_level, "low");
+    assert.equal(drafts[1].question.demand_level, "standard");
+    assert.deepEqual(drafts[0].skill_codes, { ms: ["MS1a"], ws: ["WS4.3"] });
+    assert.deepEqual(drafts[1].skill_codes, { ms: ["MS1a"], ws: ["WS4.3"] });
     assert.ok(drafts[0].question.options.length === 4);
     assert.match(drafts[0].mark_points[0].feedback_if_missing, /Calculate Mr|×/);
     assert.equal(Object.keys(drafts[0].answer_key.key_payload.option_feedback || {}).length, 0);
+  });
+
+  it("never repeats a compound within one run", () => {
+    const { drafts, errors } = generateChemBatch({ scenario: "rfm", count: 20, seed: 99 });
+    assert.equal(errors.length, 0);
+    assert.equal(drafts.length, 40);
+    const formulas = drafts
+      .filter((d) => d.variant?.format === "mcq")
+      .map((d) => d.variant.formula);
+    assert.equal(formulas.length, 20);
+    assert.equal(new Set(formulas).size, 20);
+  });
+
+  it("skips formulas listed in excludeFormulas", () => {
+    const first = listCompounds()[0].formula;
+    const { drafts, errors } = generateChemBatch({
+      scenario: "rfm",
+      count: 3,
+      seed: 3,
+      excludeFormulas: [first]
+    });
+    assert.equal(errors.length, 0);
+    for (const d of drafts) {
+      assert.notEqual(d.variant.formula, first);
+    }
+  });
+});
+
+describe("compound bank and unique selection", () => {
+  it("has a broad GCSE bank with parseable formulas", () => {
+    const compounds = listCompounds();
+    assert.ok(compounds.length >= 50);
+    for (const c of compounds) {
+      assert.ok(relativeFormulaMass(c.formula) > 0);
+    }
+  });
+
+  it("selectUniqueCompounds never repeats and respects excludes", () => {
+    const rng = mulberry32(11);
+    const { selected, shortfall } = selectUniqueCompounds(
+      listCompounds(),
+      10,
+      rng,
+      [listCompounds()[0].formula]
+    );
+    assert.equal(shortfall, 0);
+    assert.equal(selected.length, 10);
+    assert.equal(new Set(selected.map((c) => c.formula)).size, 10);
+    assert.ok(!selected.some((c) => c.formula === listCompounds()[0].formula));
+  });
+
+  it("extracts formulas from RFM prompts", () => {
+    assert.equal(
+      extractFormulaFromChemPrompt(
+        "Calculate the relative formula mass (Mr) of water, $\\ce{H2O}$.\n\nRelative atomic masses: H = 1"
+      ),
+      "H2O"
+    );
+    assert.deepEqual(
+      formulasFromPrompts([
+        "Calculate the relative formula mass (Mr) of methane, $\\ce{CH4}$.",
+        "Calculate the relative formula mass (Mr) of ethane, $\\ce{C2H6}$."
+      ]),
+      ["CH4", "C2H6"]
+    );
   });
 });
 
@@ -55,6 +130,9 @@ describe("generateChemBatch conservation", () => {
     });
     assert.equal(errors.length, 0);
     assert.equal(drafts.length, 4);
+    assert.equal(drafts[0].question.demand_level, "low");
+    assert.equal(drafts[1].question.demand_level, "standard");
+    assert.deepEqual(drafts[0].skill_codes, { ms: ["MS1a"], ws: ["WS4.3"] });
     assert.match(drafts[0].question.prompt, /What mass of .+ (reacted|was produced)\?/);
     assert.match(drafts[0].question.prompt, /reacted with|produced/);
     assert.match(drafts[0].question.prompt, /\$\\ce\{/);
@@ -248,6 +326,8 @@ describe("concentration multi-path marking", () => {
     const draft = generateConcentrationFindMDraft({ seed: 11 }, mulberry32(11));
     assert.equal(draft.question.calculation_config.marking_mode, "multi_path");
     assert.equal(draft.answer_key.key_payload.unit, "g");
+    assert.equal(draft.question.demand_level, "standard_45");
+    assert.deepEqual(draft.skill_codes.ms, ["MS1a", "MS1c", "MS3c", "MS3b"]);
     assert.ok(draft.question.calculation_config.paths.length >= 2);
   });
 });
@@ -259,9 +339,109 @@ describe("balance batch", () => {
     assert.equal(drafts.length, 3);
     assert.equal(drafts[0].question.question_type, "chemistry_interactive");
     assert.equal(drafts[0].question.chemistry_config.kind, "balance_equation");
-    assert.match(drafts[0].question.prompt, /Balance the following equation/);
+    assert.match(drafts[0].question.prompt, /Balance|half-equation|ionic equation/i);
     assert.match(drafts[0].question.prompt, /\$\\ce\{/);
-    assert.ok(listBalanceEquations().length >= 5);
+    assert.ok(drafts[0].variant.signature);
+  });
+
+  it("covers a broad GCSE equation bank with unique signatures", () => {
+    const eqs = listBalanceEquations();
+    assert.ok(eqs.length >= 50);
+    const cats = new Set(eqs.map((e) => e.category));
+    for (const need of [
+      "combustion",
+      "decomposition",
+      "metal_oxygen",
+      "displacement",
+      "metal_water",
+      "redox",
+      "acid_metal",
+      "neutralisation_hydroxide",
+      "neutralisation_oxide",
+      "neutralisation_carbonate",
+      "electrolysis_half",
+      "ionic_displacement"
+    ]) {
+      assert.ok(cats.has(need), `missing category ${need}`);
+    }
+    const sigs = eqs.map((e) => balanceEquationSignature(e));
+    assert.equal(new Set(sigs).size, sigs.length);
+  });
+
+  it("marks ionic and half equations as HT-only with WS4.3", () => {
+    const ionicCount = listBalanceEquations().filter((e) => e.subtype === "ionic").length;
+    const { drafts, errors } = generateChemBatch({
+      scenario: "balance",
+      count: ionicCount,
+      seed: 21,
+      balance_subtype: "ionic"
+    });
+    assert.equal(errors.length, 0);
+    assert.equal(drafts.length, ionicCount);
+    for (const d of drafts) {
+      assert.equal(d.question.tier, "higher");
+      assert.equal(d.question.demand_level, "standard_45");
+      assert.deepEqual(d.skill_codes, { ms: [], ws: ["WS4.3"] });
+      assert.match(d.question.prompt, /ionic equation|displacement/i);
+    }
+
+    const half = generateChemBatch({
+      scenario: "balance",
+      count: 3,
+      seed: 22,
+      balance_subtype: "half"
+    });
+    assert.equal(half.errors.length, 0);
+    for (const d of half.drafts) {
+      assert.equal(d.question.tier, "higher");
+      assert.equal(d.question.demand_level, "standard_45");
+      assert.deepEqual(d.skill_codes, { ms: [], ws: ["WS4.3"] });
+    }
+  });
+
+  it("never repeats an equation within one run", () => {
+    const { drafts, errors } = generateChemBatch({ scenario: "balance", count: 25, seed: 12 });
+    assert.equal(errors.length, 0);
+    assert.equal(drafts.length, 25);
+    const sigs = drafts.map((d) => d.variant.signature);
+    assert.equal(new Set(sigs).size, 25);
+  });
+
+  it("skips equations listed in excludeBalanceKeys", () => {
+    const first = listBalanceEquations()[0];
+    const sig = balanceEquationSignature(first);
+    const { drafts, errors } = generateChemBatch({
+      scenario: "balance",
+      count: 5,
+      seed: 4,
+      excludeBalanceKeys: [sig, first.id]
+    });
+    assert.equal(errors.length, 0);
+    for (const d of drafts) {
+      assert.notEqual(d.variant.signature, sig);
+      assert.notEqual(d.variant.id, first.id);
+    }
+  });
+
+  it("extracts balance signatures from prompts", () => {
+    assert.equal(
+      extractBalanceSignatureFromPrompt("Balance the following equation.\n\n$\\ce{H2 + O2 -> H2O}$"),
+      "H2 + O2 -> H2O"
+    );
+  });
+
+  it("selectUniqueBalanceEquations respects excludes", () => {
+    const rng = mulberry32(8);
+    const first = listBalanceEquations()[0];
+    const { selected, shortfall } = selectUniqueBalanceEquations(
+      listBalanceEquations(),
+      8,
+      rng,
+      [balanceEquationSignature(first)]
+    );
+    assert.equal(shortfall, 0);
+    assert.equal(selected.length, 8);
+    assert.ok(!selected.some((e) => e.id === first.id));
   });
 });
 

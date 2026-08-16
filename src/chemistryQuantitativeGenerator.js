@@ -127,6 +127,162 @@ export function listBalanceEquations() {
   return balanceData.equations || [];
 }
 
+/** Normalise formula keys for exclude / dedupe sets. */
+export function normalizeFormulaKey(formula) {
+  return String(formula || "").trim();
+}
+
+/**
+ * Extract the first mhchem formula token from a chem-quant prompt.
+ * Matches `$\\ce{H2O}$` or embedded `\\ce{H2O}`.
+ */
+export function extractFormulaFromChemPrompt(prompt) {
+  const text = String(prompt || "");
+  const m = text.match(/\\ce\{([A-Za-z][A-Za-z0-9]*)\}/);
+  return m ? normalizeFormulaKey(m[1]) : null;
+}
+
+export function formulasFromPrompts(prompts) {
+  const out = new Set();
+  for (const p of prompts || []) {
+    const f = extractFormulaFromChemPrompt(p);
+    if (f) out.add(f);
+  }
+  return [...out];
+}
+
+function promptPatternForCompoundScenario(scenario) {
+  if (scenario === "rfm") return "%relative formula mass (Mr) of%";
+  if (scenario === "percent_by_mass") return "%percentage by mass of%";
+  return null;
+}
+
+/**
+ * Load formulas already used in the bank for RFM / % by mass questions.
+ * @returns {Promise<string[]>}
+ */
+export async function loadExcludedFormulas(supabaseClient, scenario) {
+  const pattern = promptPatternForCompoundScenario(scenario);
+  if (!supabaseClient || !pattern) return [];
+
+  const { data, error } = await supabaseClient
+    .from("questions")
+    .select("prompt")
+    .ilike("prompt", pattern)
+    .limit(5000);
+
+  if (error) throw error;
+  return formulasFromPrompts((data || []).map((row) => row.prompt));
+}
+
+/**
+ * Shuffle pool and take up to `count` compounds not in excludeFormulas.
+ * Never repeats a formula within the returned list.
+ */
+export function selectUniqueCompounds(compounds, count, rng, excludeFormulas = []) {
+  const exclude = new Set(
+    (excludeFormulas || []).map(normalizeFormulaKey).filter(Boolean)
+  );
+  const pool = shuffle(
+    (compounds || []).filter((c) => {
+      const key = normalizeFormulaKey(c?.formula);
+      return key && !exclude.has(key);
+    }),
+    rng
+  );
+  const selected = pool.slice(0, Math.max(0, count));
+  const shortfall = Math.max(0, count - selected.length);
+  return { selected, shortfall, available: pool.length };
+}
+
+/** Canonical equation text for balance dedupe (species + states, no $ wrappers). */
+export function balanceEquationSignature(entryOrSpecies, arrow = "->") {
+  const species = Array.isArray(entryOrSpecies)
+    ? entryOrSpecies
+    : entryOrSpecies?.species;
+  const ce = mhchemEquationFromSpecies(species || [], arrow);
+  return String(ce || "")
+    .replace(/^\$\\ce\{/, "")
+    .replace(/\}\$$/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function extractBalanceSignatureFromPrompt(prompt) {
+  const text = String(prompt || "");
+  const m = text.match(/\$\\ce\{([^$]+)\}\$/);
+  if (!m) {
+    const m2 = text.match(/\\ce\{([^}]+)\}/);
+    return m2 ? m2[1].replace(/\s+/g, " ").trim() : null;
+  }
+  return m[1].replace(/\s+/g, " ").trim();
+}
+
+export function balanceKeysFromQuestionRow(row) {
+  const keys = [];
+  const cfg = row?.chemistry_config;
+  if (cfg && cfg.kind === "balance_equation") {
+    const species = cfg.template?.species || cfg.answer?.species;
+    if (species?.length) keys.push(balanceEquationSignature(species));
+  }
+  const fromPrompt = extractBalanceSignatureFromPrompt(row?.prompt);
+  if (fromPrompt) keys.push(fromPrompt);
+  return [...new Set(keys.filter(Boolean))];
+}
+
+/**
+ * Load equation signatures already used in the bank for balance questions.
+ * @returns {Promise<string[]>}
+ */
+export async function loadExcludedBalanceKeys(supabaseClient) {
+  if (!supabaseClient) return [];
+
+  const { data, error } = await supabaseClient
+    .from("questions")
+    .select("prompt, chemistry_config")
+    .eq("question_type", "chemistry_interactive")
+    .limit(5000);
+
+  if (error) throw error;
+
+  const keys = new Set();
+  for (const row of data || []) {
+    if (row?.chemistry_config?.kind && row.chemistry_config.kind !== "balance_equation") {
+      continue;
+    }
+    // Include rows with balance prompts even if kind filter missed older data
+    const looksBalance =
+      row?.chemistry_config?.kind === "balance_equation" ||
+      /balance the|half-equation|ionic equation/i.test(String(row?.prompt || ""));
+    if (!looksBalance) continue;
+    for (const k of balanceKeysFromQuestionRow(row)) keys.add(k);
+  }
+  return [...keys];
+}
+
+/**
+ * Shuffle pool and take up to `count` balance entries not in excludeKeys.
+ * Dedupes by equation signature (and id) within the run.
+ */
+export function selectUniqueBalanceEquations(entries, count, rng, excludeKeys = []) {
+  const exclude = new Set((excludeKeys || []).map((k) => String(k || "").trim()).filter(Boolean));
+  const seenSig = new Set();
+  const pool = [];
+  for (const entry of shuffle(entries || [], rng)) {
+    if (!entry) continue;
+    const sig = balanceEquationSignature(entry);
+    const id = String(entry.id || "").trim();
+    if (id && exclude.has(id)) continue;
+    if (sig && exclude.has(sig)) continue;
+    if (sig && seenSig.has(sig)) continue;
+    if (sig) seenSig.add(sig);
+    pool.push(entry);
+  }
+  const selected = pool.slice(0, Math.max(0, count));
+  const shortfall = Math.max(0, count - selected.length);
+  return { selected, shortfall, available: pool.length };
+}
+
 /** Convert a formula token for mhchem (charges → ^{n+}). */
 export function formulaToMhchemToken(formula) {
   let s = String(formula || "");
@@ -169,7 +325,7 @@ export function mhchemEquationFromSpecies(species, arrow = "->") {
 
 function balanceInstruction(subtype) {
   if (subtype === "ionic") {
-    return "Complete and balance the ionic equation. Enter the missing formula.";
+    return "Write and balance the ionic equation for this displacement reaction. Enter any missing formula.";
   }
   if (subtype === "half") {
     return "Balance the half-equation. Add electrons where needed.";
@@ -331,12 +487,12 @@ export function generateRfmPair(compound, spec, rng) {
   const working = buildRfmWorkingText(compound, mr);
 
   const mcq = {
-    variant: { scenario: "rfm", format: "mcq" },
+    variant: { scenario: "rfm", format: "mcq", formula: compound.formula, name: compound.name },
     question: applySpecLinks({
       question_type: "mcq",
       prompt,
       options,
-      marking_method: "mcq",
+      marking_method: "keyword",
       max_marks: 1,
       demand_level: "low",
       command_word: "calculate",
@@ -361,17 +517,17 @@ export function generateRfmPair(compound, spec, rng) {
         max_marks: 1
       }
     ],
-    skill_codes: { ms: ["MS1a"], ws: [] }
+    skill_codes: { ms: ["MS1a"], ws: ["WS4.3"] }
   };
 
   const shortText = {
-    variant: { scenario: "rfm", format: "short_text" },
+    variant: { scenario: "rfm", format: "short_text", formula: compound.formula, name: compound.name },
     question: applySpecLinks({
       question_type: "short_text",
       prompt,
       marking_method: "keyword",
       max_marks: 1,
-      demand_level: "low",
+      demand_level: "standard",
       command_word: "calculate",
       tier: mcq.question.tier,
       ao1_marks: 0,
@@ -380,7 +536,7 @@ export function generateRfmPair(compound, spec, rng) {
       is_maths_skill: true,
       is_required_practical: false,
       audience: meta.audience,
-      difficulty: 1
+      difficulty: 2
     }, meta),
     answer_key: {
       key_type: "keywords",
@@ -398,7 +554,7 @@ export function generateRfmPair(compound, spec, rng) {
         max_marks: 1
       }
     ],
-    skill_codes: { ms: ["MS1a"], ws: [] }
+    skill_codes: { ms: ["MS1a"], ws: ["WS4.3"] }
   };
 
   return [
@@ -496,7 +652,7 @@ export function generateConservationPair(reaction, spec, rng) {
       question_type: "mcq",
       prompt,
       options,
-      marking_method: "mcq",
+      marking_method: "keyword",
       max_marks: 1,
       demand_level: "low",
       command_word: "calculate",
@@ -521,7 +677,7 @@ export function generateConservationPair(reaction, spec, rng) {
         max_marks: 1
       }
     ],
-    skill_codes: { ms: ["MS1a"], ws: [] }
+    skill_codes: { ms: ["MS1a"], ws: ["WS4.3"] }
   };
 
   const shortText = {
@@ -531,7 +687,7 @@ export function generateConservationPair(reaction, spec, rng) {
       prompt,
       marking_method: "keyword",
       max_marks: 1,
-      demand_level: "low",
+      demand_level: "standard",
       command_word: "calculate",
       tier: mcq.question.tier,
       ao1_marks: 0,
@@ -540,7 +696,7 @@ export function generateConservationPair(reaction, spec, rng) {
       is_maths_skill: true,
       is_required_practical: false,
       audience: meta.audience,
-      difficulty: 1
+      difficulty: 2
     }, meta),
     answer_key: {
       key_type: "keywords",
@@ -558,7 +714,7 @@ export function generateConservationPair(reaction, spec, rng) {
         max_marks: 1
       }
     ],
-    skill_codes: { ms: ["MS1a"], ws: [] }
+    skill_codes: { ms: ["MS1a"], ws: ["WS4.3"] }
   };
 
   return [
@@ -629,7 +785,7 @@ export function generatePercentByMassDraft(compound, spec, rng) {
   };
 
   const draft = {
-    variant: { scenario: "percent_by_mass", element },
+    variant: { scenario: "percent_by_mass", formula: compound.formula, name: compound.name, element },
     question: applySpecLinks({
       question_type: "numeric",
       prompt,
@@ -657,7 +813,7 @@ export function generatePercentByMassDraft(compound, spec, rng) {
       }
     },
     mark_points: [],
-    skill_codes: { ms: ["MS1a", "MS1c"], ws: [] }
+    skill_codes: { ms: ["MS1a", "MS1c"], ws: ["WS4.3"] }
   };
 
   return finalizeDraft(draft, spec, "percent_by_mass");
@@ -865,7 +1021,7 @@ export function generateConcentrationFindCDraft(spec, rng) {
       prompt,
       marking_method: "numeric",
       max_marks: 3,
-      demand_level: "standard",
+      demand_level: "standard_45",
       command_word: "calculate",
       tier: meta.tier === "higher" ? "higher" : meta.tier === "foundation" ? "foundation" : "both",
       ao1_marks: 0,
@@ -874,7 +1030,7 @@ export function generateConcentrationFindCDraft(spec, rng) {
       is_maths_skill: true,
       is_required_practical: false,
       audience: meta.audience,
-      difficulty: 2,
+      difficulty: 3,
       calculation_config: calcConfig,
       hints: concentrationMethodHints(false)
     }, meta),
@@ -888,7 +1044,7 @@ export function generateConcentrationFindCDraft(spec, rng) {
       }
     },
     mark_points: [],
-    skill_codes: { ms: ["MS1a", "MS1c"], ws: [] }
+    skill_codes: { ms: ["MS1a", "MS1c", "MS3c"], ws: [] }
   };
   return finalizeDraft(draft, spec, "concentration_find_c");
 }
@@ -916,7 +1072,7 @@ export function generateConcentrationFindMDraft(spec, rng) {
       prompt,
       marking_method: "numeric",
       max_marks: 3,
-      demand_level: "standard",
+      demand_level: "standard_45",
       command_word: "calculate",
       tier: meta.tier === "higher" ? "higher" : meta.tier === "foundation" ? "foundation" : "both",
       ao1_marks: 0,
@@ -925,7 +1081,7 @@ export function generateConcentrationFindMDraft(spec, rng) {
       is_maths_skill: true,
       is_required_practical: false,
       audience: meta.audience,
-      difficulty: 2,
+      difficulty: 3,
       calculation_config: calcConfig,
       hints: concentrationMethodHints(true)
     }, meta),
@@ -939,7 +1095,7 @@ export function generateConcentrationFindMDraft(spec, rng) {
       }
     },
     mark_points: [],
-    skill_codes: { ms: ["MS1a", "MS1c"], ws: [] }
+    skill_codes: { ms: ["MS1a", "MS1c", "MS3c", "MS3b"], ws: [] }
   };
   return finalizeDraft(draft, spec, "concentration_find_m");
 }
@@ -951,7 +1107,8 @@ export function generateBalanceDraft(entry, spec) {
   const maxMarks = entry.max_marks || 1;
   const subtype = entry.subtype || "symbol";
   const equationCe = mhchemEquationFromSpecies(entry.species, "->");
-  const prompt = `${balanceInstruction(subtype)}\n\n${equationCe}`;
+  const signature = balanceEquationSignature(entry);
+  const prompt = `${entry.prompt || balanceInstruction(subtype)}\n\n${equationCe}`;
 
   const chemistry_config = {
     kind: "balance_equation",
@@ -970,22 +1127,30 @@ export function generateBalanceDraft(entry, spec) {
   };
 
   const draft = {
-    variant: { scenario: "balance", id: entry.id, subtype },
+    variant: {
+      scenario: "balance",
+      id: entry.id,
+      subtype,
+      category: entry.category || null,
+      signature
+    },
     question: applySpecLinks({
       question_type: "chemistry_interactive",
       prompt,
       marking_method: "chemistry",
       max_marks: maxMarks,
-      demand_level: subtype === "half" ? "standard_45" : "standard",
+      demand_level: subtype === "half" || subtype === "ionic" ? "standard_45" : "standard",
       command_word: "balance",
-      tier: meta.tier === "higher" ? "higher" : meta.tier === "foundation" ? "foundation" : "both",
+      tier: subtype === "half" || subtype === "ionic"
+        ? "higher"
+        : (meta.tier === "higher" ? "higher" : meta.tier === "foundation" ? "foundation" : "both"),
       ao1_marks: maxMarks,
       ao2_marks: 0,
       ao3_marks: 0,
       is_maths_skill: false,
       is_required_practical: false,
       audience: meta.audience,
-      difficulty: 2,
+      difficulty: subtype === "half" || subtype === "ionic" ? 3 : 2,
       chemistry_config
     }, meta),
     answer_key: {
@@ -993,7 +1158,7 @@ export function generateBalanceDraft(entry, spec) {
       key_payload: chemistry_config.answer
     },
     mark_points: [],
-    skill_codes: { ms: [], ws: [] }
+    skill_codes: { ms: [], ws: ["WS4.3"] }
   };
   return finalizeDraft(draft, spec, "balance");
 }
@@ -1005,6 +1170,8 @@ export function generateBalanceDraft(entry, spec) {
  * @param {string} spec.scenario - rfm | conservation | percent_by_mass | concentration_find_c | concentration_find_m | balance
  * @param {number} [spec.count]
  * @param {number} [spec.seed]
+ * @param {string[]} [spec.excludeFormulas] - formulas already in the bank (RFM / % mass)
+ * @param {string[]} [spec.excludeBalanceKeys] - equation signatures/ids already in the bank
  */
 export function generateChemBatch(spec = {}) {
   const scenario = String(spec.scenario || "rfm");
@@ -1013,6 +1180,8 @@ export function generateChemBatch(spec = {}) {
   const rng = mulberry32(seed);
   const drafts = [];
   const errors = [];
+  const excludeFormulas = Array.isArray(spec.excludeFormulas) ? spec.excludeFormulas : [];
+  const excludeBalanceKeys = Array.isArray(spec.excludeBalanceKeys) ? spec.excludeBalanceKeys : [];
 
   const compounds = listCompounds();
   const reactions = listConservationReactions();
@@ -1021,25 +1190,75 @@ export function generateChemBatch(spec = {}) {
     return e.subtype === spec.balance_subtype;
   });
 
+  if (scenario === "rfm" || scenario === "percent_by_mass") {
+    const { selected, shortfall, available } = selectUniqueCompounds(
+      compounds,
+      count,
+      rng,
+      excludeFormulas
+    );
+    if (shortfall > 0) {
+      errors.push({
+        index: null,
+        message:
+          `Only ${available} unused compound(s) available` +
+          (excludeFormulas.length ? ` after excluding ${excludeFormulas.length} already in the bank` : "") +
+          `; requested ${count}. Generated ${selected.length}.`
+      });
+    }
+    selected.forEach((compound, i) => {
+      try {
+        if (scenario === "rfm") {
+          drafts.push(...generateRfmPair(compound, { ...spec, seed }, rng));
+        } else {
+          drafts.push(generatePercentByMassDraft(compound, { ...spec, seed }, rng));
+        }
+      } catch (err) {
+        errors.push({ index: i, message: err?.message || String(err) });
+      }
+    });
+    return { drafts, errors, seed, scenario };
+  }
+
+  if (scenario === "balance") {
+    if (!balances.length) {
+      errors.push({ index: null, message: "No balance equations for subtype filter" });
+      return { drafts, errors, seed, scenario };
+    }
+    const { selected, shortfall, available } = selectUniqueBalanceEquations(
+      balances,
+      count,
+      rng,
+      excludeBalanceKeys
+    );
+    if (shortfall > 0) {
+      errors.push({
+        index: null,
+        message:
+          `Only ${available} unused equation(s) available` +
+          (excludeBalanceKeys.length ? ` after excluding ${excludeBalanceKeys.length} already in the bank` : "") +
+          `; requested ${count}. Generated ${selected.length}.`
+      });
+    }
+    selected.forEach((entry, i) => {
+      try {
+        drafts.push(generateBalanceDraft(entry, { ...spec, seed }));
+      } catch (err) {
+        errors.push({ index: i, message: err?.message || String(err) });
+      }
+    });
+    return { drafts, errors, seed, scenario };
+  }
+
   for (let i = 0; i < count; i++) {
     try {
-      if (scenario === "rfm") {
-        const compound = pick(rng, compounds);
-        drafts.push(...generateRfmPair(compound, { ...spec, seed }, rng));
-      } else if (scenario === "conservation") {
+      if (scenario === "conservation") {
         const reaction = pick(rng, reactions);
         drafts.push(...generateConservationPair(reaction, { ...spec, seed }, rng));
-      } else if (scenario === "percent_by_mass") {
-        const compound = pick(rng, compounds);
-        drafts.push(generatePercentByMassDraft(compound, { ...spec, seed }, rng));
       } else if (scenario === "concentration_find_c") {
         drafts.push(generateConcentrationFindCDraft({ ...spec, seed }, rng));
       } else if (scenario === "concentration_find_m") {
         drafts.push(generateConcentrationFindMDraft({ ...spec, seed }, rng));
-      } else if (scenario === "balance") {
-        if (!balances.length) throw new Error("No balance equations for subtype filter");
-        const entry = balances[i % balances.length];
-        drafts.push(generateBalanceDraft(entry, { ...spec, seed }));
       } else {
         throw new Error(`Unknown scenario: ${scenario}`);
       }
@@ -1053,6 +1272,10 @@ export function generateChemBatch(spec = {}) {
 
 export function summarizeChemDraft(draft) {
   const v = draft?.variant || {};
-  const parts = [v.scenario || "?", v.format || v.element || v.subtype || ""].filter(Boolean);
+  const parts = [
+    v.scenario || "?",
+    v.format || v.element || v.subtype || "",
+    v.id || v.formula || ""
+  ].filter(Boolean);
   return parts.join(" / ");
 }

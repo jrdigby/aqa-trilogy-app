@@ -2,8 +2,8 @@
   "equations": [
     {
       "id": "water_balance",
+      "category": "combustion",
       "subtype": "symbol",
-      "prompt": "Balance the following equation.",
       "species": [
         { "formula": "H2", "side": "left" },
         { "formula": "O2", "side": "left" },
@@ -14,8 +14,8 @@
     },
     {
       "id": "water_balance_states",
+      "category": "combustion",
       "subtype": "symbol",
-      "prompt": "Balance the following equation. Include state symbols.",
       "species": [
         { "formula": "H2", "side": "left", "state": "g" },
         { "formula": "O2", "side": "left", "state": "g" },
@@ -25,33 +25,9 @@
       "max_marks": 2
     },
     {
-      "id": "mg_o2_mgo",
+      "id": "comb_ch4",
+      "category": "combustion",
       "subtype": "symbol",
-      "prompt": "Balance the following equation.",
-      "species": [
-        { "formula": "Mg", "side": "left" },
-        { "formula": "O2", "side": "left" },
-        { "formula": "MgO", "side": "right" }
-      ],
-      "coeffs": [2, 1, 2],
-      "max_marks": 1
-    },
-    {
-      "id": "fe_o2_fe2o3",
-      "subtype": "symbol",
-      "prompt": "Balance the following equation.",
-      "species": [
-        { "formula": "Fe", "side": "left" },
-        { "formula": "O2", "side": "left" },
-        { "formula": "Fe2O3", "side": "right" }
-      ],
-      "coeffs": [4, 3, 2],
-      "max_marks": 1
-    },
-    {
-      "id": "ch4_o2_co2_h2o",
-      "subtype": "symbol",
-      "prompt": "Balance the following equation.",
       "species": [
         { "formula": "CH4", "side": "left" },
         { "formula": "O2", "side": "left" },
@@ -62,9 +38,9 @@
       "max_marks": 1
     },
     {
-      "id": "c2h6_o2_co2_h2o",
+      "id": "comb_c2h6",
+      "category": "combustion",
       "subtype": "symbol",
-      "prompt": "Balance the following equation.",
       "species": [
         { "formula": "C2H6", "side": "left" },
         { "formula": "O2", "side": "left" },
@@ -75,21 +51,958 @@
       "max_marks": 1
     },
     {
-      "id": "nacl_aq_ionic",
-      "subtype": "ionic",
-      "prompt": "Complete and balance the ionic equation. Enter the missing formula.",
+      "id": "comb_c2h4",
+      "category": "combustion",
+      "subtype": "symbol",
       "species": [
-        { "formula": "Na", "side": "left", "state": "s" },
-        { "formula": "Cl2", "side": "left", "state": "g" },
-        { "formula": "NaCl", "side": "right", "state": "aq", "studentEntersFormula": true }
+        { "formula": "C2H4", "side": "left" },
+        { "formula": "O2", "side": "left" },
+        { "formula": "CO2", "side": "right" },
+        { "formula": "H2O", "side": "right" }
       ],
-      "coeffs": [2, 1, 2],
-      "max_marks": 3
+      "coeffs": [1, 3, 2, 2],
+      "max_marks": 1
     },
     {
-      "id": "half_cu",
+      "id": "comb_c3h8",
+      "category": "combustion",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "C3H8", "side": "left" },
+        { "formula": "O2", "side": "left" },
+        { "formula": "CO2", "side": "right" },
+        { "formula": "H2O", "side": "right" }
+      ],
+      "coeffs": [1, 5, 3, 4],
+      "max_marks": 1
+    },
+    {
+      "id": "comb_c2h5oh",
+      "category": "combustion",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "C2H5OH", "side": "left" },
+        { "formula": "O2", "side": "left" },
+        { "formula": "CO2", "side": "right" },
+        { "formula": "H2O", "side": "right" }
+      ],
+      "coeffs": [1, 3, 2, 3],
+      "max_marks": 1
+    },
+    {
+      "id": "comb_c",
+      "category": "combustion",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "C", "side": "left" },
+        { "formula": "O2", "side": "left" },
+        { "formula": "CO2", "side": "right" }
+      ],
+      "coeffs": [1, 1, 1],
+      "max_marks": 1
+    },
+    {
+      "id": "comb_co",
+      "category": "combustion",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "CO", "side": "left" },
+        { "formula": "O2", "side": "left" },
+        { "formula": "CO2", "side": "right" }
+      ],
+      "coeffs": [2, 1, 2],
+      "max_marks": 1
+    },
+    {
+      "id": "comb_s",
+      "category": "combustion",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "S", "side": "left" },
+        { "formula": "O2", "side": "left" },
+        { "formula": "SO2", "side": "right" }
+      ],
+      "coeffs": [1, 1, 1],
+      "max_marks": 1
+    },
+
+    {
+      "id": "decomp_h2o2",
+      "category": "decomposition",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "H2O2", "side": "left" },
+        { "formula": "H2O", "side": "right" },
+        { "formula": "O2", "side": "right" }
+      ],
+      "coeffs": [2, 2, 1],
+      "max_marks": 1
+    },
+    {
+      "id": "decomp_caco3",
+      "category": "decomposition",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "CaCO3", "side": "left" },
+        { "formula": "CaO", "side": "right" },
+        { "formula": "CO2", "side": "right" }
+      ],
+      "coeffs": [1, 1, 1],
+      "max_marks": 1
+    },
+    {
+      "id": "decomp_cuco3",
+      "category": "decomposition",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "CuCO3", "side": "left" },
+        { "formula": "CuO", "side": "right" },
+        { "formula": "CO2", "side": "right" }
+      ],
+      "coeffs": [1, 1, 1],
+      "max_marks": 1
+    },
+    {
+      "id": "decomp_znco3",
+      "category": "decomposition",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "ZnCO3", "side": "left" },
+        { "formula": "ZnO", "side": "right" },
+        { "formula": "CO2", "side": "right" }
+      ],
+      "coeffs": [1, 1, 1],
+      "max_marks": 1
+    },
+    {
+      "id": "decomp_nahco3",
+      "category": "decomposition",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "NaHCO3", "side": "left" },
+        { "formula": "Na2CO3", "side": "right" },
+        { "formula": "H2O", "side": "right" },
+        { "formula": "CO2", "side": "right" }
+      ],
+      "coeffs": [2, 1, 1, 1],
+      "max_marks": 1
+    },
+    {
+      "id": "decomp_kno3",
+      "category": "decomposition",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "KNO3", "side": "left" },
+        { "formula": "KNO2", "side": "right" },
+        { "formula": "O2", "side": "right" }
+      ],
+      "coeffs": [2, 2, 1],
+      "max_marks": 1
+    },
+    {
+      "id": "decomp_cuoh2",
+      "category": "decomposition",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "Cu(OH)2", "side": "left" },
+        { "formula": "CuO", "side": "right" },
+        { "formula": "H2O", "side": "right" }
+      ],
+      "coeffs": [1, 1, 1],
+      "max_marks": 1
+    },
+
+    {
+      "id": "metal_o2_mgo",
+      "category": "metal_oxygen",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "Mg", "side": "left" },
+        { "formula": "O2", "side": "left" },
+        { "formula": "MgO", "side": "right" }
+      ],
+      "coeffs": [2, 1, 2],
+      "max_marks": 1
+    },
+    {
+      "id": "metal_o2_fe2o3",
+      "category": "metal_oxygen",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "Fe", "side": "left" },
+        { "formula": "O2", "side": "left" },
+        { "formula": "Fe2O3", "side": "right" }
+      ],
+      "coeffs": [4, 3, 2],
+      "max_marks": 1
+    },
+    {
+      "id": "metal_o2_cuo",
+      "category": "metal_oxygen",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "Cu", "side": "left" },
+        { "formula": "O2", "side": "left" },
+        { "formula": "CuO", "side": "right" }
+      ],
+      "coeffs": [2, 1, 2],
+      "max_marks": 1
+    },
+    {
+      "id": "metal_o2_zno",
+      "category": "metal_oxygen",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "Zn", "side": "left" },
+        { "formula": "O2", "side": "left" },
+        { "formula": "ZnO", "side": "right" }
+      ],
+      "coeffs": [2, 1, 2],
+      "max_marks": 1
+    },
+    {
+      "id": "metal_o2_al2o3",
+      "category": "metal_oxygen",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "Al", "side": "left" },
+        { "formula": "O2", "side": "left" },
+        { "formula": "Al2O3", "side": "right" }
+      ],
+      "coeffs": [4, 3, 2],
+      "max_marks": 1
+    },
+    {
+      "id": "metal_o2_na2o",
+      "category": "metal_oxygen",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "Na", "side": "left" },
+        { "formula": "O2", "side": "left" },
+        { "formula": "Na2O", "side": "right" }
+      ],
+      "coeffs": [4, 1, 2],
+      "max_marks": 1
+    },
+    {
+      "id": "metal_o2_cao",
+      "category": "metal_oxygen",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "Ca", "side": "left" },
+        { "formula": "O2", "side": "left" },
+        { "formula": "CaO", "side": "right" }
+      ],
+      "coeffs": [2, 1, 2],
+      "max_marks": 1
+    },
+
+    {
+      "id": "disp_mg_cuso4",
+      "category": "displacement",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "Mg", "side": "left" },
+        { "formula": "CuSO4", "side": "left" },
+        { "formula": "MgSO4", "side": "right" },
+        { "formula": "Cu", "side": "right" }
+      ],
+      "coeffs": [1, 1, 1, 1],
+      "max_marks": 1
+    },
+    {
+      "id": "disp_zn_cuso4",
+      "category": "displacement",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "Zn", "side": "left" },
+        { "formula": "CuSO4", "side": "left" },
+        { "formula": "ZnSO4", "side": "right" },
+        { "formula": "Cu", "side": "right" }
+      ],
+      "coeffs": [1, 1, 1, 1],
+      "max_marks": 1
+    },
+    {
+      "id": "disp_fe_cuso4",
+      "category": "displacement",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "Fe", "side": "left" },
+        { "formula": "CuSO4", "side": "left" },
+        { "formula": "FeSO4", "side": "right" },
+        { "formula": "Cu", "side": "right" }
+      ],
+      "coeffs": [1, 1, 1, 1],
+      "max_marks": 1
+    },
+    {
+      "id": "disp_mg_zncl2",
+      "category": "displacement",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "Mg", "side": "left" },
+        { "formula": "ZnCl2", "side": "left" },
+        { "formula": "MgCl2", "side": "right" },
+        { "formula": "Zn", "side": "right" }
+      ],
+      "coeffs": [1, 1, 1, 1],
+      "max_marks": 1
+    },
+    {
+      "id": "disp_zn_feso4",
+      "category": "displacement",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "Zn", "side": "left" },
+        { "formula": "FeSO4", "side": "left" },
+        { "formula": "ZnSO4", "side": "right" },
+        { "formula": "Fe", "side": "right" }
+      ],
+      "coeffs": [1, 1, 1, 1],
+      "max_marks": 1
+    },
+    {
+      "id": "disp_cl2_kbr",
+      "category": "displacement",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "Cl2", "side": "left" },
+        { "formula": "KBr", "side": "left" },
+        { "formula": "KCl", "side": "right" },
+        { "formula": "Br2", "side": "right" }
+      ],
+      "coeffs": [1, 2, 2, 1],
+      "max_marks": 1
+    },
+    {
+      "id": "disp_cl2_nabr",
+      "category": "displacement",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "Cl2", "side": "left" },
+        { "formula": "NaBr", "side": "left" },
+        { "formula": "NaCl", "side": "right" },
+        { "formula": "Br2", "side": "right" }
+      ],
+      "coeffs": [1, 2, 2, 1],
+      "max_marks": 1
+    },
+
+    {
+      "id": "metal_water_na",
+      "category": "metal_water",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "Na", "side": "left" },
+        { "formula": "H2O", "side": "left" },
+        { "formula": "NaOH", "side": "right" },
+        { "formula": "H2", "side": "right" }
+      ],
+      "coeffs": [2, 2, 2, 1],
+      "max_marks": 1
+    },
+    {
+      "id": "metal_water_k",
+      "category": "metal_water",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "K", "side": "left" },
+        { "formula": "H2O", "side": "left" },
+        { "formula": "KOH", "side": "right" },
+        { "formula": "H2", "side": "right" }
+      ],
+      "coeffs": [2, 2, 2, 1],
+      "max_marks": 1
+    },
+    {
+      "id": "metal_water_ca",
+      "category": "metal_water",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "Ca", "side": "left" },
+        { "formula": "H2O", "side": "left" },
+        { "formula": "Ca(OH)2", "side": "right" },
+        { "formula": "H2", "side": "right" }
+      ],
+      "coeffs": [1, 2, 1, 1],
+      "max_marks": 1
+    },
+    {
+      "id": "metal_steam_mg",
+      "category": "metal_water",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "Mg", "side": "left" },
+        { "formula": "H2O", "side": "left" },
+        { "formula": "MgO", "side": "right" },
+        { "formula": "H2", "side": "right" }
+      ],
+      "coeffs": [1, 1, 1, 1],
+      "max_marks": 1
+    },
+
+    {
+      "id": "redox_cuo_h2",
+      "category": "redox",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "CuO", "side": "left" },
+        { "formula": "H2", "side": "left" },
+        { "formula": "Cu", "side": "right" },
+        { "formula": "H2O", "side": "right" }
+      ],
+      "coeffs": [1, 1, 1, 1],
+      "max_marks": 1
+    },
+    {
+      "id": "redox_fe2o3_co",
+      "category": "redox",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "Fe2O3", "side": "left" },
+        { "formula": "CO", "side": "left" },
+        { "formula": "Fe", "side": "right" },
+        { "formula": "CO2", "side": "right" }
+      ],
+      "coeffs": [1, 3, 2, 3],
+      "max_marks": 1
+    },
+    {
+      "id": "redox_cuo_c",
+      "category": "redox",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "CuO", "side": "left" },
+        { "formula": "C", "side": "left" },
+        { "formula": "Cu", "side": "right" },
+        { "formula": "CO2", "side": "right" }
+      ],
+      "coeffs": [2, 1, 2, 1],
+      "max_marks": 1
+    },
+    {
+      "id": "redox_zno_c",
+      "category": "redox",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "ZnO", "side": "left" },
+        { "formula": "C", "side": "left" },
+        { "formula": "Zn", "side": "right" },
+        { "formula": "CO", "side": "right" }
+      ],
+      "coeffs": [1, 1, 1, 1],
+      "max_marks": 1
+    },
+    {
+      "id": "redox_fe_cl2",
+      "category": "redox",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "Fe", "side": "left" },
+        { "formula": "Cl2", "side": "left" },
+        { "formula": "FeCl3", "side": "right" }
+      ],
+      "coeffs": [2, 3, 2],
+      "max_marks": 1
+    },
+
+    {
+      "id": "acid_metal_mg_hcl",
+      "category": "acid_metal",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "Mg", "side": "left" },
+        { "formula": "HCl", "side": "left" },
+        { "formula": "MgCl2", "side": "right" },
+        { "formula": "H2", "side": "right" }
+      ],
+      "coeffs": [1, 2, 1, 1],
+      "max_marks": 1
+    },
+    {
+      "id": "acid_metal_zn_hcl",
+      "category": "acid_metal",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "Zn", "side": "left" },
+        { "formula": "HCl", "side": "left" },
+        { "formula": "ZnCl2", "side": "right" },
+        { "formula": "H2", "side": "right" }
+      ],
+      "coeffs": [1, 2, 1, 1],
+      "max_marks": 1
+    },
+    {
+      "id": "acid_metal_fe_hcl",
+      "category": "acid_metal",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "Fe", "side": "left" },
+        { "formula": "HCl", "side": "left" },
+        { "formula": "FeCl2", "side": "right" },
+        { "formula": "H2", "side": "right" }
+      ],
+      "coeffs": [1, 2, 1, 1],
+      "max_marks": 1
+    },
+    {
+      "id": "acid_metal_mg_h2so4",
+      "category": "acid_metal",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "Mg", "side": "left" },
+        { "formula": "H2SO4", "side": "left" },
+        { "formula": "MgSO4", "side": "right" },
+        { "formula": "H2", "side": "right" }
+      ],
+      "coeffs": [1, 1, 1, 1],
+      "max_marks": 1
+    },
+    {
+      "id": "acid_metal_zn_h2so4",
+      "category": "acid_metal",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "Zn", "side": "left" },
+        { "formula": "H2SO4", "side": "left" },
+        { "formula": "ZnSO4", "side": "right" },
+        { "formula": "H2", "side": "right" }
+      ],
+      "coeffs": [1, 1, 1, 1],
+      "max_marks": 1
+    },
+    {
+      "id": "acid_metal_fe_h2so4",
+      "category": "acid_metal",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "Fe", "side": "left" },
+        { "formula": "H2SO4", "side": "left" },
+        { "formula": "FeSO4", "side": "right" },
+        { "formula": "H2", "side": "right" }
+      ],
+      "coeffs": [1, 1, 1, 1],
+      "max_marks": 1
+    },
+
+    {
+      "id": "neut_hcl_naoh",
+      "category": "neutralisation_hydroxide",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "HCl", "side": "left" },
+        { "formula": "NaOH", "side": "left" },
+        { "formula": "NaCl", "side": "right" },
+        { "formula": "H2O", "side": "right" }
+      ],
+      "coeffs": [1, 1, 1, 1],
+      "max_marks": 1
+    },
+    {
+      "id": "neut_hcl_koh",
+      "category": "neutralisation_hydroxide",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "HCl", "side": "left" },
+        { "formula": "KOH", "side": "left" },
+        { "formula": "KCl", "side": "right" },
+        { "formula": "H2O", "side": "right" }
+      ],
+      "coeffs": [1, 1, 1, 1],
+      "max_marks": 1
+    },
+    {
+      "id": "neut_hcl_caoh2",
+      "category": "neutralisation_hydroxide",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "HCl", "side": "left" },
+        { "formula": "Ca(OH)2", "side": "left" },
+        { "formula": "CaCl2", "side": "right" },
+        { "formula": "H2O", "side": "right" }
+      ],
+      "coeffs": [2, 1, 1, 2],
+      "max_marks": 1
+    },
+    {
+      "id": "neut_h2so4_naoh",
+      "category": "neutralisation_hydroxide",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "H2SO4", "side": "left" },
+        { "formula": "NaOH", "side": "left" },
+        { "formula": "Na2SO4", "side": "right" },
+        { "formula": "H2O", "side": "right" }
+      ],
+      "coeffs": [1, 2, 1, 2],
+      "max_marks": 1
+    },
+    {
+      "id": "neut_h2so4_koh",
+      "category": "neutralisation_hydroxide",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "H2SO4", "side": "left" },
+        { "formula": "KOH", "side": "left" },
+        { "formula": "K2SO4", "side": "right" },
+        { "formula": "H2O", "side": "right" }
+      ],
+      "coeffs": [1, 2, 1, 2],
+      "max_marks": 1
+    },
+    {
+      "id": "neut_h2so4_caoh2",
+      "category": "neutralisation_hydroxide",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "H2SO4", "side": "left" },
+        { "formula": "Ca(OH)2", "side": "left" },
+        { "formula": "CaSO4", "side": "right" },
+        { "formula": "H2O", "side": "right" }
+      ],
+      "coeffs": [1, 1, 1, 2],
+      "max_marks": 1
+    },
+    {
+      "id": "neut_hno3_naoh",
+      "category": "neutralisation_hydroxide",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "HNO3", "side": "left" },
+        { "formula": "NaOH", "side": "left" },
+        { "formula": "NaNO3", "side": "right" },
+        { "formula": "H2O", "side": "right" }
+      ],
+      "coeffs": [1, 1, 1, 1],
+      "max_marks": 1
+    },
+    {
+      "id": "neut_hno3_caoh2",
+      "category": "neutralisation_hydroxide",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "HNO3", "side": "left" },
+        { "formula": "Ca(OH)2", "side": "left" },
+        { "formula": "Ca(NO3)2", "side": "right" },
+        { "formula": "H2O", "side": "right" }
+      ],
+      "coeffs": [2, 1, 1, 2],
+      "max_marks": 1
+    },
+
+    {
+      "id": "neut_hcl_mgo",
+      "category": "neutralisation_oxide",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "HCl", "side": "left" },
+        { "formula": "MgO", "side": "left" },
+        { "formula": "MgCl2", "side": "right" },
+        { "formula": "H2O", "side": "right" }
+      ],
+      "coeffs": [2, 1, 1, 1],
+      "max_marks": 1
+    },
+    {
+      "id": "neut_hcl_cuo",
+      "category": "neutralisation_oxide",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "HCl", "side": "left" },
+        { "formula": "CuO", "side": "left" },
+        { "formula": "CuCl2", "side": "right" },
+        { "formula": "H2O", "side": "right" }
+      ],
+      "coeffs": [2, 1, 1, 1],
+      "max_marks": 1
+    },
+    {
+      "id": "neut_hcl_cao",
+      "category": "neutralisation_oxide",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "HCl", "side": "left" },
+        { "formula": "CaO", "side": "left" },
+        { "formula": "CaCl2", "side": "right" },
+        { "formula": "H2O", "side": "right" }
+      ],
+      "coeffs": [2, 1, 1, 1],
+      "max_marks": 1
+    },
+    {
+      "id": "neut_h2so4_cuo",
+      "category": "neutralisation_oxide",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "H2SO4", "side": "left" },
+        { "formula": "CuO", "side": "left" },
+        { "formula": "CuSO4", "side": "right" },
+        { "formula": "H2O", "side": "right" }
+      ],
+      "coeffs": [1, 1, 1, 1],
+      "max_marks": 1
+    },
+    {
+      "id": "neut_h2so4_zno",
+      "category": "neutralisation_oxide",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "H2SO4", "side": "left" },
+        { "formula": "ZnO", "side": "left" },
+        { "formula": "ZnSO4", "side": "right" },
+        { "formula": "H2O", "side": "right" }
+      ],
+      "coeffs": [1, 1, 1, 1],
+      "max_marks": 1
+    },
+    {
+      "id": "neut_hno3_cuo",
+      "category": "neutralisation_oxide",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "HNO3", "side": "left" },
+        { "formula": "CuO", "side": "left" },
+        { "formula": "Cu(NO3)2", "side": "right" },
+        { "formula": "H2O", "side": "right" }
+      ],
+      "coeffs": [2, 1, 1, 1],
+      "max_marks": 1
+    },
+    {
+      "id": "neut_hno3_cao",
+      "category": "neutralisation_oxide",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "HNO3", "side": "left" },
+        { "formula": "CaO", "side": "left" },
+        { "formula": "Ca(NO3)2", "side": "right" },
+        { "formula": "H2O", "side": "right" }
+      ],
+      "coeffs": [2, 1, 1, 1],
+      "max_marks": 1
+    },
+
+    {
+      "id": "neut_hcl_caco3",
+      "category": "neutralisation_carbonate",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "HCl", "side": "left" },
+        { "formula": "CaCO3", "side": "left" },
+        { "formula": "CaCl2", "side": "right" },
+        { "formula": "H2O", "side": "right" },
+        { "formula": "CO2", "side": "right" }
+      ],
+      "coeffs": [2, 1, 1, 1, 1],
+      "max_marks": 1
+    },
+    {
+      "id": "neut_hcl_na2co3",
+      "category": "neutralisation_carbonate",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "HCl", "side": "left" },
+        { "formula": "Na2CO3", "side": "left" },
+        { "formula": "NaCl", "side": "right" },
+        { "formula": "H2O", "side": "right" },
+        { "formula": "CO2", "side": "right" }
+      ],
+      "coeffs": [2, 1, 2, 1, 1],
+      "max_marks": 1
+    },
+    {
+      "id": "neut_hcl_mgco3",
+      "category": "neutralisation_carbonate",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "HCl", "side": "left" },
+        { "formula": "MgCO3", "side": "left" },
+        { "formula": "MgCl2", "side": "right" },
+        { "formula": "H2O", "side": "right" },
+        { "formula": "CO2", "side": "right" }
+      ],
+      "coeffs": [2, 1, 1, 1, 1],
+      "max_marks": 1
+    },
+    {
+      "id": "neut_h2so4_caco3",
+      "category": "neutralisation_carbonate",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "H2SO4", "side": "left" },
+        { "formula": "CaCO3", "side": "left" },
+        { "formula": "CaSO4", "side": "right" },
+        { "formula": "H2O", "side": "right" },
+        { "formula": "CO2", "side": "right" }
+      ],
+      "coeffs": [1, 1, 1, 1, 1],
+      "max_marks": 1
+    },
+    {
+      "id": "neut_h2so4_na2co3",
+      "category": "neutralisation_carbonate",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "H2SO4", "side": "left" },
+        { "formula": "Na2CO3", "side": "left" },
+        { "formula": "Na2SO4", "side": "right" },
+        { "formula": "H2O", "side": "right" },
+        { "formula": "CO2", "side": "right" }
+      ],
+      "coeffs": [1, 1, 1, 1, 1],
+      "max_marks": 1
+    },
+    {
+      "id": "neut_hno3_caco3",
+      "category": "neutralisation_carbonate",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "HNO3", "side": "left" },
+        { "formula": "CaCO3", "side": "left" },
+        { "formula": "Ca(NO3)2", "side": "right" },
+        { "formula": "H2O", "side": "right" },
+        { "formula": "CO2", "side": "right" }
+      ],
+      "coeffs": [2, 1, 1, 1, 1],
+      "max_marks": 1
+    },
+    {
+      "id": "neut_hno3_cuco3",
+      "category": "neutralisation_carbonate",
+      "subtype": "symbol",
+      "species": [
+        { "formula": "HNO3", "side": "left" },
+        { "formula": "CuCO3", "side": "left" },
+        { "formula": "Cu(NO3)2", "side": "right" },
+        { "formula": "H2O", "side": "right" },
+        { "formula": "CO2", "side": "right" }
+      ],
+      "coeffs": [2, 1, 1, 1, 1],
+      "max_marks": 1
+    },
+
+    {
+      "id": "half_nacl_cathode",
+      "category": "electrolysis_half",
       "subtype": "half",
-      "prompt": "Balance the half-equation. Add electrons where needed.",
+      "species": [
+        { "formula": "Na+", "side": "left", "state": "l" },
+        { "formula": "Na", "side": "right", "state": "l" }
+      ],
+      "coeffs": [1, 1],
+      "extraSpecies": [{ "formula": "e-", "coeff": 1, "side": "left" }],
+      "allowedTokens": ["e-", "H+", "H2O", "OH-"],
+      "max_marks": 2
+    },
+    {
+      "id": "half_chloride_anode",
+      "category": "electrolysis_half",
+      "subtype": "half",
+      "species": [
+        { "formula": "Cl-", "side": "left", "state": "l" },
+        { "formula": "Cl2", "side": "right", "state": "g" }
+      ],
+      "coeffs": [2, 1],
+      "extraSpecies": [{ "formula": "e-", "coeff": 2, "side": "right" }],
+      "allowedTokens": ["e-", "H+", "H2O", "OH-"],
+      "max_marks": 2
+    },
+    {
+      "id": "half_pbbr2_cathode",
+      "category": "electrolysis_half",
+      "subtype": "half",
+      "species": [
+        { "formula": "Pb2+", "side": "left", "state": "l" },
+        { "formula": "Pb", "side": "right", "state": "l" }
+      ],
+      "coeffs": [1, 1],
+      "extraSpecies": [{ "formula": "e-", "coeff": 2, "side": "left" }],
+      "allowedTokens": ["e-", "H+", "H2O", "OH-"],
+      "max_marks": 2
+    },
+    {
+      "id": "half_pbbr2_anode",
+      "category": "electrolysis_half",
+      "subtype": "half",
+      "species": [
+        { "formula": "Br-", "side": "left", "state": "l" },
+        { "formula": "Br2", "side": "right", "state": "g" }
+      ],
+      "coeffs": [2, 1],
+      "extraSpecies": [{ "formula": "e-", "coeff": 2, "side": "right" }],
+      "allowedTokens": ["e-", "H+", "H2O", "OH-"],
+      "max_marks": 2
+    },
+    {
+      "id": "half_cucl2_cathode",
+      "category": "electrolysis_half",
+      "subtype": "half",
+      "species": [
+        { "formula": "Cu2+", "side": "left", "state": "l" },
+        { "formula": "Cu", "side": "right", "state": "s" }
+      ],
+      "coeffs": [1, 1],
+      "extraSpecies": [{ "formula": "e-", "coeff": 2, "side": "left" }],
+      "allowedTokens": ["e-", "H+", "H2O", "OH-"],
+      "max_marks": 2
+    },
+    {
+      "id": "half_mgcl2_cathode",
+      "category": "electrolysis_half",
+      "subtype": "half",
+      "species": [
+        { "formula": "Mg2+", "side": "left", "state": "l" },
+        { "formula": "Mg", "side": "right", "state": "l" }
+      ],
+      "coeffs": [1, 1],
+      "extraSpecies": [{ "formula": "e-", "coeff": 2, "side": "left" }],
+      "allowedTokens": ["e-", "H+", "H2O", "OH-"],
+      "max_marks": 2
+    },
+    {
+      "id": "half_kcl_cathode",
+      "category": "electrolysis_half",
+      "subtype": "half",
+      "species": [
+        { "formula": "K+", "side": "left", "state": "l" },
+        { "formula": "K", "side": "right", "state": "l" }
+      ],
+      "coeffs": [1, 1],
+      "extraSpecies": [{ "formula": "e-", "coeff": 1, "side": "left" }],
+      "allowedTokens": ["e-", "H+", "H2O", "OH-"],
+      "max_marks": 2
+    },
+    {
+      "id": "half_al2o3_cathode",
+      "category": "electrolysis_half",
+      "subtype": "half",
+      "species": [
+        { "formula": "Al3+", "side": "left", "state": "l" },
+        { "formula": "Al", "side": "right", "state": "l" }
+      ],
+      "coeffs": [1, 1],
+      "extraSpecies": [{ "formula": "e-", "coeff": 3, "side": "left" }],
+      "allowedTokens": ["e-", "H+", "H2O", "OH-"],
+      "max_marks": 2
+    },
+    {
+      "id": "half_al2o3_anode",
+      "category": "electrolysis_half",
+      "subtype": "half",
+      "species": [
+        { "formula": "O2-", "side": "left", "state": "l" },
+        { "formula": "O2", "side": "right", "state": "g" }
+      ],
+      "coeffs": [2, 1],
+      "extraSpecies": [{ "formula": "e-", "coeff": 4, "side": "right" }],
+      "allowedTokens": ["e-", "H+", "H2O", "OH-"],
+      "max_marks": 2
+    },
+    {
+      "id": "half_cu_aq",
+      "category": "electrolysis_half",
+      "subtype": "half",
       "species": [
         { "formula": "Cu2+", "side": "left", "state": "aq" },
         { "formula": "Cu", "side": "right", "state": "s" }
@@ -100,9 +1013,9 @@
       "max_marks": 2
     },
     {
-      "id": "half_cl2",
+      "id": "half_cl2_aq_reduction",
+      "category": "electrolysis_half",
       "subtype": "half",
-      "prompt": "Balance the half-equation. Add electrons where needed.",
       "species": [
         { "formula": "Cl2", "side": "left", "state": "aq" },
         { "formula": "Cl-", "side": "right", "state": "aq" }
@@ -112,19 +1025,132 @@
       "allowedTokens": ["e-", "H+", "H2O", "OH-"],
       "max_marks": 2
     },
+
     {
-      "id": "caco3_hcl",
-      "subtype": "symbol",
-      "prompt": "Balance the following equation.",
+      "id": "ionic_disp_mg_cu",
+      "category": "ionic_displacement",
+      "subtype": "ionic",
+      "prompt": "Magnesium displaces copper from copper(II) sulfate solution.\nWrite and balance the ionic equation. Enter the missing ion formula.",
       "species": [
-        { "formula": "CaCO3", "side": "left" },
-        { "formula": "HCl", "side": "left" },
-        { "formula": "CaCl2", "side": "right" },
-        { "formula": "H2O", "side": "right" },
-        { "formula": "CO2", "side": "right" }
+        { "formula": "Mg", "side": "left", "state": "s" },
+        { "formula": "Cu2+", "side": "left", "state": "aq" },
+        { "formula": "Mg2+", "side": "right", "state": "aq", "studentEntersFormula": true },
+        { "formula": "Cu", "side": "right", "state": "s" }
       ],
-      "coeffs": [1, 2, 1, 1, 1],
-      "max_marks": 1
+      "coeffs": [1, 1, 1, 1],
+      "max_marks": 3
+    },
+    {
+      "id": "ionic_disp_zn_cu",
+      "category": "ionic_displacement",
+      "subtype": "ionic",
+      "prompt": "Zinc displaces copper from copper(II) sulfate solution.\nWrite and balance the ionic equation. Enter the missing ion formula.",
+      "species": [
+        { "formula": "Zn", "side": "left", "state": "s" },
+        { "formula": "Cu2+", "side": "left", "state": "aq" },
+        { "formula": "Zn2+", "side": "right", "state": "aq", "studentEntersFormula": true },
+        { "formula": "Cu", "side": "right", "state": "s" }
+      ],
+      "coeffs": [1, 1, 1, 1],
+      "max_marks": 3
+    },
+    {
+      "id": "ionic_disp_fe_cu",
+      "category": "ionic_displacement",
+      "subtype": "ionic",
+      "prompt": "Iron displaces copper from copper(II) sulfate solution.\nWrite and balance the ionic equation. Enter the missing ion formula.",
+      "species": [
+        { "formula": "Fe", "side": "left", "state": "s" },
+        { "formula": "Cu2+", "side": "left", "state": "aq" },
+        { "formula": "Fe2+", "side": "right", "state": "aq", "studentEntersFormula": true },
+        { "formula": "Cu", "side": "right", "state": "s" }
+      ],
+      "coeffs": [1, 1, 1, 1],
+      "max_marks": 3
+    },
+    {
+      "id": "ionic_disp_mg_fe",
+      "category": "ionic_displacement",
+      "subtype": "ionic",
+      "prompt": "Magnesium displaces iron from iron(II) sulfate solution.\nWrite and balance the ionic equation. Enter the missing ion formula.",
+      "species": [
+        { "formula": "Mg", "side": "left", "state": "s" },
+        { "formula": "Fe2+", "side": "left", "state": "aq" },
+        { "formula": "Mg2+", "side": "right", "state": "aq", "studentEntersFormula": true },
+        { "formula": "Fe", "side": "right", "state": "s" }
+      ],
+      "coeffs": [1, 1, 1, 1],
+      "max_marks": 3
+    },
+    {
+      "id": "ionic_disp_zn_fe",
+      "category": "ionic_displacement",
+      "subtype": "ionic",
+      "prompt": "Zinc displaces iron from iron(II) sulfate solution.\nWrite and balance the ionic equation. Enter the missing ion formula.",
+      "species": [
+        { "formula": "Zn", "side": "left", "state": "s" },
+        { "formula": "Fe2+", "side": "left", "state": "aq" },
+        { "formula": "Zn2+", "side": "right", "state": "aq", "studentEntersFormula": true },
+        { "formula": "Fe", "side": "right", "state": "s" }
+      ],
+      "coeffs": [1, 1, 1, 1],
+      "max_marks": 3
+    },
+    {
+      "id": "ionic_disp_mg_zn",
+      "category": "ionic_displacement",
+      "subtype": "ionic",
+      "prompt": "Magnesium displaces zinc from zinc sulfate solution.\nWrite and balance the ionic equation. Enter the missing ion formula.",
+      "species": [
+        { "formula": "Mg", "side": "left", "state": "s" },
+        { "formula": "Zn2+", "side": "left", "state": "aq" },
+        { "formula": "Mg2+", "side": "right", "state": "aq", "studentEntersFormula": true },
+        { "formula": "Zn", "side": "right", "state": "s" }
+      ],
+      "coeffs": [1, 1, 1, 1],
+      "max_marks": 3
+    },
+    {
+      "id": "ionic_disp_cl2_br",
+      "category": "ionic_displacement",
+      "subtype": "ionic",
+      "prompt": "Chlorine displaces bromine from potassium bromide solution.\nWrite and balance the ionic equation. Enter the missing ion formula.",
+      "species": [
+        { "formula": "Cl2", "side": "left", "state": "aq" },
+        { "formula": "Br-", "side": "left", "state": "aq" },
+        { "formula": "Cl-", "side": "right", "state": "aq", "studentEntersFormula": true },
+        { "formula": "Br2", "side": "right", "state": "aq" }
+      ],
+      "coeffs": [1, 2, 2, 1],
+      "max_marks": 3
+    },
+    {
+      "id": "ionic_disp_cl2_i",
+      "category": "ionic_displacement",
+      "subtype": "ionic",
+      "prompt": "Chlorine displaces iodine from potassium iodide solution.\nWrite and balance the ionic equation. Enter the missing ion formula.",
+      "species": [
+        { "formula": "Cl2", "side": "left", "state": "aq" },
+        { "formula": "I-", "side": "left", "state": "aq" },
+        { "formula": "Cl-", "side": "right", "state": "aq", "studentEntersFormula": true },
+        { "formula": "I2", "side": "right", "state": "aq" }
+      ],
+      "coeffs": [1, 2, 2, 1],
+      "max_marks": 3
+    },
+    {
+      "id": "ionic_disp_br2_i",
+      "category": "ionic_displacement",
+      "subtype": "ionic",
+      "prompt": "Bromine displaces iodine from potassium iodide solution.\nWrite and balance the ionic equation. Enter the missing ion formula.",
+      "species": [
+        { "formula": "Br2", "side": "left", "state": "aq" },
+        { "formula": "I-", "side": "left", "state": "aq" },
+        { "formula": "Br-", "side": "right", "state": "aq", "studentEntersFormula": true },
+        { "formula": "I2", "side": "right", "state": "aq" }
+      ],
+      "coeffs": [1, 2, 2, 1],
+      "max_marks": 3
     }
   ]
 }

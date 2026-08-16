@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 420" width="220" height="420" role="img" aria-labelledby="title desc">
+  <title id="title">Measuring cylinder scale 0-40 cm3</title>
+  <desc id="desc">Section of a measuring cylinder showing graduations every 1 cm3 from 0 to 40 cm3, with labels at 10, 20, 30 and 40 cm3.</desc>
+
+  <rect width="220" height="420" fill="#ffffff"/>
+
+  <!-- Cylinder walls + bottom line (slightly wider than the tube) -->
+  <g fill="none" stroke="#0f172a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <line x1="88" y1="36" x2="88" y2="372"/>
+    <line x1="152" y1="36" x2="152" y2="372"/>
+    <line x1="80" y1="372" x2="160" y2="372"/>
+  </g>
+
+  <!--
+    Scale: 0 at y=372, 40 at y=52 (8 px per cm3).
+    Tick lengths from left wall (x=88):
+      1 cm3  -> +8
+      5 cm3  -> +14
+      10 cm3 -> +24
+  -->
+  <g id="graduations" stroke="#334155" stroke-linecap="round">
+    <line x1="88" y1="372" x2="112" y2="372" stroke-width="2"/>
+    <line x1="88" y1="364" x2="96" y2="364" stroke-width="1"/>
+    <line x1="88" y1="356" x2="96" y2="356" stroke-width="1"/>
+    <line x1="88" y1="348" x2="96" y2="348" stroke-width="1"/>
+    <line x1="88" y1="340" x2="96" y2="340" stroke-width="1"/>
+    <line x1="88" y1="332" x2="102" y2="332" stroke-width="1.5"/>
+    <line x1="88" y1="324" x2="96" y2="324" stroke-width="1"/>
+    <line x1="88" y1="316" x2="96" y2="316" stroke-width="1"/>
+    <line x1="88" y1="308" x2="96" y2="308" stroke-width="1"/>
+    <line x1="88" y1="300" x2="96" y2="300" stroke-width="1"/>
+    <line x1="88" y1="292" x2="112" y2="292" stroke-width="2"/>
+    <line x1="88" y1="284" x2="96" y2="284" stroke-width="1"/>
+    <line x1="88" y1="276" x2="96" y2="276" stroke-width="1"/>
+    <line x1="88" y1="268" x2="96" y2="268" stroke-width="1"/>
+    <line x1="88" y1="260" x2="96" y2="260" stroke-width="1"/>
+    <line x1="88" y1="252" x2="102" y2="252" stroke-width="1.5"/>
+    <line x1="88" y1="244" x2="96" y2="244" stroke-width="1"/>
+    <line x1="88" y1="236" x2="96" y2="236" stroke-width="1"/>
+    <line x1="88" y1="228" x2="96" y2="228" stroke-width="1"/>
+    <line x1="88" y1="220" x2="96" y2="220" stroke-width="1"/>
+    <line x1="88" y1="212" x2="112" y2="212" stroke-width="2"/>
+    <line x1="88" y1="204" x2="96" y2="204" stroke-width="1"/>
+    <line x1="88" y1="196" x2="96" y2="196" stroke-width="1"/>
+    <line x1="88" y1="188" x2="96" y2="188" stroke-width="1"/>
+    <line x1="88" y1="180" x2="96" y2="180" stroke-width="1"/>
+    <line x1="88" y1="172" x2="102" y2="172" stroke-width="1.5"/>
+    <line x1="88" y1="164" x2="96" y2="164" stroke-width="1"/>
+    <line x1="88" y1="156" x2="96" y2="156" stroke-width="1"/>
+    <line x1="88" y1="148" x2="96" y2="148" stroke-width="1"/>
+    <line x1="88" y1="140" x2="96" y2="140" stroke-width="1"/>
+    <line x1="88" y1="132" x2="112" y2="132" stroke-width="2"/>
+    <line x1="88" y1="124" x2="96" y2="124" stroke-width="1"/>
+    <line x1="88" y1="116" x2="96" y2="116" stroke-width="1"/>
+    <line x1="88" y1="108" x2="96" y2="108" stroke-width="1"/>
+    <line x1="88" y1="100" x2="96" y2="100" stroke-width="1"/>
+    <line x1="88" y1="92" x2="102" y2="92" stroke-width="1.5"/>
+    <line x1="88" y1="84" x2="96" y2="84" stroke-width="1"/>
+    <line x1="88" y1="76" x2="96" y2="76" stroke-width="1"/>
+    <line x1="88" y1="68" x2="96" y2="68" stroke-width="1"/>
+    <line x1="88" y1="60" x2="96" y2="60" stroke-width="1"/>
+    <line x1="88" y1="52" x2="112" y2="52" stroke-width="2"/>
+  </g>
+
+  <g fill="#0f172a" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="14" font-weight="600" text-anchor="end">
+    <text x="80" y="296">10</text>
+    <text x="80" y="216">20</text>
+    <text x="80" y="136">30</text>
+    <text x="80" y="56">40</text>
+  </g>
+
+  <text x="110" y="28" fill="#64748b" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="12" text-anchor="middle">cm<tspan baseline-shift="super" font-size="9">3</tspan></text>
+</svg>

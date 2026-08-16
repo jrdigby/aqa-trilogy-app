@@ -33,14 +33,47 @@ export const APPARATUS = {
   measuring_cylinder: {
     label: "Measuring cylinder",
     subjects: ["chemistry", "physics", "biology", "shared"],
-    draw: (x, y, s = 1) => `
+    draw: (x, y, s = 1) => {
+      // Local coords: 0 cm3 at y=+80, 40 cm3 at y=-80 (4 px per cm3).
+      const left = -22;
+      const right = 22;
+      const y0 = 80;
+      const pxPer = 4;
+      const ticks = [];
+      for (let v = 0; v <= 40; v++) {
+        const ty = y0 - v * pxPer;
+        let len = 6;
+        let sw = 1;
+        if (v % 10 === 0) {
+          len = 16;
+          sw = 2;
+        } else if (v % 5 === 0) {
+          len = 10;
+          sw = 1.5;
+        }
+        ticks.push(
+          `<line x1="${left}" y1="${ty}" x2="${left + len}" y2="${ty}" stroke-width="${sw}"/>`
+        );
+      }
+      return `
       <g transform="translate(${x},${y}) scale(${s})">
-        <rect x="-14" y="-42" width="28" height="84" fill="none" stroke="#0f172a" stroke-width="2" rx="2"/>
-        <line x1="-10" y1="-20" x2="-4" y2="-20" stroke="#64748b" stroke-width="1"/>
-        <line x1="-10" y1="0" x2="-4" y2="0" stroke="#64748b" stroke-width="1"/>
-        <line x1="-10" y1="20" x2="-4" y2="20" stroke="#64748b" stroke-width="1"/>
-        <rect x="-12" y="8" width="24" height="30" fill="#bfdbfe" opacity="0.5"/>
-      </g>`,
+        <g fill="none" stroke="#0f172a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="${left}" y1="${y0 - 40 * pxPer - 4}" x2="${left}" y2="${y0}"/>
+          <line x1="${right}" y1="${y0 - 40 * pxPer - 4}" x2="${right}" y2="${y0}"/>
+          <line x1="${left - 6}" y1="${y0}" x2="${right + 6}" y2="${y0}"/>
+        </g>
+        <g stroke="#334155" stroke-linecap="round">
+          ${ticks.join("\n          ")}
+        </g>
+        <g fill="#0f172a" font-family="system-ui,Segoe UI,sans-serif" font-size="9" font-weight="600" text-anchor="end">
+          <text x="${left - 4}" y="${y0 - 10 * pxPer + 3}">10</text>
+          <text x="${left - 4}" y="${y0 - 20 * pxPer + 3}">20</text>
+          <text x="${left - 4}" y="${y0 - 30 * pxPer + 3}">30</text>
+          <text x="${left - 4}" y="${y0 - 40 * pxPer + 3}">40</text>
+        </g>
+        <text x="0" y="${y0 - 40 * pxPer - 12}" fill="#64748b" font-family="system-ui,Segoe UI,sans-serif" font-size="8" text-anchor="middle">cm<tspan baseline-shift="super" font-size="6">3</tspan></text>
+      </g>`;
+    },
   },
   burette: {
     label: "Burette",
@@ -664,15 +697,17 @@ export function buildEquipmentConfigFromForm(prefix = "") {
 
   const kind = document.getElementById(`${p}EquipKind`)?.value || "identify";
   const apparatusId = document.getElementById(`${p}EquipApparatus`)?.value || "beaker";
+  const tallSingle = apparatusId === "measuring_cylinder";
+  const singleTemplate = {
+    items: [{ apparatusId, x: 140, y: tallSingle ? 115 : 90 }],
+    width: 280,
+    height: tallSingle ? 240 : 180,
+  };
 
   if (kind === "identify") {
     return {
       kind,
-      template: {
-        items: [{ apparatusId, x: 140, y: 90 }],
-        width: 280,
-        height: 180,
-      },
+      template: singleTemplate,
       answer: { kind, apparatusId },
     };
   }
@@ -681,9 +716,9 @@ export function buildEquipmentConfigFromForm(prefix = "") {
   return {
     kind: "label_hotspots",
     template: {
-      items: [{ apparatusId, x: 140, y: 90, hotspot: 1 }],
+      items: [{ apparatusId, x: 140, y: tallSingle ? 115 : 90, hotspot: 1 }],
       width: 280,
-      height: 180,
+      height: tallSingle ? 240 : 180,
     },
     answer: { kind: "label_hotspots", labels: { 1: apparatusId } },
   };
