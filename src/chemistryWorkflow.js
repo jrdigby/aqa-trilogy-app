@@ -590,7 +590,7 @@ export function initialStateForConfig(cfg) {
     return {
       kind,
       subtype: cfg.template?.subtype || "symbol",
-      coeffs: species.map(() => 1),
+      coeffs: species.map(() => null),
       formulas: species.map(() => ""),
       states: species.map(() => ""),
       extraSpecies: [],
@@ -651,7 +651,7 @@ function toolbarHtml(cfg) {
     tools = `<p class="chem-hint">Pick an element, add atoms on the canvas, then add bonds to connect elements.</p>`;
   }
   if (kind === "balance_equation") {
-    tools = `<p class="chem-hint">Enter the smallest whole-number coefficients that balance the equation.</p>`;
+    tools = `<p class="chem-hint">Enter the smallest whole-number coefficients that balance the equation. Leave a box blank for 1.</p>`;
   }
   return tools;
 }
@@ -1449,25 +1449,24 @@ function renderBalanceEquation(state, cfg) {
   const species = cfg.template?.species || [];
   const arrow = cfg.template?.arrow || "->";
   const requireStates = equationRequiresStates(species);
+  const coeffStyle = "width:2rem;min-width:2rem;max-width:2.4rem;padding:2px;border:2px solid #2563eb;border-radius:4px;text-align:center;font-weight:700;font-size:0.95rem;line-height:1.2;box-sizing:border-box;vertical-align:middle;";
+  const termStyle = "display:inline-flex;align-items:center;gap:3px;flex:0 0 auto;white-space:nowrap;vertical-align:middle;";
   const parts = [];
   species.forEach((sp, i) => {
     if (i > 0 && sp.side !== species[i - 1].side) {
-      parts.push(`<span class="chem-eq-arrow"> ${arrow === "->" ? "→" : arrow} </span>`);
+      parts.push(`<span class="chem-eq-arrow" style="display:inline-flex;align-items:center;flex:0 0 auto;white-space:nowrap;font-weight:700;">${arrow === "->" ? "→" : escapeHtml(arrow)}</span>`);
     } else if (i > 0) {
-      parts.push(`<span class="chem-eq-plus"> + </span>`);
+      parts.push(`<span class="chem-eq-plus" style="display:inline-flex;align-items:center;flex:0 0 auto;white-space:nowrap;font-weight:700;">+</span>`);
     }
     const formulaHtml = sp.studentEntersFormula
-      ? `<input type="text" class="chem-formula-input" data-formula-idx="${i}" value="${escapeHtml(state.formulas?.[i] || "")}" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Chemical formula" />`
-      : `<span class="chem-species">$\\ce{${sp.formula}}$</span>`;
+      ? `<input type="text" class="chem-formula-input" data-formula-idx="${i}" value="${escapeHtml(state.formulas?.[i] || "")}" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Chemical formula" style="width:72px;padding:4px 6px;border:2px solid #2563eb;border-radius:6px;font-weight:700;vertical-align:middle;" />`
+      : `<span class="chem-species" style="display:inline;white-space:nowrap;vertical-align:middle;">$\\ce{${sp.formula}}$</span>`;
     const stateHtml = requireStates
       ? renderStateSelect(state.states?.[i] || "", `data-state-idx="${i}"`)
       : "";
-    parts.push(`
-      <span class="chem-eq-term">
-        <input type="number" min="0" max="99" class="chem-coeff" data-coeff-idx="${i}" value="${state.coeffs?.[i] ?? 1}" />
-        ${formulaHtml}
-        ${stateHtml}
-      </span>`);
+    const coeffVal = state.coeffs?.[i];
+    const coeffDisplay = coeffVal == null || coeffVal === "" ? "" : String(coeffVal);
+    parts.push(`<span class="chem-eq-term" style="${termStyle}"><input type="number" min="0" max="99" inputmode="numeric" class="chem-coeff" data-coeff-idx="${i}" value="${escapeHtml(coeffDisplay)}" placeholder="" aria-label="Coefficient" style="${coeffStyle}" />${formulaHtml}${stateHtml}</span>`);
   });
 
   let extras = "";
@@ -1478,11 +1477,11 @@ function renderBalanceEquation(state, cfg) {
         <span class="muted" style="font-size:0.8rem;">Add species:</span>
         ${tokens.map((t) => `<button type="button" class="btn chem-btn" data-chem-token="${escapeHtml(t)}">${escapeHtml(t)}</button>`).join("")}
       </div>
-      <div id="chemExtraSpecies" class="chem-extra-species">
+      <div id="chemExtraSpecies" class="chem-extra-species" style="display:inline-flex;flex-wrap:nowrap;align-items:center;gap:6px;overflow-x:auto;white-space:nowrap;max-width:100%;">
         ${(state.extraSpecies || []).map((ex, i) => `
-          <span class="chem-eq-term">
-            <input type="number" min="0" max="99" class="chem-extra-coeff" data-extra-idx="${i}" value="${ex.coeff ?? 1}"/>
-            <span>$\\ce{${ex.formula}}$</span>
+          <span class="chem-eq-term" style="${termStyle}">
+            <input type="number" min="0" max="99" inputmode="numeric" class="chem-extra-coeff" data-extra-idx="${i}" value="${ex.coeff == null || ex.coeff === "" ? "" : escapeHtml(String(ex.coeff))}" placeholder="" aria-label="Coefficient" style="${coeffStyle}"/>
+            <span class="chem-species" style="display:inline;white-space:nowrap;">$\\ce{${ex.formula}}$</span>
             ${requireStates ? renderStateSelect(ex.state || "", `data-extra-state-idx="${i}"`, true) : ""}
             <select class="chem-extra-side" data-extra-idx="${i}">
               <option value="left" ${ex.side === "left" ? "selected" : ""}>reactant</option>
@@ -1495,8 +1494,8 @@ function renderBalanceEquation(state, cfg) {
   }
 
   return `
-    <div class="chem-diagram-wrap chem-equation-wrap">
-      <div class="chem-equation">${parts.join("")}</div>
+    <div class="chem-diagram-wrap chem-equation-wrap" style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+      <div class="chem-equation" style="display:flex;flex-wrap:nowrap;align-items:center;gap:4px;justify-content:flex-start;font-size:1.05rem;padding:8px 0;overflow-x:auto;white-space:nowrap;max-width:100%;">${parts.join("")}</div>
       ${extras}
       <div class="chem-status" id="chemStatus"></div>
     </div>`;
@@ -1532,7 +1531,7 @@ export function renderChemistryWorkflow(q, key, presentation = "practice") {
     organic_structure: "Organic structure",
     polymer_structure: "Polymer structure",
     molecule_builder: "",
-    balance_equation: "Balance the equation",
+    balance_equation: "",
   };
   const kindLabel = Object.prototype.hasOwnProperty.call(kindLabels, cfg.kind)
     ? kindLabels[cfg.kind]
@@ -1543,7 +1542,7 @@ export function renderChemistryWorkflow(q, key, presentation = "practice") {
       ${kindLabel ? `<div class="chem-title">${escapeHtml(kindLabel)}</div>` : ""}
       ${toolbarHtml(cfg)}
       <div id="chemDiagramMount">${renderBody(state, cfg)}</div>
-      <button type="button" class="btn chem-btn" data-chem-action="reset" style="margin-top:8px;">Reset diagram</button>
+      <button type="button" class="btn chem-btn" data-chem-action="reset" style="margin-top:8px;">${cfg.kind === "balance_equation" ? "Reset" : "Reset diagram"}</button>
     </div>`;
 }
 
@@ -1565,6 +1564,15 @@ function readConfig() {
   return liveConfig ? liveConfig : null;
 }
 
+function forceInlineChemMath(root) {
+  const scope = root || document.getElementById("chemDiagramMount") || document;
+  scope.querySelectorAll?.(".chem-equation-wrap mjx-container")?.forEach((el) => {
+    el.style.display = "inline";
+    el.style.margin = "0";
+    el.removeAttribute("display");
+  });
+}
+
 function refreshDiagram() {
   const state = readState();
   const cfg = readConfig();
@@ -1576,7 +1584,9 @@ function refreshDiagram() {
     status.textContent = `Shells: [${(state.shells || []).join(", ")}]`;
   }
   if (cfg.kind === "balance_equation") {
-    triggerMathTypeset();
+    triggerMathTypeset(mount);
+    setTimeout(() => forceInlineChemMath(mount), 80);
+    setTimeout(() => forceInlineChemMath(mount), 250);
   }
 }
 
@@ -1623,6 +1633,14 @@ export function wireChemistryWorkflow(q = null) {
 
   if (root.dataset.wired === "1") return;
   root.dataset.wired = "1";
+
+  const cfg0 = readConfig();
+  if (cfg0?.kind === "balance_equation") {
+    const mount = document.getElementById("chemDiagramMount");
+    triggerMathTypeset(mount || root);
+    setTimeout(() => forceInlineChemMath(mount || root), 80);
+    setTimeout(() => forceInlineChemMath(mount || root), 250);
+  }
 
   const shellTarget = (el) => {
     if (!el || typeof el.closest !== "function") return null;
@@ -1919,7 +1937,7 @@ export function wireChemistryWorkflow(q = null) {
         state.extraSpecies = state.extraSpecies || [];
         state.extraSpecies.push({
           formula: tokenBtn.getAttribute("data-chem-token"),
-          coeff: 1,
+          coeff: null,
           side: "left",
           state: "",
         });
@@ -1969,13 +1987,15 @@ export function wireChemistryWorkflow(q = null) {
     }
     if (t.classList?.contains("chem-coeff")) {
       const i = Number(t.getAttribute("data-coeff-idx"));
-      state.coeffs[i] = Number(t.value) || 0;
+      state.coeffs[i] = t.value.trim() === "" ? null : (Number(t.value) || 0);
       writeState(state);
       return;
     }
     if (t.classList?.contains("chem-extra-coeff")) {
       const i = Number(t.getAttribute("data-extra-idx"));
-      if (state.extraSpecies[i]) state.extraSpecies[i].coeff = Number(t.value) || 0;
+      if (state.extraSpecies[i]) {
+        state.extraSpecies[i].coeff = t.value.trim() === "" ? null : (Number(t.value) || 0);
+      }
       writeState(state);
       return;
     }
@@ -2013,11 +2033,13 @@ export function wireChemistryWorkflow(q = null) {
       writeState(state);
     } else if (t.classList?.contains("chem-coeff")) {
       const i = Number(t.getAttribute("data-coeff-idx"));
-      state.coeffs[i] = Number(t.value) || 0;
+      state.coeffs[i] = t.value.trim() === "" ? null : (Number(t.value) || 0);
       writeState(state);
     } else if (t.classList?.contains("chem-extra-coeff")) {
       const i = Number(t.getAttribute("data-extra-idx"));
-      if (state.extraSpecies?.[i]) state.extraSpecies[i].coeff = Number(t.value) || 0;
+      if (state.extraSpecies?.[i]) {
+        state.extraSpecies[i].coeff = t.value.trim() === "" ? null : (Number(t.value) || 0);
+      }
       writeState(state);
     } else if (t.classList?.contains("chem-formula-input")) {
       const i = Number(t.getAttribute("data-formula-idx"));
@@ -2078,11 +2100,18 @@ function gcd(a, b) {
   return a || 1;
 }
 
+/** Blank / empty / 0 coefficient boxes mean 1 (standard chemical notation). */
+function impliedCoeff(n) {
+  if (n == null || n === "") return 1;
+  const num = Number(n);
+  if (!Number.isFinite(num) || num <= 0) return 1;
+  return Math.floor(num);
+}
+
 function normalizeCoeffs(arr) {
-  const nums = arr.map((n) => Math.max(0, Math.floor(Number(n) || 0)));
-  const nonzero = nums.filter((n) => n > 0);
-  if (!nonzero.length) return nums;
-  const g = nonzero.reduce((a, b) => gcd(a, b));
+  const nums = (arr || []).map(impliedCoeff);
+  if (!nums.length) return nums;
+  const g = nums.reduce((a, b) => gcd(a, b), nums[0]);
   return nums.map((n) => n / g);
 }
 

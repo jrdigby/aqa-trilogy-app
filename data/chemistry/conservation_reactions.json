@@ -1,0 +1,94 @@
+{
+  "reactions": [
+    {
+      "id": "mg_o2_mgo",
+      "word": "magnesium + oxygen → magnesium oxide",
+      "symbol": "2Mg + O2 → 2MgO",
+      "species": [
+        { "id": "Mg", "name": "magnesium", "side": "reactant" },
+        { "id": "O2", "name": "oxygen", "side": "reactant" },
+        { "id": "MgO", "name": "magnesium oxide", "side": "product" }
+      ],
+      "unknown_candidates": ["Mg", "O2", "MgO"]
+    },
+    {
+      "id": "c_o2_co2",
+      "word": "carbon + oxygen → carbon dioxide",
+      "symbol": "C + O2 → CO2",
+      "species": [
+        { "id": "C", "name": "carbon", "side": "reactant" },
+        { "id": "O2", "name": "oxygen", "side": "reactant" },
+        { "id": "CO2", "name": "carbon dioxide", "side": "product" }
+      ],
+      "unknown_candidates": ["C", "O2", "CO2"]
+    },
+    {
+      "id": "h2_o2_h2o",
+      "word": "hydrogen + oxygen → water",
+      "symbol": "2H2 + O2 → 2H2O",
+      "species": [
+        { "id": "H2", "name": "hydrogen", "side": "reactant" },
+        { "id": "O2", "name": "oxygen", "side": "reactant" },
+        { "id": "H2O", "name": "water", "side": "product" }
+      ],
+      "unknown_candidates": ["H2", "O2", "H2O"]
+    },
+    {
+      "id": "caco3_cao_co2",
+      "word": "calcium carbonate → calcium oxide + carbon dioxide",
+      "symbol": "CaCO3 → CaO + CO2",
+      "species": [
+        { "id": "CaCO3", "name": "calcium carbonate", "side": "reactant" },
+        { "id": "CaO", "name": "calcium oxide", "side": "product" },
+        { "id": "CO2", "name": "carbon dioxide", "side": "product" }
+      ],
+      "unknown_candidates": ["CaCO3", "CaO", "CO2"]
+    },
+    {
+      "id": "ch4_o2_co2_h2o",
+      "word": "methane + oxygen → carbon dioxide + water",
+      "symbol": "CH4 + 2O2 → CO2 + 2H2O",
+      "species": [
+        { "id": "CH4", "name": "methane", "side": "reactant" },
+        { "id": "O2", "name": "oxygen", "side": "reactant" },
+        { "id": "CO2", "name": "carbon dioxide", "side": "product" },
+        { "id": "H2O", "name": "water", "side": "product" }
+      ],
+      "unknown_candidates": ["CH4", "O2", "CO2", "H2O"]
+    },
+    {
+      "id": "na_cl2_nacl",
+      "word": "sodium + chlorine → sodium chloride",
+      "symbol": "2Na + Cl2 → 2NaCl",
+      "species": [
+        { "id": "Na", "name": "sodium", "side": "reactant" },
+        { "id": "Cl2", "name": "chlorine", "side": "reactant" },
+        { "id": "NaCl", "name": "sodium chloride", "side": "product" }
+      ],
+      "unknown_candidates": ["Na", "Cl2", "NaCl"]
+    },
+    {
+      "id": "fe_s_fes",
+      "word": "iron + sulfur → iron sulfide",
+      "symbol": "Fe + S → FeS",
+      "species": [
+        { "id": "Fe", "name": "iron", "side": "reactant" },
+        { "id": "S", "name": "sulfur", "side": "reactant" },
+        { "id": "FeS", "name": "iron sulfide", "side": "product" }
+      ],
+      "unknown_candidates": ["Fe", "S", "FeS"]
+    },
+    {
+      "id": "cuo_h2_cu_h2o",
+      "word": "copper oxide + hydrogen → copper + water",
+      "symbol": "CuO + H2 → Cu + H2O",
+      "species": [
+        { "id": "CuO", "name": "copper oxide", "side": "reactant" },
+        { "id": "H2", "name": "hydrogen", "side": "reactant" },
+        { "id": "Cu", "name": "copper", "side": "product" },
+        { "id": "H2O", "name": "water", "side": "product" }
+      ],
+      "unknown_candidates": ["CuO", "H2", "Cu", "H2O"]
+    }
+  ]
+}

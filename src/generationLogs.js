@@ -4,6 +4,7 @@ export const GENERATION_SOURCES = Object.freeze({
   AI_STUDIO: "ai_studio",
   AI_STUDIO_IMPORT: "ai_studio_import",
   BATCH_NUMERIC: "batch_numeric",
+  BATCH_CHEM_QUANT: "batch_chem_quant",
   MANUAL_CREATE: "manual_create",
   CSV_IMPORT: "csv_import"
 });

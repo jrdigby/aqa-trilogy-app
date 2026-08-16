@@ -742,7 +742,7 @@ export function renderMasteryHeatmap(allSpecPoints, srsStates, onCellClickCallba
 export const QUESTION_TYPE_LABELS = {
   mcq: "Multiple Choice",
   numeric: "Numeric / Calculations",
-  chemistry_interactive: "Chemistry Diagram / Equation",
+  chemistry_interactive: "Chemistry Diagram",
   circuit_interactive: "Circuit Diagram",
   equipment_interactive: "Apparatus / Equipment",
   short_text: "Short Text / Written",
