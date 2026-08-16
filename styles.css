@@ -3553,28 +3553,56 @@ body.teacher-detail-open {
 
 .chem-equation-wrap .chem-equation {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: 6px;
-  justify-content: center;
+  gap: 4px;
+  justify-content: flex-start;
   font-size: 1.05rem;
-  padding: 12px 0;
+  padding: 8px 0;
+  overflow-x: auto;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.chem-equation-wrap .chem-eq-plus,
+.chem-equation-wrap .chem-eq-arrow {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .chem-eq-term {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.chem-equation-wrap .chem-species,
+.chem-equation-wrap .chem-species .MathJax,
+.chem-equation-wrap mjx-container,
+.chem-equation-wrap mjx-container[jax="CHTML"],
+.chem-equation-wrap mjx-container[display="true"] {
+  display: inline !important;
+  margin: 0 !important;
+  max-width: none !important;
 }
 
 .chem-coeff,
 .chem-extra-coeff {
-  width: 48px;
-  padding: 4px 6px;
+  width: 2rem;
+  min-width: 2rem;
+  max-width: 2.4rem;
+  padding: 2px 2px;
   border: 2px solid #2563eb;
-  border-radius: 6px;
+  border-radius: 4px;
   text-align: center;
   font-weight: 700;
+  font-size: 0.95rem;
+  line-height: 1.2;
+  box-sizing: border-box;
 }
 
 .chem-formula-input {
@@ -3604,10 +3632,14 @@ body.teacher-detail-open {
 }
 
 .chem-extra-species {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 10px;
+  display: inline-flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  overflow-x: auto;
+  max-width: 100%;
+  white-space: nowrap;
 }
 
 .chem-extra-side {

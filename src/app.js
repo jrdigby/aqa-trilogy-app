@@ -4708,7 +4708,7 @@ async function loadTopics() {
     if (qType) {
       let typeLabel = qType;
       if (qType === "short_text") typeLabel = "written short-text";
-      if (qType === "chemistry_interactive") typeLabel = "Chemistry Diagram / Equation";
+      if (qType === "chemistry_interactive") typeLabel = "Chemistry Diagram";
       if (qType === "circuit_interactive") typeLabel = "Circuit Diagram";
       if (qType === "equipment_interactive") typeLabel = "Apparatus / Equipment";
       if (qType === "extended_response") typeLabel = "6-Mark Extended Response";

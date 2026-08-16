@@ -58,6 +58,10 @@ import {
 const STEP_ORDER = [
   "equation_select",
   "conversion",
+  "element_mass",
+  "mass_ratio",
+  "working_1",
+  "working_2",
   "substitution",
   "rearrangement",
   "calculate",
@@ -69,6 +73,10 @@ const STEP_LABELS = {
     equation_select: "Step: Choose the correct equation",
     substitution: "Step: Substitute values into the equation",
     conversion: "Step: Unit conversion",
+    element_mass: "Step: Mass of the element in the formula",
+    mass_ratio: "Step: Mass of element ÷ relative formula mass",
+    working_1: "Step: First calculation",
+    working_2: "Step: Second calculation",
     rearrangement: "Step: Choose the correct rearranged formula",
     calculate: "Step: Calculate the final answer",
     sig_figs: "Step: Answer to required significant figures"
@@ -77,6 +85,10 @@ const STEP_LABELS = {
     equation_select: "Write the equation used",
     substitution: "Substitute the values",
     conversion: "Unit conversion",
+    element_mass: "Mass of the element in the formula",
+    mass_ratio: "Mass of element ÷ relative formula mass",
+    working_1: "First calculation",
+    working_2: "Second calculation",
     rearrangement: "Rearrange the equation",
     calculate: "Calculate your answer",
     sig_figs: "Give your answer to the required significant figures"
@@ -99,12 +111,16 @@ export function markForStep(type, enabled = true) {
   if (!enabled && type !== "calculate") return 0;
   switch (type) {
     case "equation_select":
+    case "working_1":
+    case "working_2":
       return 0;
     case "substitution":
     case "calculate":
     case "conversion":
     case "rearrangement":
     case "sig_figs":
+    case "element_mass":
+    case "mass_ratio":
       return enabled ? 1 : 0;
     default:
       return 0;
@@ -115,10 +131,15 @@ export function normalizeCalculationConfig(config) {
   if (!config?.steps?.length) return config;
   return {
     ...config,
-    steps: config.steps.map((step) => ({
-      ...step,
-      marks: markForStep(step.type, step.required !== false)
-    }))
+    steps: config.steps.map((step) => {
+      const explicit = step.marks != null && step.marks !== "" ? Number(step.marks) : null;
+      return {
+        ...step,
+        marks: Number.isFinite(explicit)
+          ? explicit
+          : markForStep(step.type, step.required !== false)
+      };
+    })
   };
 }
 
@@ -140,6 +161,14 @@ export function getCalculationConfig(q) {
 }
 
 export function getActiveSteps(config) {
+  if (config?.marking_mode === "multi_path") {
+    return (config.steps || []).filter((s) => s && s.type);
+  }
+  if (config?.marking_mode === "percent_by_mass") {
+    return STEP_ORDER
+      .map((type) => (config.steps || []).find((s) => s.type === type && s.required !== false))
+      .filter(Boolean);
+  }
   const steps = config?.steps || [];
   return STEP_ORDER
     .map((type) => steps.find((s) => s.type === type && s.required !== false))
@@ -147,6 +176,12 @@ export function getActiveSteps(config) {
 }
 
 export function computeMaxMarksFromConfig(config) {
+  if (config?.marking_mode === "multi_path" && Number(config.max_marks) > 0) {
+    return Number(config.max_marks);
+  }
+  if (config?.marking_mode === "percent_by_mass" && Number(config.max_marks) > 0) {
+    return Number(config.max_marks);
+  }
   return getActiveSteps(config).reduce((sum, s) => sum + (Number(s.marks) || 0), 0);
 }
 
@@ -1202,6 +1237,7 @@ export function wireStudentEquationSelectPreview(onTypeset, q = null, equationSh
     wireSubstitutionSlotInputListener(refreshRearrangementOnly);
     wireConversionInputListener(refreshRearrangementOnly);
     wireStudentNumericInputPreviews(onTypeset, q);
+    wireMultiPathWorkingReveals(q);
     return;
   }
 
@@ -1227,6 +1263,7 @@ export function wireStudentEquationSelectPreview(onTypeset, q = null, equationSh
   wireSubstitutionSlotInputListener(refreshRearrangementOnly);
   wireConversionInputListener(refreshRearrangementOnly);
   wireStudentNumericInputPreviews(onTypeset, q);
+  wireMultiPathWorkingReveals(q);
   rerenderStructuredSteps();
 }
 
@@ -1495,6 +1532,15 @@ export function applyAutoEquationSheet(prefix, context = null) {
 }
 
 function getStepLabel(type, presentation, step) {
+  if (step?.label && (
+    type === "element_mass"
+    || type === "mass_ratio"
+    || type === "working_1"
+    || type === "working_2"
+    || type === "calculate"
+  )) {
+    return step.label;
+  }
   const base = STEP_LABELS[presentation]?.[type] || STEP_LABELS.practice[type] || type;
   if (type === "conversion" && step?.label) {
     return `${base} (${step.label})`;
@@ -1720,13 +1766,13 @@ function inputStyle() {
   return "padding:6px; font-size:0.85rem; border-radius:4px; border:1px solid #cbd5e1; box-sizing:border-box;";
 }
 
-function renderNumericInputField(id, { requiresStandardForm = false } = {}) {
-  const placeholder = numericInputPlaceholder(requiresStandardForm);
+function renderNumericInputField(id, { requiresStandardForm = false, placeholder = null } = {}) {
+  const ph = placeholder || numericInputPlaceholder(requiresStandardForm);
   return `
     <div class="calc-numeric-input-wrap" style="display:inline-flex;flex-direction:column;align-items:flex-start;gap:2px;">
       <input id="${id}" type="text" inputmode="decimal" autocomplete="off" spellcheck="false"
         class="calc-numeric-input" data-preview-for="${id}_preview"
-        placeholder="${escapeHtml(placeholder)}"
+        placeholder="${escapeHtml(ph)}"
         style="${studentNumericInputStyle(inputStyle())}"/>
       <span id="${id}_preview" class="calc-numeric-preview" aria-live="polite"
         style="font-size:0.82rem;color:#64748b;min-height:1.15em;padding:0 2px;min-width:100%;width:max-content;max-width:32ch;overflow:visible;white-space:nowrap;line-height:1.3;"></span>
@@ -1775,6 +1821,53 @@ export function wireStudentNumericInputPreviews(onTypeset, q = null) {
     input.addEventListener("input", refresh);
     refresh();
   }
+}
+
+/**
+ * Show confirmed intermediate next to working_1 / working_2 so students can carry it forward.
+ * Reveals when the entered value matches any accepted path step.
+ */
+export function wireMultiPathWorkingReveals(q = null) {
+  const config = q ? getCalculationConfig(q) : null;
+  if (!config || config.marking_mode !== "multi_path") return;
+  const tol = parseFloat(q?.calculation_config?.tolerance ?? 0.05);
+
+  const bind = (inputId, carryId, stepId) => {
+    const input = document.getElementById(inputId);
+    const carry = document.getElementById(carryId);
+    if (!input || !carry) return;
+
+    const refresh = () => {
+      const raw = String(input.value || "").trim();
+      if (!raw) {
+        carry.textContent = "";
+        return;
+      }
+      const num = evaluateSimpleArithmetic(raw);
+      if (!Number.isFinite(num)) {
+        carry.textContent = "";
+        return;
+      }
+      if (studentMatchesAnyPathStep(config.paths, stepId, num, tol)) {
+        carry.textContent = `= ${formatAnswerForFeedback(num)}`;
+        carry.style.color = "#0f766e";
+      } else {
+        carry.textContent = "";
+      }
+    };
+
+    if (input._multiPathCarryHandler) {
+      input.removeEventListener("input", input._multiPathCarryHandler);
+      input.removeEventListener("blur", input._multiPathCarryHandler);
+    }
+    input._multiPathCarryHandler = refresh;
+    input.addEventListener("input", refresh);
+    input.addEventListener("blur", refresh);
+    refresh();
+  };
+
+  bind("calc_working_1", "calc_working_1_carry", "s1");
+  bind("calc_working_2", "calc_working_2_carry", "s2");
 }
 
 /** Single answer box: sig figs merged into calculate (legacy, 0-mark sig step only). */
@@ -1881,6 +1974,46 @@ export function renderCalculationWorkflow(q, currentKey, presentation = "practic
         <div class="calc-step" data-step="conversion" style="margin-bottom:12px;">
           <label style="display:block;font-size:0.82rem;font-weight:700;margin-bottom:4px;">${renderStepLabel(numberedLabel, step)}:</label>
           ${renderNumericInputField("calc_conversion")}
+        </div>
+      `;
+    } else if (step.type === "element_mass") {
+      html += `
+        <div class="calc-step" data-step="element_mass" style="margin-bottom:12px;">
+          <label style="display:block;font-size:0.82rem;font-weight:700;margin-bottom:4px;">${renderStepLabel(numberedLabel, step)}:</label>
+          ${renderNumericInputField("calc_element_mass")}
+        </div>
+      `;
+    } else if (step.type === "mass_ratio") {
+      html += `
+        <div class="calc-step" data-step="mass_ratio" style="margin-bottom:12px;">
+          <label style="display:block;font-size:0.82rem;font-weight:700;margin-bottom:4px;">${renderStepLabel(numberedLabel, step)}:</label>
+          <div style="display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;">
+            ${renderNumericInputField("calc_mass_ratio_num")}
+            <span style="font-weight:700;color:#475569;">/</span>
+            ${renderNumericInputField("calc_mass_ratio_den")}
+          </div>
+        </div>
+      `;
+    } else if (step.type === "working_1") {
+      html += `
+        <div class="calc-step" data-step="working_1" style="margin-bottom:12px;">
+          <label style="display:block;font-size:0.82rem;font-weight:700;margin-bottom:4px;">${renderStepLabel(numberedLabel, step)}:</label>
+          <div style="display:inline-flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            ${renderNumericInputField("calc_working_1", { placeholder: step.placeholder || "e.g. 0.2" })}
+            <span class="calc-step-carry" id="calc_working_1_carry" aria-live="polite"
+              style="font-size:0.9rem;font-weight:700;color:#0f766e;min-height:1.2em;"></span>
+          </div>
+        </div>
+      `;
+    } else if (step.type === "working_2") {
+      html += `
+        <div class="calc-step" data-step="working_2" style="margin-bottom:12px;">
+          <label style="display:block;font-size:0.82rem;font-weight:700;margin-bottom:4px;">${renderStepLabel(numberedLabel, step)}:</label>
+          <div style="display:inline-flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            ${renderNumericInputField("calc_working_2", { placeholder: step.placeholder || "e.g. 12.8/0.2 or 64" })}
+            <span class="calc-step-carry" id="calc_working_2_carry" aria-live="polite"
+              style="font-size:0.9rem;font-weight:700;color:#0f766e;min-height:1.2em;"></span>
+          </div>
         </div>
       `;
     } else if (step.type === "rearrangement") {
@@ -2028,6 +2161,23 @@ export function collectCalculationResponse(q, sessionMode, equationSheet = null,
       const conv = readNumericInput("calc_conversion");
       stepValues.conversion = conv.value;
       stepRaw.conversion = conv.raw;
+    } else if (step.type === "element_mass") {
+      const em = readNumericInput("calc_element_mass");
+      stepValues.element_mass = em.value;
+      stepRaw.element_mass = em.raw;
+    } else if (step.type === "mass_ratio") {
+      const num = readNumericInput("calc_mass_ratio_num");
+      const den = readNumericInput("calc_mass_ratio_den");
+      stepValues.mass_ratio = { numerator: num.value, denominator: den.value };
+      stepRaw.mass_ratio = { numerator: num.raw, denominator: den.raw };
+    } else if (step.type === "working_1") {
+      const w = readNumericInput("calc_working_1");
+      stepValues.working_1 = coerceWorkingNumeric(w.value, w.raw);
+      stepRaw.working_1 = w.raw;
+    } else if (step.type === "working_2") {
+      const w = readNumericInput("calc_working_2");
+      stepValues.working_2 = coerceWorkingNumeric(w.value, w.raw);
+      stepRaw.working_2 = w.raw;
     } else if (step.type === "rearrangement") {
       stepValues.rearrangement = readTextInput("calc_rearrangement");
     } else if (step.type === "calculate") {
@@ -2064,10 +2214,20 @@ export function validateCalculationResponse(q, resp, sessionMode) {
   const missing = [];
 
   for (const step of getActiveSteps(config)) {
+    if (step.type === "working_1" || step.type === "working_2") continue;
+    if (step.required === false) continue;
     const val = resp.steps?.[step.type];
     const raw = resp.stepRaw?.[step.type] ?? "";
-    if (step.type === "calculate" || step.type === "conversion") {
+    if (step.type === "calculate" || step.type === "conversion" || step.type === "element_mass") {
       if (val == null || val === "" || (raw && !isValidStudentNumber(raw))) {
+        missing.push(getStepLabel(step.type, presentation, step));
+      }
+    } else if (step.type === "mass_ratio") {
+      const num = val?.numerator;
+      const den = val?.denominator;
+      const rawNum = raw?.numerator ?? "";
+      const rawDen = raw?.denominator ?? "";
+      if (num == null || den == null || (rawNum && !isValidStudentNumber(rawNum)) || (rawDen && !isValidStudentNumber(rawDen))) {
         missing.push(getStepLabel(step.type, presentation, step));
       }
     } else if (step.type === "sig_figs" && usesSeparateSigFigsBox(step)) {
@@ -2315,9 +2475,364 @@ function studentUsedStemValueInSubstitution(convStep, subPayload) {
   return Math.abs(entered - display) < 1e-9;
 }
 
+function valuesMatchNumeric(student, target, tol = 0.05) {
+  const s = parseFloat(student);
+  const t = parseFloat(target);
+  if (!Number.isFinite(s) || !Number.isFinite(t)) return false;
+  const absTol = Math.max(Number(tol) || 0, Math.abs(t) * 1e-9);
+  return Math.abs(s - t) <= absTol;
+}
+
+/** Accept "12.8/0.2", "3.2x.05", "64×0.2", "200÷1000" as well as bare numbers. */
+function evaluateSimpleArithmetic(raw) {
+  if (raw == null) return null;
+  if (typeof raw === "number" && Number.isFinite(raw)) return raw;
+  const s = String(raw).trim()
+    .replace(/,/g, "")
+    .replace(/×/g, "*")
+    .replace(/÷/g, "/")
+    // Letter x / X as multiply (e.g. 3.2x.05) — after stripping spaces
+    .replace(/\s+/g, "")
+    .replace(/x/gi, "*");
+  if (!s) return null;
+
+  // Optional leading decimal: .05, 3.2, 64
+  const num = "(-?(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][+-]?\\d+)?)";
+  const directRe = new RegExp(`^${num}$`);
+  const directMatch = s.match(directRe);
+  if (directMatch) {
+    const v = parseFloat(directMatch[1]);
+    return Number.isFinite(v) ? v : null;
+  }
+
+  const opRe = new RegExp(`^${num}([*/])${num}$`);
+  const m = s.match(opRe);
+  if (!m) return null;
+  const a = parseFloat(m[1]);
+  const b = parseFloat(m[3]);
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
+  if (m[2] === "/" && b === 0) return null;
+  return m[2] === "*" ? a * b : a / b;
+}
+
+function coerceWorkingNumeric(value, raw) {
+  if (value != null && Number.isFinite(Number(value))) return Number(value);
+  return evaluateSimpleArithmetic(raw);
+}
+
+function acceptRuleMatches(studentVal, rule, tol = 0.05) {
+  if (!rule || studentVal == null || studentVal === "") return false;
+  const coerced = coerceWorkingNumeric(studentVal, studentVal);
+  if (rule.value != null) return valuesMatchNumeric(coerced, rule.value, tol);
+  if (rule.op === "div" && Array.isArray(rule.values) && rule.values.length === 2) {
+    const [a, b] = rule.values;
+    if (!b) return false;
+    return valuesMatchNumeric(coerced, a / b, tol);
+  }
+  if (rule.op === "mul" && Array.isArray(rule.values) && rule.values.length === 2) {
+    const [a, b] = rule.values;
+    return valuesMatchNumeric(coerced, a * b, tol);
+  }
+  return false;
+}
+
+function acceptListMatches(studentVal, acceptList, tol = 0.05) {
+  if (!Array.isArray(acceptList)) return false;
+  return acceptList.some((rule) => acceptRuleMatches(studentVal, rule, tol));
+}
+
+function scoreMultiPathWorking(path, workingValues, tol = 0.05) {
+  let earned = 0;
+  const max = (path.steps || []).reduce((s, st) => s + (Number(st.marks) || 0), 0);
+  const stepVals = {
+    s1: workingValues[0],
+    s2: workingValues[1],
+    s3: workingValues[2]
+  };
+  const resolved = {};
+  const stepOk = { s1: false, s2: false, s3: false };
+
+  for (const step of path.steps || []) {
+    const marks = Number(step.marks) || 0;
+    const studentVal = stepVals[step.id];
+    let ok = acceptListMatches(studentVal, step.accept, tol);
+    if (!ok && step.ecf_from && resolved[step.ecf_from] != null) {
+      const prior = resolved[step.ecf_from];
+      if (valuesMatchNumeric(studentVal, prior, tol)) {
+        ok = true;
+      } else {
+        const priorStep = (path.steps || []).find((s) => s.id === step.ecf_from);
+        const correctPrior = priorStep?.accept?.find((r) => r.value != null)?.value;
+        for (const rule of step.accept || []) {
+          if (rule.op === "div" && Array.isArray(rule.values) && rule.values.length === 2) {
+            const [a, b] = rule.values;
+            if (correctPrior != null && valuesMatchNumeric(b, correctPrior, tol)) {
+              if (valuesMatchNumeric(studentVal, a / prior, tol)) ok = true;
+            } else if (correctPrior != null && valuesMatchNumeric(a, correctPrior, tol)) {
+              if (valuesMatchNumeric(studentVal, prior / b, tol)) ok = true;
+            }
+          }
+          if (rule.op === "mul" && Array.isArray(rule.values) && rule.values.length === 2) {
+            const [a, b] = rule.values;
+            if (correctPrior != null && valuesMatchNumeric(a, correctPrior, tol)) {
+              if (valuesMatchNumeric(studentVal, prior * b, tol)) ok = true;
+            }
+            if (correctPrior != null && valuesMatchNumeric(b, correctPrior, tol)) {
+              if (valuesMatchNumeric(studentVal, a * prior, tol)) ok = true;
+            }
+          }
+        }
+      }
+    }
+    if (ok) {
+      earned += marks;
+      resolved[step.id] = coerceWorkingNumeric(studentVal, studentVal);
+      stepOk[step.id] = true;
+    }
+  }
+  return { earned, max, pathId: path.id, stepOk };
+}
+
+function multiPathStepAcceptValue(path, stepId) {
+  const step = (path?.steps || []).find((s) => s.id === stepId);
+  const rule = step?.accept?.find((r) => r.value != null);
+  return rule?.value ?? null;
+}
+
+function studentMatchesAnyPathStep(paths, stepId, studentVal, tol) {
+  for (const path of paths || []) {
+    const step = (path.steps || []).find((s) => s.id === stepId);
+    if (acceptListMatches(studentVal, step?.accept, tol)) return true;
+  }
+  return false;
+}
+
+/**
+ * AQA-style concentration marking: answer bands first, then best working path.
+ * UI scaffolds the convert-volume route (1 mark per step); other methods still
+ * score via answer bands (correct final → 3) or matching an alternate path.
+ */
+export function markMultiPathCalculationResponse(q, resp, key, markPoints, cleanUrl, config) {
+  const max = Number(config.max_marks) || Number(q.max_marks) || 3;
+  const ao = { AO1: 0, AO2: 0, AO3: 0 };
+  const maxAo = { AO1: 0, AO2: max, AO3: 0 };
+  const missing = [];
+  const stepResults = {};
+  const ansTol = parseFloat(key?.key_payload?.tolerance ?? 0.05);
+  const unit = config.unit || key?.key_payload?.unit || "";
+  const finalAns = coerceWorkingNumeric(
+    resp?.steps?.calculate ?? resp?.value,
+    resp?.stepRaw?.calculate
+  );
+  const w1 = coerceWorkingNumeric(resp?.steps?.working_1, resp?.stepRaw?.working_1);
+  const w2 = coerceWorkingNumeric(resp?.steps?.working_2, resp?.stepRaw?.working_2);
+
+  let bandMarks = 0;
+  for (const band of config.answer_bands || []) {
+    if (acceptListMatches(finalAns, band.accept, ansTol)) {
+      bandMarks = Math.max(bandMarks, Number(band.marks) || 0);
+    }
+  }
+
+  const working = [w1, w2, finalAns];
+  let bestPath = { earned: 0, max: 0, pathId: null, stepOk: { s1: false, s2: false, s3: false } };
+  for (const path of config.paths || []) {
+    const scored = scoreMultiPathWorking(path, working, ansTol);
+    if (scored.earned > bestPath.earned) bestPath = scored;
+  }
+
+  const total = Math.min(max, Math.max(bandMarks, bestPath.earned));
+  ao.AO2 = total;
+
+  if (total < max) {
+    const expected = key?.key_payload?.exact_answer ?? key?.key_payload?.answer ?? config.answer;
+    missing.push({
+      ao: "AO2",
+      stepType: "calculate",
+      text: `Expected ${formatAnswerForFeedback(expected)}${unit ? ` ${unit}` : ""}.`,
+      url: cleanUrl
+    });
+  }
+
+  const revealPath = (config.paths || []).find((p) => p.id === bestPath.pathId)
+    || (config.paths || []).find((p) => p.id === config.primary_path_id)
+    || config.paths?.[0];
+  const s1Reveal = multiPathStepAcceptValue(revealPath, "s1");
+  const s2Reveal = multiPathStepAcceptValue(revealPath, "s2");
+  const s3Reveal = multiPathStepAcceptValue(revealPath, "s3");
+  const primaryScored = scoreMultiPathWorking(revealPath || { steps: [] }, working, ansTol);
+
+  const w1Ok = !!(primaryScored.stepOk?.s1 || studentMatchesAnyPathStep(config.paths, "s1", w1, ansTol));
+  const w2Ok = !!(primaryScored.stepOk?.s2 || studentMatchesAnyPathStep(config.paths, "s2", w2, ansTol));
+  const calcCorrect = !!(primaryScored.stepOk?.s3 || acceptListMatches(finalAns, [{ value: config.answer }], ansTol));
+
+  stepResults.working_1 = {
+    earned: w1Ok ? 1 : 0,
+    max: 1,
+    correct: w1Ok,
+    revealAnswer: s1Reveal != null ? formatAnswerForFeedback(s1Reveal) : null
+  };
+  stepResults.working_2 = {
+    earned: w2Ok ? 1 : 0,
+    max: 1,
+    correct: w2Ok,
+    revealAnswer: s2Reveal != null ? formatAnswerForFeedback(s2Reveal) : null
+  };
+
+  stepResults.calculate = {
+    earned: calcCorrect ? 1 : 0,
+    max: 1,
+    correct: calcCorrect,
+    revealAnswer: s3Reveal != null ? formatAnswerForFeedback(s3Reveal) : null,
+    // Overall total may still be 3 via answer band when working is empty
+    bandTotal: total,
+    ecf: bandMarks < total && bestPath.earned === total,
+    enforceOnFinal: false
+  };
+
+  const quality = total === max && max > 0 ? 5 : total > 0 ? 3 : 1;
+  return { total, max, ao, maxAo, missing, quality, stepResults };
+}
+
+/**
+ * Percentage by mass: element_mass → mass_ratio → % with ECF.
+ */
+export function markPercentByMassResponse(q, resp, key, markPoints, cleanUrl, config) {
+  const steps = getActiveSteps(config);
+  let total = 0;
+  let max = 0;
+  const ao = { AO1: 0, AO2: 0, AO3: 0 };
+  const maxAo = { AO1: 0, AO2: 0, AO3: 0 };
+  const missing = [];
+  const stepResults = {};
+  const ansTol = parseFloat(key?.key_payload?.tolerance ?? 0.5);
+  const mr = parseFloat(config.mr);
+  const correctElem = parseFloat(steps.find((s) => s.type === "element_mass")?.answer);
+  const studentElem = parseFloat(resp?.steps?.element_mass);
+  const elemTol = parseFloat(steps.find((s) => s.type === "element_mass")?.tolerance ?? 0.05);
+
+  let elemCorrect = false;
+  let elemEcfValue = null;
+
+  for (const step of steps) {
+    const marks = Number(step.marks) || 0;
+    const stepAo = step.ao || "AO2";
+    max += marks;
+    maxAo[stepAo] = (maxAo[stepAo] || 0) + marks;
+    let earned = 0;
+    let isCorrect = false;
+    let isEcf = false;
+
+    if (step.type === "element_mass") {
+      isCorrect = valuesMatchNumeric(studentElem, correctElem, elemTol);
+      elemCorrect = isCorrect;
+      if (isCorrect) {
+        earned = marks;
+        elemEcfValue = correctElem;
+      } else if (Number.isFinite(studentElem)) {
+        elemEcfValue = studentElem;
+      }
+      if (!isCorrect) {
+        missing.push({
+          ao: stepAo,
+          stepType: step.type,
+          text: getStepFeedback(step, markPoints, "element_mass", `Mass of element: expected ${formatAnswerForFeedback(correctElem)}.`),
+          url: cleanUrl
+        });
+      }
+    } else if (step.type === "mass_ratio") {
+      const ratio = resp?.steps?.mass_ratio || {};
+      const num = parseFloat(ratio.numerator);
+      const den = parseFloat(ratio.denominator);
+      const expectedNum = correctElem;
+      const expectedDen = mr;
+      const exactOk = valuesMatchNumeric(num, expectedNum, elemTol) && valuesMatchNumeric(den, expectedDen, elemTol);
+      const ecfOk = Number.isFinite(elemEcfValue)
+        && valuesMatchNumeric(num, elemEcfValue, elemTol)
+        && valuesMatchNumeric(den, expectedDen, elemTol);
+      if (exactOk) {
+        isCorrect = true;
+        earned = marks;
+      } else if (ecfOk && !elemCorrect) {
+        isCorrect = true;
+        isEcf = true;
+        earned = marks;
+        missing.push({
+          ao: stepAo,
+          stepType: step.type,
+          text: "Error carried forward from element mass.",
+          isEcf: true,
+          url: cleanUrl
+        });
+      } else {
+        missing.push({
+          ao: stepAo,
+          stepType: step.type,
+          text: getStepFeedback(step, markPoints, "mass_ratio", `Expected ${formatAnswerForFeedback(expectedNum)} / ${formatAnswerForFeedback(expectedDen)}.`),
+          url: cleanUrl
+        });
+      }
+    } else if (step.type === "calculate") {
+      const studentVal = resp?.steps?.calculate ?? resp?.value;
+      const exactPct = (correctElem / mr) * 100;
+      const exactOk = valuesMatchNumeric(studentVal, exactPct, ansTol);
+      const ecfPct = Number.isFinite(elemEcfValue) ? (elemEcfValue / mr) * 100 : null;
+      const ecfOk = ecfPct != null && valuesMatchNumeric(studentVal, ecfPct, ansTol);
+      if (exactOk) {
+        isCorrect = true;
+        earned = marks;
+      } else if (ecfOk && !elemCorrect) {
+        isCorrect = true;
+        isEcf = true;
+        earned = marks;
+        missing.push({
+          ao: stepAo,
+          stepType: step.type,
+          text: "Error carried forward from element mass.",
+          isEcf: true,
+          url: cleanUrl
+        });
+      } else {
+        missing.push({
+          ao: stepAo,
+          stepType: step.type,
+          text: getStepFeedback(
+            step,
+            markPoints,
+            "calculate",
+            `Expected ${formatAnswerForFeedback(exactPct)}%.`
+          ),
+          url: cleanUrl
+        });
+      }
+    }
+
+    total += earned;
+    if (earned > 0) ao[stepAo] = (ao[stepAo] || 0) + earned;
+    stepResults[step.type] = {
+      earned,
+      max: marks,
+      correct: isCorrect && !isEcf,
+      ecf: isEcf,
+      enforceOnFinal: false
+    };
+  }
+
+  const quality = total === max && max > 0 ? 5 : total > 0 ? 3 : 1;
+  return { total, max, ao, maxAo, missing, quality, stepResults };
+}
+
 export function markCalculationResponse(q, resp, key, markPoints, cleanUrl, equationSheet = null) {
   const rawConfig = getCalculationConfig(q);
   const config = enrichCalculationConfigFromEquationSheet(rawConfig, equationSheet);
+
+  if (config.marking_mode === "multi_path") {
+    return markMultiPathCalculationResponse(q, resp, key, markPoints, cleanUrl, config);
+  }
+  if (config.marking_mode === "percent_by_mass") {
+    return markPercentByMassResponse(q, resp, key, markPoints, cleanUrl, config);
+  }
+
   const steps = getActiveSteps(config);
   let total = 0;
   let max = 0;
@@ -2662,7 +3177,7 @@ function combineCalcAndSigResults(calcResult, sigResult) {
 function styleCalculationStepElement(el, result) {
   if (!el || !result) return;
 
-  const { earned, max, correct, ecf, calcCorrect, sigCorrect, enforceOnFinal } = result;
+  const { earned, max, correct, ecf, calcCorrect, sigCorrect, enforceOnFinal, revealAnswer } = result;
 
   el.style.borderRadius = "8px";
   el.style.padding = "10px 12px";
@@ -2683,6 +3198,14 @@ function styleCalculationStepElement(el, result) {
   } else {
     el.style.border = "2px solid #ef4444";
     el.style.background = "#fef2f2";
+  }
+
+  if (revealAnswer != null && String(revealAnswer).trim() !== "") {
+    const carry = el.querySelector(".calc-step-carry");
+    if (carry) {
+      carry.textContent = `= ${revealAnswer}`;
+      carry.style.color = correct ? "#0f766e" : "#b45309";
+    }
   }
 
   let badge = el.querySelector(".calc-step-result");

@@ -1,0 +1,130 @@
+{
+  "equations": [
+    {
+      "id": "water_balance",
+      "subtype": "symbol",
+      "prompt": "Balance the following equation.",
+      "species": [
+        { "formula": "H2", "side": "left" },
+        { "formula": "O2", "side": "left" },
+        { "formula": "H2O", "side": "right" }
+      ],
+      "coeffs": [2, 1, 2],
+      "max_marks": 1
+    },
+    {
+      "id": "water_balance_states",
+      "subtype": "symbol",
+      "prompt": "Balance the following equation. Include state symbols.",
+      "species": [
+        { "formula": "H2", "side": "left", "state": "g" },
+        { "formula": "O2", "side": "left", "state": "g" },
+        { "formula": "H2O", "side": "right", "state": "l" }
+      ],
+      "coeffs": [2, 1, 2],
+      "max_marks": 2
+    },
+    {
+      "id": "mg_o2_mgo",
+      "subtype": "symbol",
+      "prompt": "Balance the following equation.",
+      "species": [
+        { "formula": "Mg", "side": "left" },
+        { "formula": "O2", "side": "left" },
+        { "formula": "MgO", "side": "right" }
+      ],
+      "coeffs": [2, 1, 2],
+      "max_marks": 1
+    },
+    {
+      "id": "fe_o2_fe2o3",
+      "subtype": "symbol",
+      "prompt": "Balance the following equation.",
+      "species": [
+        { "formula": "Fe", "side": "left" },
+        { "formula": "O2", "side": "left" },
+        { "formula": "Fe2O3", "side": "right" }
+      ],
+      "coeffs": [4, 3, 2],
+      "max_marks": 1
+    },
+    {
+      "id": "ch4_o2_co2_h2o",
+      "subtype": "symbol",
+      "prompt": "Balance the following equation.",
+      "species": [
+        { "formula": "CH4", "side": "left" },
+        { "formula": "O2", "side": "left" },
+        { "formula": "CO2", "side": "right" },
+        { "formula": "H2O", "side": "right" }
+      ],
+      "coeffs": [1, 2, 1, 2],
+      "max_marks": 1
+    },
+    {
+      "id": "c2h6_o2_co2_h2o",
+      "subtype": "symbol",
+      "prompt": "Balance the following equation.",
+      "species": [
+        { "formula": "C2H6", "side": "left" },
+        { "formula": "O2", "side": "left" },
+        { "formula": "CO2", "side": "right" },
+        { "formula": "H2O", "side": "right" }
+      ],
+      "coeffs": [2, 7, 4, 6],
+      "max_marks": 1
+    },
+    {
+      "id": "nacl_aq_ionic",
+      "subtype": "ionic",
+      "prompt": "Complete and balance the ionic equation. Enter the missing formula.",
+      "species": [
+        { "formula": "Na", "side": "left", "state": "s" },
+        { "formula": "Cl2", "side": "left", "state": "g" },
+        { "formula": "NaCl", "side": "right", "state": "aq", "studentEntersFormula": true }
+      ],
+      "coeffs": [2, 1, 2],
+      "max_marks": 3
+    },
+    {
+      "id": "half_cu",
+      "subtype": "half",
+      "prompt": "Balance the half-equation. Add electrons where needed.",
+      "species": [
+        { "formula": "Cu2+", "side": "left", "state": "aq" },
+        { "formula": "Cu", "side": "right", "state": "s" }
+      ],
+      "coeffs": [1, 1],
+      "extraSpecies": [{ "formula": "e-", "coeff": 2, "side": "left" }],
+      "allowedTokens": ["e-", "H+", "H2O", "OH-"],
+      "max_marks": 2
+    },
+    {
+      "id": "half_cl2",
+      "subtype": "half",
+      "prompt": "Balance the half-equation. Add electrons where needed.",
+      "species": [
+        { "formula": "Cl2", "side": "left", "state": "aq" },
+        { "formula": "Cl-", "side": "right", "state": "aq" }
+      ],
+      "coeffs": [1, 2],
+      "extraSpecies": [{ "formula": "e-", "coeff": 2, "side": "left" }],
+      "allowedTokens": ["e-", "H+", "H2O", "OH-"],
+      "max_marks": 2
+    },
+    {
+      "id": "caco3_hcl",
+      "subtype": "symbol",
+      "prompt": "Balance the following equation.",
+      "species": [
+        { "formula": "CaCO3", "side": "left" },
+        { "formula": "HCl", "side": "left" },
+        { "formula": "CaCl2", "side": "right" },
+        { "formula": "H2O", "side": "right" },
+        { "formula": "CO2", "side": "right" }
+      ],
+      "coeffs": [1, 2, 1, 1, 1],
+      "max_marks": 1
+    }
+  ]
+}

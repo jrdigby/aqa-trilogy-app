@@ -62,7 +62,8 @@ export function resolveMcqWrongFeedback(selectedAnswer, key, markPoints, targetC
 
   const contentBlocks = [];
   if (specificText) contentBlocks.push(specificText);
-  if (genericText) contentBlocks.push(genericText);
+  // Prefer one remediation line: skip generic when identical to option-specific text
+  if (genericText && genericText !== specificText) contentBlocks.push(genericText);
   if (!contentBlocks.length) contentBlocks.push(fallbackText);
 
   const combinedFlashcard = contentBlocks.join("\n\n");

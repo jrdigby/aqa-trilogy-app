@@ -67,6 +67,24 @@ describe("markChemistryResponse", () => {
     assert.equal(result.total, 0);
   });
 
+  it("marks balanced equation with blank coefficient treated as 1", () => {
+    const preset = CHEMISTRY_PRESETS.water_balance;
+    const q = { question_type: "chemistry_interactive", max_marks: 1, chemistry_config: { kind: preset.kind, template: preset.template } };
+    const key = { key_type: "chemistry", key_payload: preset.answer };
+    // 2 H2 + (blank→1) O2 → 2 H2O
+    const resp = { kind: "balance_equation", coeffs: [2, null, 2] };
+    const result = markChemistryResponse(q, resp, key, [], null);
+    assert.equal(result.total, 1);
+    assert.equal(
+      markChemistryResponse(q, { kind: "balance_equation", coeffs: [2, "", 2] }, key, [], null).total,
+      1
+    );
+    assert.equal(
+      markChemistryResponse(q, { kind: "balance_equation", coeffs: [2, 0, 2] }, key, [], null).total,
+      1
+    );
+  });
+
   it("marks balanced equation with equivalent multiples", () => {
     const preset = CHEMISTRY_PRESETS.water_balance;
     const q = { question_type: "chemistry_interactive", max_marks: 1, chemistry_config: { kind: preset.kind, template: preset.template } };
