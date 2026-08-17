@@ -1,0 +1,194 @@
+{
+  "reactions": [
+    {
+      "id": "mg_o2_mgo",
+      "symbol": "2Mg + O2 → 2MgO",
+      "use_for": ["reacting_masses", "balance_from_masses", "limiting"],
+      "species": [
+        { "id": "Mg", "formula": "Mg", "name": "magnesium", "side": "reactant", "coeff": 2 },
+        { "id": "O2", "formula": "O2", "name": "oxygen", "side": "reactant", "coeff": 1 },
+        { "id": "MgO", "formula": "MgO", "name": "magnesium oxide", "side": "product", "coeff": 2 }
+      ]
+    },
+    {
+      "id": "c_o2_co2",
+      "symbol": "C + O2 → CO2",
+      "use_for": ["reacting_masses", "balance_from_masses", "limiting"],
+      "species": [
+        { "id": "C", "formula": "C", "name": "carbon", "side": "reactant", "coeff": 1 },
+        { "id": "O2", "formula": "O2", "name": "oxygen", "side": "reactant", "coeff": 1 },
+        { "id": "CO2", "formula": "CO2", "name": "carbon dioxide", "side": "product", "coeff": 1 }
+      ]
+    },
+    {
+      "id": "h2_o2_h2o",
+      "symbol": "2H2 + O2 → 2H2O",
+      "use_for": ["reacting_masses", "balance_from_masses", "limiting"],
+      "species": [
+        { "id": "H2", "formula": "H2", "name": "hydrogen", "side": "reactant", "coeff": 2 },
+        { "id": "O2", "formula": "O2", "name": "oxygen", "side": "reactant", "coeff": 1 },
+        { "id": "H2O", "formula": "H2O", "name": "water", "side": "product", "coeff": 2 }
+      ]
+    },
+    {
+      "id": "caco3_cao_co2",
+      "symbol": "CaCO3 → CaO + CO2",
+      "use_for": ["reacting_masses", "balance_from_masses"],
+      "species": [
+        { "id": "CaCO3", "formula": "CaCO3", "name": "calcium carbonate", "side": "reactant", "coeff": 1 },
+        { "id": "CaO", "formula": "CaO", "name": "calcium oxide", "side": "product", "coeff": 1 },
+        { "id": "CO2", "formula": "CO2", "name": "carbon dioxide", "side": "product", "coeff": 1 }
+      ]
+    },
+    {
+      "id": "na_cl2_nacl",
+      "symbol": "2Na + Cl2 → 2NaCl",
+      "use_for": ["reacting_masses", "balance_from_masses", "limiting"],
+      "species": [
+        { "id": "Na", "formula": "Na", "name": "sodium", "side": "reactant", "coeff": 2 },
+        { "id": "Cl2", "formula": "Cl2", "name": "chlorine", "side": "reactant", "coeff": 1 },
+        { "id": "NaCl", "formula": "NaCl", "name": "sodium chloride", "side": "product", "coeff": 2 }
+      ]
+    },
+    {
+      "id": "fe_s_fes",
+      "symbol": "Fe + S → FeS",
+      "use_for": ["reacting_masses", "balance_from_masses", "limiting"],
+      "species": [
+        { "id": "Fe", "formula": "Fe", "name": "iron", "side": "reactant", "coeff": 1 },
+        { "id": "S", "formula": "S", "name": "sulfur", "side": "reactant", "coeff": 1 },
+        { "id": "FeS", "formula": "FeS", "name": "iron sulfide", "side": "product", "coeff": 1 }
+      ]
+    },
+    {
+      "id": "cuo_h2_cu_h2o",
+      "symbol": "CuO + H2 → Cu + H2O",
+      "use_for": ["reacting_masses", "balance_from_masses", "limiting"],
+      "species": [
+        { "id": "CuO", "formula": "CuO", "name": "copper(II) oxide", "side": "reactant", "coeff": 1 },
+        { "id": "H2", "formula": "H2", "name": "hydrogen", "side": "reactant", "coeff": 1 },
+        { "id": "Cu", "formula": "Cu", "name": "copper", "side": "product", "coeff": 1 },
+        { "id": "H2O", "formula": "H2O", "name": "water", "side": "product", "coeff": 1 }
+      ]
+    },
+    {
+      "id": "ch4_o2_co2_h2o",
+      "symbol": "CH4 + 2O2 → CO2 + 2H2O",
+      "use_for": ["reacting_masses", "balance_from_masses", "limiting"],
+      "species": [
+        { "id": "CH4", "formula": "CH4", "name": "methane", "side": "reactant", "coeff": 1 },
+        { "id": "O2", "formula": "O2", "name": "oxygen", "side": "reactant", "coeff": 2 },
+        { "id": "CO2", "formula": "CO2", "name": "carbon dioxide", "side": "product", "coeff": 1 },
+        { "id": "H2O", "formula": "H2O", "name": "water", "side": "product", "coeff": 2 }
+      ]
+    },
+    {
+      "id": "cu_o2_cuo",
+      "symbol": "2Cu + O2 → 2CuO",
+      "use_for": ["reacting_masses", "balance_from_masses", "limiting"],
+      "species": [
+        { "id": "Cu", "formula": "Cu", "name": "copper", "side": "reactant", "coeff": 2 },
+        { "id": "O2", "formula": "O2", "name": "oxygen", "side": "reactant", "coeff": 1 },
+        { "id": "CuO", "formula": "CuO", "name": "copper(II) oxide", "side": "product", "coeff": 2 }
+      ]
+    },
+    {
+      "id": "mg_hcl_mgcl2_h2",
+      "symbol": "Mg + 2HCl → MgCl2 + H2",
+      "use_for": ["reacting_masses", "balance_from_masses", "limiting"],
+      "species": [
+        { "id": "Mg", "formula": "Mg", "name": "magnesium", "side": "reactant", "coeff": 1 },
+        { "id": "HCl", "formula": "HCl", "name": "hydrochloric acid", "side": "reactant", "coeff": 2 },
+        { "id": "MgCl2", "formula": "MgCl2", "name": "magnesium chloride", "side": "product", "coeff": 1 },
+        { "id": "H2", "formula": "H2", "name": "hydrogen", "side": "product", "coeff": 1 }
+      ]
+    },
+    {
+      "id": "zn_hcl_zncl2_h2",
+      "symbol": "Zn + 2HCl → ZnCl2 + H2",
+      "use_for": ["reacting_masses", "balance_from_masses", "limiting"],
+      "species": [
+        { "id": "Zn", "formula": "Zn", "name": "zinc", "side": "reactant", "coeff": 1 },
+        { "id": "HCl", "formula": "HCl", "name": "hydrochloric acid", "side": "reactant", "coeff": 2 },
+        { "id": "ZnCl2", "formula": "ZnCl2", "name": "zinc chloride", "side": "product", "coeff": 1 },
+        { "id": "H2", "formula": "H2", "name": "hydrogen", "side": "product", "coeff": 1 }
+      ]
+    },
+    {
+      "id": "n2_h2_nh3",
+      "symbol": "N2 + 3H2 → 2NH3",
+      "use_for": ["reacting_masses", "balance_from_masses", "limiting"],
+      "species": [
+        { "id": "N2", "formula": "N2", "name": "nitrogen", "side": "reactant", "coeff": 1 },
+        { "id": "H2", "formula": "H2", "name": "hydrogen", "side": "reactant", "coeff": 3 },
+        { "id": "NH3", "formula": "NH3", "name": "ammonia", "side": "product", "coeff": 2 }
+      ]
+    },
+    {
+      "id": "so2_o2_so3",
+      "symbol": "2SO2 + O2 → 2SO3",
+      "use_for": ["reacting_masses", "balance_from_masses", "limiting"],
+      "species": [
+        { "id": "SO2", "formula": "SO2", "name": "sulfur dioxide", "side": "reactant", "coeff": 2 },
+        { "id": "O2", "formula": "O2", "name": "oxygen", "side": "reactant", "coeff": 1 },
+        { "id": "SO3", "formula": "SO3", "name": "sulfur trioxide", "side": "product", "coeff": 2 }
+      ]
+    },
+    {
+      "id": "fe2o3_co_fe_co2",
+      "symbol": "Fe2O3 + 3CO → 2Fe + 3CO2",
+      "use_for": ["reacting_masses", "balance_from_masses", "limiting"],
+      "species": [
+        { "id": "Fe2O3", "formula": "Fe2O3", "name": "iron(III) oxide", "side": "reactant", "coeff": 1 },
+        { "id": "CO", "formula": "CO", "name": "carbon monoxide", "side": "reactant", "coeff": 3 },
+        { "id": "Fe", "formula": "Fe", "name": "iron", "side": "product", "coeff": 2 },
+        { "id": "CO2", "formula": "CO2", "name": "carbon dioxide", "side": "product", "coeff": 3 }
+      ]
+    },
+    {
+      "id": "al_fe2o3_al2o3_fe",
+      "symbol": "2Al + Fe2O3 → Al2O3 + 2Fe",
+      "use_for": ["reacting_masses", "balance_from_masses", "limiting"],
+      "species": [
+        { "id": "Al", "formula": "Al", "name": "aluminium", "side": "reactant", "coeff": 2 },
+        { "id": "Fe2O3", "formula": "Fe2O3", "name": "iron(III) oxide", "side": "reactant", "coeff": 1 },
+        { "id": "Al2O3", "formula": "Al2O3", "name": "aluminium oxide", "side": "product", "coeff": 1 },
+        { "id": "Fe", "formula": "Fe", "name": "iron", "side": "product", "coeff": 2 }
+      ]
+    },
+    {
+      "id": "naoh_h2so4_na2so4_h2o",
+      "symbol": "2NaOH + H2SO4 → Na2SO4 + 2H2O",
+      "use_for": ["reacting_masses", "balance_from_masses", "limiting"],
+      "species": [
+        { "id": "NaOH", "formula": "NaOH", "name": "sodium hydroxide", "side": "reactant", "coeff": 2 },
+        { "id": "H2SO4", "formula": "H2SO4", "name": "sulfuric acid", "side": "reactant", "coeff": 1 },
+        { "id": "Na2SO4", "formula": "Na2SO4", "name": "sodium sulfate", "side": "product", "coeff": 1 },
+        { "id": "H2O", "formula": "H2O", "name": "water", "side": "product", "coeff": 2 }
+      ]
+    },
+    {
+      "id": "zn_cuso4_znso4_cu",
+      "symbol": "Zn + CuSO4 → ZnSO4 + Cu",
+      "use_for": ["reacting_masses", "balance_from_masses", "limiting"],
+      "species": [
+        { "id": "Zn", "formula": "Zn", "name": "zinc", "side": "reactant", "coeff": 1 },
+        { "id": "CuSO4", "formula": "CuSO4", "name": "copper(II) sulfate", "side": "reactant", "coeff": 1 },
+        { "id": "ZnSO4", "formula": "ZnSO4", "name": "zinc sulfate", "side": "product", "coeff": 1 },
+        { "id": "Cu", "formula": "Cu", "name": "copper", "side": "product", "coeff": 1 }
+      ]
+    },
+    {
+      "id": "caco3_hcl_cacl2",
+      "symbol": "CaCO3 + 2HCl → CaCl2 + H2O + CO2",
+      "use_for": ["reacting_masses", "balance_from_masses", "limiting"],
+      "species": [
+        { "id": "CaCO3", "formula": "CaCO3", "name": "calcium carbonate", "side": "reactant", "coeff": 1 },
+        { "id": "HCl", "formula": "HCl", "name": "hydrochloric acid", "side": "reactant", "coeff": 2 },
+        { "id": "CaCl2", "formula": "CaCl2", "name": "calcium chloride", "side": "product", "coeff": 1 },
+        { "id": "H2O", "formula": "H2O", "name": "water", "side": "product", "coeff": 1 },
+        { "id": "CO2", "formula": "CO2", "name": "carbon dioxide", "side": "product", "coeff": 1 }
+      ]
+    }
+  ]
+}
