@@ -3179,7 +3179,7 @@
         <div class="card">
           <h3 style="margin:0 0 4px; color:var(--primary-dark); font-size:1.02rem;">Batch Chemistry Quantitative</h3>
           <p style="color:var(--text-muted); font-size:0.78rem; line-height:1.3; margin:0 0 6px;">
-            RFM &amp; conservation (MCQ + short text), % by mass, concentration (find c / find mass), and equation balancing. No equation sheets.
+            RFM &amp; conservation (MCQ + short text), % by mass, concentration, balancing, moles, reacting masses, limiting reactant, and Avogadro (HT). No equation sheets.
           </p>
 
           <div class="row row-compact" style="gap:6px;align-items:flex-end;flex-wrap:wrap;">
@@ -3192,6 +3192,14 @@
                 <option value="concentration_find_c">Concentration (find c)</option>
                 <option value="concentration_find_m">Concentration (find mass)</option>
                 <option value="balance">Balance equation</option>
+                <option value="moles_find_n">Moles (find n) (HT)</option>
+                <option value="moles_find_m">Moles (find mass) (HT)</option>
+                <option value="reacting_masses">Reacting masses (HT)</option>
+                <option value="balance_from_masses">Balance from masses (HT)</option>
+                <option value="limiting_excess">Limiting reactant (excess given) (HT)</option>
+                <option value="limiting_identify">Limiting reactant (identify) (HT)</option>
+                <option value="avogadro_find_N">Avogadro (find particles) (HT)</option>
+                <option value="avogadro_find_n">Avogadro (find moles) (HT)</option>
               </select>
             </div>
             <div class="field-fit">
@@ -3230,6 +3238,11 @@
             <div class="field-fit">
               <label>Seed</label>
               <input type="number" id="chemQuantSeed" class="input-compact" placeholder="auto" style="width:5rem;" />
+            </div>
+            <div class="field-fit hidden" id="chemQuantSigFigsRow">
+              <label style="display:flex;align-items:center;gap:4px;margin:0;cursor:pointer;font-size:0.76rem;padding-bottom:6px;">
+                <input type="checkbox" id="chemQuantSigFigs" /> 2 significant figures
+              </label>
             </div>
             <div class="field-fit" id="chemQuantEqFormRow">
               <label>Equation form</label>
@@ -4541,7 +4554,7 @@
   import * as AiQuestionDraft from "./src/aiQuestionDraft.js";
   import * as GenerationLogs from "./src/generationLogs.js";
   import * as CsvImport from "./src/csvQuestionImport.js";
-  import { resolveMcqWrongFeedback, MCQ_FLASHCARD_ADDED_MSG, highlightCommandWordsInPrompt, checkKeywordOrSynonymsMatch, getGradableMarkPoints } from "./src/evalEngine.js";
+  import { resolveMcqWrongFeedback, MCQ_FLASHCARD_ADDED_MSG, renderPromptStemHtml, checkKeywordOrSynonymsMatch, getGradableMarkPoints } from "./src/evalEngine.js";
   import { normalizeQuestionTierForDb } from "./src/sciencePath.js";
   import { normalizeQuestionHints, renderHintsPanel } from "./src/uiComponents.js";
 
@@ -7971,8 +7984,32 @@
     const scenario = document.getElementById("chemQuantScenario")?.value || "rfm";
     const eqRow = document.getElementById("chemQuantEqFormRow");
     const balRow = document.getElementById("chemQuantBalanceSubtypeRow");
+    const tierSel = document.getElementById("chemQuantTier");
     if (eqRow) eqRow.classList.toggle("hidden", scenario !== "conservation");
     if (balRow) balRow.classList.toggle("hidden", scenario !== "balance");
+    const htScenarios = new Set([
+      "moles_find_n",
+      "moles_find_m",
+      "reacting_masses",
+      "balance_from_masses",
+      "limiting_excess",
+      "limiting_identify",
+      "avogadro_find_N",
+      "avogadro_find_n"
+    ]);
+    const sigFigsRow = document.getElementById("chemQuantSigFigsRow");
+    if (sigFigsRow) {
+      sigFigsRow.classList.toggle("hidden", scenario !== "avogadro_find_N" && scenario !== "avogadro_find_n");
+    }
+    if (tierSel) {
+      if (htScenarios.has(scenario)) {
+        tierSel.value = "higher";
+        tierSel.disabled = true;
+      } else {
+        tierSel.disabled = false;
+        tierSel.value = "both";
+      }
+    }
   }
 
   function syncChemQuantSpecLinkUi() {
@@ -8228,7 +8265,7 @@
     try {
       let excludeFormulas = [];
       let excludeBalanceKeys = [];
-      if (scenario === "rfm" || scenario === "percent_by_mass") {
+      if (scenario === "rfm" || scenario === "percent_by_mass" || scenario === "moles_find_n" || scenario === "moles_find_m" || scenario === "avogadro_find_N" || scenario === "avogadro_find_n") {
         try {
           excludeFormulas = await ChemQuantGen.loadExcludedFormulas(supabaseClient, scenario);
         } catch (fetchErr) {
@@ -8255,7 +8292,10 @@
         equation_form: eqForm === "mix" ? undefined : eqForm,
         balance_subtype: balanceSubtype || undefined,
         excludeFormulas,
-        excludeBalanceKeys
+        excludeBalanceKeys,
+        sig_figs: (scenario === "avogadro_find_N" || scenario === "avogadro_find_n")
+          && !!document.getElementById("chemQuantSigFigs")?.checked,
+        sig_figs_count: 2
       };
 
       const { drafts, errors, seed: usedSeed } = ChemQuantGen.generateChemBatch(spec);
@@ -8335,6 +8375,9 @@
             spec_point_id: specIds.spec_point_id,
             triple_spec_point_id: audience === "both" ? specIds.triple_spec_point_id : null,
             audience,
+            tier: window.normalizeQuestionTierForDb
+              ? window.normalizeQuestionTierForDb(draft.question.tier)
+              : draft.question.tier,
             difficulty: window.AdminMetadata
               ? window.AdminMetadata.computeQuestionDifficulty(draft.question)
               : (draft.question.difficulty ?? 2)
@@ -12338,7 +12381,7 @@
     let html = `
       <div style="margin-bottom:12px;">
         <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
-          <strong style="font-size:1.05rem;">${highlightCommandWordsInPrompt(q.prompt)}</strong>
+          <div style="font-weight:700;font-size:1.05rem;line-height:1.45;">${renderPromptStemHtml(q.prompt)}</div>
           <span style="background:#e2e8f0; padding:2px 8px; border-radius:4px; font-weight:bold; font-size:0.75rem;">${q.max_marks} marks</span>
         </div>
         ${imgHtml}

@@ -10,10 +10,13 @@
 | Concentration (find c) | Multi-step `numeric` (no equation sheet) | Std 4–5; MS1a, MS1c, MS3c |
 | Concentration (find mass) | Multi-step `numeric` (no equation sheet) | Std 4–5; MS1a, MS1c, MS3c, MS3b |
 | Balancing equations | Keep interactive balancer (`balance_equation`) | WS4.3; ionic/half HT-only (Std 4–5) |
+| Moles (find n / find mass) | 2-step `numeric` (`moles_mass`) | HT Std 4–5; 1 mark substitute into n=m/Mr or m=n×Mr; 1 mark answer; correct final = 2/2; MS1a, MS1c, WS4.3 |
+| Reacting masses | Multi-path `numeric` | HT 3 marks; moles → ratio → mass with ECF; correct final (incl. mass-ratio shortcut) = 3/3 |
+| Balance from masses | `numeric` (`balance_from_masses`) | HT 2 marks: moles of each substance; simplest whole-number coefficients |
+| Limiting reactant (excess given) | Multi-path `numeric` | HT 3 marks: moles of given reactant → ratio → product mass |
+| Limiting reactant (identify) | `numeric` (`limiting_reactant`) | HT 4 marks: moles of both reactants; mole ratio; identify limiting; product mass |
 
 **Hard rule:** Do **not** create chemistry (or biology) equation sheets. Chemistry students recall equations; Batch Numeric / sheet recall stays physics-only.
-
-HT mole calculations are out of scope for this pass.
 
 ## Architecture
 
@@ -25,6 +28,7 @@ flowchart TB
   compounds[data/chemistry/compounds.json]
   reactions[data/chemistry/conservation_reactions.json]
   balanceBank[data/chemistry/balance_equations.json]
+  stoich[data/chemistry/stoichiometry_reactions.json]
   calc[calculationWorkflow.js]
   chemWf[chemistryWorkflow.js]
 
@@ -33,8 +37,9 @@ flowchart TB
   gen --> compounds
   gen --> reactions
   gen --> balanceBank
+  gen --> stoich
   gen -->|"RFM / conservation"| mcqShort[mcq + short_text drafts]
-  gen -->|"% mass / concentration"| calc
+  gen -->|"% mass / concentration / HT calcs"| calc
   gen -->|"balance"| chemWf
 ```
 
@@ -46,13 +51,14 @@ New Admin panel **Batch Chemistry Quantitative** (alongside Batch Numeric), with
 
 - Parse formulas **without brackets** (`H2O`, `CaCO3`, `NH4NO3`, `Na2SO4`).
 - Compute Mr from Ar using shared GCSE Ar table (extract/`export` from [`ELEMENT_DATA`](src/chemistryWorkflow.js) `A` values, including Cl = 35.5).
-- Helpers: `elementMassInCompound(formula, element)`, `percentByMass(formula, element)`, distractor Mr variants (omit multiplier, wrong Ar, off-by-one atom count).
+- Helpers: `elementMassInCompound(formula, element)`, `percentByMass(formula, element)`, `molesFromMass`, `massFromMoles`, `scaleByMoleRatio`, `identifyLimitingReactant`, distractor Mr variants (omit multiplier, wrong Ar, off-by-one atom count).
 
 ### Curated data
 
 - [`data/chemistry/compounds.json`](data/chemistry/compounds.json) — ~25–30 FT compounds, no brackets; each: `formula`, `name`, optional `focus_elements` for % mass.
 - [`data/chemistry/conservation_reactions.json`](data/chemistry/conservation_reactions.json) — word + symbol forms, species list, which masses can be the unknown.
 - [`data/chemistry/balance_equations.json`](data/chemistry/balance_equations.json) — symbol / ionic / half templates + correct coeffs (expand beyond H₂+O₂→H₂O).
+- [`data/chemistry/stoichiometry_reactions.json`](data/chemistry/stoichiometry_reactions.json) — balanced HT reactions with coeffs, names, and `use_for` flags (`reacting_masses`, `balance_from_masses`, `limiting`).
 
 ### Generator module — new [`src/chemistryQuantitativeGenerator.js`](src/chemistryQuantitativeGenerator.js)
 
@@ -237,7 +243,7 @@ Admin concentration controls: recipe toggles for find-c and/or find-m counts; vo
 
 New panel `#panelBatchChemQuant`:
 
-- Scenario: RFM | Conservation | % by mass | Concentration (find c / find mass) | Balance equation
+- Scenario: RFM | Conservation | % by mass | Concentration (find c / find mass) | Balance equation | Moles (find n / find mass) | Avogadro (find particles / find moles) | Reacting masses | Balance from masses | Limiting (excess given / identify)
 - Shared: subject chemistry, paper, tier, track, audience, seed, count, spec-point link
 - Scenario-specific controls (compound count, word vs symbol, focus element, concentration recipe counts + mass/volume/c ranges, balance subtype filter)
 - Preview table → inline edit → commit to Supabase + generation log source `batch_chem_quant`
@@ -252,7 +258,44 @@ New panel `#panelBatchChemQuant`:
 - Concentration find-m: same bands+paths model for mass of solute from c and V (including cm³→dm³ in paths).
 - Balancing batch draft shape; diagram admin no longer lists balance kind.
 - Keep existing balance mark tests in [`tests/chemistryWorkflow.test.js`](tests/chemistryWorkflow.test.js).
+- HT moles: correct final → 2/2; insert-only → 1/2; inverted substitution ECF → 1/2.
+- HT Avogadro: 2/2 without s.f.; 3/3 with 2 s.f.; MS1a/MS1b/MS3a always; MS3b on find moles; MS2a only when 2 s.f. is on.
+- Reacting masses: correct final (incl. shortcut) → 3/3; wrong moles + correct ratio/mass ECF → 2/3.
+- Balance from masses: moles + equivalent coefficients (e.g. 4,2,4) → 2/2.
+- Limiting identify: wrong select does not award identify mark; other steps still mark.
 
-## Out of scope (later HT pass)
+## HT calculation scenarios
 
-Moles, reacting masses, atom economy, gas volumes, titration — scenario enum reserved / comment only.
+All four force `tier: "higher"` and `demand_level: "standard_45"`. No equation sheets (`equation_given: false`).
+
+### Moles ↔ mass (`moles_find_n` / `moles_find_m`)
+
+2 marks. Step 1: substitute into `n = m ÷ Mr` or `m = n × Mr`. Step 2: final value. Correct final awards full marks.
+
+### Avogadro (`avogadro_find_N` / `avogadro_find_n`)
+
+HT only. Uses \(N_A = 6.02 \times 10^{23}\) per mole.
+
+- **Find particles** (`avogadro_find_N`): given moles, find atoms / molecules / ions. Answer in standard form.
+- **Find moles** (`avogadro_find_n`): given particle count, find moles (rearrangement).
+
+2 marks (substitute + calculate). Admin checkbox **2 significant figures** adds a separate 1-mark `sig_figs` step (3 marks total), like physics.
+
+Skills: **MS1a, MS1b, MS3a** on all Avogadro questions; **MS3b** when finding moles; **MS2a** when 2 s.f. is enabled.
+
+### Reacting masses (`reacting_masses`)
+
+3 marks with ECF. Primary path: moles of given → mole ratio → mass of target. Correct final (including mass-ratio shortcut) awards 3.
+
+### Balance from masses (`balance_from_masses`)
+
+2 marks. Mole table from given masses (1), then simplest whole-number coefficients (1). Equivalent scaled coefficients accepted.
+
+### Limiting reactant
+
+- **A** `limiting_excess`: stem names one reactant in excess; 3 marks (moles of given, ratio, product mass).
+- **B** `limiting_identify`: both masses given; 4 marks (moles of both, mole ratio from the equation, identify limiting, product mass). Demand `standard_67` (Std 6–7).
+
+## Still later
+
+Atom economy, gas volumes, titration. Free-text “explain limiting” prose. AQA mark-point wording to be layered onto these scaffolds next.

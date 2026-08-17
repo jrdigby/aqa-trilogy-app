@@ -55,15 +55,26 @@ import {
   slotLabelFromTemplate
 } from "./substitutionTemplate.js";
 
+const CHEM_HT_MARKING_MODES = new Set([
+  "moles_mass",
+  "balance_from_masses",
+  "limiting_reactant"
+]);
+
 const STEP_ORDER = [
   "equation_select",
   "conversion",
   "element_mass",
   "mass_ratio",
+  "insert_values",
+  "mole_table",
+  "mole_ratio",
+  "limiting_select",
   "working_1",
   "working_2",
   "substitution",
   "rearrangement",
+  "balance_coeffs",
   "calculate",
   "sig_figs"
 ];
@@ -75,9 +86,14 @@ const STEP_LABELS = {
     conversion: "Step: Unit conversion",
     element_mass: "Step: Mass of the element in the formula",
     mass_ratio: "Step: Mass of element ÷ relative formula mass",
+    insert_values: "Step: Substitute values into the equation",
+    mole_table: "Step: Calculate moles from the given masses",
+    mole_ratio: "Step: Mole ratio from the equation",
+    limiting_select: "Step: Identify the limiting reactant",
     working_1: "Step: First calculation",
     working_2: "Step: Second calculation",
     rearrangement: "Step: Choose the correct rearranged formula",
+    balance_coeffs: "Step: Balance the equation",
     calculate: "Step: Calculate the final answer",
     sig_figs: "Step: Answer to required significant figures"
   },
@@ -87,9 +103,14 @@ const STEP_LABELS = {
     conversion: "Unit conversion",
     element_mass: "Mass of the element in the formula",
     mass_ratio: "Mass of element ÷ relative formula mass",
+    insert_values: "Substitute values into the equation",
+    mole_table: "Calculate moles from the given masses",
+    mole_ratio: "Mole ratio from the equation",
+    limiting_select: "Identify the limiting reactant",
     working_1: "First calculation",
     working_2: "Second calculation",
     rearrangement: "Rearrange the equation",
+    balance_coeffs: "Balance the equation",
     calculate: "Calculate your answer",
     sig_figs: "Give your answer to the required significant figures"
   }
@@ -161,7 +182,7 @@ export function getCalculationConfig(q) {
 }
 
 export function getActiveSteps(config) {
-  if (config?.marking_mode === "multi_path") {
+  if (config?.marking_mode === "multi_path" || CHEM_HT_MARKING_MODES.has(config?.marking_mode)) {
     return (config.steps || []).filter((s) => s && s.type);
   }
   if (config?.marking_mode === "percent_by_mass") {
@@ -180,6 +201,9 @@ export function computeMaxMarksFromConfig(config) {
     return Number(config.max_marks);
   }
   if (config?.marking_mode === "percent_by_mass" && Number(config.max_marks) > 0) {
+    return Number(config.max_marks);
+  }
+  if (CHEM_HT_MARKING_MODES.has(config?.marking_mode) && Number(config.max_marks) > 0) {
     return Number(config.max_marks);
   }
   return getActiveSteps(config).reduce((sum, s) => sum + (Number(s.marks) || 0), 0);
@@ -1238,6 +1262,7 @@ export function wireStudentEquationSelectPreview(onTypeset, q = null, equationSh
     wireConversionInputListener(refreshRearrangementOnly);
     wireStudentNumericInputPreviews(onTypeset, q);
     wireMultiPathWorkingReveals(q);
+    wireCalculationTabOrder();
     return;
   }
 
@@ -1264,6 +1289,7 @@ export function wireStudentEquationSelectPreview(onTypeset, q = null, equationSh
   wireConversionInputListener(refreshRearrangementOnly);
   wireStudentNumericInputPreviews(onTypeset, q);
   wireMultiPathWorkingReveals(q);
+  wireCalculationTabOrder();
   rerenderStructuredSteps();
 }
 
@@ -1535,6 +1561,11 @@ function getStepLabel(type, presentation, step) {
   if (step?.label && (
     type === "element_mass"
     || type === "mass_ratio"
+    || type === "insert_values"
+    || type === "mole_table"
+    || type === "mole_ratio"
+    || type === "limiting_select"
+    || type === "balance_coeffs"
     || type === "working_1"
     || type === "working_2"
     || type === "calculate"
@@ -1726,6 +1757,12 @@ export function resolveWorkflowDerivedAnswer(config, steps, resp, equationSheet,
 function formatAnswerForFeedback(value) {
   const n = Number(value);
   if (!Number.isFinite(n)) return String(value ?? "");
+  const abs = Math.abs(n);
+  if (abs >= 1e4 || (abs > 0 && abs < 1e-3)) {
+    const exp = Math.floor(Math.log10(abs));
+    const mant = n / (10 ** exp);
+    return `${parseFloat(mant.toPrecision(4))} × 10^${exp}`;
+  }
   if (Number.isInteger(n)) return String(n);
   return String(parseFloat(n.toPrecision(6)));
 }
@@ -1766,16 +1803,154 @@ function inputStyle() {
   return "padding:6px; font-size:0.85rem; border-radius:4px; border:1px solid #cbd5e1; box-sizing:border-box;";
 }
 
-function renderNumericInputField(id, { requiresStandardForm = false, placeholder = null } = {}) {
-  const ph = placeholder || numericInputPlaceholder(requiresStandardForm);
+function renderInsertValuesStep(numberedLabel, step) {
+  const lhs = escapeHtml(step.lhs || (step.op === "mul" ? "m" : "n"));
+  const useSf = !!step.standard_form;
+  const bare = { placeholder: "", hidePreview: !useSf, requiresStandardForm: useSf };
+  const labelHtml = `<label style="display:block;font-size:0.82rem;font-weight:700;margin-bottom:8px;">${renderStepLabel(numberedLabel, step)}</label>`;
+  if (step.op === "div") {
+    return `
+    <div class="calc-step" data-step="insert_values" style="margin-bottom:12px;">
+      ${labelHtml}
+      <div style="display:inline-flex;align-items:center;gap:12px;">
+        <span style="font-weight:700;color:#334155;">${lhs} =</span>
+        <div style="display:inline-flex;flex-direction:column;align-items:stretch;min-width:8rem;">
+          ${renderNumericInputField("calc_insert_left", bare)}
+          <div aria-hidden="true" style="border-top:2px solid #334155;margin:6px 0;"></div>
+          ${renderNumericInputField("calc_insert_right", bare)}
+        </div>
+      </div>
+    </div>`;
+  }
+  return `
+    <div class="calc-step" data-step="insert_values" style="margin-bottom:12px;">
+      ${labelHtml}
+      <div style="display:inline-flex;align-items:center;gap:8px;flex-wrap:nowrap;">
+        <span style="font-weight:700;color:#334155;line-height:1;">${lhs} =</span>
+        ${renderNumericInputField("calc_insert_left", bare)}
+        <span style="font-weight:700;color:#475569;line-height:1;font-size:1.1rem;">×</span>
+        ${renderNumericInputField("calc_insert_right", bare)}
+      </div>
+    </div>`;
+}
+
+function renderMoleTableStep(numberedLabel, step) {
+  const rows = (step.species || []).map((sp, i) => {
+    const label = escapeHtml(sp.name ? `${sp.name} (${sp.formula})` : (sp.formula || sp.id || `species ${i + 1}`));
+    return `
+      <tr>
+        <td style="padding:4px 10px 4px 0;font-size:0.85rem;">${label}</td>
+        <td style="padding:4px 0;">${renderNumericInputField(`calc_mole_table_${i}`, { placeholder: "mol" })}</td>
+      </tr>`;
+  }).join("");
+  return `
+    <div class="calc-step" data-step="mole_table" style="margin-bottom:12px;">
+      <label style="display:block;font-size:0.82rem;font-weight:700;margin-bottom:4px;">${renderStepLabel(numberedLabel, step)}:</label>
+      <table style="border-collapse:collapse;">
+        <thead>
+          <tr>
+            <th style="text-align:left;font-size:0.75rem;color:#64748b;font-weight:600;padding:0 10px 4px 0;">Substance</th>
+            <th style="text-align:left;font-size:0.75rem;color:#64748b;font-weight:600;padding:0 0 4px;">Moles</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderMoleRatioStep(numberedLabel, step) {
+  const leftLabel = escapeHtml(
+    step.left?.name ? `${step.left.name} (${step.left.formula})` : (step.left?.formula || "A")
+  );
+  const rightLabel = escapeHtml(
+    step.right?.name ? `${step.right.name} (${step.right.formula})` : (step.right?.formula || "B")
+  );
+  const col = (label, inputId) => `
+    <div style="display:flex;flex-direction:column;align-items:center;gap:6px;min-width:7.5rem;">
+      <span style="font-size:0.82rem;font-weight:700;text-align:center;line-height:1.25;">${label}</span>
+      ${renderNumericInputField(inputId, { placeholder: "", hidePreview: true })}
+    </div>`;
+  return `
+    <div class="calc-step" data-step="mole_ratio" style="margin-bottom:12px;">
+      <label style="display:block;font-size:0.82rem;font-weight:700;margin-bottom:8px;">${renderStepLabel(numberedLabel, step)}:</label>
+      <div style="display:inline-flex;align-items:flex-end;gap:14px;">
+        ${col(leftLabel, "calc_mole_ratio_left")}
+        <span style="font-weight:800;font-size:1.45rem;color:#334155;line-height:2.2rem;padding-bottom:2px;">:</span>
+        ${col(rightLabel, "calc_mole_ratio_right")}
+      </div>
+    </div>
+  `;
+}
+
+function renderLimitingSelectStep(numberedLabel, step) {
+  const options = (step.options || []).map((opt) => {
+    const id = escapeHtml(opt.id);
+    const label = escapeHtml(opt.label || opt.name || opt.id);
+    return `
+      <label style="display:flex;align-items:center;gap:6px;font-size:0.9rem;margin-right:12px;">
+        <input type="radio" name="calc_limiting_select" value="${id}" />
+        <span>${label}</span>
+      </label>`;
+  }).join("");
+  return `
+    <div class="calc-step" data-step="limiting_select" style="margin-bottom:12px;">
+      <label style="display:block;font-size:0.82rem;font-weight:700;margin-bottom:4px;">${renderStepLabel(numberedLabel, step)}:</label>
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;">${options}</div>
+    </div>
+  `;
+}
+
+function renderBalanceCoeffsStep(numberedLabel, step) {
+  const species = step.species || [];
+  const coeffStyle = "width:2.4rem;min-width:2.4rem;padding:4px;border:2px solid #2563eb;border-radius:4px;text-align:center;font-weight:700;font-size:0.95rem;";
+  const parts = [];
+  species.forEach((sp, i) => {
+    const prev = species[i - 1];
+    if (i > 0 && prev && stoichSide(sp) !== stoichSide(prev)) {
+      parts.push(`<span style="font-weight:700;padding:0 6px;">→</span>`);
+    } else if (i > 0) {
+      parts.push(`<span style="font-weight:700;padding:0 6px;">+</span>`);
+    }
+    const formula = escapeHtml(sp.formula || sp.id || "");
+    parts.push(`
+      <span style="display:inline-flex;align-items:center;gap:4px;white-space:nowrap;">
+        <input id="calc_coeff_${i}" type="text" inputmode="numeric" class="calc-numeric-input" data-preview-for="calc_coeff_${i}_preview"
+          placeholder="1" aria-label="Coefficient for ${formula}"
+          style="${coeffStyle}" />
+        <span style="font-weight:700;">${formula}</span>
+      </span>
+    `);
+  });
+  return `
+    <div class="calc-step" data-step="balance_coeffs" style="margin-bottom:12px;">
+      <label style="display:block;font-size:0.82rem;font-weight:700;margin-bottom:4px;">${renderStepLabel(numberedLabel, step)}:</label>
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:4px;font-size:1.05rem;">${parts.join("")}</div>
+    </div>
+  `;
+}
+
+function stoichSide(sp) {
+  const s = String(sp?.side || "");
+  if (s === "left" || s === "reactant") return "left";
+  return "right";
+}
+
+function renderNumericInputField(id, { requiresStandardForm = false, placeholder = null, hidePreview = false } = {}) {
+  const ph = placeholder === "" || placeholder === false
+    ? ""
+    : (placeholder != null ? placeholder : numericInputPlaceholder(requiresStandardForm));
+  const preview = hidePreview
+    ? ""
+    : `<span id="${id}_preview" class="calc-numeric-preview" aria-live="polite" tabindex="-1"
+        style="font-size:0.82rem;color:#64748b;min-height:1.15em;padding:0 2px;min-width:100%;width:max-content;max-width:32ch;overflow:visible;white-space:nowrap;line-height:1.3;"></span>`;
   return `
     <div class="calc-numeric-input-wrap" style="display:inline-flex;flex-direction:column;align-items:flex-start;gap:2px;">
       <input id="${id}" type="text" inputmode="decimal" autocomplete="off" spellcheck="false"
-        class="calc-numeric-input" data-preview-for="${id}_preview"
+        class="calc-numeric-input" ${hidePreview ? "" : `data-preview-for="${id}_preview"`}
         placeholder="${escapeHtml(ph)}"
         style="${studentNumericInputStyle(inputStyle())}"/>
-      <span id="${id}_preview" class="calc-numeric-preview" aria-live="polite"
-        style="font-size:0.82rem;color:#64748b;min-height:1.15em;padding:0 2px;min-width:100%;width:max-content;max-width:32ch;overflow:visible;white-space:nowrap;line-height:1.3;"></span>
+      ${preview}
     </div>
   `;
 }
@@ -1790,10 +1965,12 @@ function updateNumericPreview(inputEl, previewEl, onTypeset) {
   }
   previewEl.innerHTML = `$${latex}$`;
   onTypeset?.(previewEl);
+  previewEl.setAttribute("tabindex", "-1");
   const normalizeMjx = () => {
     previewEl.querySelectorAll("mjx-container").forEach((el) => {
       el.style.overflow = "visible";
       el.style.maxWidth = "none";
+      el.setAttribute("tabindex", "-1");
     });
   };
   setTimeout(normalizeMjx, 100);
@@ -1821,6 +1998,70 @@ export function wireStudentNumericInputPreviews(onTypeset, q = null) {
     input.addEventListener("input", refresh);
     refresh();
   }
+}
+
+function calculationTabStops(root) {
+  const scope = root || document;
+  const nodes = [...scope.querySelectorAll(
+    "input.calc-numeric-input, input.calc-sub-slot, #calc_equation_select, #calc_rearrangement, input[name='calc_limiting_select']"
+  )];
+  const seenRadio = new Set();
+  const stops = [];
+  for (const el of nodes) {
+    if (el.disabled || el.getAttribute("tabindex") === "-1") continue;
+    if (el.type === "radio") {
+      if (seenRadio.has(el.name)) continue;
+      seenRadio.add(el.name);
+      const checked = scope.querySelector(`input[type="radio"][name="${el.name}"]:checked`);
+      stops.push(checked || el);
+      continue;
+    }
+    stops.push(el);
+  }
+  return stops;
+}
+
+/** Tab / Shift+Tab walks calculation inputs in visual order, skipping MathJax previews. */
+export function wireCalculationTabOrder() {
+  const root = document.querySelector(".calc-workflow-panel")
+    || document.getElementById("sandboxStage")
+    || document.getElementById("questionStage");
+  if (!root) return;
+
+  if (root._calcTabHandler) {
+    root.removeEventListener("keydown", root._calcTabHandler);
+  }
+  root._calcTabHandler = (e) => {
+    if (e.key !== "Tab") return;
+    const stops = calculationTabStops(root);
+    if (stops.length < 2) return;
+    const active = document.activeElement;
+    let idx = stops.indexOf(active);
+    if (idx < 0) {
+      const wrap = active?.closest?.(".calc-numeric-input-wrap, .calc-step, .calc-eq-term");
+      const nested = wrap ? stops.find((el) => wrap.contains(el)) : null;
+      idx = nested ? stops.indexOf(nested) : -1;
+    }
+    if (idx < 0) return;
+    if (e.shiftKey) {
+      if (idx <= 0) return;
+      e.preventDefault();
+      const prev = stops[idx - 1];
+      prev?.focus();
+      if (typeof prev?.select === "function") prev.select();
+      return;
+    }
+    if (idx >= stops.length - 1) return;
+    e.preventDefault();
+    const next = stops[idx + 1];
+    next?.focus();
+    if (typeof next?.select === "function") next.select();
+  };
+  root.addEventListener("keydown", root._calcTabHandler);
+
+  root.querySelectorAll(".calc-numeric-preview, mjx-container").forEach((el) => {
+    el.setAttribute("tabindex", "-1");
+  });
 }
 
 /**
@@ -1925,7 +2166,9 @@ export function renderCalculationWorkflow(q, currentKey, presentation = "practic
     : "Calculation steps";
 
   let html = renderEquationSheetPanel(config, equationSheet, presentation);
-  const formatHelper = renderStandardFormInputHelper({ requiresStandardForm });
+  const formatHelper = (config.marking_mode === "moles_mass" && !requiresStandardForm)
+    ? ""
+    : renderStandardFormInputHelper({ requiresStandardForm });
 
   if (hasMultiStep) {
     html += `<div class="calc-workflow-panel item" style="border:1px solid #e2e8f0;padding:15px;border-radius:8px;background:#f8fafc;margin-top:12px;">`;
@@ -1994,12 +2237,22 @@ export function renderCalculationWorkflow(q, currentKey, presentation = "practic
           </div>
         </div>
       `;
+    } else if (step.type === "insert_values") {
+      html += renderInsertValuesStep(numberedLabel, step);
+    } else if (step.type === "mole_table") {
+      html += renderMoleTableStep(numberedLabel, step);
+    } else if (step.type === "mole_ratio") {
+      html += renderMoleRatioStep(numberedLabel, step);
+    } else if (step.type === "limiting_select") {
+      html += renderLimitingSelectStep(numberedLabel, step);
+    } else if (step.type === "balance_coeffs") {
+      html += renderBalanceCoeffsStep(numberedLabel, step);
     } else if (step.type === "working_1") {
       html += `
         <div class="calc-step" data-step="working_1" style="margin-bottom:12px;">
           <label style="display:block;font-size:0.82rem;font-weight:700;margin-bottom:4px;">${renderStepLabel(numberedLabel, step)}:</label>
           <div style="display:inline-flex;align-items:center;gap:10px;flex-wrap:wrap;">
-            ${renderNumericInputField("calc_working_1", { placeholder: step.placeholder || "e.g. 0.2" })}
+            ${renderNumericInputField("calc_working_1", { placeholder: step.placeholder != null ? step.placeholder : "e.g. 0.2" })}
             <span class="calc-step-carry" id="calc_working_1_carry" aria-live="polite"
               style="font-size:0.9rem;font-weight:700;color:#0f766e;min-height:1.2em;"></span>
           </div>
@@ -2010,7 +2263,7 @@ export function renderCalculationWorkflow(q, currentKey, presentation = "practic
         <div class="calc-step" data-step="working_2" style="margin-bottom:12px;">
           <label style="display:block;font-size:0.82rem;font-weight:700;margin-bottom:4px;">${renderStepLabel(numberedLabel, step)}:</label>
           <div style="display:inline-flex;align-items:center;gap:10px;flex-wrap:wrap;">
-            ${renderNumericInputField("calc_working_2", { placeholder: step.placeholder || "e.g. 12.8/0.2 or 64" })}
+            ${renderNumericInputField("calc_working_2", { placeholder: step.placeholder != null ? step.placeholder : "e.g. 12.8/0.2 or 64" })}
             <span class="calc-step-carry" id="calc_working_2_carry" aria-live="polite"
               style="font-size:0.9rem;font-weight:700;color:#0f766e;min-height:1.2em;"></span>
           </div>
@@ -2082,7 +2335,8 @@ export function renderCalculationWorkflow(q, currentKey, presentation = "practic
     }
   }
 
-  if (!steps.some((s) => s.type === "calculate")) {
+  const skipCalculateFallback = config.marking_mode === "balance_from_masses";
+  if (!steps.some((s) => s.type === "calculate") && !skipCalculateFallback) {
     html += `
       <div class="calc-step" data-step="calculate">
         <label style="display:block;font-size:0.82rem;font-weight:700;margin-bottom:4px;">${escapeHtml(getStepLabel("calculate", presentation))}${standardFormNote}:</label>
@@ -2170,6 +2424,44 @@ export function collectCalculationResponse(q, sessionMode, equationSheet = null,
       const den = readNumericInput("calc_mass_ratio_den");
       stepValues.mass_ratio = { numerator: num.value, denominator: den.value };
       stepRaw.mass_ratio = { numerator: num.raw, denominator: den.raw };
+    } else if (step.type === "insert_values") {
+      const left = readNumericInput("calc_insert_left");
+      const right = readNumericInput("calc_insert_right");
+      stepValues.insert_values = { left: left.value, right: right.value };
+      stepRaw.insert_values = { left: left.raw, right: right.raw };
+    } else if (step.type === "mole_table") {
+      const species = step.species || [];
+      const values = {};
+      const raw = {};
+      species.forEach((sp, i) => {
+        const read = readNumericInput(`calc_mole_table_${i}`);
+        const key = sp.id || sp.formula || String(i);
+        values[key] = read.value;
+        raw[key] = read.raw;
+      });
+      stepValues.mole_table = values;
+      stepRaw.mole_table = raw;
+    } else if (step.type === "mole_ratio") {
+      const left = readNumericInput("calc_mole_ratio_left");
+      const right = readNumericInput("calc_mole_ratio_right");
+      stepValues.mole_ratio = { left: left.value, right: right.value };
+      stepRaw.mole_ratio = { left: left.raw, right: right.raw };
+    } else if (step.type === "limiting_select") {
+      const chosen = document.querySelector('input[name="calc_limiting_select"]:checked');
+      stepValues.limiting_select = chosen ? chosen.value : "";
+    } else if (step.type === "balance_coeffs") {
+      const species = step.species || [];
+      stepValues.balance_coeffs = species.map((_, i) => {
+        const el = document.getElementById(`calc_coeff_${i}`);
+        const raw = el ? el.value.trim() : "";
+        if (raw === "") return null;
+        const parsed = parseStudentNumber(raw);
+        return parsed.valid ? parsed.value : null;
+      });
+      stepRaw.balance_coeffs = species.map((_, i) => {
+        const el = document.getElementById(`calc_coeff_${i}`);
+        return el ? el.value.trim() : "";
+      });
     } else if (step.type === "working_1") {
       const w = readNumericInput("calc_working_1");
       stepValues.working_1 = coerceWorkingNumeric(w.value, w.raw);
@@ -2230,6 +2522,36 @@ export function validateCalculationResponse(q, resp, sessionMode) {
       if (num == null || den == null || (rawNum && !isValidStudentNumber(rawNum)) || (rawDen && !isValidStudentNumber(rawDen))) {
         missing.push(getStepLabel(step.type, presentation, step));
       }
+    } else if (step.type === "insert_values") {
+      const left = val?.left;
+      const right = val?.right;
+      const rawLeft = raw?.left ?? "";
+      const rawRight = raw?.right ?? "";
+      if (left == null || right == null || (rawLeft && !isValidStudentNumber(rawLeft)) || (rawRight && !isValidStudentNumber(rawRight))) {
+        missing.push(getStepLabel(step.type, presentation, step));
+      }
+    } else if (step.type === "mole_table") {
+      const species = step.species || [];
+      const incomplete = species.some((sp, i) => {
+        const key = sp.id || sp.formula || String(i);
+        const v = val?.[key];
+        const r = raw?.[key] ?? "";
+        return v == null || v === "" || (r && !isValidStudentNumber(r));
+      });
+      if (incomplete) missing.push(getStepLabel(step.type, presentation, step));
+    } else if (step.type === "mole_ratio") {
+      const left = val?.left;
+      const right = val?.right;
+      if (left == null || right == null) {
+        missing.push(getStepLabel(step.type, presentation, step));
+      }
+    } else if (step.type === "limiting_select") {
+      if (!val) missing.push(getStepLabel(step.type, presentation, step));
+    } else if (step.type === "balance_coeffs") {
+      // empty coefficient means 1 — only require the step if nothing was touched and exam mode
+      const rawList = Array.isArray(raw) ? raw : [];
+      const anyEntered = rawList.some((r) => String(r || "").trim() !== "");
+      if (!anyEntered) missing.push(getStepLabel(step.type, presentation, step));
     } else if (step.type === "sig_figs" && usesSeparateSigFigsBox(step)) {
       if (val == null || val === "" || (raw && !isValidStudentNumber(raw))) {
         missing.push(getStepLabel(step.type, presentation, step));
@@ -2586,9 +2908,10 @@ function scoreMultiPathWorking(path, workingValues, tol = 0.05) {
     }
     if (ok) {
       earned += marks;
-      resolved[step.id] = coerceWorkingNumeric(studentVal, studentVal);
       stepOk[step.id] = true;
     }
+    const coerced = coerceWorkingNumeric(studentVal, studentVal);
+    if (coerced != null) resolved[step.id] = coerced;
   }
   return { earned, max, pathId: path.id, stepOk };
 }
@@ -2822,6 +3145,407 @@ export function markPercentByMassResponse(q, resp, key, markPoints, cleanUrl, co
   return { total, max, ao, maxAo, missing, quality, stepResults };
 }
 
+function insertValuesMatch(student, step, tol) {
+  const left = parseFloat(student?.left);
+  const right = parseFloat(student?.right);
+  const expL = parseFloat(step.left?.value);
+  const expR = parseFloat(step.right?.value);
+  if (!Number.isFinite(left) || !Number.isFinite(right)) return false;
+  if (valuesMatchNumeric(left, expL, tol) && valuesMatchNumeric(right, expR, tol)) return true;
+  if (step.op === "mul" && valuesMatchNumeric(left, expR, tol) && valuesMatchNumeric(right, expL, tol)) {
+    return true;
+  }
+  return false;
+}
+
+function insertValuesProduct(student, step) {
+  const left = parseFloat(student?.left);
+  const right = parseFloat(student?.right);
+  if (!Number.isFinite(left) || !Number.isFinite(right) || right === 0 && step.op === "div") return null;
+  return step.op === "mul" ? left * right : left / right;
+}
+
+/**
+ * Moles ↔ mass and Avogadro: 1 mark for substituting, 1 mark for the correct
+ * final. Correct final alone awards both calculation marks. Optional 2 s.f.
+ * step is marked separately (MS2a).
+ */
+export function markMolesMassResponse(q, resp, key, markPoints, cleanUrl, config) {
+  const steps = getActiveSteps(config);
+  const max = Number(config.max_marks) || Number(q.max_marks) || 2;
+  const ao = { AO1: 0, AO2: 0, AO3: 0 };
+  const maxAo = { AO1: 0, AO2: max, AO3: 0 };
+  const missing = [];
+  const stepResults = {};
+  const ansTol = parseFloat(key?.key_payload?.tolerance ?? 0.05);
+  const insertStep = steps.find((s) => s.type === "insert_values");
+  const calcStep = steps.find((s) => s.type === "calculate");
+  const sigStep = steps.find((s) => s.type === "sig_figs");
+  const expected = parseFloat(key?.key_payload?.exact_answer ?? key?.key_payload?.answer ?? config.answer);
+  const studentFinal = resp?.steps?.calculate ?? resp?.value;
+  const insertOk = insertStep ? insertValuesMatch(resp?.steps?.insert_values, insertStep, ansTol) : false;
+  const valueExact = valuesMatchNumeric(studentFinal, expected, ansTol);
+  const sfFail = standardFormPresentationFails(q, resp);
+  const exactFinal = valueExact && !sfFail;
+  const ecfFromInsert = insertValuesProduct(resp?.steps?.insert_values, insertStep);
+  const ecfFinal = !exactFinal && !insertOk && ecfFromInsert != null
+    && valuesMatchNumeric(studentFinal, ecfFromInsert, ansTol)
+    && !sfFail;
+
+  let total = 0;
+  if (insertStep) {
+    const marks = Number(insertStep.marks) || 1;
+    const earned = (insertOk || valueExact) ? marks : 0;
+    total += earned;
+    if (!insertOk && !valueExact) {
+      missing.push({
+        ao: "AO2",
+        stepType: "insert_values",
+        text: getStepFeedback(
+          insertStep,
+          markPoints,
+          "insert_values",
+          `Substitute ${formatAnswerForFeedback(insertStep.left?.value)} and ${formatAnswerForFeedback(insertStep.right?.value)}.`
+        ),
+        url: cleanUrl
+      });
+    }
+    stepResults.insert_values = {
+      earned,
+      max: marks,
+      correct: insertOk,
+      ecf: !insertOk && valueExact,
+      enforceOnFinal: false
+    };
+  }
+
+  if (calcStep) {
+    const marks = Number(calcStep.marks) || 1;
+    let earned = 0;
+    let isEcf = false;
+    if (exactFinal) {
+      earned = marks;
+    } else if (ecfFinal) {
+      earned = marks;
+      isEcf = true;
+      missing.push({
+        ao: "AO2",
+        stepType: "calculate",
+        text: "Error carried forward from substituted values.",
+        isEcf: true,
+        url: cleanUrl
+      });
+    } else if (valueExact && sfFail) {
+      missing.push(buildStandardFormMissing("AO2", cleanUrl, markPoints, calcStep));
+    } else {
+      missing.push({
+        ao: "AO2",
+        stepType: "calculate",
+        text: getStepFeedback(
+          calcStep,
+          markPoints,
+          "calculate",
+          `Expected ${formatAnswerForFeedback(expected)}${config.unit ? ` ${config.unit}` : ""}.`
+        ),
+        url: cleanUrl
+      });
+    }
+    total += earned;
+    stepResults.calculate = {
+      earned,
+      max: marks,
+      correct: exactFinal,
+      ecf: isEcf,
+      enforceOnFinal: false
+    };
+  }
+
+  if (sigStep && Number(sigStep.marks) > 0) {
+    const marks = Number(sigStep.marks) || 1;
+    const calcNum = parseFloat(studentFinal);
+    const sigTarget = Number.isFinite(calcNum) ? calcNum : expected;
+    const sigValue = resp?.steps?.sig_figs;
+    const sigRaw = resp?.stepRaw?.sig_figs ?? "";
+    const sigOk = sigValue != null && sigValue !== ""
+      && matchesSigFigs(sigRaw || sigValue, sigTarget, sigStep.sig_figs, ansTol, { requireSigFigCount: true });
+    const earned = sigOk ? marks : 0;
+    total += earned;
+    if (!sigOk) {
+      const sigRounded = roundToSigFigs(sigTarget, sigStep.sig_figs);
+      const sigEcfNote = Number.isFinite(calcNum) && !exactFinal ? " based on your calculated value" : "";
+      missing.push({
+        ao: "AO2",
+        stepType: "sig_figs",
+        text: getStepFeedback(
+          sigStep,
+          markPoints,
+          "sig_figs",
+          `Significant figures: expected ${formatAnswerForFeedback(sigRounded)} (${sigStep.sig_figs} s.f.)${sigEcfNote}.`
+        ),
+        url: cleanUrl
+      });
+    }
+    stepResults.sig_figs = {
+      earned,
+      max: marks,
+      correct: sigOk,
+      ecf: sigOk && !exactFinal && Number.isFinite(calcNum),
+      enforceOnFinal: true
+    };
+  }
+
+  total = Math.min(max, total);
+  ao.AO2 = total;
+  const quality = total === max && max > 0 ? 5 : total > 0 ? 3 : 1;
+  return { total, max, ao, maxAo, missing, quality, stepResults };
+}
+
+function gcdInt(a, b) {
+  let x = Math.abs(Math.round(a));
+  let y = Math.abs(Math.round(b));
+  while (y) {
+    const t = y;
+    y = x % y;
+    x = t;
+  }
+  return x || 1;
+}
+
+function impliedWholeCoeff(value) {
+  if (value == null || value === "") return 1;
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  const r = Math.round(n);
+  if (Math.abs(n - r) > 1e-6) return null;
+  return r;
+}
+
+function normalizeWholeCoeffs(arr) {
+  const nums = (arr || []).map(impliedWholeCoeff);
+  if (nums.some((n) => n == null)) return null;
+  const g = nums.reduce((a, b) => gcdInt(a, b), nums[0]);
+  return nums.map((n) => n / g);
+}
+
+function coeffsMatchNormalized(student, target) {
+  const a = normalizeWholeCoeffs(student);
+  const b = normalizeWholeCoeffs(target);
+  if (!a || !b || a.length !== b.length) return false;
+  return a.every((n, i) => n === b[i]);
+}
+
+function ratiosEquivalent(a1, b1, a2, b2) {
+  const x1 = Number(a1);
+  const y1 = Number(b1);
+  const x2 = Number(a2);
+  const y2 = Number(b2);
+  if (![x1, y1, x2, y2].every(Number.isFinite) || y1 === 0 || y2 === 0) return false;
+  return Math.abs(x1 * y2 - y1 * x2) <= 1e-6 * Math.max(1, Math.abs(x1 * y2), Math.abs(y1 * x2));
+}
+
+/**
+ * Balance from masses: 1 mark for moles of each species, 1 mark for simplest whole-number coefficients.
+ */
+export function markBalanceFromMassesResponse(q, resp, key, markPoints, cleanUrl, config) {
+  const steps = getActiveSteps(config);
+  const max = Number(config.max_marks) || Number(q.max_marks) || 2;
+  const ao = { AO1: 0, AO2: 0, AO3: 0 };
+  const maxAo = { AO1: 0, AO2: max, AO3: 0 };
+  const missing = [];
+  const stepResults = {};
+  const ansTol = parseFloat(key?.key_payload?.tolerance ?? 0.05);
+  let total = 0;
+
+  for (const step of steps) {
+    const marks = Number(step.marks) || 1;
+    let earned = 0;
+    let isCorrect = false;
+
+    if (step.type === "mole_table") {
+      const student = resp?.steps?.mole_table || {};
+      const allOk = (step.species || []).every((sp, i) => {
+        const keyId = sp.id || sp.formula || String(i);
+        return valuesMatchNumeric(student[keyId], sp.answer, ansTol);
+      });
+      isCorrect = allOk;
+      earned = allOk ? marks : 0;
+      if (!allOk) {
+        const expected = (step.species || [])
+          .map((sp) => `${sp.formula}: ${formatAnswerForFeedback(sp.answer)}`)
+          .join(", ");
+        missing.push({
+          ao: "AO2",
+          stepType: "mole_table",
+          text: getStepFeedback(step, markPoints, "mole_table", `Expected moles: ${expected}.`),
+          url: cleanUrl
+        });
+      }
+    } else if (step.type === "balance_coeffs") {
+      const student = resp?.steps?.balance_coeffs || [];
+      isCorrect = coeffsMatchNormalized(student, step.coeffs);
+      earned = isCorrect ? marks : 0;
+      if (!isCorrect) {
+        missing.push({
+          ao: "AO2",
+          stepType: "balance_coeffs",
+          text: getStepFeedback(
+            step,
+            markPoints,
+            "balance_coeffs",
+            `Expected coefficients: [${(step.coeffs || []).join(", ")}].`
+          ),
+          url: cleanUrl
+        });
+      }
+    }
+
+    total += earned;
+    if (earned > 0) ao.AO2 += earned;
+    stepResults[step.type] = { earned, max: marks, correct: isCorrect, ecf: false, enforceOnFinal: false };
+  }
+
+  total = Math.min(max, total);
+  ao.AO2 = total;
+  const quality = total === max && max > 0 ? 5 : total > 0 ? 3 : 1;
+  return { total, max, ao, maxAo, missing, quality, stepResults };
+}
+
+/**
+ * Limiting reactant (identify): moles of both reactants, mole ratio, identify limiting, product mass.
+ * Correct product mass awards the calculate mark (and full 4 if all prior steps also correct).
+ * Product mass ECF from student moles of the true limiting reactant.
+ */
+export function markLimitingReactantResponse(q, resp, key, markPoints, cleanUrl, config) {
+  const steps = getActiveSteps(config);
+  const max = Number(config.max_marks) || Number(q.max_marks) || 4;
+  const ao = { AO1: 0, AO2: 0, AO3: 0 };
+  const maxAo = { AO1: 0, AO2: max, AO3: 0 };
+  const missing = [];
+  const stepResults = {};
+  const ansTol = parseFloat(key?.key_payload?.tolerance ?? 0.05);
+  const expectedMass = parseFloat(key?.key_payload?.exact_answer ?? key?.key_payload?.answer ?? config.answer);
+  let total = 0;
+
+  const moleStep = steps.find((s) => s.type === "mole_table");
+  const studentMoles = resp?.steps?.mole_table || {};
+  let limitingMolesStudent = null;
+  const limitingId = config.limiting_id;
+  if (moleStep && limitingId) {
+    const sp = (moleStep.species || []).find((s) => s.id === limitingId);
+    const keyId = sp?.id || limitingId;
+    const v = parseFloat(studentMoles[keyId]);
+    if (Number.isFinite(v)) limitingMolesStudent = v;
+  }
+
+  for (const step of steps) {
+    const marks = Number(step.marks) || 1;
+    let earned = 0;
+    let isCorrect = false;
+    let isEcf = false;
+
+    if (step.type === "mole_table") {
+      const allOk = (step.species || []).every((sp, i) => {
+        const keyId = sp.id || sp.formula || String(i);
+        return valuesMatchNumeric(studentMoles[keyId], sp.answer, ansTol);
+      });
+      isCorrect = allOk;
+      earned = allOk ? marks : 0;
+      if (!allOk) {
+        const expected = (step.species || [])
+          .map((sp) => `${sp.formula}: ${formatAnswerForFeedback(sp.answer)}`)
+          .join(", ");
+        missing.push({
+          ao: "AO2",
+          stepType: "mole_table",
+          text: getStepFeedback(step, markPoints, "mole_table", `Expected moles: ${expected}.`),
+          url: cleanUrl
+        });
+      }
+    } else if (step.type === "mole_ratio") {
+      const student = resp?.steps?.mole_ratio || {};
+      isCorrect = ratiosEquivalent(student.left, student.right, step.left?.value, step.right?.value);
+      earned = isCorrect ? marks : 0;
+      if (!isCorrect) {
+        missing.push({
+          ao: "AO2",
+          stepType: "mole_ratio",
+          text: getStepFeedback(
+            step,
+            markPoints,
+            "mole_ratio",
+            `Expected ${formatAnswerForFeedback(step.left?.value)} : ${formatAnswerForFeedback(step.right?.value)}.`
+          ),
+          url: cleanUrl
+        });
+      }
+    } else if (step.type === "limiting_select") {
+      const chosen = String(resp?.steps?.limiting_select || "");
+      isCorrect = chosen === String(step.answer);
+      earned = isCorrect ? marks : 0;
+      if (!isCorrect) {
+        const label = (step.options || []).find((o) => o.id === step.answer)?.label || step.answer;
+        missing.push({
+          ao: "AO2",
+          stepType: "limiting_select",
+          text: getStepFeedback(step, markPoints, "limiting_select", `Limiting reactant: ${label}.`),
+          url: cleanUrl
+        });
+      }
+    } else if (step.type === "calculate") {
+      const studentVal = resp?.steps?.calculate ?? resp?.value;
+      const exactOk = valuesMatchNumeric(studentVal, expectedMass, ansTol);
+      const ratio = Number(config.product_coeff) / Number(config.limiting_coeff || 1);
+      const mrP = Number(config.product_mr);
+      const ecfMass = limitingMolesStudent != null && Number.isFinite(ratio) && Number.isFinite(mrP)
+        ? limitingMolesStudent * ratio * mrP
+        : null;
+      const molesOk = moleStep && (stepResults.mole_table?.correct);
+      if (exactOk) {
+        isCorrect = true;
+        earned = marks;
+      } else if (!molesOk && ecfMass != null && valuesMatchNumeric(studentVal, ecfMass, ansTol)) {
+        isCorrect = true;
+        isEcf = true;
+        earned = marks;
+        missing.push({
+          ao: "AO2",
+          stepType: "calculate",
+          text: "Error carried forward from moles of the limiting reactant.",
+          isEcf: true,
+          url: cleanUrl
+        });
+      } else {
+        missing.push({
+          ao: "AO2",
+          stepType: "calculate",
+          text: getStepFeedback(
+            step,
+            markPoints,
+            "calculate",
+            `Expected ${formatAnswerForFeedback(expectedMass)} g.`
+          ),
+          url: cleanUrl
+        });
+      }
+    }
+
+    total += earned;
+    if (earned > 0) ao.AO2 += earned;
+    stepResults[step.type] = {
+      earned,
+      max: marks,
+      correct: isCorrect && !isEcf,
+      ecf: isEcf,
+      enforceOnFinal: false
+    };
+  }
+
+  total = Math.min(max, total);
+  ao.AO2 = total;
+  const quality = total === max && max > 0 ? 5 : total > 0 ? 3 : 1;
+  return { total, max, ao, maxAo, missing, quality, stepResults };
+}
+
 export function markCalculationResponse(q, resp, key, markPoints, cleanUrl, equationSheet = null) {
   const rawConfig = getCalculationConfig(q);
   const config = enrichCalculationConfigFromEquationSheet(rawConfig, equationSheet);
@@ -2831,6 +3555,15 @@ export function markCalculationResponse(q, resp, key, markPoints, cleanUrl, equa
   }
   if (config.marking_mode === "percent_by_mass") {
     return markPercentByMassResponse(q, resp, key, markPoints, cleanUrl, config);
+  }
+  if (config.marking_mode === "moles_mass") {
+    return markMolesMassResponse(q, resp, key, markPoints, cleanUrl, config);
+  }
+  if (config.marking_mode === "balance_from_masses") {
+    return markBalanceFromMassesResponse(q, resp, key, markPoints, cleanUrl, config);
+  }
+  if (config.marking_mode === "limiting_reactant") {
+    return markLimitingReactantResponse(q, resp, key, markPoints, cleanUrl, config);
   }
 
   const steps = getActiveSteps(config);
@@ -3257,6 +3990,11 @@ export function applyCalculationStepHighlighting(stepResults) {
 const STEP_SUMMARY_LABELS = {
   equation_select: "Equation choice",
   substitution: "Substitution",
+  insert_values: "Substitute values",
+  mole_table: "Moles from masses",
+  mole_ratio: "Mole ratio",
+  limiting_select: "Limiting reactant",
+  balance_coeffs: "Balanced equation",
   conversion: "Unit conversion",
   rearrangement: "Rearrangement",
   calculate: "Final answer",
@@ -3290,6 +4028,18 @@ function getStepExpectedHint(step, config, key, equationSheet) {
       const unit = key?.key_payload?.unit || "";
       return ans != null ? `Answer: ${ans}${unit ? ` ${unit}` : ""}` : "Calculate the final value.";
     }
+    case "insert_values":
+      return `Substitute ${step.left?.value} ${step.op === "mul" ? "×" : "÷"} ${step.right?.value}`;
+    case "mole_table":
+      return (step.species || [])
+        .map((sp) => `${sp.formula}: ${sp.answer}`)
+        .join(", ");
+    case "mole_ratio":
+      return `${step.left?.formula} : ${step.right?.formula} = ${step.left?.value} : ${step.right?.value}`;
+    case "limiting_select":
+      return `Limiting reactant: ${step.answer}`;
+    case "balance_coeffs":
+      return `Coefficients: [${(step.coeffs || []).join(", ")}]`;
     case "sig_figs":
       return `Round to ${step.sig_figs} significant figures`;
     default:
@@ -3341,7 +4091,8 @@ export function buildNumericFlashcardInsights(q, key, feedbackPayload, equationS
 export function renderCalculationStepSummary(stepResults) {
   if (!stepResults || !Object.keys(stepResults).length) return "";
 
-  const rows = STEP_ORDER.map((type) => {
+  const types = [...new Set([...STEP_ORDER, ...Object.keys(stepResults)])];
+  const rows = types.map((type) => {
     if (!stepResults[type]) return "";
     if (type === "sig_figs" && stepResults.sig_figs?.enforceOnFinal) return "";
 

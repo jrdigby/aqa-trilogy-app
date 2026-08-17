@@ -1,6 +1,7 @@
 /**
- * Batch generators for AQA chemistry quantitative questions (FT first pass).
- * Scenarios: RFM, conservation of mass, % by mass, concentration (find c / find m), balance.
+ * Batch generators for AQA chemistry quantitative questions.
+ * Scenarios: RFM, conservation, % by mass, concentration, balance,
+ * HT moles↔mass, Avogadro, reacting masses, balance from masses, limiting reactant.
  * No chemistry equation sheets — numeric configs are custom calculation_config only.
  */
 
@@ -10,14 +11,22 @@ import {
   percentByMass,
   arValuesForFormula,
   distractorFormulaMasses,
-  formatArList,
+  formatArStem,
+  formatMrStem,
   parseFormula,
-  relativeAtomicMass
+  relativeAtomicMass,
+  scaleByMoleRatio,
+  identifyLimitingReactant,
+  AVOGADRO_CONSTANT,
+  particleKind,
+  particlesFromMoles
 } from "./chemistryFormula.js";
 
 import compoundsData from "../data/chemistry/compounds.json" with { type: "json" };
 import reactionsData from "../data/chemistry/conservation_reactions.json" with { type: "json" };
 import balanceData from "../data/chemistry/balance_equations.json" with { type: "json" };
+import stoichData from "../data/chemistry/stoichiometry_reactions.json" with { type: "json" };
+import { normalizeQuestionTierForDb } from "./sciencePath.js";
 
 function mulberry32(seed) {
   let a = seed >>> 0;
@@ -82,6 +91,10 @@ function baseMeta(spec) {
   };
 }
 
+function dbTier(tier) {
+  return normalizeQuestionTierForDb(tier);
+}
+
 function provenance(spec, scenario, extra = {}) {
   return {
     source: "batch_chem_quant",
@@ -127,6 +140,12 @@ export function listBalanceEquations() {
   return balanceData.equations || [];
 }
 
+export function listStoichReactions(useFor = null) {
+  const all = stoichData.reactions || [];
+  if (!useFor) return all;
+  return all.filter((r) => (r.use_for || []).includes(useFor));
+}
+
 /** Normalise formula keys for exclude / dedupe sets. */
 export function normalizeFormulaKey(formula) {
   return String(formula || "").trim();
@@ -154,6 +173,10 @@ export function formulasFromPrompts(prompts) {
 function promptPatternForCompoundScenario(scenario) {
   if (scenario === "rfm") return "%relative formula mass (Mr) of%";
   if (scenario === "percent_by_mass") return "%percentage by mass of%";
+  if (scenario === "moles_find_n") return "%number of moles in%";
+  if (scenario === "moles_find_m") return "%mass of%that contains%";
+  if (scenario === "avogadro_find_N") return "%in % mol of%";
+  if (scenario === "avogadro_find_n") return "%contains%number of moles of%";
   return null;
 }
 
@@ -339,7 +362,7 @@ function buildRfmPrompt(compound) {
   const arMap = arValuesForFormula(compound.formula);
   return (
     `Calculate the relative formula mass (Mr) of ${compound.name}, ${mhchemInline(compound.formula)}.\n\n` +
-    `Relative atomic masses: ${formatArList(arMap)}`
+    formatArStem(arMap)
   );
 }
 
@@ -496,7 +519,7 @@ export function generateRfmPair(compound, spec, rng) {
       max_marks: 1,
       demand_level: "low",
       command_word: "calculate",
-      tier: meta.tier === "higher" ? "higher" : meta.tier === "foundation" ? "foundation" : "both",
+      tier: dbTier(meta.tier),
       ao1_marks: 0,
       ao2_marks: 1,
       ao3_marks: 0,
@@ -656,7 +679,7 @@ export function generateConservationPair(reaction, spec, rng) {
       max_marks: 1,
       demand_level: "low",
       command_word: "calculate",
-      tier: meta.tier === "higher" ? "higher" : meta.tier === "foundation" ? "foundation" : "both",
+      tier: dbTier(meta.tier),
       ao1_marks: 0,
       ao2_marks: 1,
       ao3_marks: 0,
@@ -742,8 +765,8 @@ export function generatePercentByMassDraft(compound, spec, rng) {
 
   const prompt =
     `Calculate the percentage by mass of ${element} in ${compound.name}, ${mhchemInline(compound.formula)}.\n\n` +
-    `Relative atomic masses: ${formatArList(arMap)}\n` +
-    `Relative formula mass (Mr) of ${mhchemInline(compound.formula)} = ${formatNumber(mr)}\n\n` +
+    `${formatArStem(arMap)}\n` +
+    `${formatMrStem([{ formulaDisplay: mhchemInline(compound.formula), mr: formatNumber(mr) }])}\n\n` +
     `Give your answer as a percentage.`;
 
   const calcConfig = {
@@ -793,7 +816,7 @@ export function generatePercentByMassDraft(compound, spec, rng) {
       max_marks: 3,
       demand_level: "standard",
       command_word: "calculate",
-      tier: meta.tier === "higher" ? "higher" : meta.tier === "foundation" ? "foundation" : "both",
+      tier: dbTier(meta.tier),
       ao1_marks: 0,
       ao2_marks: 3,
       ao3_marks: 0,
@@ -1023,7 +1046,7 @@ export function generateConcentrationFindCDraft(spec, rng) {
       max_marks: 3,
       demand_level: "standard_45",
       command_word: "calculate",
-      tier: meta.tier === "higher" ? "higher" : meta.tier === "foundation" ? "foundation" : "both",
+      tier: dbTier(meta.tier),
       ao1_marks: 0,
       ao2_marks: 3,
       ao3_marks: 0,
@@ -1074,7 +1097,7 @@ export function generateConcentrationFindMDraft(spec, rng) {
       max_marks: 3,
       demand_level: "standard_45",
       command_word: "calculate",
-      tier: meta.tier === "higher" ? "higher" : meta.tier === "foundation" ? "foundation" : "both",
+      tier: dbTier(meta.tier),
       ao1_marks: 0,
       ao2_marks: 3,
       ao3_marks: 0,
@@ -1142,8 +1165,8 @@ export function generateBalanceDraft(entry, spec) {
       demand_level: subtype === "half" || subtype === "ionic" ? "standard_45" : "standard",
       command_word: "balance",
       tier: subtype === "half" || subtype === "ionic"
-        ? "higher"
-        : (meta.tier === "higher" ? "higher" : meta.tier === "foundation" ? "foundation" : "both"),
+        ? dbTier("higher")
+        : dbTier(meta.tier),
       ao1_marks: maxMarks,
       ao2_marks: 0,
       ao3_marks: 0,
@@ -1163,14 +1186,875 @@ export function generateBalanceDraft(entry, spec) {
   return finalizeDraft(draft, spec, "balance");
 }
 
+// ─── HT mole / stoichiometry helpers ────────────────────────────────────────
+
+const NICE_MOLES = [0.1, 0.2, 0.25, 0.4, 0.5, 0.8, 1, 1.5, 2, 2.5, 3, 4, 5, 10];
+const HT_SKILLS = { ms: ["MS1a", "MS1c", "MS3b"], ws: ["WS4.3"] };
+
+function htQuestionMeta(spec) {
+  const meta = baseMeta(spec);
+  return { ...meta, tier: "higher" };
+}
+
+function stoichSpeciesSide(sp) {
+  const s = String(sp?.side || "");
+  if (s === "left" || s === "reactant") return "reactant";
+  return "product";
+}
+
+function enrichStoichSpecies(species) {
+  return (species || []).map((sp) => ({
+    ...sp,
+    mr: relativeFormulaMass(sp.formula)
+  }));
+}
+
+function arValuesForSpeciesList(species) {
+  const out = {};
+  for (const sp of species || []) {
+    Object.assign(out, arValuesForFormula(sp.formula));
+  }
+  return out;
+}
+
+function formatMrList(species) {
+  return formatMrStem(
+    (species || []).map((sp) => ({
+      formulaDisplay: mhchemInline(sp.formula),
+      mr: formatNumber(sp.mr ?? relativeFormulaMass(sp.formula))
+    }))
+  );
+}
+
+/** Balanced mhchem from stoich species that include coeffs. */
+export function mhchemBalancedFromStoich(species, arrow = "->") {
+  const fmt = (sp) => {
+    const coeff = Number(sp.coeff) || 1;
+    const prefix = coeff === 1 ? "" : String(coeff);
+    return `${prefix}${formulaToMhchemToken(sp.formula)}`;
+  };
+  const list = Array.isArray(species) ? species : [];
+  const left = list.filter((s) => stoichSpeciesSide(s) === "reactant").map(fmt);
+  const right = list.filter((s) => stoichSpeciesSide(s) === "product").map(fmt);
+  return `$\\ce{${left.join(" + ")} ${arrow} ${right.join(" + ")}}$`;
+}
+
+export function mhchemUnbalancedFromStoich(species, arrow = "->") {
+  const fmt = (sp) => formulaToMhchemToken(sp.formula);
+  const list = Array.isArray(species) ? species : [];
+  const left = list.filter((s) => stoichSpeciesSide(s) === "reactant").map(fmt);
+  const right = list.filter((s) => stoichSpeciesSide(s) === "product").map(fmt);
+  return `$\\ce{${left.join(" + ")} ${arrow} ${right.join(" + ")}}$`;
+}
+
+function isNiceNumber(n) {
+  if (!Number.isFinite(n)) return false;
+  const r = roundNice(n);
+  return Math.abs(r - n) < 1e-9;
+}
+
+function pickNiceMolesForMr(rng, mr) {
+  for (const n of shuffle(NICE_MOLES, rng)) {
+    const m = n * mr;
+    if (isNiceNumber(m)) return { n, m: roundNice(m) };
+  }
+  return { n: 1, m: roundNice(mr) };
+}
+
+export function selectUniqueStoichReactions(reactions, count, rng, excludeIds = []) {
+  const exclude = new Set((excludeIds || []).map((k) => String(k || "").trim()).filter(Boolean));
+  const seen = new Set();
+  const pool = [];
+  for (const entry of shuffle(reactions || [], rng)) {
+    if (!entry) continue;
+    const id = String(entry.id || "").trim();
+    if (id && (exclude.has(id) || seen.has(id))) continue;
+    if (id) seen.add(id);
+    pool.push(entry);
+  }
+  const selected = pool.slice(0, Math.max(0, count));
+  const shortfall = Math.max(0, count - selected.length);
+  return { selected, shortfall, available: pool.length };
+}
+
+function htNumericDraft({ spec, scenario, variant, prompt, maxMarks, unit, answer, calcConfig, hints, commandWord = "calculate", skillCodes, tolerance = 0.05, demandLevel = "standard_45", difficulty = 3 }) {
+  const meta = htQuestionMeta(spec);
+  const draft = {
+    variant,
+    question: applySpecLinks({
+      question_type: "numeric",
+      prompt,
+      marking_method: "numeric",
+      max_marks: maxMarks,
+      demand_level: demandLevel,
+      command_word: commandWord,
+      tier: dbTier("higher"),
+      ao1_marks: 0,
+      ao2_marks: maxMarks,
+      ao3_marks: 0,
+      is_maths_skill: true,
+      is_required_practical: false,
+      audience: meta.audience,
+      difficulty,
+      calculation_config: calcConfig,
+      ...(hints ? { hints } : {})
+    }, meta),
+    answer_key: {
+      key_type: "numeric",
+      key_payload: {
+        answer,
+        exact_answer: answer,
+        tolerance,
+        unit
+      }
+    },
+    mark_points: [],
+    skill_codes: skillCodes || (scenario === "moles_find_n" || scenario === "moles_find_m"
+      ? { ms: ["MS1a", "MS1c"], ws: ["WS4.3"] }
+      : HT_SKILLS)
+  };
+  return finalizeDraft(draft, spec, scenario);
+}
+
+// ─── 1) Moles ↔ mass ────────────────────────────────────────────────────────
+
+export function generateMolesFindNDraft(compound, spec, rng) {
+  const mr = relativeFormulaMass(compound.formula);
+  const { n, m } = pickNiceMolesForMr(rng, mr);
+  const arMap = arValuesForFormula(compound.formula);
+  const prompt =
+    `Calculate the number of moles in ${formatNumber(m)} g of ${compound.name}, ${mhchemInline(compound.formula)}.\n\n` +
+    `${formatArStem(arMap)}\n` +
+    formatMrStem([{ formulaDisplay: mhchemInline(compound.formula), mr: formatNumber(mr) }]);
+
+  const calcConfig = {
+    marking_mode: "moles_mass",
+    equation_given: false,
+    unit: "mol",
+    max_marks: 2,
+    answer: n,
+    steps: [
+      {
+        type: "insert_values",
+        marks: 1,
+        ao: "AO2",
+        required: true,
+        op: "div",
+        lhs: "n",
+        label: "Substitute into n = mass ÷ Mr",
+        left: { value: m },
+        right: { value: mr }
+      },
+      {
+        type: "calculate",
+        marks: 1,
+        ao: "AO2",
+        required: true,
+        answer: n,
+        unit: "mol",
+        label: "Number of moles"
+      }
+    ]
+  };
+
+  return htNumericDraft({
+    spec,
+    scenario: "moles_find_n",
+    variant: { scenario: "moles_find_n", formula: compound.formula, name: compound.name, m, n, mr },
+    prompt,
+    maxMarks: 2,
+    unit: "mol",
+    answer: n,
+    calcConfig,
+    hints: [
+      "Recall: number of moles = mass ÷ relative formula mass (Mr).",
+      "Substitute the mass and Mr from the question, then calculate."
+    ]
+  });
+}
+
+export function generateMolesFindMDraft(compound, spec, rng) {
+  const mr = relativeFormulaMass(compound.formula);
+  const { n, m } = pickNiceMolesForMr(rng, mr);
+  const arMap = arValuesForFormula(compound.formula);
+  const prompt =
+    `Calculate the mass of ${compound.name}, ${mhchemInline(compound.formula)}, that contains ${formatNumber(n)} mol of the substance.\n\n` +
+    `Give your answer in grams.\n\n` +
+    `${formatArStem(arMap)}\n` +
+    formatMrStem([{ formulaDisplay: mhchemInline(compound.formula), mr: formatNumber(mr) }]);
+
+  const calcConfig = {
+    marking_mode: "moles_mass",
+    equation_given: false,
+    unit: "g",
+    max_marks: 2,
+    answer: m,
+    steps: [
+      {
+        type: "insert_values",
+        marks: 1,
+        ao: "AO2",
+        required: true,
+        op: "mul",
+        lhs: "m",
+        label: "Substitute into m = n × Mr",
+        left: { value: n },
+        right: { value: mr }
+      },
+      {
+        type: "calculate",
+        marks: 1,
+        ao: "AO2",
+        required: true,
+        answer: m,
+        unit: "g",
+        label: "Mass (g)"
+      }
+    ]
+  };
+
+  return htNumericDraft({
+    spec,
+    scenario: "moles_find_m",
+    variant: { scenario: "moles_find_m", formula: compound.formula, name: compound.name, m, n, mr },
+    prompt,
+    maxMarks: 2,
+    unit: "g",
+    answer: m,
+    calcConfig,
+    hints: [
+      "Recall: mass = number of moles × relative formula mass (Mr).",
+      "Substitute the moles and Mr from the question, then calculate."
+    ]
+  });
+}
+
+// ─── Avogadro constant (particles ↔ moles) ──────────────────────────────────
+
+const NICE_AVOGADRO_MOLES = [0.1, 0.2, 0.25, 0.5, 1, 2, 3, 4, 5, 10];
+const AVOGADRO_SKIP_FORMULAS = new Set(["SiO2"]);
+const AVOGADRO_EXTRA_SPECIES = [
+  { formula: "Mg", name: "magnesium" },
+  { formula: "Na", name: "sodium" },
+  { formula: "Fe", name: "iron" },
+  { formula: "Cu", name: "copper" },
+  { formula: "Zn", name: "zinc" },
+  { formula: "Al", name: "aluminium" },
+  { formula: "C", name: "carbon" },
+  { formula: "S", name: "sulfur" },
+  { formula: "H2", name: "hydrogen" },
+  { formula: "O2", name: "oxygen" },
+  { formula: "N2", name: "nitrogen" },
+  { formula: "Cl2", name: "chlorine" }
+];
+
+export function listAvogadroSpecies() {
+  const seen = new Set();
+  const out = [];
+  for (const c of [...listCompounds(), ...AVOGADRO_EXTRA_SPECIES]) {
+    const key = normalizeFormulaKey(c?.formula);
+    if (!key || seen.has(key) || AVOGADRO_SKIP_FORMULAS.has(key)) continue;
+    seen.add(key);
+    out.push(c);
+  }
+  return out;
+}
+
+function formatStandardFormLatex(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n === 0) return String(value);
+  const sign = n < 0 ? "-" : "";
+  const abs = Math.abs(n);
+  const exp = Math.floor(Math.log10(abs));
+  const mant = abs / (10 ** exp);
+  return `$${sign}${parseFloat(mant.toPrecision(4))} \\times 10^{${exp}}$`;
+}
+
+function avogadroSigFigsCount(spec) {
+  if (!spec?.sig_figs) return 0;
+  return Math.max(1, parseInt(spec.sig_figs_count, 10) || 2);
+}
+
+function avogadroSkillCodes({ findMoles, sigFigs }) {
+  const ms = ["MS1a", "MS1b", "MS3a"];
+  if (findMoles) ms.push("MS3b");
+  if (sigFigs) ms.push("MS2a");
+  return { ms, ws: ["WS4.3"] };
+}
+
+function avogadroPromptTail({ standardForm, sigFigsN }) {
+  let text = `\n\nThe Avogadro constant is $6.02 \\times 10^{23}$ per mole.`;
+  if (standardForm) text += `\n\nGive your answer in standard form.`;
+  if (sigFigsN > 0) text += `\n\nGive your answer to ${sigFigsN} significant figures.`;
+  return text;
+}
+
+function withAvogadroSigFigsStep(steps, sigFigsN) {
+  if (!(sigFigsN > 0)) return steps;
+  return [
+    ...steps,
+    {
+      type: "sig_figs",
+      marks: 1,
+      ao: "AO2",
+      required: true,
+      sig_figs: sigFigsN,
+      enforce_on_final: true
+    }
+  ];
+}
+
+export function generateAvogadroFindParticlesDraft(compound, spec, rng) {
+  const n = pick(rng, NICE_AVOGADRO_MOLES);
+  const N = particlesFromMoles(n);
+  const { noun } = particleKind(compound.formula);
+  const sigFigsN = avogadroSigFigsCount(spec);
+  const maxMarks = sigFigsN > 0 ? 3 : 2;
+  const prompt =
+    `Calculate the number of ${noun} in ${formatNumber(n)} mol of ${compound.name}, ${mhchemInline(compound.formula)}.` +
+    avogadroPromptTail({ standardForm: true, sigFigsN });
+
+  const calcConfig = {
+    marking_mode: "moles_mass",
+    equation_given: false,
+    unit: noun,
+    max_marks: maxMarks,
+    answer: N,
+    steps: withAvogadroSigFigsStep([
+      {
+        type: "insert_values",
+        marks: 1,
+        ao: "AO2",
+        required: true,
+        op: "mul",
+        lhs: "N",
+        standard_form: true,
+        label: "Substitute into number of particles = moles × Avogadro constant",
+        left: { value: n },
+        right: { value: AVOGADRO_CONSTANT }
+      },
+      {
+        type: "calculate",
+        marks: 1,
+        ao: "AO2",
+        required: true,
+        answer: N,
+        unit: noun,
+        label: `Number of ${noun}`
+      }
+    ], sigFigsN)
+  };
+
+  return htNumericDraft({
+    spec,
+    scenario: "avogadro_find_N",
+    variant: {
+      scenario: "avogadro_find_N",
+      formula: compound.formula,
+      name: compound.name,
+      n,
+      N,
+      noun,
+      sig_figs: sigFigsN || null
+    },
+    prompt,
+    maxMarks,
+    unit: noun,
+    answer: N,
+    calcConfig,
+    skillCodes: avogadroSkillCodes({ findMoles: false, sigFigs: sigFigsN > 0 }),
+    tolerance: 0,
+    hints: [
+      "Recall: number of particles = number of moles × Avogadro constant (6.02 × 10^23).",
+      "Substitute the moles and the Avogadro constant, then calculate."
+    ]
+  });
+}
+
+export function generateAvogadroFindMolesDraft(compound, spec, rng) {
+  const n = pick(rng, NICE_AVOGADRO_MOLES);
+  const N = particlesFromMoles(n);
+  const { noun } = particleKind(compound.formula);
+  const sigFigsN = avogadroSigFigsCount(spec);
+  const maxMarks = sigFigsN > 0 ? 3 : 2;
+  const prompt =
+    `A sample of ${compound.name}, ${mhchemInline(compound.formula)}, contains ${formatStandardFormLatex(N)} ${noun}.\n\n` +
+    `Calculate the number of moles of ${compound.name} in the sample.` +
+    avogadroPromptTail({ standardForm: false, sigFigsN });
+
+  const calcConfig = {
+    marking_mode: "moles_mass",
+    equation_given: false,
+    unit: "mol",
+    max_marks: maxMarks,
+    answer: n,
+    steps: withAvogadroSigFigsStep([
+      {
+        type: "insert_values",
+        marks: 1,
+        ao: "AO2",
+        required: true,
+        op: "div",
+        lhs: "n",
+        standard_form: true,
+        label: "Substitute into n = number of particles ÷ Avogadro constant",
+        left: { value: N },
+        right: { value: AVOGADRO_CONSTANT }
+      },
+      {
+        type: "calculate",
+        marks: 1,
+        ao: "AO2",
+        required: true,
+        answer: n,
+        unit: "mol",
+        label: "Number of moles"
+      }
+    ], sigFigsN)
+  };
+
+  return htNumericDraft({
+    spec,
+    scenario: "avogadro_find_n",
+    variant: {
+      scenario: "avogadro_find_n",
+      formula: compound.formula,
+      name: compound.name,
+      n,
+      N,
+      noun,
+      sig_figs: sigFigsN || null
+    },
+    prompt,
+    maxMarks,
+    unit: "mol",
+    answer: n,
+    calcConfig,
+    skillCodes: avogadroSkillCodes({ findMoles: true, sigFigs: sigFigsN > 0 }),
+    hints: [
+      "Recall: number of moles = number of particles ÷ Avogadro constant (6.02 × 10^23).",
+      "Substitute the number of particles and the Avogadro constant, then calculate."
+    ]
+  });
+}
+
+function pickGivenAndFindSpecies(species, rng, preferReactantToProduct = true) {
+  const reactants = species.filter((s) => stoichSpeciesSide(s) === "reactant");
+  const products = species.filter((s) => stoichSpeciesSide(s) === "product");
+  if (preferReactantToProduct && reactants.length && products.length) {
+    return { given: pick(rng, reactants), find: pick(rng, products) };
+  }
+  const pool = species.filter((s) => s);
+  const given = pick(rng, pool);
+  const findPool = pool.filter((s) => s.id !== given.id);
+  return { given, find: pick(rng, findPool) };
+}
+
+function pickNiceReactingMasses(given, find, rng) {
+  for (const nGiven of shuffle(NICE_MOLES, rng)) {
+    const mGiven = nGiven * given.mr;
+    const nFind = scaleByMoleRatio(nGiven, given.coeff, find.coeff);
+    const mFind = nFind * find.mr;
+    if (isNiceNumber(mGiven) && isNiceNumber(mFind) && isNiceNumber(nFind)) {
+      return {
+        nGiven: roundNice(nGiven),
+        mGiven: roundNice(mGiven),
+        nFind: roundNice(nFind),
+        mFind: roundNice(mFind)
+      };
+    }
+  }
+  const nGiven = 1;
+  return {
+    nGiven,
+    mGiven: roundNice(given.mr),
+    nFind: roundNice(scaleByMoleRatio(1, given.coeff, find.coeff)),
+    mFind: roundNice(scaleByMoleRatio(1, given.coeff, find.coeff) * find.mr)
+  };
+}
+
+function reactingMassesPaths(given, find, nums) {
+  const factor = (find.mr * find.coeff) / (given.mr * given.coeff);
+  return [
+    {
+      id: "moles_then_ratio",
+      label: "Moles of given → mole ratio → mass of target",
+      steps: [
+        { id: "s1", marks: 1, accept: [{ value: nums.nGiven }, { op: "div", values: [nums.mGiven, given.mr] }] },
+        { id: "s2", marks: 1, accept: [{ value: nums.nFind }, { op: "mul", values: [nums.nGiven, find.coeff / given.coeff] }], ecf_from: "s1" },
+        { id: "s3", marks: 1, accept: [{ value: nums.mFind }, { op: "mul", values: [nums.nFind, find.mr] }], ecf_from: "s2" }
+      ]
+    },
+    {
+      id: "mass_ratio",
+      label: "Mass-ratio shortcut",
+      steps: [
+        { id: "s1", marks: 1, accept: [{ value: roundNice(factor) }, { op: "div", values: [find.mr * find.coeff, given.mr * given.coeff] }] },
+        { id: "s2", marks: 1, accept: [{ value: nums.mFind }, { op: "mul", values: [nums.mGiven, factor] }], ecf_from: "s1" },
+        { id: "s3", marks: 1, accept: [{ value: nums.mFind }], ecf_from: "s2" }
+      ]
+    }
+  ];
+}
+
+function reactingMassesCalcConfig(given, find, nums) {
+  const paths = reactingMassesPaths(given, find, nums);
+  return {
+    marking_mode: "multi_path",
+    equation_given: false,
+    unit: "g",
+    max_marks: 3,
+    answer: nums.mFind,
+    answer_bands: [
+      { marks: 3, accept: [{ value: nums.mFind }] }
+    ],
+    paths,
+    primary_path_id: "moles_then_ratio",
+    scaffold: "moles_then_ratio",
+    steps: [
+      {
+        type: "working_1",
+        marks: 1,
+        ao: "AO2",
+        required: true,
+        label: `Moles of ${given.name}`,
+        placeholder: "",
+        reveal_from_path_step: "s1"
+      },
+      {
+        type: "working_2",
+        marks: 1,
+        ao: "AO2",
+        required: true,
+        label: `Moles of ${find.name}`,
+        placeholder: "",
+        reveal_from_path_step: "s2"
+      },
+      {
+        type: "calculate",
+        marks: 1,
+        ao: "AO2",
+        required: true,
+        answer: nums.mFind,
+        unit: "g",
+        label: `Mass of ${find.name} (g)`
+      }
+    ]
+  };
+}
+
+function reactingMassesStem(reaction, given, find, mGiven, species) {
+  const verb = stoichSpeciesSide(find) === "product" ? "produced" : "required";
+  return (
+    `The balanced equation for the reaction is:\n\n${mhchemBalancedFromStoich(species)}\n\n` +
+    `Calculate the mass of ${find.name}, ${mhchemInline(find.formula)}, ${verb} from ${formatNumber(mGiven)} g of ${given.name}, ${mhchemInline(given.formula)}.\n\n` +
+    `Give your answer in grams.\n\n` +
+    `${formatArStem(arValuesForSpeciesList(species))}\n` +
+    `${formatMrList([given, find])}`
+  );
+}
+
+export function generateReactingMassesDraft(reaction, spec, rng) {
+  const species = enrichStoichSpecies(reaction.species);
+  const { given, find } = pickGivenAndFindSpecies(species, rng, true);
+  const nums = pickNiceReactingMasses(given, find, rng);
+  const calcConfig = reactingMassesCalcConfig(given, find, nums);
+  const prompt = reactingMassesStem(reaction, given, find, nums.mGiven, species);
+  return htNumericDraft({
+    spec,
+    scenario: "reacting_masses",
+    variant: {
+      scenario: "reacting_masses",
+      id: reaction.id,
+      given: given.id,
+      find: find.id,
+      mGiven: nums.mGiven,
+      mFind: nums.mFind
+    },
+    prompt,
+    maxMarks: 3,
+    unit: "g",
+    answer: nums.mFind,
+    calcConfig,
+    hints: [
+      "Calculate moles of the given substance: mass ÷ Mr.",
+      "Use the mole ratio from the balanced equation to find moles of the target substance.",
+      "Calculate mass: moles × Mr. (A mass-ratio shortcut is also valid.)"
+    ]
+  });
+}
+
+export function generateBalanceFromMassesDraft(reaction, spec, rng) {
+  const species = enrichStoichSpecies(reaction.species);
+  const baseN = pick(rng, [0.1, 0.2, 0.25, 0.5, 1, 2]);
+  const moleRows = species.map((sp) => {
+    const n = roundNice(baseN * sp.coeff);
+    const mass = roundNice(n * sp.mr);
+    return { ...sp, moles: n, mass };
+  });
+  const massLines = moleRows
+    .map((sp) => `${formatNumber(sp.mass)} g of ${sp.name} (${mhchemInline(sp.formula)})`)
+    .join("\n");
+  const prompt =
+    `In an experiment, the following masses of substances were obtained:\n\n${massLines}\n\n` +
+    `Use the masses to calculate the number of moles of each substance, then balance the equation.\n\n` +
+    `${mhchemUnbalancedFromStoich(species)}\n\n` +
+    `${formatArStem(arValuesForSpeciesList(species))}\n` +
+    `${formatMrList(species)}`;
+
+  const calcConfig = {
+    marking_mode: "balance_from_masses",
+    equation_given: false,
+    max_marks: 2,
+    steps: [
+      {
+        type: "mole_table",
+        marks: 1,
+        ao: "AO2",
+        required: true,
+        label: "Calculate moles of each substance (mass ÷ Mr)",
+        species: moleRows.map((sp) => ({
+          id: sp.id,
+          formula: sp.formula,
+          name: sp.name,
+          answer: sp.moles
+        }))
+      },
+      {
+        type: "balance_coeffs",
+        marks: 1,
+        ao: "AO2",
+        required: true,
+        label: "Balance the equation using the simplest whole-number ratio of moles",
+        species: moleRows,
+        coeffs: moleRows.map((sp) => sp.coeff)
+      }
+    ]
+  };
+
+  return htNumericDraft({
+    spec,
+    scenario: "balance_from_masses",
+    variant: {
+      scenario: "balance_from_masses",
+      id: reaction.id,
+      masses: Object.fromEntries(moleRows.map((sp) => [sp.id, sp.mass]))
+    },
+    prompt,
+    maxMarks: 2,
+    unit: "",
+    answer: moleRows.map((sp) => sp.coeff).join(","),
+    calcConfig,
+    commandWord: "balance",
+    hints: [
+      "Calculate moles of each substance: mass ÷ Mr.",
+      "Divide each amount by the smallest number of moles, then scale to whole numbers."
+    ]
+  });
+}
+
+function pickLimitingPair(species, rng) {
+  const reactants = species.filter((s) => stoichSpeciesSide(s) === "reactant");
+  const products = species.filter((s) => stoichSpeciesSide(s) === "product");
+  if (reactants.length < 2 || !products.length) return null;
+  const limiting = pick(rng, reactants);
+  const excess = pick(rng, reactants.filter((r) => r.id !== limiting.id));
+  const product = pick(rng, products);
+  return { limiting, excess, product };
+}
+
+function pickLimitingMasses(limiting, excess, product, rng) {
+  for (const nL of shuffle(NICE_MOLES, rng)) {
+    const mL = nL * limiting.mr;
+    const nP = scaleByMoleRatio(nL, limiting.coeff, product.coeff);
+    const mP = nP * product.mr;
+    const eqL = nL / limiting.coeff;
+    const nEmin = eqL * 1.2 * excess.coeff;
+    let nE = NICE_MOLES.find((n) => n >= nEmin - 1e-12 && isNiceNumber(n * excess.mr));
+    if (nE == null) {
+      nE = roundNice(Math.ceil(nEmin * 10) / 10);
+    }
+    const mE = nE * excess.mr;
+    if (isNiceNumber(mL) && isNiceNumber(mP) && nE / excess.coeff > eqL + 1e-9) {
+      return {
+        nL: roundNice(nL),
+        mL: roundNice(mL),
+        nE: roundNice(nE),
+        mE: roundNice(mE),
+        nP: roundNice(nP),
+        mP: roundNice(mP)
+      };
+    }
+  }
+  const nL = limiting.coeff;
+  const nE = excess.coeff * 2;
+  const nP = product.coeff;
+  return {
+    nL,
+    mL: roundNice(nL * limiting.mr),
+    nE,
+    mE: roundNice(nE * excess.mr),
+    nP,
+    mP: roundNice(nP * product.mr)
+  };
+}
+
+export function generateLimitingExcessDraft(reaction, spec, rng) {
+  const species = enrichStoichSpecies(reaction.species);
+  const pair = pickLimitingPair(species, rng);
+  if (!pair) throw new Error(`Reaction ${reaction.id} needs two reactants for limiting`);
+  const { limiting, excess, product } = pair;
+  const nums = pickLimitingMasses(limiting, excess, product, rng);
+  const given = limiting;
+  const find = product;
+  const reactingNums = { nGiven: nums.nL, mGiven: nums.mL, nFind: nums.nP, mFind: nums.mP };
+  const calcConfig = reactingMassesCalcConfig(given, find, reactingNums);
+  const prompt =
+    `The balanced equation for the reaction is:\n\n${mhchemBalancedFromStoich(species)}\n\n` +
+    `${excess.name}, ${mhchemInline(excess.formula)}, is in excess.\n\n` +
+    `Calculate the mass of ${product.name}, ${mhchemInline(product.formula)}, produced from ${formatNumber(nums.mL)} g of ${limiting.name}, ${mhchemInline(limiting.formula)}.\n\n` +
+    `Give your answer in grams.\n\n` +
+    `${formatArStem(arValuesForSpeciesList(species))}\n` +
+    `${formatMrList([limiting, product])}`;
+
+  return htNumericDraft({
+    spec,
+    scenario: "limiting_excess",
+    variant: {
+      scenario: "limiting_excess",
+      id: reaction.id,
+      limiting: limiting.id,
+      excess: excess.id,
+      product: product.id,
+      mL: nums.mL,
+      mP: nums.mP
+    },
+    prompt,
+    maxMarks: 3,
+    unit: "g",
+    answer: nums.mP,
+    calcConfig,
+    hints: [
+      "The named excess reactant is not limiting — use the given mass of the other reactant.",
+      "Calculate moles of that reactant, apply the mole ratio, then moles × Mr for the product."
+    ]
+  });
+}
+
+export function generateLimitingIdentifyDraft(reaction, spec, rng) {
+  const species = enrichStoichSpecies(reaction.species);
+  const pair = pickLimitingPair(species, rng);
+  if (!pair) throw new Error(`Reaction ${reaction.id} needs two reactants for limiting`);
+  const { limiting, excess, product } = pair;
+  const nums = pickLimitingMasses(limiting, excess, product, rng);
+  const checkId = identifyLimitingReactant([
+    { id: limiting.id, moles: nums.nL, coeff: limiting.coeff },
+    { id: excess.id, moles: nums.nE, coeff: excess.coeff }
+  ]);
+  if (checkId !== limiting.id) {
+    throw new Error(`Limiting check failed for ${reaction.id}`);
+  }
+
+  const prompt =
+    `The balanced equation for the reaction is:\n\n${mhchemBalancedFromStoich(species)}\n\n` +
+    `${formatNumber(nums.mL)} g of ${limiting.name}, ${mhchemInline(limiting.formula)}, is mixed with ` +
+    `${formatNumber(nums.mE)} g of ${excess.name}, ${mhchemInline(excess.formula)}.\n\n` +
+    `Identify the limiting reactant and calculate the mass of ${product.name}, ${mhchemInline(product.formula)}, produced.\n\n` +
+    `Give your answer in grams.\n\n` +
+    `${formatArStem(arValuesForSpeciesList(species))}\n` +
+    `${formatMrList([limiting, excess, product])}`;
+
+  const calcConfig = {
+    marking_mode: "limiting_reactant",
+    equation_given: false,
+    unit: "g",
+    max_marks: 4,
+    answer: nums.mP,
+    limiting_id: limiting.id,
+    limiting_coeff: limiting.coeff,
+    product_coeff: product.coeff,
+    product_mr: product.mr,
+    steps: [
+      {
+        type: "mole_table",
+        marks: 1,
+        ao: "AO2",
+        required: true,
+        label: "Calculate moles of each reactant from the masses given",
+        species: [
+          { id: limiting.id, formula: limiting.formula, name: limiting.name, answer: nums.nL },
+          { id: excess.id, formula: excess.formula, name: excess.name, answer: nums.nE }
+        ]
+      },
+      {
+        type: "mole_ratio",
+        marks: 1,
+        ao: "AO2",
+        required: true,
+        label: "Mole ratio of the two reactants from the equation",
+        left: { id: limiting.id, formula: limiting.formula, name: limiting.name, value: limiting.coeff },
+        right: { id: excess.id, formula: excess.formula, name: excess.name, value: excess.coeff }
+      },
+      {
+        type: "limiting_select",
+        marks: 1,
+        ao: "AO2",
+        required: true,
+        label: "Which reactant is limiting?",
+        options: shuffle([
+          { id: limiting.id, label: `${limiting.name} (${limiting.formula})` },
+          { id: excess.id, label: `${excess.name} (${excess.formula})` }
+        ], rng),
+        answer: limiting.id
+      },
+      {
+        type: "calculate",
+        marks: 1,
+        ao: "AO2",
+        required: true,
+        answer: nums.mP,
+        unit: "g",
+        label: `Mass of ${product.name} (g)`
+      }
+    ]
+  };
+
+  return htNumericDraft({
+    spec,
+    scenario: "limiting_identify",
+    variant: {
+      scenario: "limiting_identify",
+      id: reaction.id,
+      limiting: limiting.id,
+      excess: excess.id,
+      product: product.id,
+      mL: nums.mL,
+      mE: nums.mE,
+      mP: nums.mP
+    },
+    prompt,
+    maxMarks: 4,
+    unit: "g",
+    answer: nums.mP,
+    calcConfig,
+    demandLevel: "standard_67",
+    difficulty: 4,
+    hints: [
+      "Calculate moles of both reactants: mass ÷ Mr.",
+      "Compare moles ÷ coefficient to see which reactant is limiting.",
+      "Use the limiting reactant and the mole ratio to find moles of product, then mass = moles × Mr."
+    ]
+  });
+}
+
 // ─── Batch orchestration ────────────────────────────────────────────────────
 
 /**
  * @param {object} spec
- * @param {string} spec.scenario - rfm | conservation | percent_by_mass | concentration_find_c | concentration_find_m | balance
+ * @param {string} spec.scenario
  * @param {number} [spec.count]
  * @param {number} [spec.seed]
- * @param {string[]} [spec.excludeFormulas] - formulas already in the bank (RFM / % mass)
+ * @param {string[]} [spec.excludeFormulas] - formulas already in the bank (RFM / % mass / moles)
  * @param {string[]} [spec.excludeBalanceKeys] - equation signatures/ids already in the bank
  */
 export function generateChemBatch(spec = {}) {
@@ -1190,9 +2074,12 @@ export function generateChemBatch(spec = {}) {
     return e.subtype === spec.balance_subtype;
   });
 
-  if (scenario === "rfm" || scenario === "percent_by_mass") {
+  if (scenario === "rfm" || scenario === "percent_by_mass" || scenario === "moles_find_n" || scenario === "moles_find_m" || scenario === "avogadro_find_N" || scenario === "avogadro_find_n") {
+    const pool = (scenario === "avogadro_find_N" || scenario === "avogadro_find_n")
+      ? listAvogadroSpecies()
+      : compounds;
     const { selected, shortfall, available } = selectUniqueCompounds(
-      compounds,
+      pool,
       count,
       rng,
       excludeFormulas
@@ -1210,8 +2097,54 @@ export function generateChemBatch(spec = {}) {
       try {
         if (scenario === "rfm") {
           drafts.push(...generateRfmPair(compound, { ...spec, seed }, rng));
-        } else {
+        } else if (scenario === "percent_by_mass") {
           drafts.push(generatePercentByMassDraft(compound, { ...spec, seed }, rng));
+        } else if (scenario === "moles_find_n") {
+          drafts.push(generateMolesFindNDraft(compound, { ...spec, seed }, rng));
+        } else if (scenario === "moles_find_m") {
+          drafts.push(generateMolesFindMDraft(compound, { ...spec, seed }, rng));
+        } else if (scenario === "avogadro_find_N") {
+          drafts.push(generateAvogadroFindParticlesDraft(compound, { ...spec, seed }, rng));
+        } else {
+          drafts.push(generateAvogadroFindMolesDraft(compound, { ...spec, seed }, rng));
+        }
+      } catch (err) {
+        errors.push({ index: i, message: err?.message || String(err) });
+      }
+    });
+    return { drafts, errors, seed, scenario };
+  }
+
+  const STOICH_SCENARIOS = {
+    reacting_masses: "reacting_masses",
+    balance_from_masses: "balance_from_masses",
+    limiting_excess: "limiting",
+    limiting_identify: "limiting"
+  };
+  if (STOICH_SCENARIOS[scenario]) {
+    const pool = listStoichReactions(STOICH_SCENARIOS[scenario]);
+    if (!pool.length) {
+      errors.push({ index: null, message: `No stoichiometry reactions for ${scenario}` });
+      return { drafts, errors, seed, scenario };
+    }
+    const { selected, shortfall, available } = selectUniqueStoichReactions(pool, count, rng, spec.excludeStoichIds || []);
+    if (shortfall > 0) {
+      errors.push({
+        index: null,
+        message:
+          `Only ${available} unused reaction(s) available; requested ${count}. Generated ${selected.length}.`
+      });
+    }
+    selected.forEach((entry, i) => {
+      try {
+        if (scenario === "reacting_masses") {
+          drafts.push(generateReactingMassesDraft(entry, { ...spec, seed }, rng));
+        } else if (scenario === "balance_from_masses") {
+          drafts.push(generateBalanceFromMassesDraft(entry, { ...spec, seed }, rng));
+        } else if (scenario === "limiting_excess") {
+          drafts.push(generateLimitingExcessDraft(entry, { ...spec, seed }, rng));
+        } else {
+          drafts.push(generateLimitingIdentifyDraft(entry, { ...spec, seed }, rng));
         }
       } catch (err) {
         errors.push({ index: i, message: err?.message || String(err) });

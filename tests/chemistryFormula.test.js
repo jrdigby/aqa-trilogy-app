@@ -10,7 +10,17 @@ import {
   percentByMass,
   distractorFormulaMasses,
   formatArList,
-  arValuesForFormula
+  formatArStem,
+  formatMrStem,
+  arValuesForFormula,
+  molesFromMass,
+  massFromMoles,
+  scaleByMoleRatio,
+  identifyLimitingReactant,
+  AVOGADRO_CONSTANT,
+  particleKind,
+  particlesFromMoles,
+  molesFromParticles
 } from "../src/chemistryFormula.js";
 
 describe("parseFormula", () => {
@@ -62,5 +72,56 @@ describe("ar display helpers", () => {
     const map = arValuesForFormula("H2O");
     assert.match(formatArList(map), /H = 1/);
     assert.match(formatArList(map), /O = 16/);
+  });
+
+  it("formats Ar and Mr stem lines", () => {
+    assert.equal(
+      formatArStem({ Mg: 24 }),
+      "Relative atomic mass (Ar):     Mg = 24"
+    );
+    assert.equal(
+      formatMrStem({ formulaDisplay: "MgCl2", mr: 95 }),
+      "Relative formula mass (Mr):    MgCl2 = 95"
+    );
+  });
+});
+
+describe("mole / stoich helpers", () => {
+  it("round-trips mass and moles", () => {
+    const mr = relativeFormulaMass("H2O");
+    const n = molesFromMass(36, mr);
+    assert.equal(n, 2);
+    assert.equal(massFromMoles(n, mr), 36);
+  });
+
+  it("scales by mole ratio", () => {
+    assert.equal(scaleByMoleRatio(0.5, 2, 1), 0.25);
+    assert.equal(scaleByMoleRatio(1, 1, 2), 2);
+  });
+
+  it("identifies the limiting reactant", () => {
+    assert.equal(
+      identifyLimitingReactant([
+        { id: "Mg", moles: 0.2, coeff: 2 },
+        { id: "O2", moles: 0.2, coeff: 1 }
+      ]),
+      "Mg"
+    );
+  });
+});
+
+describe("Avogadro helpers", () => {
+  it("classifies atoms, molecules, and ions", () => {
+    assert.equal(particleKind("Mg").noun, "atoms");
+    assert.equal(particleKind("O2").noun, "molecules");
+    assert.equal(particleKind("H2O").noun, "molecules");
+    assert.equal(particleKind("NaCl").noun, "ions");
+    assert.equal(particleKind("NH4NO3").noun, "ions");
+  });
+
+  it("converts moles and particles with 6.02e23", () => {
+    assert.equal(AVOGADRO_CONSTANT, 6.02e23);
+    assert.equal(particlesFromMoles(0.5), 3.01e23);
+    assert.equal(molesFromParticles(3.01e23), 0.5);
   });
 });
