@@ -351,7 +351,9 @@ describe("balance batch", () => {
     assert.equal(drafts[0].question.question_type, "chemistry_interactive");
     assert.equal(drafts[0].question.chemistry_config.kind, "balance_equation");
     assert.match(drafts[0].question.prompt, /Balance|half-equation|ionic equation/i);
-    assert.match(drafts[0].question.prompt, /\$\\ce\{/);
+    if (drafts[0].question.chemistry_config.template.subtype !== "half") {
+      assert.match(drafts[0].question.prompt, /\$\\ce\{/);
+    }
     assert.ok(drafts[0].variant.signature);
   });
 
@@ -394,6 +396,7 @@ describe("balance batch", () => {
       assert.equal(d.question.demand_level, "standard_45");
       assert.deepEqual(d.skill_codes, { ms: [], ws: ["WS4.3"] });
       assert.match(d.question.prompt, /ionic equation|displacement/i);
+      assert.match(d.question.prompt, /including its charge/i);
     }
 
     const half = generateChemBatch({
@@ -408,6 +411,32 @@ describe("balance batch", () => {
       assert.equal(d.question.demand_level, "standard_45");
       assert.deepEqual(d.skill_codes, { ms: [], ws: ["WS4.3"] });
     }
+  });
+
+  it("uses AQA-style half-equation stems with three-slot layout", () => {
+    const halfCount = listBalanceEquations().filter((e) => e.subtype === "half").length;
+    const { drafts, errors } = generateChemBatch({
+      scenario: "balance",
+      count: halfCount,
+      seed: 22,
+      balance_subtype: "half"
+    });
+    assert.equal(errors.length, 0);
+    assert.equal(drafts.length, halfCount);
+    for (const d of drafts) {
+      assert.equal(d.question.chemistry_config.template.subtype, "half");
+      assert.match(d.question.chemistry_config.template.halfLayout, /cation|anion/);
+      assert.equal(d.question.max_marks, 2);
+      assert.match(d.question.prompt, /half-equation/i);
+      assert.doesNotMatch(d.question.prompt, /-> \?/);
+    }
+    const al = drafts.find((d) => d.variant.id === "half_al2o3_cathode");
+    assert.ok(al);
+    assert.match(al.question.prompt, /aluminium oxide/i);
+    assert.match(al.question.prompt, /negative electrode/i);
+    assert.equal(al.question.chemistry_config.template.halfLayout, "cation");
+    const cl = drafts.find((d) => d.variant.id === "half_chloride_anode");
+    assert.equal(cl.question.chemistry_config.template.halfLayout, "anion");
   });
 
   it("never repeats an equation within one run", () => {

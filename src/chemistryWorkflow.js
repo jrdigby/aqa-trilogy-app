@@ -186,22 +186,156 @@ export function equationHasStudentFormulas(species) {
   return (species || []).some((sp) => sp?.studentEntersFormula);
 }
 
-function formatBalanceCaption(answer, cfg) {
+const SUPER_DIGIT_MAP = {
+  "\u2070": "0", "\u00B9": "1", "\u00B2": "2", "\u00B3": "3",
+  "\u2074": "4", "\u2075": "5", "\u2076": "6", "\u2077": "7",
+  "\u2078": "8", "\u2079": "9", "\u207A": "+", "\u207B": "-",
+  "\u2212": "-", "\u2013": "-", "\u2014": "-",
+};
+
+/** Canonical ion / electron formula: Cu^{2+} / Cu²⁺ / Cu2+ → Cu2+, e^{-} → e-. */
+export function normalizeIonFormula(raw) {
+  let s = String(raw || "").trim();
+  if (!s) return "";
+  s = s.replace(/[\u00B9\u00B2\u00B3\u2070-\u207F\u2212\u2013\u2014]/g, (ch) => SUPER_DIGIT_MAP[ch] || ch);
+  s = s.replace(/\s+/g, "");
+  s = s.replace(/\^\{([^}]+)\}/g, "$1");
+  s = s.replace(/\^([0-9]*[+-])/g, "$1");
+  if (/^e[-+]?$/i.test(s)) return "e-";
+  return s;
+}
+
+export function isIonFormula(formula) {
+  const n = normalizeIonFormula(formula);
+  return /[0-9]*[+-]$/.test(n);
+}
+
+/** Parse a half-equation slot such as `3e-`, `Al3+`, `2 Cl-`. */
+export function parseHalfSlot(raw) {
+  const trimmed = String(raw || "").trim();
+  if (!trimmed) return null;
+  let coeff = 1;
+  let rest = trimmed;
+  const m = rest.match(/^(\d+)\s*([A-Za-z].*)$/);
+  if (m) {
+    coeff = Number(m[1]);
+    rest = m[2];
+  }
+  const formula = normalizeIonFormula(rest);
+  if (!formula) return null;
+  return { coeff, formula };
+}
+
+function isElectronFormula(formula) {
+  return normalizeIonFormula(formula) === "e-";
+}
+
+/** Cation/reduction: two reactants. Anion/oxidation: two products. */
+export function halfEquationLayout(answer, template) {
+  const explicit = template?.halfLayout || answer?.halfLayout;
+  if (explicit === "anion" || explicit === "cation") return explicit;
+  const extras = answer?.extraSpecies || template?.extraSpecies || [];
+  const eOnRight = extras.some((x) => isElectronFormula(x.formula) && x.side === "right");
+  return eOnRight ? "anion" : "cation";
+}
+
+function equationTermsFromAnswer(answer, cfg) {
   const species = answer?.species || cfg?.template?.species || [];
   const coeffs = answer?.coeffs || [];
-  if (!species.length) {
+  const extras = answer?.extraSpecies || cfg?.template?.extraSpecies || [];
+  const terms = species.map((sp, i) => ({
+    side: sp.side === "right" ? "right" : "left",
+    formula: sp.formula,
+    coeff: impliedCoeff(coeffs[i]),
+    state: sp.state || "",
+  }));
+  extras.forEach((ex) => {
+    terms.push({
+      side: ex.side === "right" ? "right" : "left",
+      formula: ex.formula,
+      coeff: impliedCoeff(ex.coeff),
+      state: ex.state || "",
+    });
+  });
+  return terms;
+}
+
+function formulaCountMap(terms) {
+  const left = {};
+  const right = {};
+  for (const t of terms || []) {
+    const bag = t.side === "right" ? right : left;
+    const key = normalizeIonFormula(t.formula);
+    if (!key) continue;
+    bag[key] = (bag[key] || 0) + (Number(t.coeff) || 1);
+  }
+  return { left, right };
+}
+
+function sameFormulaKeys(a, b) {
+  const keysA = Object.keys(a).sort();
+  const keysB = Object.keys(b).sort();
+  return keysA.length === keysB.length && keysA.every((k, i) => k === keysB[i]);
+}
+
+function gcdOfMaps(...maps) {
+  const vals = maps.flatMap((m) => Object.values(m)).filter((n) => n > 0);
+  return vals.length ? vals.reduce((a, b) => gcd(a, b), vals[0]) : 1;
+}
+
+function scaleCoeffMap(map, g) {
+  const out = {};
+  for (const [k, v] of Object.entries(map)) out[k] = v / g;
+  return out;
+}
+
+function mapsEqual(a, b) {
+  const keys = Object.keys(a);
+  if (keys.length !== Object.keys(b).length) return false;
+  return keys.every((k) => a[k] === b[k]);
+}
+
+/** GCD-normalise the whole equation so 2Al3+ + 6e- → 2Al matches Al3+ + 3e- → Al. */
+function sameBalancedEquation(want, got) {
+  const gWant = gcdOfMaps(want.left, want.right);
+  const gGot = gcdOfMaps(got.left, got.right);
+  return mapsEqual(scaleCoeffMap(want.left, gWant), scaleCoeffMap(got.left, gGot))
+    && mapsEqual(scaleCoeffMap(want.right, gWant), scaleCoeffMap(got.right, gGot));
+}
+
+function formulaMarkFeedback(formulaSpecies, resp, species) {
+  let sawIon = false;
+  let sawCase = false;
+  for (const sp of formulaSpecies) {
+    const idx = species.indexOf(sp);
+    const got = String(resp.formulas?.[idx] ?? "").trim();
+    const want = sp.formula;
+    if (normalizeIonFormula(got) === normalizeIonFormula(want)) continue;
+    const caseOnly = normalizeIonFormula(got).toLowerCase() === normalizeIonFormula(want).toLowerCase();
+    if (caseOnly) sawCase = true;
+    else if (isIonFormula(want)) sawIon = true;
+    else sawCase = true;
+  }
+  if (sawIon) return "Ion formula is incorrect.";
+  if (sawCase) return "Check chemical formula case (Co is cobalt, CO is carbon monoxide).";
+  return "Chemical formula is incorrect.";
+}
+
+function formatBalanceCaption(answer, cfg) {
+  const terms = equationTermsFromAnswer(answer, cfg);
+  if (!terms.length) {
+    const coeffs = answer?.coeffs || [];
     return Array.isArray(coeffs) ? `Coefficients: [${coeffs.join(", ")}]` : "";
   }
-  const parts = [];
-  species.forEach((sp, i) => {
-    if (i > 0 && sp.side !== species[i - 1].side) parts.push("→");
-    else if (i > 0) parts.push("+");
-    const c = Number(coeffs[i]);
-    const coeffLabel = Number.isFinite(c) && c > 1 ? String(c) : "";
-    const st = sp.state ? `(${sp.state})` : "";
-    parts.push(`${coeffLabel}${sp.formula}${st}`);
-  });
-  return parts.join(" ");
+  const omitStates = (cfg?.template?.subtype || answer?.subtype) === "half";
+  const fmt = (t) => {
+    const coeffLabel = t.coeff > 1 ? String(t.coeff) : "";
+    const st = !omitStates && t.state ? `(${t.state})` : "";
+    return `${coeffLabel}${t.formula}${st}`;
+  };
+  const left = terms.filter((t) => t.side !== "right").map(fmt);
+  const right = terms.filter((t) => t.side === "right").map(fmt);
+  return `${left.join(" + ")} → ${right.join(" + ")}`;
 }
 
 function renderStateSelect(value, attr, extra = false) {
@@ -587,13 +721,15 @@ export function initialStateForConfig(cfg) {
   }
   if (kind === "balance_equation") {
     const species = cfg.template?.species || [];
+    const subtype = cfg.template?.subtype || "symbol";
     return {
       kind,
-      subtype: cfg.template?.subtype || "symbol",
+      subtype,
       coeffs: species.map(() => null),
       formulas: species.map(() => ""),
       states: species.map(() => ""),
       extraSpecies: [],
+      halfSlots: subtype === "half" ? ["", "", ""] : [],
     };
   }
   return { kind };
@@ -651,7 +787,14 @@ function toolbarHtml(cfg) {
     tools = `<p class="chem-hint">Pick an element, add atoms on the canvas, then add bonds to connect elements.</p>`;
   }
   if (kind === "balance_equation") {
-    tools = `<p class="chem-hint">Enter the smallest whole-number coefficients that balance the equation. Leave a box blank for 1.</p>`;
+    const subtype = cfg.template?.subtype || "symbol";
+    if (subtype === "half") {
+      tools = `<p class="chem-hint">Type the ion, electrons and element in the boxes (for example Al3+, 3e-, Al). Include charges. The two species on the same side of the arrow can be in either order.</p>`;
+    } else if (subtype === "ionic") {
+      tools = `<p class="chem-hint">Enter the missing ion formula including its charge (for example Cl- or Mg2+). Select a state symbol for each species. Leave a coefficient box blank for 1.</p>`;
+    } else {
+      tools = `<p class="chem-hint">Enter the smallest whole-number coefficients that balance the equation. Leave a box blank for 1.</p>`;
+    }
   }
   return tools;
 }
@@ -1445,7 +1588,39 @@ function renderPolymerDiagram(state, cfg) {
     </div>`;
 }
 
+function renderHalfSlot(state, idx, label) {
+  return `<input type="text" class="chem-half-slot" data-half-slot="${idx}" value="${escapeHtml(state.halfSlots?.[idx] || "")}" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="${escapeHtml(label)}" placeholder="" style="width:7.5rem;min-width:5.5rem;padding:6px 8px;border:none;border-bottom:2px solid #2563eb;border-radius:0;font-weight:700;text-align:center;font-size:1.05rem;background:transparent;vertical-align:middle;" />`;
+}
+
+function renderHalfEquationSlots(state, cfg) {
+  const layout = halfEquationLayout(cfg.answer, cfg.template);
+  const op = "display:inline-flex;align-items:center;flex:0 0 auto;white-space:nowrap;font-weight:700;padding:0 6px;";
+  const parts = layout === "anion"
+    ? [
+      renderHalfSlot(state, 0, "Reactant"),
+      `<span class="chem-eq-arrow" style="${op}">→</span>`,
+      renderHalfSlot(state, 1, "Product 1"),
+      `<span class="chem-eq-plus" style="${op}">+</span>`,
+      renderHalfSlot(state, 2, "Product 2"),
+    ]
+    : [
+      renderHalfSlot(state, 0, "Reactant 1"),
+      `<span class="chem-eq-plus" style="${op}">+</span>`,
+      renderHalfSlot(state, 1, "Reactant 2"),
+      `<span class="chem-eq-arrow" style="${op}">→</span>`,
+      renderHalfSlot(state, 2, "Product"),
+    ];
+  return `
+    <div class="chem-diagram-wrap chem-equation-wrap" style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+      <div class="chem-equation chem-half-equation" style="display:flex;flex-wrap:nowrap;align-items:flex-end;gap:4px;justify-content:flex-start;font-size:1.05rem;padding:12px 0;overflow-x:auto;white-space:nowrap;max-width:100%;">${parts.join("")}</div>
+      <div class="chem-status" id="chemStatus"></div>
+    </div>`;
+}
+
 function renderBalanceEquation(state, cfg) {
+  if ((state.subtype || cfg.template?.subtype) === "half") {
+    return renderHalfEquationSlots(state, cfg);
+  }
   const species = cfg.template?.species || [];
   const arrow = cfg.template?.arrow || "->";
   const requireStates = equationRequiresStates(species);
@@ -1458,8 +1633,9 @@ function renderBalanceEquation(state, cfg) {
     } else if (i > 0) {
       parts.push(`<span class="chem-eq-plus" style="display:inline-flex;align-items:center;flex:0 0 auto;white-space:nowrap;font-weight:700;">+</span>`);
     }
+    const ionHint = sp.studentEntersFormula && isIonFormula(sp.formula);
     const formulaHtml = sp.studentEntersFormula
-      ? `<input type="text" class="chem-formula-input" data-formula-idx="${i}" value="${escapeHtml(state.formulas?.[i] || "")}" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Chemical formula" style="width:72px;padding:4px 6px;border:2px solid #2563eb;border-radius:6px;font-weight:700;vertical-align:middle;" />`
+      ? `<input type="text" class="chem-formula-input" data-formula-idx="${i}" value="${escapeHtml(state.formulas?.[i] || "")}" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="${ionHint ? "e.g. Na+" : ""}" aria-label="${ionHint ? "Ion formula including charge" : "Chemical formula"}" style="width:88px;padding:4px 6px;border:2px solid #2563eb;border-radius:6px;font-weight:700;vertical-align:middle;" />`
       : `<span class="chem-species" style="display:inline;white-space:nowrap;vertical-align:middle;">$\\ce{${sp.formula}}$</span>`;
     const stateHtml = requireStates
       ? renderStateSelect(state.states?.[i] || "", `data-state-idx="${i}"`)
@@ -1469,34 +1645,9 @@ function renderBalanceEquation(state, cfg) {
     parts.push(`<span class="chem-eq-term" style="${termStyle}"><input type="number" min="0" max="99" inputmode="numeric" class="chem-coeff" data-coeff-idx="${i}" value="${escapeHtml(coeffDisplay)}" placeholder="" aria-label="Coefficient" style="${coeffStyle}" />${formulaHtml}${stateHtml}</span>`);
   });
 
-  let extras = "";
-  if (state.subtype === "half" || cfg.template?.subtype === "half") {
-    const tokens = cfg.template?.allowedTokens || ["e-", "H+", "H2O", "OH-"];
-    extras = `
-      <div class="chem-toolbar" style="margin-top:10px;">
-        <span class="muted" style="font-size:0.8rem;">Add species:</span>
-        ${tokens.map((t) => `<button type="button" class="btn chem-btn" data-chem-token="${escapeHtml(t)}">${escapeHtml(t)}</button>`).join("")}
-      </div>
-      <div id="chemExtraSpecies" class="chem-extra-species" style="display:inline-flex;flex-wrap:nowrap;align-items:center;gap:6px;overflow-x:auto;white-space:nowrap;max-width:100%;">
-        ${(state.extraSpecies || []).map((ex, i) => `
-          <span class="chem-eq-term" style="${termStyle}">
-            <input type="number" min="0" max="99" inputmode="numeric" class="chem-extra-coeff" data-extra-idx="${i}" value="${ex.coeff == null || ex.coeff === "" ? "" : escapeHtml(String(ex.coeff))}" placeholder="" aria-label="Coefficient" style="${coeffStyle}"/>
-            <span class="chem-species" style="display:inline;white-space:nowrap;">$\\ce{${ex.formula}}$</span>
-            ${requireStates ? renderStateSelect(ex.state || "", `data-extra-state-idx="${i}"`, true) : ""}
-            <select class="chem-extra-side" data-extra-idx="${i}">
-              <option value="left" ${ex.side === "left" ? "selected" : ""}>reactant</option>
-              <option value="right" ${ex.side === "right" ? "selected" : ""}>product</option>
-            </select>
-            <button type="button" class="btn chem-btn" data-chem-remove-extra="${i}">×</button>
-          </span>
-        `).join("")}
-      </div>`;
-  }
-
   return `
     <div class="chem-diagram-wrap chem-equation-wrap" style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
       <div class="chem-equation" style="display:flex;flex-wrap:nowrap;align-items:center;gap:4px;justify-content:flex-start;font-size:1.05rem;padding:8px 0;overflow-x:auto;white-space:nowrap;max-width:100%;">${parts.join("")}</div>
-      ${extras}
       <div class="chem-status" id="chemStatus"></div>
     </div>`;
 }
@@ -2046,6 +2197,11 @@ export function wireChemistryWorkflow(q = null) {
       state.formulas = state.formulas || [];
       state.formulas[i] = t.value;
       writeState(state);
+    } else if (t.classList?.contains("chem-half-slot")) {
+      const i = Number(t.getAttribute("data-half-slot"));
+      state.halfSlots = state.halfSlots || ["", "", ""];
+      state.halfSlots[i] = t.value;
+      writeState(state);
     }
   });
 }
@@ -2286,7 +2442,62 @@ function markPolymer(resp, answer) {
   return { correct: repOk && linkOk, detail: repOk && linkOk ? "Polymer repeat unit correct" : "Incorrect repeat unit or linkage" };
 }
 
+function markHalfEquation(resp, answer, cfg = null) {
+  const expected = equationTermsFromAnswer(answer, cfg);
+  const layout = halfEquationLayout(answer, cfg?.template);
+  const slots = Array.isArray(resp.halfSlots) ? resp.halfSlots : [];
+  const parsed = [0, 1, 2].map((i) => parseHalfSlot(slots[i]));
+  const studentTerms = [];
+  if (layout === "anion") {
+    if (parsed[0]) studentTerms.push({ ...parsed[0], side: "left" });
+    if (parsed[1]) studentTerms.push({ ...parsed[1], side: "right" });
+    if (parsed[2]) studentTerms.push({ ...parsed[2], side: "right" });
+  } else {
+    if (parsed[0]) studentTerms.push({ ...parsed[0], side: "left" });
+    if (parsed[1]) studentTerms.push({ ...parsed[1], side: "left" });
+    if (parsed[2]) studentTerms.push({ ...parsed[2], side: "right" });
+  }
+
+  const want = formulaCountMap(expected);
+  const got = formulaCountMap(studentTerms);
+  const speciesOk = parsed.every(Boolean) && sameFormulaKeys(want.left, got.left) && sameFormulaKeys(want.right, got.right);
+  const balanceOk = speciesOk && sameBalancedEquation(want, got);
+
+  const points = [
+    {
+      id: "species",
+      label: "Ion, electrons and element",
+      marks: 1,
+      correct: speciesOk,
+      feedback: speciesOk ? null : "Check the ion, electrons and element are in the correct places.",
+    },
+    {
+      id: "balance",
+      label: "Balancing",
+      marks: 1,
+      correct: balanceOk,
+      feedback: balanceOk ? null : "Equation not balanced",
+    },
+  ];
+  const earned = points.filter((p) => p.correct).reduce((s, p) => s + p.marks, 0);
+  const available = points.reduce((s, p) => s + p.marks, 0);
+  const allOk = earned === available && available > 0;
+  const detail = allOk
+    ? "Equation balanced"
+    : points.filter((p) => !p.correct).map((p) => p.feedback || p.label).join(" ");
+  return {
+    correct: allOk,
+    earned,
+    available,
+    points,
+    detail,
+  };
+}
+
 function markBalance(resp, answer, cfg = null) {
+  const subtype = cfg?.template?.subtype || answer.subtype || resp.subtype;
+  if (subtype === "half") return markHalfEquation(resp, answer, cfg);
+
   const species = answer.species || cfg?.template?.species || [];
   const student = normalizeCoeffs(resp.coeffs || []);
   const target = normalizeCoeffs(answer.coeffs || []);
@@ -2305,7 +2516,8 @@ function markBalance(resp, answer, cfg = null) {
   const formulasInPlay = formulaSpecies.length > 0;
   const formulasOk = !formulasInPlay || formulaSpecies.every((sp) => {
     const idx = species.indexOf(sp);
-    return String(resp.formulas?.[idx] ?? "").trim() === sp.formula;
+    const got = String(resp.formulas?.[idx] ?? "").trim();
+    return normalizeIonFormula(got) === normalizeIonFormula(sp.formula);
   });
 
   const statesInPlay = equationRequiresStates(species);
@@ -2320,7 +2532,7 @@ function markBalance(resp, answer, cfg = null) {
       label: "Coefficients",
       marks: 1,
       correct: coeffsOk && extrasOk,
-      feedback: coeffsOk && extrasOk ? null : "Coefficients (or extra species) not balanced",
+      feedback: coeffsOk && extrasOk ? null : "Equation not balanced",
     },
   ];
   if (formulasInPlay) {
@@ -2329,7 +2541,7 @@ function markBalance(resp, answer, cfg = null) {
       label: "Chemical formulas",
       marks: 1,
       correct: formulasOk,
-      feedback: formulasOk ? null : "Check chemical formula case (Co is cobalt, CO is carbon monoxide).",
+      feedback: formulasOk ? null : formulaMarkFeedback(formulaSpecies, resp, species),
     });
   }
   if (statesInPlay) {
@@ -2338,7 +2550,7 @@ function markBalance(resp, answer, cfg = null) {
       label: "State symbols",
       marks: 1,
       correct: statesOk,
-      feedback: statesOk ? null : "State symbols must be lowercase (s), (l), (g), (aq).",
+      feedback: statesOk ? null : "Select appropriate state symbols",
     });
   }
 
@@ -3223,21 +3435,26 @@ export const CHEMISTRY_PRESETS = {
     },
   },
   half_cu: {
-    label: "Half-equation Cu²⁺ + e⁻ → Cu",
+    label: "Half-equation Cu²⁺ + 2e⁻ → Cu",
     kind: "balance_equation",
+    recommendedMaxMarks: 2,
     template: {
       subtype: "half",
+      halfLayout: "cation",
       arrow: "->",
       species: [
-        { formula: "Cu^{2+}", side: "left" },
+        { formula: "Cu2+", side: "left" },
         { formula: "Cu", side: "right" },
       ],
-      allowedTokens: ["e-", "H+", "H2O", "OH-"],
     },
     answer: {
       kind: "balance_equation",
       coeffs: [1, 1],
       extraSpecies: [{ formula: "e-", coeff: 2, side: "left" }],
+      species: [
+        { formula: "Cu2+", side: "left" },
+        { formula: "Cu", side: "right" },
+      ],
     },
   },
 };

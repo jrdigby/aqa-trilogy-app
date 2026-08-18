@@ -348,12 +348,21 @@ export function mhchemEquationFromSpecies(species, arrow = "->") {
 
 function balanceInstruction(subtype) {
   if (subtype === "ionic") {
-    return "Write and balance the ionic equation for this displacement reaction. Enter any missing formula.";
+    return "Write and balance the ionic equation for this displacement reaction. Enter the missing ion formula, including its charge.";
   }
   if (subtype === "half") {
-    return "Balance the half-equation. Add electrons where needed.";
+    return "Write the half-equation. Include the ion, electrons and element.";
   }
   return "Balance the following equation.";
+}
+
+function halfLayoutFromEntry(entry) {
+  const extras = entry?.extraSpecies || [];
+  const eOnRight = extras.some((x) => {
+    const f = String(x?.formula || "").replace(/\s+/g, "");
+    return (f === "e-" || f === "e" || f === "e^{-}") && x.side === "right";
+  });
+  return eOnRight ? "anion" : "cation";
 }
 
 // ─── RFM ────────────────────────────────────────────────────────────────────
@@ -1130,8 +1139,10 @@ export function generateBalanceDraft(entry, spec) {
   const maxMarks = entry.max_marks || 1;
   const subtype = entry.subtype || "symbol";
   const equationCe = mhchemEquationFromSpecies(entry.species, "->");
+  const stem = entry.prompt || balanceInstruction(subtype);
+  const prompt = subtype === "half" ? stem : `${stem}\n\n${equationCe}`;
+  const extraSpecies = entry.extraSpecies || [];
   const signature = balanceEquationSignature(entry);
-  const prompt = `${entry.prompt || balanceInstruction(subtype)}\n\n${equationCe}`;
 
   const chemistry_config = {
     kind: "balance_equation",
@@ -1139,12 +1150,14 @@ export function generateBalanceDraft(entry, spec) {
       subtype,
       arrow: "->",
       species: entry.species,
-      allowedTokens: entry.allowedTokens
+      allowedTokens: entry.allowedTokens,
+      extraSpecies,
+      ...(subtype === "half" ? { halfLayout: halfLayoutFromEntry(entry) } : {})
     },
     answer: {
       kind: "balance_equation",
       coeffs: entry.coeffs,
-      extraSpecies: entry.extraSpecies || [],
+      extraSpecies,
       species: entry.species
     }
   };

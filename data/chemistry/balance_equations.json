@@ -886,6 +886,7 @@
       "id": "half_nacl_cathode",
       "category": "electrolysis_half",
       "subtype": "half",
+      "prompt": "Molten sodium chloride is electrolysed.\nWrite the half-equation for the reaction at the negative electrode.",
       "species": [
         { "formula": "Na+", "side": "left", "state": "l" },
         { "formula": "Na", "side": "right", "state": "l" }
@@ -899,6 +900,7 @@
       "id": "half_chloride_anode",
       "category": "electrolysis_half",
       "subtype": "half",
+      "prompt": "Molten sodium chloride is electrolysed.\nWrite the half-equation for the reaction at the positive electrode.",
       "species": [
         { "formula": "Cl-", "side": "left", "state": "l" },
         { "formula": "Cl2", "side": "right", "state": "g" }
@@ -912,6 +914,7 @@
       "id": "half_pbbr2_cathode",
       "category": "electrolysis_half",
       "subtype": "half",
+      "prompt": "Molten lead bromide is electrolysed.\nWrite the half-equation for the reaction at the negative electrode.",
       "species": [
         { "formula": "Pb2+", "side": "left", "state": "l" },
         { "formula": "Pb", "side": "right", "state": "l" }
@@ -925,6 +928,7 @@
       "id": "half_pbbr2_anode",
       "category": "electrolysis_half",
       "subtype": "half",
+      "prompt": "Molten lead bromide is electrolysed.\nWrite the half-equation for the reaction at the positive electrode.",
       "species": [
         { "formula": "Br-", "side": "left", "state": "l" },
         { "formula": "Br2", "side": "right", "state": "g" }
@@ -938,6 +942,7 @@
       "id": "half_cucl2_cathode",
       "category": "electrolysis_half",
       "subtype": "half",
+      "prompt": "Molten copper(II) chloride is electrolysed.\nWrite the half-equation for the reaction at the negative electrode.",
       "species": [
         { "formula": "Cu2+", "side": "left", "state": "l" },
         { "formula": "Cu", "side": "right", "state": "s" }
@@ -951,6 +956,7 @@
       "id": "half_mgcl2_cathode",
       "category": "electrolysis_half",
       "subtype": "half",
+      "prompt": "Molten magnesium chloride is electrolysed.\nWrite the half-equation for the reaction at the negative electrode.",
       "species": [
         { "formula": "Mg2+", "side": "left", "state": "l" },
         { "formula": "Mg", "side": "right", "state": "l" }
@@ -964,6 +970,7 @@
       "id": "half_kcl_cathode",
       "category": "electrolysis_half",
       "subtype": "half",
+      "prompt": "Molten potassium chloride is electrolysed.\nWrite the half-equation for the reaction at the negative electrode.",
       "species": [
         { "formula": "K+", "side": "left", "state": "l" },
         { "formula": "K", "side": "right", "state": "l" }
@@ -977,6 +984,7 @@
       "id": "half_al2o3_cathode",
       "category": "electrolysis_half",
       "subtype": "half",
+      "prompt": "The formula of aluminium oxide is $\\ce{Al2O3}$.\nWrite the half-equation for the reaction at the negative electrode.",
       "species": [
         { "formula": "Al3+", "side": "left", "state": "l" },
         { "formula": "Al", "side": "right", "state": "l" }
@@ -990,6 +998,7 @@
       "id": "half_al2o3_anode",
       "category": "electrolysis_half",
       "subtype": "half",
+      "prompt": "The formula of aluminium oxide is $\\ce{Al2O3}$.\nWrite the half-equation for the reaction at the positive electrode.",
       "species": [
         { "formula": "O2-", "side": "left", "state": "l" },
         { "formula": "O2", "side": "right", "state": "g" }
@@ -1003,6 +1012,7 @@
       "id": "half_cu_aq",
       "category": "electrolysis_half",
       "subtype": "half",
+      "prompt": "Copper(II) sulfate solution is electrolysed.\nWrite the half-equation for the reaction at the negative electrode.",
       "species": [
         { "formula": "Cu2+", "side": "left", "state": "aq" },
         { "formula": "Cu", "side": "right", "state": "s" }
@@ -1016,6 +1026,7 @@
       "id": "half_cl2_aq_reduction",
       "category": "electrolysis_half",
       "subtype": "half",
+      "prompt": "Write the half-equation for the reduction of aqueous chlorine.",
       "species": [
         { "formula": "Cl2", "side": "left", "state": "aq" },
         { "formula": "Cl-", "side": "right", "state": "aq" }
@@ -1030,7 +1041,7 @@
       "id": "ionic_disp_mg_cu",
       "category": "ionic_displacement",
       "subtype": "ionic",
-      "prompt": "Magnesium displaces copper from copper(II) sulfate solution.\nWrite and balance the ionic equation. Enter the missing ion formula.",
+      "prompt": "Magnesium displaces copper from copper(II) sulfate solution.\nWrite and balance the ionic equation. Enter the missing ion formula, including its charge.",
       "species": [
         { "formula": "Mg", "side": "left", "state": "s" },
         { "formula": "Cu2+", "side": "left", "state": "aq" },
@@ -1044,7 +1055,7 @@
       "id": "ionic_disp_zn_cu",
       "category": "ionic_displacement",
       "subtype": "ionic",
-      "prompt": "Zinc displaces copper from copper(II) sulfate solution.\nWrite and balance the ionic equation. Enter the missing ion formula.",
+      "prompt": "Zinc displaces copper from copper(II) sulfate solution.\nWrite and balance the ionic equation. Enter the missing ion formula, including its charge.",
       "species": [
         { "formula": "Zn", "side": "left", "state": "s" },
         { "formula": "Cu2+", "side": "left", "state": "aq" },
@@ -1058,7 +1069,7 @@
       "id": "ionic_disp_fe_cu",
       "category": "ionic_displacement",
       "subtype": "ionic",
-      "prompt": "Iron displaces copper from copper(II) sulfate solution.\nWrite and balance the ionic equation. Enter the missing ion formula.",
+      "prompt": "Iron displaces copper from copper(II) sulfate solution.\nWrite and balance the ionic equation. Enter the missing ion formula, including its charge.",
       "species": [
         { "formula": "Fe", "side": "left", "state": "s" },
         { "formula": "Cu2+", "side": "left", "state": "aq" },
@@ -1072,7 +1083,7 @@
       "id": "ionic_disp_mg_fe",
       "category": "ionic_displacement",
       "subtype": "ionic",
-      "prompt": "Magnesium displaces iron from iron(II) sulfate solution.\nWrite and balance the ionic equation. Enter the missing ion formula.",
+      "prompt": "Magnesium displaces iron from iron(II) sulfate solution.\nWrite and balance the ionic equation. Enter the missing ion formula, including its charge.",
       "species": [
         { "formula": "Mg", "side": "left", "state": "s" },
         { "formula": "Fe2+", "side": "left", "state": "aq" },
@@ -1086,7 +1097,7 @@
       "id": "ionic_disp_zn_fe",
       "category": "ionic_displacement",
       "subtype": "ionic",
-      "prompt": "Zinc displaces iron from iron(II) sulfate solution.\nWrite and balance the ionic equation. Enter the missing ion formula.",
+      "prompt": "Zinc displaces iron from iron(II) sulfate solution.\nWrite and balance the ionic equation. Enter the missing ion formula, including its charge.",
       "species": [
         { "formula": "Zn", "side": "left", "state": "s" },
         { "formula": "Fe2+", "side": "left", "state": "aq" },
@@ -1100,7 +1111,7 @@
       "id": "ionic_disp_mg_zn",
       "category": "ionic_displacement",
       "subtype": "ionic",
-      "prompt": "Magnesium displaces zinc from zinc sulfate solution.\nWrite and balance the ionic equation. Enter the missing ion formula.",
+      "prompt": "Magnesium displaces zinc from zinc sulfate solution.\nWrite and balance the ionic equation. Enter the missing ion formula, including its charge.",
       "species": [
         { "formula": "Mg", "side": "left", "state": "s" },
         { "formula": "Zn2+", "side": "left", "state": "aq" },
@@ -1114,7 +1125,7 @@
       "id": "ionic_disp_cl2_br",
       "category": "ionic_displacement",
       "subtype": "ionic",
-      "prompt": "Chlorine displaces bromine from potassium bromide solution.\nWrite and balance the ionic equation. Enter the missing ion formula.",
+      "prompt": "Chlorine displaces bromine from potassium bromide solution.\nWrite and balance the ionic equation. Enter the missing ion formula, including its charge.",
       "species": [
         { "formula": "Cl2", "side": "left", "state": "aq" },
         { "formula": "Br-", "side": "left", "state": "aq" },
@@ -1128,7 +1139,7 @@
       "id": "ionic_disp_cl2_i",
       "category": "ionic_displacement",
       "subtype": "ionic",
-      "prompt": "Chlorine displaces iodine from potassium iodide solution.\nWrite and balance the ionic equation. Enter the missing ion formula.",
+      "prompt": "Chlorine displaces iodine from potassium iodide solution.\nWrite and balance the ionic equation. Enter the missing ion formula, including its charge.",
       "species": [
         { "formula": "Cl2", "side": "left", "state": "aq" },
         { "formula": "I-", "side": "left", "state": "aq" },
@@ -1142,7 +1153,7 @@
       "id": "ionic_disp_br2_i",
       "category": "ionic_displacement",
       "subtype": "ionic",
-      "prompt": "Bromine displaces iodine from potassium iodide solution.\nWrite and balance the ionic equation. Enter the missing ion formula.",
+      "prompt": "Bromine displaces iodine from potassium iodide solution.\nWrite and balance the ionic equation. Enter the missing ion formula, including its charge.",
       "species": [
         { "formula": "Br2", "side": "left", "state": "aq" },
         { "formula": "I-", "side": "left", "state": "aq" },

@@ -25,6 +25,10 @@ import {
   parseEquationSpeciesToken,
   parseEquationSpeciesList,
   formatEquationSpeciesList,
+  renderChemistryWorkflow,
+  parseHalfSlot,
+  normalizeIonFormula,
+  halfEquationLayout,
 } from "../src/chemistryWorkflow.js";
 
 describe("chemistry shells helpers", () => {
@@ -680,7 +684,7 @@ describe("balance equation formulas and states", () => {
       null
     );
     assert.equal(wrongCase.total, 1);
-    assert.match(wrongCase.feedbackPayload.chemistry.detail, /State symbols must be lowercase/);
+    assert.match(wrongCase.feedbackPayload.chemistry.detail, /Select appropriate state symbols/);
   });
 
   it("requires all dimensions on a 1-mark states question", () => {
@@ -776,10 +780,231 @@ describe("balance equation formulas and states", () => {
     assert.match(co.feedbackPayload.chemistry.detail, /formula case/);
   });
 
+  it("says equation not balanced when coefficients are wrong", () => {
+    const preset = CHEMISTRY_PRESETS.water_balance_states;
+    const q = {
+      question_type: "chemistry_interactive",
+      max_marks: 2,
+      chemistry_config: { kind: preset.kind, template: preset.template, answer: preset.answer },
+    };
+    const key = { key_type: "chemistry", key_payload: preset.answer };
+    const result = markChemistryResponse(
+      q,
+      { kind: "balance_equation", coeffs: [1, 1, 1], states: ["g", "g", "l"] },
+      key,
+      [],
+      null
+    );
+    assert.equal(result.total, 1);
+    assert.match(result.feedbackPayload.chemistry.detail, /Equation not balanced/);
+  });
+
+  it("tells students the ion formula is incorrect when charge is missing", () => {
+    const species = [
+      { formula: "Cl2", side: "left", state: "aq" },
+      { formula: "I-", side: "left", state: "aq" },
+      { formula: "Cl-", side: "right", state: "aq", studentEntersFormula: true },
+      { formula: "I2", side: "right", state: "aq" },
+    ];
+    const q = {
+      question_type: "chemistry_interactive",
+      max_marks: 3,
+      chemistry_config: {
+        kind: "balance_equation",
+        template: { subtype: "ionic", species },
+        answer: { kind: "balance_equation", coeffs: [1, 2, 2, 1], species },
+      },
+    };
+    const key = { key_type: "chemistry", key_payload: q.chemistry_config.answer };
+    const missingCharge = markChemistryResponse(
+      q,
+      { kind: "balance_equation", coeffs: [1, 2, 2, 1], formulas: ["", "", "Cl", ""], states: ["aq", "aq", "aq", "aq"] },
+      key,
+      [],
+      null
+    );
+    assert.equal(missingCharge.total, 2);
+    assert.match(missingCharge.feedbackPayload.chemistry.detail, /Ion formula is incorrect/);
+    assert.doesNotMatch(missingCharge.feedbackPayload.chemistry.detail, /formula case/);
+
+    const ok = markChemistryResponse(
+      q,
+      { kind: "balance_equation", coeffs: [1, 2, 2, 1], formulas: ["", "", "Cl^{-}", ""], states: ["aq", "aq", "aq", "aq"] },
+      key,
+      [],
+      null
+    );
+    assert.equal(ok.total, 3);
+  });
+
   it("shows formulas and states on the model-answer caption", () => {
     const preset = CHEMISTRY_PRESETS.water_balance_states;
     const html = renderChemistryModelAnswerHtml(preset.answer, { template: preset.template });
     assert.match(html, /2H2\(g\)/);
     assert.match(html, /H2O\(l\)/);
+  });
+});
+
+describe("half-equation structured slots", () => {
+  function halfQuestion(preset = CHEMISTRY_PRESETS.half_cu, max = 2) {
+    const q = {
+      question_type: "chemistry_interactive",
+      max_marks: max,
+      chemistry_config: { kind: preset.kind, template: preset.template, answer: preset.answer },
+    };
+    const key = { key_type: "chemistry", key_payload: preset.answer };
+    return { q, key };
+  }
+
+  function markHalf(slots, preset) {
+    const { q, key } = halfQuestion(preset);
+    return markChemistryResponse(q, { kind: "balance_equation", subtype: "half", halfSlots: slots }, key, [], null);
+  }
+
+  it("parses coefficients and charge notation", () => {
+    assert.deepEqual(parseHalfSlot("3e-"), { coeff: 3, formula: "e-" });
+    assert.deepEqual(parseHalfSlot("3 e-"), { coeff: 3, formula: "e-" });
+    assert.deepEqual(parseHalfSlot("Al^{3+}"), { coeff: 1, formula: "Al3+" });
+    assert.deepEqual(parseHalfSlot("2Cl-"), { coeff: 2, formula: "Cl-" });
+    assert.equal(normalizeIonFormula("Cu^{2+}"), "Cu2+");
+    assert.equal(halfEquationLayout(CHEMISTRY_PRESETS.half_cu.answer, CHEMISTRY_PRESETS.half_cu.template), "cation");
+  });
+
+  it("awards 2 marks for Al3+ + 3e- → Al and accepts swapped reactants", () => {
+    const al = {
+      kind: "balance_equation",
+      recommendedMaxMarks: 2,
+      template: {
+        subtype: "half",
+        halfLayout: "cation",
+        species: [
+          { formula: "Al3+", side: "left" },
+          { formula: "Al", side: "right" },
+        ],
+      },
+      answer: {
+        kind: "balance_equation",
+        coeffs: [1, 1],
+        extraSpecies: [{ formula: "e-", coeff: 3, side: "left" }],
+        species: [
+          { formula: "Al3+", side: "left" },
+          { formula: "Al", side: "right" },
+        ],
+      },
+    };
+    assert.equal(markHalf(["Al3+", "3e-", "Al"], al).total, 2);
+    assert.equal(markHalf(["3e-", "Al3+", "Al"], al).total, 2);
+    assert.equal(markHalf(["Al^{3+}", "3 e-", "Al"], al).total, 2);
+    assert.equal(markHalf(["2Al3+", "6e-", "2Al"], al).total, 2);
+  });
+
+  it("awards 1 mark for correct species with wrong electron count", () => {
+    const { q, key } = halfQuestion();
+    const result = markChemistryResponse(
+      q,
+      { kind: "balance_equation", halfSlots: ["Cu2+", "e-", "Cu"] },
+      key,
+      [],
+      null
+    );
+    assert.equal(result.total, 1);
+    assert.match(result.feedbackPayload.chemistry.detail, /Equation not balanced/);
+  });
+
+  it("awards 0 when species are on the wrong side", () => {
+    const result = markHalf(["Cu", "2e-", "Cu2+"]);
+    assert.equal(result.total, 0);
+    assert.match(result.feedbackPayload.chemistry.detail, /correct places/);
+  });
+
+  it("accepts swapped products for a negative-ion half-equation", () => {
+    const chloride = {
+      kind: "balance_equation",
+      template: {
+        subtype: "half",
+        halfLayout: "anion",
+        species: [
+          { formula: "Cl-", side: "left" },
+          { formula: "Cl2", side: "right" },
+        ],
+      },
+      answer: {
+        kind: "balance_equation",
+        coeffs: [2, 1],
+        extraSpecies: [{ formula: "e-", coeff: 2, side: "right" }],
+        species: [
+          { formula: "Cl-", side: "left" },
+          { formula: "Cl2", side: "right" },
+        ],
+      },
+    };
+    assert.equal(halfEquationLayout(chloride.answer, chloride.template), "anion");
+    assert.equal(markHalf(["2Cl-", "Cl2", "2e-"], chloride).total, 2);
+    assert.equal(markHalf(["2Cl-", "2e-", "Cl2"], chloride).total, 2);
+    assert.equal(markHalf(["Cl-", "Cl2", "2e-"], chloride).total, 1);
+  });
+
+  it("renders cation blanks as A + B → C and anion as A → B + C", () => {
+    const cationHtml = renderChemistryWorkflow({
+      question_type: "chemistry_interactive",
+      chemistry_config: {
+        kind: "balance_equation",
+        template: CHEMISTRY_PRESETS.half_cu.template,
+        answer: CHEMISTRY_PRESETS.half_cu.answer,
+      },
+    });
+    assert.match(cationHtml, /chem-half-slot/);
+    assert.match(cationHtml, /data-half-slot="0"/);
+    assert.match(cationHtml, /data-half-slot="2"/);
+    assert.doesNotMatch(cationHtml, /data-chem-token/);
+    const plusThenArrow = cationHtml.indexOf("chem-eq-plus") < cationHtml.indexOf("chem-eq-arrow");
+    assert.equal(plusThenArrow, true);
+
+    const anionHtml = renderChemistryWorkflow({
+      question_type: "chemistry_interactive",
+      chemistry_config: {
+        kind: "balance_equation",
+        template: {
+          subtype: "half",
+          halfLayout: "anion",
+          species: [{ formula: "Cl-", side: "left" }, { formula: "Cl2", side: "right" }],
+        },
+        answer: {
+          kind: "balance_equation",
+          coeffs: [2, 1],
+          extraSpecies: [{ formula: "e-", coeff: 2, side: "right" }],
+        },
+      },
+    });
+    const arrowThenPlus = anionHtml.indexOf("chem-eq-arrow") < anionHtml.indexOf("chem-eq-plus");
+    assert.equal(arrowThenPlus, true);
+  });
+
+  it("includes electrons on the half-equation model answer", () => {
+    const html = renderChemistryModelAnswerHtml(CHEMISTRY_PRESETS.half_cu.answer, {
+      template: CHEMISTRY_PRESETS.half_cu.template,
+    });
+    assert.match(html, /Cu2\+/);
+    assert.match(html, /2e-/);
+    assert.match(html, /Cu/);
+  });
+
+  it("omits state symbols on half-equation model answers", () => {
+    const answer = {
+      kind: "balance_equation",
+      coeffs: [1, 1],
+      extraSpecies: [{ formula: "e-", coeff: 3, side: "left" }],
+      species: [
+        { formula: "Al3+", side: "left", state: "l" },
+        { formula: "Al", side: "right", state: "l" },
+      ],
+    };
+    const html = renderChemistryModelAnswerHtml(answer, {
+      template: { subtype: "half", halfLayout: "cation" },
+    });
+    assert.match(html, /Al3\+ \+ 3e- → Al/);
+    assert.doesNotMatch(html, /\(l\)/);
+    assert.doesNotMatch(html, /\(g\)/);
+    assert.doesNotMatch(html, /\(aq\)/);
   });
 });
