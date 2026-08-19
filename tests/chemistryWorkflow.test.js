@@ -29,6 +29,7 @@ import {
   parseHalfSlot,
   normalizeIonFormula,
   halfEquationLayout,
+  finalizeBalanceEquationConfig,
 } from "../src/chemistryWorkflow.js";
 
 describe("chemistry shells helpers", () => {
@@ -1006,5 +1007,23 @@ describe("half-equation structured slots", () => {
     assert.doesNotMatch(html, /\(l\)/);
     assert.doesNotMatch(html, /\(g\)/);
     assert.doesNotMatch(html, /\(aq\)/);
+  });
+});
+
+describe("finalizeBalanceEquationConfig", () => {
+  it("preserves half-equation extraSpecies and halfLayout from stored config", () => {
+    const baseConfig = CHEMISTRY_PRESETS.half_cu;
+    const species = baseConfig.template.species;
+    const cfg = finalizeBalanceEquationConfig({
+      subtype: "half",
+      species,
+      coeffs: [1, 1],
+      baseConfig,
+    });
+    assert.equal(cfg.kind, "balance_equation");
+    assert.equal(cfg.template.subtype, "half");
+    assert.equal(cfg.template.halfLayout, "cation");
+    assert.deepEqual(cfg.answer.extraSpecies, baseConfig.answer.extraSpecies);
+    assert.deepEqual(cfg.template.extraSpecies, baseConfig.answer.extraSpecies);
   });
 });

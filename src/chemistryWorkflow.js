@@ -3459,7 +3459,38 @@ export const CHEMISTRY_PRESETS = {
   },
 };
 
-export function buildChemistryConfigFromForm(prefix = "") {
+/** Merge balance-equation form fields with stored config (extraSpecies, halfLayout, etc.). */
+export function finalizeBalanceEquationConfig({ subtype, species, coeffs, baseConfig = null } = {}) {
+  const baseTpl = baseConfig?.template || {};
+  const baseAns = baseConfig?.answer || {};
+  const resolvedSpecies = species?.length
+    ? deepClone(species)
+    : deepClone(baseAns.species || baseTpl.species || []);
+  const extraSpecies = baseAns.extraSpecies?.length
+    ? deepClone(baseAns.extraSpecies)
+    : deepClone(baseTpl.extraSpecies || []);
+  const allowedTokens = baseTpl.allowedTokens || ["e-", "H+", "H2O", "OH-"];
+  const halfLayout = baseTpl.halfLayout;
+  return {
+    kind: "balance_equation",
+    template: {
+      subtype: subtype || baseTpl.subtype || "symbol",
+      arrow: baseTpl.arrow || "->",
+      species: deepClone(resolvedSpecies),
+      allowedTokens,
+      extraSpecies: deepClone(extraSpecies),
+      ...(halfLayout ? { halfLayout } : {}),
+    },
+    answer: {
+      kind: "balance_equation",
+      coeffs,
+      extraSpecies: deepClone(extraSpecies),
+      species: deepClone(resolvedSpecies),
+    },
+  };
+}
+
+export function buildChemistryConfigFromForm(prefix = "", baseConfig = null) {
   const p = prefix || "";
   const kind = document.getElementById(`${p}ChemKind`)?.value || "electron_shell";
   const presetId = document.getElementById(`${p}ChemPreset`)?.value || "";
@@ -3499,11 +3530,7 @@ export function buildChemistryConfigFromForm(prefix = "") {
     const subtype = document.getElementById(`${p}ChemEqSubtype`)?.value || "symbol";
     const species = parseEquationSpeciesList(raw);
     const coeffs = coeffsRaw.split(",").map((c) => Number(c.trim()) || 0);
-    return {
-      kind,
-      template: { subtype, arrow: "->", species, allowedTokens: ["e-", "H+", "H2O", "OH-"] },
-      answer: { kind, coeffs, extraSpecies: [], species: deepClone(species) },
-    };
+    return finalizeBalanceEquationConfig({ subtype, species, coeffs, baseConfig });
   }
 
   // Bonding / organic / polymer: fall back to first preset of that kind

@@ -2556,6 +2556,7 @@
                   <option value="organic_structure">Organic structure</option>
                   <option value="polymer_structure">Polymer structure</option>
                   <option value="molecule_builder">Molecule builder</option>
+                  <option value="balance_equation">Balance / half-equation</option>
                 </select>
               </div>
               <div>
@@ -4098,6 +4099,7 @@
                 <option value="organic_structure">Organic structure</option>
                 <option value="polymer_structure">Polymer structure</option>
                 <option value="molecule_builder">Molecule builder</option>
+                <option value="balance_equation">Balance / half-equation</option>
               </select>
             </div>
             <div>
@@ -11568,7 +11570,10 @@
         }
         const cfg = q.chemistry_config || {};
         const kindEl = document.getElementById("editChemKind");
-        if (kindEl) kindEl.value = cfg.kind || "electron_shell";
+        if (kindEl) {
+          ensureSelectOption(kindEl, cfg.kind || "electron_shell", chemistryKindLabel(cfg.kind));
+          kindEl.value = cfg.kind || "electron_shell";
+        }
         if (cfg.kind === "electron_shell") {
           const t = cfg.template || {};
           const a = cfg.answer || keyData?.key_payload || {};
@@ -11806,6 +11811,32 @@
 
   let editModalCopyMode = false;
 
+  function chemistryKindLabel(kind) {
+    const labels = {
+      electron_shell: "Electron shell diagram",
+      ionic_bonding: "Ionic bonding",
+      covalent_bonding: "Covalent bonding",
+      organic_structure: "Organic structure",
+      polymer_structure: "Polymer structure",
+      molecule_builder: "Molecule builder",
+      balance_equation: "Balance / half-equation",
+      ionic_lattice: "Ionic lattice",
+      metallic_bonding: "Metallic bonding",
+      particle_model: "Particle model",
+      carbon_allotrope: "Carbon allotrope",
+    };
+    return labels[kind] || kind || "Chemistry interactive";
+  }
+
+  function ensureSelectOption(selectEl, value, label) {
+    if (!selectEl || !value) return;
+    if ([...(selectEl.options || [])].some((o) => o.value === value)) return;
+    const opt = document.createElement("option");
+    opt.value = value;
+    opt.textContent = label || value;
+    selectEl.appendChild(opt);
+  }
+
   function setEditModalCopyMode(isCopy) {
     editModalCopyMode = !!isCopy;
     const title = document.getElementById("editModalTitle");
@@ -11988,8 +12019,12 @@
         if (presetId) {
           updatePayload.chemistry_config = window.ChemWorkflow.buildChemistryConfigFromForm("edit");
         } else {
-          const kind = document.getElementById("editChemKind")?.value || q.chemistry_config?.kind;
-          if (kind === "electron_shell" || kind === "balance_equation" || kind === "organic_structure") {
+          const formKind = document.getElementById("editChemKind")?.value || q.chemistry_config?.kind;
+          const storedKind = q.chemistry_config?.kind;
+          const manualKinds = new Set(["electron_shell", "balance_equation", "organic_structure"]);
+          if (formKind === storedKind && manualKinds.has(formKind)) {
+            updatePayload.chemistry_config = window.ChemWorkflow.buildChemistryConfigFromForm("edit", q.chemistry_config);
+          } else if (manualKinds.has(formKind) && !storedKind) {
             updatePayload.chemistry_config = window.ChemWorkflow.buildChemistryConfigFromForm("edit");
           } else {
             updatePayload.chemistry_config = q.chemistry_config;
