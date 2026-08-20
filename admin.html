@@ -3728,6 +3728,7 @@
 
       <form id="editForm" class="edit-form-layout" onsubmit="return false;">
         <input type="hidden" id="editQuestionId"/>
+        <input type="hidden" id="editCopyMode" value="0"/>
         <input type="hidden" id="editQuestionType"/>
         <input type="hidden" id="editEqSheetSubject" value="physics"/>
         <input type="hidden" id="editEqSheetPaper" value="paper1"/>
@@ -4581,6 +4582,7 @@
 
   let currentAuthSessionUser = null;
   let loadedQuestionsCache = [];
+  let editModalKeyData = null;
   let auditSpecMap = {};
   let auditSpecPointsCache = [];
   let auditCheckPointsCounterMap = {};
@@ -11279,9 +11281,9 @@
     renderAuditTable();
   });
 
-  window.refreshAuditTable = () => btnQueryQuestions.click();
+  window.refreshAuditTable = refreshAuditTableAsync;
 
-  btnQueryQuestions.onclick = async () => {
+  async function refreshAuditTableAsync() {
     const sub = document.getElementById("auditSubject").value;
     const paper = document.getElementById("auditPaper").value;
     const qTypeFilter = document.getElementById("auditType").value;
@@ -11401,7 +11403,36 @@
       updateAuditResultCount("error");
       auditList.innerHTML = `<tr><td colspan="${AUDIT_COLSPAN}" style="padding:24px; text-align:center; color:var(--error);">Failed to audit records: ${err.message}</td></tr>`;
     }
-  };
+  }
+
+  btnQueryQuestions.onclick = () => { void refreshAuditTableAsync(); };
+
+  async function focusAuditListOnCopiedQuestion(savedQuestionId, specPointId) {
+    const filterEl = document.getElementById("auditSpecRefFilter");
+    if (specPointId) {
+      let specRef = auditSpecMap[specPointId]?.spec_ref;
+      if (!specRef) {
+        const { data } = await supabaseClient
+          .from("spec_points")
+          .select("spec_ref")
+          .eq("id", specPointId)
+          .maybeSingle();
+        specRef = data?.spec_ref || "";
+      }
+      if (specRef && filterEl) filterEl.value = specRef;
+    }
+    await refreshAuditTableAsync();
+    requestAnimationFrame(() => {
+      const cb = document.querySelector(`.audit-row-select[data-qid="${savedQuestionId}"]`);
+      const mainRow = cb?.closest(".audit-main-row");
+      if (mainRow) {
+        mainRow.style.outline = "2px solid #0d9488";
+        mainRow.style.background = "#f0fdfa";
+        mainRow.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      }
+    });
+    return auditSpecMap[specPointId]?.spec_ref || filterEl?.value || "";
+  }
 
   // ====== EDIT MODAL WORKFLOW ======
   function syncEditMcqUi(questionType) {
@@ -11429,6 +11460,7 @@
     const q = loadedQuestionsCache.find(x => x.id === id);
     if (!q) return;
 
+    editModalKeyData = null;
     setEditModalCopyMode(false);
 
     // Populate common elements
@@ -11528,6 +11560,7 @@
         .maybeSingle();
       
       keyData = data;
+      editModalKeyData = data;
 
       if (q.question_type === "mcq") {
         document.getElementById("editMcqPanel").classList.remove("hidden");
@@ -11839,6 +11872,8 @@
 
   function setEditModalCopyMode(isCopy) {
     editModalCopyMode = !!isCopy;
+    const copyField = document.getElementById("editCopyMode");
+    if (copyField) copyField.value = isCopy ? "1" : "0";
     const title = document.getElementById("editModalTitle");
     const notice = document.getElementById("editModalNotice");
     const btnSave = document.getElementById("btnSaveEdits");
@@ -11883,7 +11918,7 @@
     const q = loadedQuestionsCache.find(x => x.id === sourceId);
     if (!q) return;
 
-    const isCopy = editModalCopyMode;
+    const isCopy = document.getElementById("editCopyMode")?.value === "1";
     const prompt = document.getElementById("editPrompt").value.trim();
     const resource = document.getElementById("editResource").value.trim();
     const tier = document.getElementById("editTier").value;
@@ -12082,15 +12117,15 @@
         };
       } else if (q.question_type === "chemistry_interactive") {
         const chemCfg = updatePayload.chemistry_config || q.chemistry_config || {};
-        updatedPayload = chemCfg.answer || keyData?.key_payload || { kind: chemCfg.kind };
+        updatedPayload = chemCfg.answer || editModalKeyData?.key_payload || { kind: chemCfg.kind };
         updatedKeyType = "chemistry";
       } else if (q.question_type === "circuit_interactive") {
         const cfg = updatePayload.circuit_config || q.circuit_config || {};
-        updatedPayload = cfg.answer || keyData?.key_payload || { kind: cfg.kind };
+        updatedPayload = cfg.answer || editModalKeyData?.key_payload || { kind: cfg.kind };
         updatedKeyType = "circuit";
       } else if (q.question_type === "equipment_interactive") {
         const cfg = updatePayload.equipment_config || q.equipment_config || {};
-        updatedPayload = cfg.answer || keyData?.key_payload || { kind: cfg.kind };
+        updatedPayload = cfg.answer || editModalKeyData?.key_payload || { kind: cfg.kind };
         updatedKeyType = "equipment";
       } else if (q.question_type === "short_text") {
         const markMode = document.getElementById("editShortMarkMode")?.value || "pick_n";
@@ -12227,9 +12262,22 @@
         await window.AdminSkills.saveSkillsFromForm(supabaseClient, savedQuestionId, "edit");
       }
 
-      closeEditModal();
-      showAdminToast(isCopy ? "Copied question saved as new record!" : "Changes committed successfully!");
-      btnQueryQuestions.click(); // Hot reload instant updates
+      if (isCopy) {
+        if (!savedQuestionId || savedQuestionId === sourceId) {
+          throw new Error("Copy did not create a new question row (question ID unchanged).");
+        }
+        closeEditModal();
+        const copiedSpecRef = await focusAuditListOnCopiedQuestion(savedQuestionId, updatePayload.spec_point_id);
+        showAdminToast(
+          copiedSpecRef
+            ? `Copied question saved on ${copiedSpecRef} (new ID ${savedQuestionId.slice(0, 8)}…).`
+            : `Copied question saved as new record (ID ${savedQuestionId.slice(0, 8)}…).`
+        );
+      } else {
+        closeEditModal();
+        showAdminToast("Changes committed successfully!");
+        await refreshAuditTableAsync();
+      }
 
     } catch(err) {
       console.error(err);
