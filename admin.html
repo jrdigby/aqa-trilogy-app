@@ -1721,7 +1721,11 @@
     }
 
     #panelAudit .audit-table .audit-col-ref { width: 44px; }
-    #panelAudit .audit-table .audit-col-type { width: 40px; }
+    #panelAudit .audit-table .audit-col-type {
+      width: 48px;
+      max-width: 48px;
+      overflow: hidden;
+    }
     #panelAudit .audit-table .audit-col-prompt { width: auto; }
     #panelAudit .audit-table .audit-col-marks { width: 36px; }
     #panelAudit .audit-table .audit-col-cmd { width: 50px; }
@@ -1735,6 +1739,7 @@
 
     #panelAudit .audit-type-chip {
       display: inline-block;
+      max-width: 100%;
       background: #e2e8f0;
       color: #475569;
       padding: 1px 4px;
@@ -1742,6 +1747,10 @@
       font-size: 0.68rem;
       font-weight: 700;
       letter-spacing: 0.02em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      vertical-align: middle;
     }
 
     #panelAudit .audit-prompt-cell {
@@ -10586,8 +10595,11 @@
       mcq: "MCQ",
       short_text: "SA",
       numeric: "NUM",
-      extended_response: "ER"
-    }[t] || String(t || "").toUpperCase());
+      extended_response: "ER",
+      chemistry_interactive: "CHEM",
+      circuit_interactive: "CIRC",
+      equipment_interactive: "EQUIP",
+    }[t] || String(t || "").replace(/_/g, " ").slice(0, 8).toUpperCase());
 
     return filtered.map((q) => {
       const ref = getAuditQuestionSpecRef(q, specMap);
