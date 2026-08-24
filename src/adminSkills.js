@@ -360,26 +360,29 @@ export async function saveQuestionSkills(supabaseClient, questionId, skillIds) {
   await assertDeveloperForSkillSave(supabaseClient);
 
   const ids = [...new Set((skillIds || []).filter(Boolean))];
-  const { error: deleteErr } = await supabaseClient
-    .from("question_skills")
-    .delete()
-    .eq("question_id", questionId);
-  if (deleteErr) throw deleteErr;
-
-  if (!ids.length) return;
-
-  const rows = ids.map((skill_id) => ({ question_id: questionId, skill_id }));
-  const { error: insertErr } = await supabaseClient.from("question_skills").insert(rows);
-  if (insertErr) {
-    if (insertErr.code === "23503") {
+  const { data, error } = await supabaseClient.rpc("sync_question_skills", {
+    p_question_id: questionId,
+    p_skill_ids: ids,
+  });
+  if (error) {
+    if (error.code === "23503") {
       throw new Error("One or more MS/WS skill IDs are invalid — refresh the page and try again.");
     }
-    if (insertErr.code === "42501") {
+    if (error.code === "42501") {
       throw new Error(
         "Database blocked MS/WS skill save — developer role required. Confirm profiles.role is developer for your account."
       );
     }
-    throw insertErr;
+    throw error;
+  }
+  if (data?.ok === false) {
+    const reason = data.reason || "forbidden";
+    if (reason === "forbidden") {
+      throw new Error(
+        "Database blocked MS/WS skill save — developer role required. Confirm profiles.role is developer for your account."
+      );
+    }
+    throw new Error(`Skill sync failed: ${reason}`);
   }
 }
 
