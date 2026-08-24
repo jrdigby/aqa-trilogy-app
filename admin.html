@@ -4569,6 +4569,14 @@
   import { resolveMcqWrongFeedback, MCQ_FLASHCARD_ADDED_MSG, renderPromptStemHtml, checkKeywordOrSynonymsMatch, getGradableMarkPoints } from "./src/evalEngine.js";
   import { normalizeQuestionTierForDb } from "./src/sciencePath.js";
   import { normalizeQuestionHints, renderHintsPanel } from "./src/uiComponents.js";
+  import * as AdminAuditQuery from "./src/admin/adminAuditQuery.js";
+  import * as AdminSpecCache from "./src/admin/adminSpecCache.js";
+  import { commitQuestionBundle } from "./src/admin/adminQuestionCommit.js";
+
+  AdminSpecCache.initSpecCache(supabaseClient);
+  window.AdminSpecCache = AdminSpecCache;
+  window.AdminAuditQuery = AdminAuditQuery;
+  window.commitQuestionBundle = commitQuestionBundle;
 
   window.CalcWorkflow = CalcWorkflow;
   window.ChemWorkflow = ChemWorkflow;
@@ -4839,6 +4847,7 @@
     if (window.AdminSkills) {
       await window.AdminSkills.loadSkillCatalog(supabaseClient);
     }
+    AdminSpecCache.ensureEquivalencesLoaded(supabaseClient).catch(() => {});
   }
 
   // Switch Panel Tabs
@@ -4974,22 +4983,7 @@
   async function lookupEquivalence(primarySpecPointId, track) {
     if (!primarySpecPointId) return null;
     try {
-      if (track === "combined") {
-        const { data, error } = await supabaseClient
-          .from("spec_point_equivalences")
-          .select("triple_spec_point_id")
-          .eq("combined_spec_point_id", primarySpecPointId)
-          .maybeSingle();
-        if (error) throw error;
-        return { triple: data?.triple_spec_point_id || null, combined: primarySpecPointId };
-      }
-      const { data, error } = await supabaseClient
-        .from("spec_point_equivalences")
-        .select("combined_spec_point_id")
-        .eq("triple_spec_point_id", primarySpecPointId)
-        .maybeSingle();
-      if (error) throw error;
-      return { combined: data?.combined_spec_point_id || null, triple: primarySpecPointId };
+      return await AdminSpecCache.lookupEquivalence(primarySpecPointId, track, supabaseClient);
     } catch (err) {
       console.warn("Equivalence lookup failed:", err);
       return null;
@@ -4997,15 +4991,7 @@
   }
 
   async function formatSpecPointLabel(specPointId) {
-    if (!specPointId) return "";
-    const { data: sp } = await supabaseClient
-      .from("spec_points")
-      .select("spec_ref, topic_name, spec_text")
-      .eq("id", specPointId)
-      .maybeSingle();
-    return sp
-      ? `${sp.spec_ref} - [${sp.topic_name}] ${(sp.spec_text || "").slice(0, 75)}...`
-      : "";
+    return AdminSpecCache.formatSpecPointLabelOrFetch(specPointId, supabaseClient);
   }
 
   async function autoFillLinkedSpecFromPrimary(primarySpecPointId) {
@@ -5120,22 +5106,11 @@
     selector.innerHTML = "<option value=\"\">Loading references...</option>";
 
     try {
-      const { data, error } = await supabaseClient
-        .from("spec_points")
-        .select("id, spec_ref, topic_name, spec_text")
-        .eq("subject", subject)
-        .eq("paper", paper)
-        .eq("course_track", courseTrack)
-        .order("spec_ref", { ascending: true });
-
-      if (error) throw error;
-
-      const rows = data || [];
-      selector.innerHTML = rows.length
-        ? rows.map((row) => `
-            <option value="${row.id}"${row.id === selectedSpecPointId ? " selected" : ""}>${row.spec_ref} - [${row.topic_name}] ${row.spec_text.slice(0, 75)}...</option>
-          `).join("")
-        : `<option value="">No spec points found for this filter</option>`;
+      const rows = await AdminSpecCache.loadSpecPoints({ subject, paper, courseTrack }, supabaseClient);
+      selector.innerHTML = AdminSpecCache.renderSpecPointOptions(rows, {
+        selectedId: selectedSpecPointId,
+        emptyLabel: "No spec points found for this filter",
+      });
 
       if (selectedSpecPointId && !rows.some((row) => row.id === selectedSpecPointId)) {
         const label = await formatSpecPointLabel(selectedSpecPointId);
@@ -5156,21 +5131,15 @@
     const primaryId = selector.value;
     if (primaryId) {
       await autoFillEditLinkedSpecFromPrimary(primaryId);
-      try {
-        const { data: sp } = await supabaseClient
-          .from("spec_points")
-          .select("subject, paper, course_track")
-          .eq("id", primaryId)
-          .maybeSingle();
-        if (sp) {
-          document.getElementById("editEqSheetSubject").value = sp.subject;
-          document.getElementById("editEqSheetPaper").value = sp.paper;
-          document.getElementById("editEqSheetCourseTrack").value =
-            document.getElementById("editAudienceSelect")?.value === "triple_only"
-              ? "triple"
-              : (sp.course_track || "combined");
-        }
-      } catch (_) { /* ignore */ }
+      const sp = AdminSpecCache.getSpecPointById(primaryId);
+      if (sp) {
+        document.getElementById("editEqSheetSubject").value = sp.subject;
+        document.getElementById("editEqSheetPaper").value = sp.paper;
+        document.getElementById("editEqSheetCourseTrack").value =
+          document.getElementById("editAudienceSelect")?.value === "triple_only"
+            ? "triple"
+            : (sp.course_track || "combined");
+      }
     }
   }
 
@@ -5262,19 +5231,8 @@
     selector.innerHTML = "<option>Loading references...</option>";
     
     try {
-      const { data, error } = await supabaseClient
-        .from("spec_points")
-        .select("id, spec_ref, topic_name, spec_text")
-        .eq("subject", subject)
-        .eq("paper", paper)
-        .eq("course_track", courseTrack)
-        .order("spec_ref", { ascending: true });
-        
-      if (error) throw error;
-      
-      selector.innerHTML = (data || []).map(row => `
-        <option value="${row.id}">${row.spec_ref} - [${row.topic_name}] ${row.spec_text.slice(0, 75)}...</option>
-      `).join("");
+      const rows = await AdminSpecCache.loadSpecPoints({ subject, paper, courseTrack }, supabaseClient);
+      selector.innerHTML = AdminSpecCache.renderSpecPointOptions(rows);
       
     } catch(err) {
       console.error(err);
@@ -6381,6 +6339,16 @@
     return existingUrl || null;
   }
 
+  async function collectSkillIdsForAdminMode(mode = "creator") {
+    if (!window.AdminSkills) return [];
+    await window.AdminSkills.ensureSkillCatalogLoaded?.(supabaseClient);
+    return window.AdminSkills.collectSelectedSkillIds(mode) || [];
+  }
+
+  function stripMarkPointQuestionIds(markPayloads) {
+    return (markPayloads || []).map(({ question_id, ...rest }) => rest);
+  }
+
   async function buildMarkPointPayloadsFromRows(rows, questionId, mode = "creator", questionType = "") {
     const payloads = [];
     for (const r of rows) {
@@ -6658,18 +6626,9 @@
         insertPayload.equipment_config = window.EquipmentWorkflow.buildEquipmentConfigFromForm("");
       }
 
-      const { data: qResult, error: qErr } = await supabaseClient
-        .from("questions")
-        .insert(insertPayload)
-        .select()
-        .single();
-        
-      if (qErr) throw qErr;
-      
-      // Save Answer Key payloads
       let keyType = "keywords";
       let keyPayload = {};
-      
+
       if (questionType === "mcq") {
         keyType = "mcq";
         keyPayload = {
@@ -6677,7 +6636,7 @@
         };
         const optionFeedback = buildMcqOptionFeedbackFromForm(optionsArr, mcqFeedbackArr);
         if (optionFeedback) keyPayload.option_feedback = optionFeedback;
-      } 
+      }
       else if (questionType === "numeric") {
         keyType = "numeric";
         keyPayload = {
@@ -6746,30 +6705,19 @@
         };
       }
 
-      const { error: kErr } = await supabaseClient
-        .from("answer_keys")
-        .insert({
-          question_id: qResult.id,
-          key_type: keyType,
-          key_payload: keyPayload
-        });
-        
-      if (kErr) throw kErr;
-      
-      // Save Section 3 detailed Mark Points (short answer only — numeric uses Section 2 feedback;
-      // pool "pick N" marking lives in the answer key, so checkpoints are skipped)
+      let markPayloads = [];
       const rows = Array.from(document.querySelectorAll("#markPointsWrapper .mark-point-row"));
       if (rows.length > 0 && questionType !== "numeric" && questionType !== "chemistry_interactive" && questionType !== "circuit_interactive" && questionType !== "equipment_interactive" && keyType !== "pick_n") {
-        const markPayloads = await buildMarkPointPayloadsFromRows(rows, qResult.id, "creator", questionType);
-        if (markPayloads.length > 0) {
-          const { error: mpErr } = await supabaseClient.from("mark_points").insert(markPayloads);
-          if (mpErr) throw mpErr;
-        }
+        markPayloads = await buildMarkPointPayloadsFromRows(rows, null, "creator", questionType);
       }
 
-      if (window.AdminSkills) {
-        await window.AdminSkills.saveSkillsFromForm(supabaseClient, qResult.id, "creator");
-      }
+      const { questionId: savedQuestionId, viaRpc } = await commitQuestionBundle(supabaseClient, {
+        question: insertPayload,
+        answerKey: { key_type: keyType, key_payload: keyPayload },
+        markPoints: stripMarkPointQuestionIds(markPayloads),
+        skillIds: await collectSkillIdsForAdminMode("creator"),
+      });
+      const qResult = { id: savedQuestionId };
 
       try {
         const markPointsForLog = (questionType !== "numeric" && keyType !== "pick_n")
@@ -6799,7 +6747,8 @@
               path: "admin_manual_create",
               question_type: questionType,
               spec_point_id: insertPayload.spec_point_id,
-              audience: insertPayload.audience
+              audience: insertPayload.audience,
+              bundle_rpc: viaRpc
             }
           },
           humanEdited: true
@@ -6808,10 +6757,10 @@
         console.warn("generation_logs (manual_create):", logErr);
         showAdminToast(`Question saved, but provenance log failed: ${logErr.message}`, true);
       }
-      
+
       showAdminToast("Question committed successfully! ✅");
       clearQuestionCreatorForm();
-      
+
     } catch(err) {
       console.error(err);
       showAdminToast("Error committing entry: " + err.message, true);
@@ -8654,17 +8603,8 @@
 
     select.innerHTML = "<option value=\"\">Loading references…</option>";
     try {
-      const { data, error } = await supabaseClient
-        .from("spec_points")
-        .select("id, spec_ref, topic_name, spec_text")
-        .eq("subject", subject)
-        .eq("paper", paper)
-        .eq("course_track", courseTrack)
-        .order("spec_ref", { ascending: true });
-      if (error) throw error;
-      select.innerHTML = `<option value="">Select spec point…</option>` + (data || []).map((row) =>
-        `<option value="${row.id}">${row.spec_ref} - [${row.topic_name}] ${(row.spec_text || "").slice(0, 75)}…</option>`
-      ).join("");
+      const rows = await AdminSpecCache.loadSpecPoints({ subject, paper, courseTrack }, supabaseClient);
+      select.innerHTML = AdminSpecCache.renderSpecPointOptions(rows, { emptyLabel: "Select spec point…" });
     } catch (err) {
       select.innerHTML = "<option value=\"\">Error loading spec points</option>";
       console.warn(err);
@@ -10328,92 +10268,14 @@
 
   initializeAiUsageDateRange();
 
-  function dedupeQuestionsById(rows) {
-    const seen = new Set();
-    return (rows || []).filter((q) => {
-      if (!q?.id || seen.has(q.id)) return false;
-      seen.add(q.id);
-      return true;
-    });
-  }
+  const dedupeQuestionsById = AdminAuditQuery.dedupeQuestionsById;
 
   function getAuditQuestionSpecRef(q, specMap, courseTrack = auditCourseTrackFilter) {
-    if (!q) return "Global";
-    if (q.audience === "triple_only") {
-      return specMap[q.spec_point_id]?.spec_ref || "Global";
-    }
-    if (courseTrack === "triple" && q.triple_spec_point_id) {
-      return specMap[q.triple_spec_point_id]?.spec_ref || specMap[q.spec_point_id]?.spec_ref || "Global";
-    }
-    return specMap[q.spec_point_id]?.spec_ref || specMap[q.triple_spec_point_id]?.spec_ref || "Global";
+    return AdminAuditQuery.getAuditQuestionSpecRef(q, specMap, courseTrack);
   }
 
   function getAuditQuestionTopic(q, specMap, courseTrack = auditCourseTrackFilter) {
-    if (!q) return "";
-    if (q.audience === "triple_only") {
-      return specMap[q.spec_point_id]?.topic_name || "";
-    }
-    if (courseTrack === "triple" && q.triple_spec_point_id) {
-      return specMap[q.triple_spec_point_id]?.topic_name || specMap[q.spec_point_id]?.topic_name || "";
-    }
-    return specMap[q.spec_point_id]?.topic_name || specMap[q.triple_spec_point_id]?.topic_name || "";
-  }
-
-  async function runAuditQuestionQuery(selectWithMeta, selectBasic, applyFilters) {
-    const attempt = async (select) => {
-      let query = supabaseClient.from("questions").select(select);
-      applyFilters(query);
-      return query;
-    };
-    let result = await attempt(selectWithMeta);
-    if (result.error && /column|relation|question_skills/i.test(result.error.message || "")) {
-      result = await attempt(selectBasic);
-    }
-    if (result.error) throw result.error;
-    return result.data || [];
-  }
-
-  async function fetchAuditQuestionsForTrack(courseTrack, combinedIds, tripleIds, selectWithMeta, selectBasic, qTypeFilter) {
-    const typeFilter = (q) => { if (qTypeFilter) q.eq("question_type", qTypeFilter); };
-
-    if (courseTrack === "combined") {
-      if (!combinedIds.length) return [];
-      return runAuditQuestionQuery(selectWithMeta, selectBasic, (q) => {
-        q.in("spec_point_id", combinedIds);
-        typeFilter(q);
-      });
-    }
-
-    if (courseTrack === "triple") {
-      if (!tripleIds.length) return [];
-      const [tripleOnly, sharedTriple] = await Promise.all([
-        runAuditQuestionQuery(selectWithMeta, selectBasic, (q) => {
-          q.in("spec_point_id", tripleIds).eq("audience", "triple_only");
-          typeFilter(q);
-        }),
-        runAuditQuestionQuery(selectWithMeta, selectBasic, (q) => {
-          q.in("triple_spec_point_id", tripleIds).eq("audience", "both");
-          typeFilter(q);
-        }),
-      ]);
-      return dedupeQuestionsById([...tripleOnly, ...sharedTriple]);
-    }
-
-    const queries = [];
-    if (combinedIds.length) {
-      queries.push(runAuditQuestionQuery(selectWithMeta, selectBasic, (q) => {
-        q.in("spec_point_id", combinedIds);
-        typeFilter(q);
-      }));
-    }
-    if (tripleIds.length) {
-      queries.push(runAuditQuestionQuery(selectWithMeta, selectBasic, (q) => {
-        q.in("spec_point_id", tripleIds).eq("audience", "triple_only");
-        typeFilter(q);
-      }));
-    }
-    const batches = await Promise.all(queries);
-    return dedupeQuestionsById(batches.flat());
+    return AdminAuditQuery.getAuditQuestionTopic(q, specMap, courseTrack);
   }
 
   function attachAuditWarnings(filtered, markPointStatsMap) {
@@ -10665,10 +10527,10 @@
       const checked = auditSelectedIds.has(q.id) ? " checked" : "";
       const isMcq = q.question_type === "mcq";
       const opsBottomLeft = isMcq
-        ? `<button type="button" onclick="draftMcqAsShortAnswer('${q.id}')" class="btn btn-secondary" style="background:#059669; color:white;" title="Copy to short-answer draft on Create tab">→ SA</button>`
-        : `<button type="button" onclick="requestSafeSystemDeletion('${q.id}')" class="btn btn-danger">Del</button>`;
+        ? `<button type="button" class="btn btn-secondary audit-action-btn" data-audit-action="draft-sa" data-qid="${q.id}" style="background:#059669; color:white;" title="Copy to short-answer draft on Create tab">→ SA</button>`
+        : `<button type="button" class="btn btn-danger audit-action-btn" data-audit-action="delete" data-qid="${q.id}">Del</button>`;
       const opsBottomMid = isMcq
-        ? `<button type="button" onclick="requestSafeSystemDeletion('${q.id}')" class="btn btn-danger">Del</button>`
+        ? `<button type="button" class="btn btn-danger audit-action-btn" data-audit-action="delete" data-qid="${q.id}">Del</button>`
         : `<span class="audit-ops-spacer btn" aria-hidden="true">·</span>`;
 
       return `
@@ -10689,9 +10551,9 @@
             <td class="audit-col-meta">${metaBadge}</td>
             <td class="audit-col-ops">
               <div class="audit-ops">
-                <button type="button" onclick="launchSandboxTest('${q.id}')" class="btn btn-secondary" style="background:#3b82f6; color:white;">Test</button>
-                <button type="button" onclick="requestInteractiveEdit('${q.id}')" class="btn btn-secondary">Edit</button>
-                <button type="button" onclick="requestInteractiveCopy('${q.id}')" class="btn btn-secondary" style="background:#0d9488; color:white;" title="Copy as new question (edit then save)">Copy</button>
+                <button type="button" class="btn btn-secondary audit-action-btn" data-audit-action="test" data-qid="${q.id}" style="background:#3b82f6; color:white;">Test</button>
+                <button type="button" class="btn btn-secondary audit-action-btn" data-audit-action="edit" data-qid="${q.id}">Edit</button>
+                <button type="button" class="btn btn-secondary audit-action-btn" data-audit-action="copy" data-qid="${q.id}" style="background:#0d9488; color:white;" title="Copy as new question (edit then save)">Copy</button>
                 ${opsBottomLeft}
                 ${opsBottomMid}
                 <span class="audit-ops-spacer btn" aria-hidden="true">·</span>
@@ -10785,6 +10647,20 @@
     else auditSelectedIds.delete(id);
     syncAuditSelectAllCheckbox();
     updateAuditBulkBar();
+  });
+
+  auditList?.addEventListener("click", (event) => {
+    const btn = event.target.closest(".audit-action-btn");
+    if (!btn) return;
+    const qid = btn.dataset.qid;
+    const action = btn.dataset.auditAction;
+    if (!qid || !action) return;
+    event.preventDefault();
+    if (action === "test") window.launchSandboxTest?.(qid);
+    else if (action === "edit") window.requestInteractiveEdit?.(qid);
+    else if (action === "copy") window.requestInteractiveCopy?.(qid);
+    else if (action === "delete") window.requestSafeSystemDeletion?.(qid);
+    else if (action === "draft-sa") window.draftMcqAsShortAnswer?.(qid);
   });
 
   document.getElementById("auditSelectAll")?.addEventListener("change", (event) => {
@@ -11325,37 +11201,15 @@
         if (row.course_track === "triple") tripleIds.push(row.id);
         else combinedIds.push(row.id);
       });
+      AdminSpecCache.seedSpecMapRows(specs || []);
 
-      const allMarkPoints = await fetchAllRows(() =>
-        supabaseClient
-          .from("mark_points")
-          .select("question_id, point_text, feedback_if_missing")
-          .order("question_id")
-      );
-
-      auditMarkPointStatsMap = {};
-      auditCheckPointsCounterMap = {};
-      (allMarkPoints || []).forEach((mp) => {
-        const qid = mp.question_id;
-        if (!auditMarkPointStatsMap[qid]) {
-          auditMarkPointStatsMap[qid] = { gradable: 0, missingFeedback: 0 };
-        }
-        if (!String(mp.point_text || "").trim()) return;
-        auditMarkPointStatsMap[qid].gradable += 1;
-        if (!String(mp.feedback_if_missing || "").trim()) {
-          auditMarkPointStatsMap[qid].missingFeedback += 1;
-        }
-      });
-      Object.keys(auditMarkPointStatsMap).forEach((qid) => {
-        auditCheckPointsCounterMap[qid] = auditMarkPointStatsMap[qid].gradable;
-      });
-
-      const selectWithMeta = "id, spec_point_id, triple_spec_point_id, audience, question_type, prompt, options, tier, marking_method, max_marks, resource_links, hints, image_url, calculation_config, chemistry_config, circuit_config, equipment_config, command_word, demand_level, ao1_marks, ao2_marks, ao3_marks, is_maths_skill, is_required_practical, required_practical_id, difficulty, required_practicals(code), answer_keys(key_type, key_payload), question_skills(skill_id, skill_framework_items(full_code, framework, title))";
-      const selectBasic = "id, spec_point_id, triple_spec_point_id, audience, question_type, prompt, options, tier, marking_method, max_marks, resource_links, hints, image_url, calculation_config, chemistry_config, circuit_config, equipment_config, command_word, demand_level, ao1_marks, ao2_marks, ao3_marks, is_maths_skill, is_required_practical, required_practical_id, difficulty, required_practicals(code), answer_keys(key_type, key_payload)";
+      const selectWithMeta = AdminAuditQuery.AUDIT_SELECT_WITH_META;
+      const selectBasic = AdminAuditQuery.AUDIT_SELECT_BASIC;
 
       auditCourseTrackFilter = courseTrack;
 
-      let filtered = await fetchAuditQuestionsForTrack(
+      let filtered = await AdminAuditQuery.fetchAuditQuestionsForTrack(
+        supabaseClient,
         courseTrack,
         combinedIds,
         tripleIds,
@@ -11363,6 +11217,14 @@
         selectBasic,
         qTypeFilter
       );
+
+      const markPoints = await AdminAuditQuery.fetchMarkPointsForQuestionIds(
+        supabaseClient,
+        filtered.map((q) => q.id)
+      );
+      const { statsMap, counterMap } = AdminAuditQuery.buildMarkPointStatsMap(markPoints);
+      auditMarkPointStatsMap = statsMap;
+      auditCheckPointsCounterMap = counterMap;
 
       if (search) {
         filtered = filtered.filter((q) => q.prompt.toLowerCase().includes(search.toLowerCase()));
@@ -11387,7 +11249,7 @@
         });
       }
 
-      if (window.AdminSkills?.attachSkillsToQuestions) {
+      if (AdminAuditQuery.needsSkillsAttach(filtered) && window.AdminSkills?.attachSkillsToQuestions) {
         filtered = await window.AdminSkills.attachSkillsToQuestions(supabaseClient, filtered);
       }
 
@@ -12179,6 +12041,23 @@
       }
 
       let savedQuestionId = sourceId;
+      const resolvedKeyType = updatedKeyType || insertKeyType;
+      const skipMarkPoints =
+        q.question_type === "numeric" ||
+        q.question_type === "chemistry_interactive" ||
+        q.question_type === "circuit_interactive" ||
+        q.question_type === "equipment_interactive" ||
+        resolvedKeyType === "pick_n";
+
+      let markPayloads = [];
+      if (!skipMarkPoints) {
+        const editRows = Array.from(document.querySelectorAll("#editMarkPointsWrapper .edit-mp-row, #editMarkPointsWrapper .mark-point-row"));
+        if (editRows.length > 0) {
+          markPayloads = await buildMarkPointPayloadsFromRows(editRows, sourceId, "edit", q.question_type);
+        }
+      }
+
+      const skillIds = await collectSkillIdsForAdminMode("edit");
 
       if (isCopy) {
         let markingMethod = q.marking_method || "keyword";
@@ -12196,40 +12075,23 @@
           ...updatePayload
         };
 
-        const { data: qResult, error: qErr } = await supabaseClient
-          .from("questions")
-          .insert(insertPayload)
-          .select("id")
-          .single();
-        if (qErr) throw qErr;
-        savedQuestionId = qResult.id;
-
-        const { error: keyErr } = await supabaseClient
-          .from("answer_keys")
-          .insert({
-            question_id: savedQuestionId,
-            key_type: insertKeyType,
-            key_payload: updatedPayload
-          });
-        if (keyErr) throw keyErr;
-
-        if (q.question_type !== "numeric" && q.question_type !== "chemistry_interactive" && q.question_type !== "circuit_interactive" && q.question_type !== "equipment_interactive" && insertKeyType !== "pick_n") {
-          const editRows = Array.from(document.querySelectorAll("#editMarkPointsWrapper .edit-mp-row, #editMarkPointsWrapper .mark-point-row"));
-          if (editRows.length > 0) {
-            const markPayloads = await buildMarkPointPayloadsFromRows(editRows, savedQuestionId, "edit", q.question_type);
-            if (markPayloads.length > 0) {
-              const { error: mpErr } = await supabaseClient.from("mark_points").insert(markPayloads);
-              if (mpErr) throw mpErr;
-            }
-          }
-        }
+        const { questionId } = await commitQuestionBundle(supabaseClient, {
+          question: insertPayload,
+          answerKey: { key_type: insertKeyType, key_payload: updatedPayload },
+          markPoints: stripMarkPointQuestionIds(markPayloads),
+          skillIds,
+        });
+        savedQuestionId = questionId;
       } else {
-        const { error: uErr } = await supabaseClient
-          .from("questions")
-          .update(updatePayload)
-          .eq("id", sourceId);
-
-        if (uErr) throw uErr;
+        const { questionId } = await commitQuestionBundle(supabaseClient, {
+          questionId: sourceId,
+          question: updatePayload,
+          answerKey: { key_type: resolvedKeyType, key_payload: updatedPayload },
+          markPoints: stripMarkPointQuestionIds(markPayloads),
+          skillIds,
+          replaceMarkPoints: true,
+        });
+        savedQuestionId = questionId;
 
         if (q.question_type === "numeric" && updatePayload.calculation_config) {
           q.calculation_config = JSON.parse(JSON.stringify(updatePayload.calculation_config));
@@ -12243,35 +12105,6 @@
         if (q.question_type === "equipment_interactive" && updatePayload.equipment_config) {
           q.equipment_config = JSON.parse(JSON.stringify(updatePayload.equipment_config));
         }
-
-        const keyUpdate = updatedKeyType
-          ? { key_type: updatedKeyType, key_payload: updatedPayload }
-          : { key_payload: updatedPayload };
-        const { error: keyErr } = await supabaseClient
-          .from("answer_keys")
-          .update(keyUpdate)
-          .eq("question_id", sourceId);
-
-        if (keyErr) throw keyErr;
-
-        // Sync edit mark points (short answer only — numeric feedback lives in calculation_config;
-        // pool "pick N" marking lives in the answer key, so checkpoints are cleared)
-        await supabaseClient.from("mark_points").delete().eq("question_id", sourceId);
-
-        if (q.question_type !== "numeric" && q.question_type !== "chemistry_interactive" && q.question_type !== "circuit_interactive" && q.question_type !== "equipment_interactive" && updatedKeyType !== "pick_n") {
-          const editRows = Array.from(document.querySelectorAll("#editMarkPointsWrapper .edit-mp-row, #editMarkPointsWrapper .mark-point-row"));
-          if (editRows.length > 0) {
-            const markPayloads = await buildMarkPointPayloadsFromRows(editRows, sourceId, "edit", q.question_type);
-            if (markPayloads.length > 0) {
-              const { error: mpErr } = await supabaseClient.from("mark_points").insert(markPayloads);
-              if (mpErr) throw mpErr;
-            }
-          }
-        }
-      }
-
-      if (window.AdminSkills) {
-        await window.AdminSkills.saveSkillsFromForm(supabaseClient, savedQuestionId, "edit");
       }
 
       if (isCopy) {
