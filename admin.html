@@ -5227,12 +5227,13 @@
     const paper = document.getElementById("paperSelect").value;
     const courseTrack = getAuthoringCourseTrack();
     const selector = document.getElementById("specPointSelect");
-    
+    const selectedId = selector?.value || "";
+
     selector.innerHTML = "<option>Loading references...</option>";
     
     try {
       const rows = await AdminSpecCache.loadSpecPoints({ subject, paper, courseTrack }, supabaseClient);
-      selector.innerHTML = AdminSpecCache.renderSpecPointOptions(rows);
+      selector.innerHTML = AdminSpecCache.renderSpecPointOptions(rows, { selectedId });
       
     } catch(err) {
       console.error(err);
@@ -5240,10 +5241,7 @@
     }
 
     syncSpecLinkUi();
-    const primarySpecId = document.getElementById("specPointSelect")?.value;
-    if (primarySpecId) {
-      await autoFillLinkedSpecFromPrimary(primarySpecId);
-    }
+    await autoFillLinkedSpecFromPrimary(selector?.value || "");
     fillRequiredPracticalSelect(
       document.getElementById("requiredPracticalSelect"),
       subject,
@@ -8601,17 +8599,20 @@
     const select = document.getElementById("batchMcqSpecPointSelect");
     if (!select) return;
 
+    const selectedId = select.value || "";
     select.innerHTML = "<option value=\"\">Loading references…</option>";
     try {
       const rows = await AdminSpecCache.loadSpecPoints({ subject, paper, courseTrack }, supabaseClient);
-      select.innerHTML = AdminSpecCache.renderSpecPointOptions(rows, { emptyLabel: "Select spec point…" });
+      select.innerHTML = AdminSpecCache.renderSpecPointOptions(rows, {
+        emptyLabel: "Select spec point…",
+        selectedId,
+      });
     } catch (err) {
       select.innerHTML = "<option value=\"\">Error loading spec points</option>";
       console.warn(err);
     }
     syncBatchMcqSpecLinkUi();
-    const primaryId = select.value;
-    if (primaryId) await autoFillBatchMcqLinkedSpec(primaryId);
+    await autoFillBatchMcqLinkedSpec(select.value || "");
   }
 
   async function autoFillBatchMcqLinkedSpec(primarySpecPointId) {

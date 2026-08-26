@@ -7,6 +7,7 @@ import {
   lookupEquivalence,
   loadSpecPoints,
   initSpecCache,
+  renderSpecPointOptions,
 } from "../src/admin/adminSpecCache.js";
 
 function mockSupabase(handlers) {
@@ -75,5 +76,17 @@ describe("adminSpecCache", () => {
     assert.equal(equiv.triple, "t1");
     const reverse = await lookupEquivalence("t1", "triple");
     assert.equal(reverse.combined, "c1");
+  });
+
+  it("renderSpecPointOptions preserves selectedId", () => {
+    const html = renderSpecPointOptions(
+      [
+        { id: "a", spec_ref: "4.1.1", topic_name: "T", spec_text: "text a" },
+        { id: "b", spec_ref: "4.1.2", topic_name: "T", spec_text: "text b" },
+      ],
+      { selectedId: "b" }
+    );
+    assert.match(html, /value="b" selected/);
+    assert.doesNotMatch(html, /value="a" selected/);
   });
 });
