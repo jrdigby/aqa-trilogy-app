@@ -825,7 +825,7 @@
           <span id="tierBoundaryBadge" class="tier-boundary-badge hidden" role="status"></span>
 
           <span id="userChip" class="chip">...</span>
-          <button type="button" id="btnOpenSettings" class="btn-secondary" style="padding: 5px 12px; font-size: 0.8rem; flex: none;">⚙️ Settings</button>
+          <button type="button" id="btnOpenSettings" class="btn-secondary btn-settings-with-badge" style="padding: 5px 12px; font-size: 0.8rem; flex: none;">⚙️ Settings<span id="settingsExpertDot" class="btn-settings-expert-dot hidden" aria-hidden="true"></span></button>
           <button id="btnSignOut" class="btn-secondary" style="padding: 5px 10px; font-size: 0.8rem; flex: none;">Sign Out</button>
         </div>
       </div>
@@ -1044,6 +1044,14 @@
           <h3 class="scoped-panel-heading">⚙️ Study preferences</h3>
           <p class="muted" style="margin-bottom: 20px; font-size: 0.9rem;">Update the same choices you made at sign-up. Changes affect which questions you see and how new topics are scheduled.</p>
 
+          <div class="settings-section" id="expertRepliesSection">
+            <h4 class="settings-heading">Expert replies <span id="expertRepliesUnreadBadge" class="expert-unread-badge hidden">0</span></h4>
+            <p class="muted settings-hint">When you use <strong>Ask an expert</strong> on a question, replies appear here.</p>
+            <div id="expertRepliesList" class="expert-replies-list">
+              <p class="muted" style="font-size: 0.85rem;">Loading…</p>
+            </div>
+          </div>
+
           <div class="settings-section">
             <h4 class="settings-heading">Your name</h4>
             <p class="muted settings-hint">Shown to your teacher on the class roster.</p>
@@ -1232,6 +1240,10 @@
           <button id="btnSubmit" class="btn-success">Submit Answer</button>
           <button id="btnNext" class="btn-primary hidden">Advance to Next Question →</button>
         </div>
+        <div class="ask-expert-row">
+          <button type="button" id="btnAskExpert" class="btn-secondary btn-ask-expert">Ask an expert</button>
+          <p class="muted ask-expert-hint">Stuck on a misconception, or think something&apos;s wrong with the question?</p>
+        </div>
       </div>
 
       <div id="sessionSummary" class="session-summary hidden">
@@ -1259,6 +1271,38 @@
       <div class="upgrade-modal-actions">
         <button type="button" id="btnUpgradeModalPrimary" class="btn-primary" disabled title="Stripe checkout coming soon">Upgrade — coming soon</button>
         <button type="button" id="btnUpgradeModalDismiss" class="btn-secondary">Continue with Free</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="askExpertModal" class="upgrade-modal hidden" role="dialog" aria-modal="true" aria-labelledby="askExpertModalTitle">
+    <div class="upgrade-modal-backdrop" id="askExpertModalBackdrop"></div>
+    <div class="upgrade-modal-card ask-expert-modal-card">
+      <button type="button" id="btnCloseAskExpertModal" class="upgrade-modal-close" aria-label="Close">×</button>
+      <h2 id="askExpertModalTitle">Ask an expert</h2>
+      <p class="muted" style="margin-bottom: 14px; font-size: 0.9rem;">Flag this question if you&apos;re stuck, or if you think the content is wrong. You&apos;ll get one written reply in Settings → Expert replies.</p>
+      <fieldset class="ask-expert-fieldset">
+        <legend class="ask-expert-legend">Why are you asking?</legend>
+        <div id="askExpertCategoryOptions" class="ask-expert-categories"></div>
+      </fieldset>
+      <label for="askExpertMessage" class="ask-expert-label">Optional note</label>
+      <textarea id="askExpertMessage" class="ask-expert-textarea" maxlength="1000" rows="4" placeholder="What specifically is confusing, or what looks wrong?"></textarea>
+      <p id="askExpertModalMsg" class="muted ask-expert-modal-msg hidden"></p>
+      <div class="upgrade-modal-actions">
+        <button type="button" id="btnSubmitAskExpert" class="btn-primary">Send to expert</button>
+        <button type="button" id="btnCancelAskExpert" class="btn-secondary">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="expertReplyModal" class="upgrade-modal hidden" role="dialog" aria-modal="true" aria-labelledby="expertReplyModalTitle">
+    <div class="upgrade-modal-backdrop" id="expertReplyModalBackdrop"></div>
+    <div class="upgrade-modal-card ask-expert-modal-card">
+      <button type="button" id="btnCloseExpertReplyModal" class="upgrade-modal-close" aria-label="Close">×</button>
+      <h2 id="expertReplyModalTitle">Expert reply</h2>
+      <div id="expertReplyModalBody" class="expert-reply-modal-body"></div>
+      <div class="upgrade-modal-actions">
+        <button type="button" id="btnDismissExpertReplyModal" class="btn-secondary">Close</button>
       </div>
     </div>
   </div>

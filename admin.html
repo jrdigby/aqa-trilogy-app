@@ -1589,6 +1589,182 @@
       margin-bottom: -2px;
     }
 
+    .expert-tab-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 1.25rem;
+      height: 1.25rem;
+      padding: 0 6px;
+      margin-left: 4px;
+      border-radius: 999px;
+      background: #0f766e;
+      color: #fff;
+      font-size: 0.7rem;
+      font-weight: 700;
+      vertical-align: middle;
+    }
+    .expert-tab-badge.hidden { display: none !important; }
+
+    .expert-queries-card { padding-bottom: 18px; }
+    .expert-admin-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px 16px;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 16px;
+    }
+    .expert-admin-toolbar-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: end;
+    }
+    .expert-admin-filter-label {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+    .expert-queries-layout {
+      display: grid;
+      grid-template-columns: minmax(240px, 340px) minmax(0, 1fr);
+      gap: 16px;
+      align-items: start;
+    }
+    .expert-admin-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: min(70vh, 720px);
+      overflow: auto;
+    }
+    .expert-admin-list-item {
+      text-align: left;
+      border: 1px solid var(--border);
+      background: #f8fafc;
+      border-radius: 10px;
+      padding: 10px 12px;
+      cursor: pointer;
+      font: inherit;
+      color: inherit;
+    }
+    .expert-admin-list-item:hover { border-color: #94a3b8; background: #fff; }
+    .expert-admin-list-item.is-active {
+      border-color: #0f766e;
+      background: #f0fdfa;
+      box-shadow: inset 3px 0 0 #0f766e;
+    }
+    .expert-admin-list-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+    .expert-admin-chip {
+      display: inline-block;
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: #0f766e;
+      background: #ccfbf1;
+      border-radius: 999px;
+      padding: 2px 8px;
+    }
+    .expert-admin-age { font-size: 0.75rem; color: var(--text-muted); }
+    .expert-admin-list-meta,
+    .expert-admin-list-student { font-size: 0.75rem; color: var(--text-muted); }
+    .expert-admin-list-stem { font-size: 0.88rem; font-weight: 600; margin: 4px 0; color: #0f172a; }
+    .expert-admin-empty {
+      padding: 18px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      border: 1px dashed var(--border);
+      border-radius: 10px;
+    }
+    .expert-admin-detail-pane {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      background: #fff;
+      min-width: 0;
+    }
+    .expert-admin-back { display: none; margin-bottom: 10px; }
+    .expert-admin-detail-head {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+    .expert-admin-status {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #64748b;
+      font-weight: 700;
+    }
+    .expert-admin-detail-meta {
+      margin: 0 0 14px;
+      font-size: 0.82rem;
+      color: var(--text-muted);
+    }
+    .expert-admin-section { margin-bottom: 14px; }
+    .expert-admin-section h4 {
+      margin: 0 0 6px;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      color: #64748b;
+    }
+    .expert-admin-box {
+      white-space: pre-wrap;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 0.9rem;
+      line-height: 1.45;
+    }
+    .expert-admin-options {
+      margin: 8px 0 0 18px;
+      font-size: 0.85rem;
+    }
+    .expert-admin-reply-box {
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid var(--border);
+    }
+    .expert-admin-reply-box textarea {
+      width: 100%;
+      margin-top: 6px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font: inherit;
+      resize: vertical;
+      min-height: 110px;
+    }
+    .expert-admin-reply-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    @media (max-width: 860px) {
+      .expert-queries-layout {
+        grid-template-columns: 1fr;
+      }
+      .expert-admin-detail-pane { display: none; }
+      .expert-queries-layout.show-detail .expert-admin-list-pane { display: none; }
+      .expert-queries-layout.show-detail .expert-admin-detail-pane { display: block; }
+      .expert-admin-back { display: inline-flex; }
+      .expert-admin-list { max-height: none; }
+    }
+
     .tab-btn.active {
       color: var(--primary);
       border-bottom-color: var(--primary);
@@ -1996,6 +2172,7 @@
         <button class="tab-btn" data-panel="batchChemQuant" onclick="switchPanel('batchChemQuant')">🧪 Batch Chem Quantitative</button>
         <button class="tab-btn" data-panel="batchMcq" onclick="switchPanel('batchMcq')">✨ AI Question Studio</button>
         <button class="tab-btn" onclick="switchPanel('audit')">🔍 Database Audit &amp; Review</button>
+        <button class="tab-btn" data-panel="expertQueries" onclick="switchPanel('expertQueries')">🙋 Expert Queries <span id="expertQueriesTabBadge" class="expert-tab-badge hidden">0</span></button>
         <button class="tab-btn" data-panel="aiUsage" onclick="switchPanel('aiUsage')">💸 AI Usage Monitor</button>
         <button class="tab-btn" onclick="switchPanel('pilot')">🎫 Pilot Pro Access</button>
         <button class="tab-btn" onclick="switchPanel('csv')">📂 Packaged CSV Importer</button>
@@ -3665,6 +3842,55 @@
         </div>
       </div>
 
+      <!-- TAB: EXPERT QUERIES -->
+      <div id="panelExpertQueries" class="panel">
+        <div class="card expert-queries-card">
+          <div class="expert-admin-toolbar">
+            <div>
+              <h3 style="margin:0 0 4px; color:var(--primary-dark); font-size:1.1rem;">Ask an expert inbox</h3>
+              <p style="margin:0; color:var(--text-muted); font-size:0.85rem; line-height:1.45;">
+                Student flags with question, correct answer, their response, and note. Send one reply or dismiss.
+              </p>
+            </div>
+            <div class="expert-admin-toolbar-actions">
+              <label class="expert-admin-filter-label">
+                Status
+                <select id="expertQueryStatusFilter">
+                  <option value="open" selected>Open</option>
+                  <option value="replied">Replied</option>
+                  <option value="dismissed">Dismissed</option>
+                  <option value="all">All</option>
+                </select>
+              </label>
+              <button type="button" id="btnRefreshExpertQueries" class="btn btn-secondary">Refresh</button>
+            </div>
+          </div>
+
+          <div id="expertQueriesLayout" class="expert-queries-layout">
+            <div class="expert-admin-list-pane">
+              <div id="expertQueryList" class="expert-admin-list">
+                <div class="expert-admin-empty">Open this tab to load the queue.</div>
+              </div>
+            </div>
+            <div class="expert-admin-detail-pane">
+              <button type="button" id="btnExpertBackToList" class="btn btn-secondary expert-admin-back">← Back to list</button>
+              <div id="expertQueryDetail" class="expert-admin-detail">
+                <div class="expert-admin-empty">Select a query to review the question, answer, and student note.</div>
+              </div>
+              <div class="expert-admin-reply-box">
+                <label for="expertAdminReply"><strong>Your reply to the student</strong></label>
+                <textarea id="expertAdminReply" rows="5" placeholder="Clear explanation or confirmation of a fix…" maxlength="4000"></textarea>
+                <div class="expert-admin-reply-actions">
+                  <button type="button" id="btnExpertSendReply" class="btn btn-primary" disabled>Send reply</button>
+                  <button type="button" id="btnExpertDismiss" class="btn btn-secondary" disabled>Dismiss</button>
+                  <button type="button" id="btnExpertEditQuestion" class="btn btn-secondary" disabled>Edit question</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- TAB 5: PILOT PRO ACCESS -->
       <div id="panelPilot" class="panel">
         <div class="card">
@@ -4572,6 +4798,7 @@
   import * as AdminAuditQuery from "./src/admin/adminAuditQuery.js";
   import * as AdminSpecCache from "./src/admin/adminSpecCache.js";
   import { commitQuestionBundle } from "./src/admin/adminQuestionCommit.js";
+  import { createExpertQueriesController } from "./src/admin/adminExpertQueries.js";
 
   AdminSpecCache.initSpecCache(supabaseClient);
   window.AdminSpecCache = AdminSpecCache;
@@ -4649,6 +4876,17 @@
     }, duration);
   }
   window.showAdminToast = showAdminToast;
+
+  window.ExpertQueriesAdmin = createExpertQueriesController({
+    supabaseClient,
+    showAdminToast,
+    openQuestionEditor: async (questionId) => {
+      if (typeof window.requestInteractiveEdit === "function") {
+        await window.requestInteractiveEdit(questionId);
+      }
+    }
+  });
+  window.ExpertQueriesAdmin.wire();
 
   const MAX_HINTS = 5;
 
@@ -4848,6 +5086,14 @@
       await window.AdminSkills.loadSkillCatalog(supabaseClient);
     }
     AdminSpecCache.ensureEquivalencesLoaded(supabaseClient).catch(() => {});
+    if (window.ExpertQueriesAdmin) {
+      window.ExpertQueriesAdmin.refreshBadge().catch(() => {});
+      const deepId = window.ExpertQueriesAdmin.parseDeepLink();
+      if (deepId) {
+        window.switchPanel("expertQueries");
+        window.ExpertQueriesAdmin.openById(deepId).catch(() => {});
+      }
+    }
   }
 
   // Switch Panel Tabs
@@ -4869,6 +5115,7 @@
       batchChemQuant: "panelBatchChemQuant",
       batchMcq: "panelBatchMcq",
       audit: "panelAudit",
+      expertQueries: "panelExpertQueries",
       aiUsage: "panelAiUsage",
       pilot: "panelPilot"
     };
@@ -4889,6 +5136,9 @@
     if (panelId === "batchMcq") {
       initBatchMcqRecipes();
       loadBatchMcqSpecPointSelect().catch(() => {});
+    }
+    if (panelId === "expertQueries" && window.ExpertQueriesAdmin) {
+      window.ExpertQueriesAdmin.load().catch(() => {});
     }
     if (panelId === "aiUsage" && aiUsageTableBody && btnLoadAiUsage) {
       const isPlaceholderState = !!aiUsageTableBody.querySelector("[data-ai-usage-placeholder='1']");
@@ -11332,8 +11582,33 @@
   }
 
   window.requestInteractiveEdit = async function(id) {
-    const q = loadedQuestionsCache.find(x => x.id === id);
-    if (!q) return;
+    let q = loadedQuestionsCache.find(x => x.id === id);
+    if (!q) {
+      const selectWithMeta = AdminAuditQuery.AUDIT_SELECT_WITH_META;
+      const selectBasic = AdminAuditQuery.AUDIT_SELECT_BASIC;
+      let fetched = null;
+      let fetchErr = null;
+      ({ data: fetched, error: fetchErr } = await supabaseClient
+        .from("questions")
+        .select(selectWithMeta)
+        .eq("id", id)
+        .maybeSingle());
+      if (fetchErr && /column|relation|question_skills/i.test(fetchErr.message || "")) {
+        ({ data: fetched, error: fetchErr } = await supabaseClient
+          .from("questions")
+          .select(selectBasic)
+          .eq("id", id)
+          .maybeSingle());
+      }
+      if (fetchErr) throw fetchErr;
+      if (!fetched) {
+        showAdminToast("Question not found in the bank.", true);
+        return;
+      }
+      loadedQuestionsCache = [fetched, ...loadedQuestionsCache.filter((x) => x.id !== fetched.id)];
+      window.loadedQuestionsCache = loadedQuestionsCache;
+      q = fetched;
+    }
 
     editModalKeyData = null;
     setEditModalCopyMode(false);
