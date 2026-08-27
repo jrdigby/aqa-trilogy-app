@@ -17,6 +17,17 @@ import { checkKeywordOrSynonymsMatch, updateSRS, computeSessionQuality, getAQACo
 import { buildWeeklyForecast } from './srsAnalytics.js';
 import { getHorizonSrsCaps, normalizeHorizonPreset, examDateToPersist } from './curriculumPace.js';
 import { escapeHtml, shuffleArray, todayISO, addDaysISO, resolveAppUrl } from './utils.js';
+import {
+  EXPERT_CATEGORIES,
+  expertCategoryLabel,
+  escapeExpertHtml,
+  truncateExpertText,
+  formatExpertAge,
+  expertSubmitErrorMessage,
+  submitExpertQuery,
+  fetchStudentExpertQueries,
+  markExpertQuerySeen
+} from './askExpert.js';
 import { supabaseClient, timeoutPromise, fetchDashboardDueItems, fetchConceptGapAttempts, fetchWeeklyForecastSchedules, fetchSyllabusPipelineData, fetchAttemptActivity, fetchUserProfile, fetchUserClassLicense, fetchPlanQuotas, tryConsumeAiMark, tryConsumeHalfPaper, stashAuthSession, clearAuthGraceSession, endAuthGracePeriod, isAuthGraceActive, incrementUserXp, claimXpMilestone, consumeStreakFreeze, fetchDominantSubject, patchUserProfile } from './dbClient.js';
 import dbClient from "./dbClient.js";
 import {
@@ -271,9 +282,12 @@ function openSettings() {
   const schedulePracticeBlock = document.querySelector(".schedule-practice-block");
   if (schedulePracticeBlock) schedulePracticeBlock.classList.add("hidden");
   if (dashboardTabs) dashboardTabs.classList.add("hidden");
-  if (btnOpenSettings) btnOpenSettings.textContent = "← Back";
+  if (btnOpenSettings) {
+    btnOpenSettings.innerHTML = '← Back<span id="settingsExpertDot" class="btn-settings-expert-dot hidden" aria-hidden="true"></span>';
+  }
 
   loadSettingsPanel();
+  refreshStudentExpertReplies().catch(() => {});
 }
 
 function closeSettings(returnTab = tabBeforeSettings) {
@@ -282,7 +296,10 @@ function closeSettings(returnTab = tabBeforeSettings) {
 
   if (panelSettings) panelSettings.classList.add("hidden");
   if (dashboardTabs) dashboardTabs.classList.remove("hidden");
-  if (btnOpenSettings) btnOpenSettings.textContent = "⚙️ Settings";
+  if (btnOpenSettings) {
+    btnOpenSettings.innerHTML = '⚙️ Settings<span id="settingsExpertDot" class="btn-settings-expert-dot hidden" aria-hidden="true"></span>';
+    updateExpertUnreadBadge();
+  }
 
   const target = DASHBOARD_TABS.includes(returnTab) ? returnTab : "practice";
   switchDashboardTab(target);
@@ -343,6 +360,8 @@ let heatmapRenderGeneration = 0;
 let journeyMountSignature = "";
 let journeyMountGeneration = 0;
 let worldMapPrefetchStarted = false;
+let studentExpertQueries = [];
+let askExpertSubmitting = false;
 
 function srsSpecPointIdForQuestion(q = currentQ) {
   return resolveSpecPointIdForTrack(q, currentUserProfile);
@@ -3528,6 +3547,249 @@ async function getResponsePayload(q) {
   return { type: "short_text", text };
 }
 
+function countUnreadExpertReplies(rows = studentExpertQueries) {
+  return (rows || []).filter(
+    (r) => r.status === "replied" && !r.student_seen_at
+  ).length;
+}
+
+function updateExpertUnreadBadge() {
+  const unread = countUnreadExpertReplies();
+  const listBadge = el("expertRepliesUnreadBadge");
+  if (listBadge) {
+    if (unread > 0) {
+      listBadge.textContent = String(unread);
+      listBadge.classList.remove("hidden");
+    } else {
+      listBadge.classList.add("hidden");
+    }
+  }
+  const dot = el("settingsExpertDot");
+  if (dot) {
+    if (unread > 0 && !settingsOpen) dot.classList.remove("hidden");
+    else dot.classList.add("hidden");
+  }
+}
+
+function renderExpertRepliesList() {
+  const mount = el("expertRepliesList");
+  if (!mount) return;
+  const rows = studentExpertQueries || [];
+  if (!rows.length) {
+    mount.innerHTML = `<p class="muted" style="font-size: 0.85rem;">No expert questions yet. Use <strong>Ask an expert</strong> while practising.</p>`;
+    updateExpertUnreadBadge();
+    return;
+  }
+
+  mount.innerHTML = rows
+    .map((row) => {
+      const snap = row.snapshot || {};
+      const unread = row.status === "replied" && !row.student_seen_at;
+      const statusLabel =
+        row.status === "replied"
+          ? unread
+            ? "New reply"
+            : "Replied"
+          : row.status === "open"
+            ? "Waiting for reply"
+            : "Dismissed";
+      const title = truncateExpertText(snap.prompt || "Question", 90);
+      const snippet =
+        row.status === "replied"
+          ? truncateExpertText(row.admin_reply || "", 110)
+          : truncateExpertText(row.student_message || expertCategoryLabel(row.category), 110);
+      return `
+        <button type="button" class="expert-reply-item${unread ? " is-unread" : ""}" data-expert-id="${escapeExpertHtml(row.id)}">
+          <div class="expert-reply-item-meta">
+            <span>${escapeExpertHtml(statusLabel)}</span>
+            <span>${escapeExpertHtml(expertCategoryLabel(row.category))}</span>
+            <span>${escapeExpertHtml(formatExpertAge(row.replied_at || row.created_at))}</span>
+          </div>
+          <div class="expert-reply-item-title">${escapeExpertHtml(title)}</div>
+          <div class="expert-reply-item-snippet">${escapeExpertHtml(snippet)}</div>
+        </button>`;
+    })
+    .join("");
+
+  mount.querySelectorAll("[data-expert-id]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      openExpertReplyModal(btn.getAttribute("data-expert-id"));
+    });
+  });
+  updateExpertUnreadBadge();
+}
+
+async function refreshStudentExpertReplies() {
+  if (!currentUser || currentUserProfile?.role !== "student") {
+    studentExpertQueries = [];
+    renderExpertRepliesList();
+    return;
+  }
+  try {
+    studentExpertQueries = await fetchStudentExpertQueries(supabaseClient);
+  } catch (err) {
+    console.warn("expert replies load failed:", err);
+    studentExpertQueries = [];
+  }
+  renderExpertRepliesList();
+}
+
+function openExpertReplyModal(id) {
+  const row = (studentExpertQueries || []).find((r) => r.id === id);
+  const modal = el("expertReplyModal");
+  const body = el("expertReplyModalBody");
+  if (!row || !modal || !body) return;
+
+  const snap = row.snapshot || {};
+  const blocks = [
+    ["Why you asked", expertCategoryLabel(row.category)],
+    ["Your note", row.student_message || "(none)"],
+    ["Question", snap.prompt || "—"],
+    ["Your answer (summary)", snap.student_response_summary || "—"],
+    [
+      "Expert reply",
+      row.status === "replied"
+        ? row.admin_reply || "—"
+        : row.status === "open"
+          ? "Still waiting for a reply."
+          : "This flag was closed without a reply."
+    ]
+  ];
+  body.innerHTML = blocks
+    .map(
+      ([label, text]) => `
+      <div class="expert-block">
+        <div class="expert-block-label">${escapeExpertHtml(label)}</div>
+        <div class="expert-block-body">${escapeExpertHtml(text)}</div>
+      </div>`
+    )
+    .join("");
+
+  modal.classList.remove("hidden");
+  if (row.status === "replied" && !row.student_seen_at) {
+    markExpertQuerySeen(supabaseClient, row.id)
+      .then(() => {
+        row.student_seen_at = new Date().toISOString();
+        renderExpertRepliesList();
+      })
+      .catch((err) => console.warn("mark seen failed:", err));
+  }
+}
+
+function closeExpertReplyModal() {
+  el("expertReplyModal")?.classList.add("hidden");
+}
+
+function fillAskExpertCategories() {
+  const mount = el("askExpertCategoryOptions");
+  if (!mount || mount.dataset.wired === "1") return;
+  mount.dataset.wired = "1";
+  mount.innerHTML = EXPERT_CATEGORIES.map(
+    (c, i) => `
+    <label class="ask-expert-category-option">
+      <input type="radio" name="askExpertCategory" value="${escapeExpertHtml(c.id)}"${i === 0 ? " checked" : ""} />
+      <span>${escapeExpertHtml(c.label)}</span>
+    </label>`
+  ).join("");
+}
+
+function openAskExpertModal() {
+  if (!currentQ?.id) {
+    showToastBanner("Load a question first.", true);
+    return;
+  }
+  fillAskExpertCategories();
+  const msg = el("askExpertMessage");
+  if (msg) msg.value = "";
+  const status = el("askExpertModalMsg");
+  if (status) {
+    status.textContent = "";
+    status.classList.add("hidden");
+  }
+  el("askExpertModal")?.classList.remove("hidden");
+}
+
+function closeAskExpertModal() {
+  el("askExpertModal")?.classList.add("hidden");
+}
+
+async function handleSubmitAskExpert() {
+  if (askExpertSubmitting || !currentQ?.id) return;
+  const category =
+    document.querySelector('input[name="askExpertCategory"]:checked')?.value ||
+    "";
+  const studentMessage = (el("askExpertMessage")?.value || "").trim();
+  const status = el("askExpertModalMsg");
+  const btn = el("btnSubmitAskExpert");
+
+  askExpertSubmitting = true;
+  if (btn) btn.disabled = true;
+  if (status) {
+    status.textContent = "Sending…";
+    status.classList.remove("hidden");
+  }
+
+  let clientResponse = null;
+  try {
+    clientResponse = await getResponsePayload(currentQ);
+  } catch (_) {
+    clientResponse = null;
+  }
+
+  try {
+    const result = await submitExpertQuery(supabaseClient, {
+      question_id: currentQ.id,
+      category,
+      student_message: studentMessage || null,
+      attempt_id: null,
+      client_response: clientResponse
+    });
+    if (!result?.ok) {
+      const reason = result?.reason || "submit_failed";
+      const message =
+        reason === "invoke_error"
+          ? result.error || expertSubmitErrorMessage(reason)
+          : expertSubmitErrorMessage(reason);
+      if (status) status.textContent = message;
+      showToastBanner(message, true);
+      return;
+    }
+    closeAskExpertModal();
+    showToastBanner(
+      "Sent — you'll get a reply in Settings → Expert replies.",
+      false
+    );
+    refreshStudentExpertReplies().catch(() => {});
+  } catch (err) {
+    const message = err?.message || "Could not send your question.";
+    if (status) status.textContent = message;
+    showToastBanner(message, true);
+  } finally {
+    askExpertSubmitting = false;
+    if (btn) btn.disabled = false;
+  }
+}
+
+function wireAskExpertUi() {
+  fillAskExpertCategories();
+  el("btnAskExpert")?.addEventListener("click", openAskExpertModal);
+  el("btnCloseAskExpertModal")?.addEventListener("click", closeAskExpertModal);
+  el("btnCancelAskExpert")?.addEventListener("click", closeAskExpertModal);
+  el("askExpertModalBackdrop")?.addEventListener("click", closeAskExpertModal);
+  el("btnSubmitAskExpert")?.addEventListener("click", () => {
+    handleSubmitAskExpert().catch((err) => {
+      console.warn(err);
+      showToastBanner(err?.message || "Could not send.", true);
+    });
+  });
+  el("btnCloseExpertReplyModal")?.addEventListener("click", closeExpertReplyModal);
+  el("btnDismissExpertReplyModal")?.addEventListener("click", closeExpertReplyModal);
+  el("expertReplyModalBackdrop")?.addEventListener("click", closeExpertReplyModal);
+}
+
+wireAskExpertUi();
+
+
 function setSignedOutUI() {
   heatmapRenderGeneration += 1;
 
@@ -4558,7 +4820,10 @@ function showSignedInLayout() {
   switchDashboardTab(DASHBOARD_TABS.includes(savedTab) ? savedTab : "practice", { loadData: false });
   settingsOpen = false;
   if (panelSettings) panelSettings.classList.add("hidden");
-  if (btnOpenSettings) btnOpenSettings.textContent = "⚙️ Settings";
+  if (btnOpenSettings) {
+    btnOpenSettings.innerHTML = '⚙️ Settings<span id="settingsExpertDot" class="btn-settings-expert-dot hidden" aria-hidden="true"></span>';
+  }
+  refreshStudentExpertReplies().catch(() => {});
 
   if (dueCount) dueCount.textContent = "…";
   if (dueList) dueList.innerHTML = `<div class="item muted">Refreshing scheduled deck…</div>`;
