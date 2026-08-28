@@ -478,9 +478,7 @@ export async function fetchSyllabusPipelineData(userId, subject, paper, targetTi
     return result;
   }
 
-  const markPointsQuery = supabaseClient
-    .from("mark_points")
-    .select("question_id, ao, max_marks, image_url");
+  const markPointsQuery = Promise.resolve({ data: [] });
 
   const [srsStateData, attemptsRes, markPointsRes] = await Promise.all([
     srsStatePromise,

@@ -1,5 +1,5 @@
 // src/uiComponents.js
-import { escapeHtml } from './utils.js';
+import { escapeHtml, escapeAttr, safeHttpUrl } from './utils.js';
 import { isFuzzyMatch, renderPromptStemHtml, renderHighlightedStudentAnswer, checkKeywordOrSynonymsMatch, getGradableMarkPoints } from './evalEngine.js';
 import { classifyMasteryCell } from './srsAnalytics.js';
 import { XP_RULES_FOOTNOTE } from './xpEngine.js';
@@ -61,8 +61,9 @@ export function renderQuestionLayout(q, commandWordBanner, currentKey, layoutOpt
   const totalMarks = q.max_marks || (q.question_type === "extended_response" ? 6 : 1);
   const marksLabel = totalMarks === 1 ? "1 mark" : `${totalMarks} marks`;
 
-  let imageHtml = q.image_url 
-    ? `<img src="${q.image_url}" style="max-width: 100%; border-radius: 8px; margin-bottom: 12px; border: 1px solid #e2e8f0; display: block;">` 
+  const safeImageUrl = safeHttpUrl(q.image_url);
+  let imageHtml = safeImageUrl
+    ? `<img src="${escapeAttr(safeImageUrl)}" alt="" style="max-width: 100%; border-radius: 8px; margin-bottom: 12px; border: 1px solid #e2e8f0; display: block;">`
     : "";
 
   const chemStemHtml = layoutOptions.chemStemHtml || "";
@@ -170,7 +171,7 @@ export async function mountEquipmentQuestionWorkflow(q, currentKey, presentation
 }
 
 // ====== STANDARD MARK SCHEME FEEDBACK LAYOUT ENGINE ======
-export async function renderFeedback(marking, currentQ, currentKey, currentMarkPoints) {
+export async function renderFeedback(marking, currentQ, currentKey, currentMarkPoints, feedbackContext = null) {
   const pct = Math.round((marking.total / marking.max) * 100);
   const isPerfect = marking.total === marking.max;
 
@@ -214,13 +215,13 @@ export async function renderFeedback(marking, currentQ, currentKey, currentMarkP
   if (currentQ.question_type === "chemistry_interactive") {
     const { loadChemistryWorkflow } = await import("./lazyChemistryWorkflow.js");
     const { renderChemistryModelAnswerHtml } = await loadChemistryWorkflow();
-    const expected = currentKey?.key_payload || currentQ.chemistry_config?.answer || {};
+    const expected = feedbackContext?.model_answer || currentKey?.key_payload || currentQ.chemistry_config?.answer || {};
     const studentResp = marking.feedbackPayload?.chemistry?.student || null;
     const showCompare = !isPerfect && (expected.kind === "electron_shell" || expected.shells);
     html += renderChemistryModelAnswerHtml(expected, {
       title: "Model answer",
       compare: showCompare ? studentResp : null,
-      template: currentQ.chemistry_config?.template,
+      template: feedbackContext?.chemistry_template || currentQ.chemistry_config?.template,
     });
     const chemDetail = marking.feedbackPayload?.chemistry?.detail;
     if (!isPerfect && chemDetail) {
@@ -231,7 +232,7 @@ export async function renderFeedback(marking, currentQ, currentKey, currentMarkP
   if (currentQ.question_type === "circuit_interactive") {
     const { loadCircuitWorkflow } = await import("./lazyCircuitWorkflow.js");
     const { renderCircuitModelAnswerHtml } = await loadCircuitWorkflow();
-    const expected = currentKey?.key_payload || currentQ.circuit_config?.answer || {};
+    const expected = feedbackContext?.model_answer || currentKey?.key_payload || currentQ.circuit_config?.answer || {};
     html += renderCircuitModelAnswerHtml(expected, {
       title: isPerfect ? "Model answer" : "Correct answer",
     });
@@ -240,50 +241,69 @@ export async function renderFeedback(marking, currentQ, currentKey, currentMarkP
   if (currentQ.question_type === "equipment_interactive") {
     const { loadEquipmentWorkflow } = await import("./lazyEquipmentWorkflow.js");
     const { renderEquipmentModelAnswerHtml } = await loadEquipmentWorkflow();
-    const expected = currentKey?.key_payload || currentQ.equipment_config?.answer || {};
+    const expected = feedbackContext?.model_answer || currentKey?.key_payload || currentQ.equipment_config?.answer || {};
     html += renderEquipmentModelAnswerHtml(expected, {
       title: isPerfect ? "Model answer" : "Correct answer",
     });
   }
 
-  if (currentQ.question_type === "short_text" && currentKey && (currentKey.key_type === "keywords" || currentKey.key_type === "pick_n")) {
+  const keywordKeyType = feedbackContext?.keyword_key_type || currentKey?.key_type;
+  const hasKeywordFeedback = currentQ.question_type === "short_text" && (
+    feedbackContext?.keyword_targets?.length
+    || (currentKey && (currentKey.key_type === "keywords" || currentKey.key_type === "pick_n"))
+  );
+
+  if (hasKeywordFeedback) {
     let allTargetKeywords = [];
-    if (currentKey.key_type === "pick_n") {
+    if (feedbackContext?.keyword_targets?.length) {
+      allTargetKeywords = feedbackContext.keyword_targets;
+    } else if (currentKey?.key_type === "pick_n") {
       allTargetKeywords = currentKey.key_payload.pool || [];
     } else if (getGradableMarkPoints(currentMarkPoints).length > 0) {
       allTargetKeywords = getGradableMarkPoints(currentMarkPoints).map(mp => mp.point_text).filter(Boolean);
-    } else {
+    } else if (currentKey) {
       const required = currentKey.key_payload.required || [];
       const optional = currentKey.key_payload.optional || [];
       allTargetKeywords = [...required, ...optional];
     }
-    
-    const studentRawText = (el("txtAns")?.value || "").trim();
+
+    const studentRawText = feedbackContext?.student_answer_text ?? (el("txtAns")?.value || "").trim();
     const studentWords = studentRawText.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "").split(/\s+/).filter(Boolean);
     const highlightedStudentHtml = renderHighlightedStudentAnswer(studentRawText, allTargetKeywords);
 
-    const highlightedTargetsHTML = allTargetKeywords.map(targetExpr => {
-      const hasExact = checkKeywordOrSynonymsMatch(targetExpr, studentWords, studentRawText.toLowerCase());
-      const hasFuzzy = !hasExact && targetExpr.split("|").some((syn) =>
-        studentWords.some((w) => isFuzzyMatch(w, syn.trim().toLowerCase(), 0.85))
-      );
-      
-      const displayLabel = targetExpr.replace(/\|/g, " / ");
-      
-      if (hasExact) {
-        return `<span class="keyword-badge" style="border-color: #10b981; background: #e6f4ea; color: #137333;">🟢 ${escapeHtml(displayLabel)}</span>`;
-      } else if (hasFuzzy) {
-        return `<span class="keyword-badge" style="border-color: #f97316; background: #fff7ed; color: #9a3412;">🟠 ${escapeHtml(displayLabel)}</span>`;
-      } else {
-        return `<span class="keyword-badge" style="opacity: 0.6;">⚪ ${escapeHtml(displayLabel)}</span>`;
-      }
-    }).join(" ");
+    const highlightedTargetsHTML = feedbackContext?.keyword_badges?.length
+      ? feedbackContext.keyword_badges.map((badge) => {
+          const displayLabel = badge.label;
+          if (badge.status === "exact") {
+            return `<span class="keyword-badge" style="border-color: #10b981; background: #e6f4ea; color: #137333;">🟢 ${escapeHtml(displayLabel)}</span>`;
+          }
+          if (badge.status === "fuzzy") {
+            return `<span class="keyword-badge" style="border-color: #f97316; background: #fff7ed; color: #9a3412;">🟠 ${escapeHtml(displayLabel)}</span>`;
+          }
+          return `<span class="keyword-badge" style="opacity: 0.6;">⚪ ${escapeHtml(displayLabel)}</span>`;
+        }).join(" ")
+      : allTargetKeywords.map(targetExpr => {
+          const hasExact = checkKeywordOrSynonymsMatch(targetExpr, studentWords, studentRawText.toLowerCase());
+          const hasFuzzy = !hasExact && targetExpr.split("|").some((syn) =>
+            studentWords.some((w) => isFuzzyMatch(w, syn.trim().toLowerCase(), 0.85))
+          );
+
+          const displayLabel = targetExpr.replace(/\|/g, " / ");
+
+          if (hasExact) {
+            return `<span class="keyword-badge" style="border-color: #10b981; background: #e6f4ea; color: #137333;">🟢 ${escapeHtml(displayLabel)}</span>`;
+          } else if (hasFuzzy) {
+            return `<span class="keyword-badge" style="border-color: #f97316; background: #fff7ed; color: #9a3412;">🟠 ${escapeHtml(displayLabel)}</span>`;
+          } else {
+            return `<span class="keyword-badge" style="opacity: 0.6;">⚪ ${escapeHtml(displayLabel)}</span>`;
+          }
+        }).join(" ");
 
     html += `<hr/>`;
     html += `<div style="margin-bottom: 12px;"><strong>Your Answer Analysis:</strong></div>`;
     html += `<div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 14px; border-radius: 8px; font-size: 0.95rem; line-height: 1.6; margin-bottom: 15px; color: #0f172a;">${highlightedStudentHtml}</div>`;
-    
-    const targetsLabel = currentKey.key_type === "pick_n" ? "Acceptable Answers" : "Syllabus Target Keywords";
+
+    const targetsLabel = keywordKeyType === "pick_n" ? "Acceptable Answers" : "Syllabus Target Keywords";
     html += `<div><strong>${targetsLabel}:</strong></div>`;
     html += `<div style="margin-top: 6px; margin-bottom: 10px;">${highlightedTargetsHTML}</div>`;
   }
@@ -297,10 +317,11 @@ export async function renderFeedback(marking, currentQ, currentKey, currentMarkP
     ) {
     html += `<hr/><div><strong>How to improve</strong></div>`;
     html += marking.missing.map(m => {
-      let feedbackImgHtml = m.image_url 
+      const feedbackImgUrl = safeHttpUrl(m.image_url);
+      let feedbackImgHtml = feedbackImgUrl
         ? `<div style="margin-top: 8px; max-width: 100%;">
-             <img src="${m.image_url}" style="max-width: 100%; max-height: 180px; object-fit: contain; border: 1px solid #fed7d7; border-radius: 6px; display: block;" alt="Feedback diagram" />
-           </div>` 
+             <img src="${escapeAttr(feedbackImgUrl)}" style="max-width: 100%; max-height: 180px; object-fit: contain; border: 1px solid #fed7d7; border-radius: 6px; display: block;" alt="Feedback diagram" />
+           </div>`
         : "";
 
       const isEcf = !!m.isEcf;
@@ -323,8 +344,8 @@ export async function renderFeedback(marking, currentQ, currentKey, currentMarkP
               ${feedbackContent}
               ${feedbackImgHtml}
             </div>
-            ${m.url ? `
-              <a href="${m.url}" target="_blank" rel="noopener noreferrer" 
+            ${safeHttpUrl(m.url) ? `
+              <a href="${escapeAttr(safeHttpUrl(m.url))}" target="_blank" rel="noopener noreferrer" 
                  style="flex-shrink: 0; display: inline-block; padding: 4px 10px; background: #4f46e5; color: white; text-decoration: none; font-size: 0.8rem; font-weight: 600; border-radius: 6px; transition: background 0.15s;">
                 Review Resource ↗
               </a>
@@ -395,7 +416,7 @@ export function renderLiveAIFeedback(evaluation, hasImprovedCurrentQ) {
         </div>
         <div style="text-align: right;">
           <div style="background: #4f46e5; color: white; padding: 4px 10px; border-radius: 6px; font-weight: 700; font-size: 0.85rem;">
-            ${level} (${score}/${max} Marks)
+            ${escapeHtml(level)} (${score}/${max} Marks)
           </div>
           <div style="font-size: 0.72rem; font-weight: 700; color: #4f46e5; margin-top: 3px;">${pct}% Success</div>
         </div>
@@ -496,7 +517,7 @@ export function renderAQAExtendedResponseFeedback(studentText, rubric, localKeyw
     <div style="background: #fafbfc; padding: 18px; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
         <span style="font-size: 1.1rem; font-weight: 800; color: #1e293b;">📊 GCSE Level of Response Evaluation (Local Fallback)</span>
-        <span style="background: #3b82f6; color: white; padding: 4px 10px; border-radius: 6px; font-weight: 700; font-size: 0.85rem;">${level} (${score}/${max} Marks)</span>
+        <span style="background: #3b82f6; color: white; padding: 4px 10px; border-radius: 6px; font-weight: 700; font-size: 0.85rem;">${escapeHtml(level)} (${score}/${max} Marks)</span>
       </div>
       
       <p style="font-size: 0.85rem; color: #475569; line-height: 1.4; margin-bottom: 14px;">

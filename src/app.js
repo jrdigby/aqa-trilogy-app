@@ -69,7 +69,7 @@ import {
   formatGradesLabel,
   initialAdaptiveOffsetFromGrades
 } from './gradeConfig.js';
-import { markResponse } from './evalEngine.js';
+import { markResponseOnServer } from './markClient.js';
 import {
   resolveAccess,
   canStartExamPrepMode,
@@ -353,6 +353,7 @@ let currentQ = null;
 let currentEquationSheet = null;
 let currentKey = null;
 let currentMarkPoints = [];
+let currentFeedbackContext = null;
 let currentHintState = { revealedCount: 0, panelOpen: false };
 let currentQuestionHints = [];
 let lastAnswerFocusState = null;
@@ -821,7 +822,7 @@ function buildOnboardingSummaryHtml() {
     .map((s) => s.charAt(0).toUpperCase() + s.slice(1))
     .join(" → ");
   const classLine = onboardingState.joined_class_name
-    ? `Class: ${onboardingState.joined_class_name}`
+    ? `Class: ${escapeHtml(onboardingState.joined_class_name)}`
     : "Class: none (individual)";
   const horizonLabels = {
     y10: "Starting Year 10 (~2 years)",
@@ -929,174 +930,7 @@ function autoSizeFilterSelects() {
   }
 }
 
-// ====== AUTH ======
-let authPanel = "signin";
-
-function setAuthPanel(mode) {
-  const prevEmail =
-    (el("signinEmail")?.value || el("signupEmail")?.value || el("forgotEmail")?.value || "").trim();
-
-  authView = mode === "signup" || mode === "forgot" ? mode : "signin";
-  const panelSignin = el("authPanelSignin");
-  const panelSignup = el("authPanelSignup");
-  const panelForgot = el("authPanelForgot");
-  if (panelSignin) panelSignin.classList.toggle("hidden", authView !== "signin");
-  if (panelSignup) panelSignup.classList.toggle("hidden", authView !== "signup");
-  if (panelForgot) panelForgot.classList.toggle("hidden", authView !== "forgot");
-
-  // 3.3.7 — reuse email already typed across auth modes
-  if (prevEmail) {
-    const signinEmail = el("signinEmail");
-    const signupEmail = el("signupEmail");
-    const forgotEmail = el("forgotEmail");
-    if (authView === "signin" && signinEmail) signinEmail.value = prevEmail;
-    if (authView === "signup" && signupEmail) signupEmail.value = prevEmail;
-    if (authView === "forgot" && forgotEmail) forgotEmail.value = prevEmail;
-  }
-}
-
-const btnShowForgot = el("btnShowForgot");
-const btnShowSignup = el("btnShowSignup");
-const btnShowSigninFromSignup = el("btnShowSigninFromSignup");
-const btnShowSigninFromForgot = el("btnShowSigninFromForgot");
-const btnSendReset = el("btnSendReset");
-
-if (btnShowForgot) btnShowForgot.onclick = () => setAuthPanel("forgot");
-if (btnShowSignup) btnShowSignup.onclick = () => setAuthPanel("signup");
-if (btnShowSigninFromSignup) btnShowSigninFromSignup.onclick = () => setAuthPanel("signin");
-if (btnShowSigninFromForgot) btnShowSigninFromForgot.onclick = () => setAuthPanel("signin");
-
-if (btnSendReset) {
-  btnSendReset.onclick = async () => {
-    authMsg.classList.remove("hidden");
-    authMsg.textContent = "Sending reset link…";
-    const email = el("forgotEmail")?.value.trim() || "";
-    if (!email) {
-      authMsg.textContent = "Enter your email address.";
-      return;
-    }
-    try {
-      sessionStorage.setItem("resetRedirect", "app.html");
-      const redirectTo = resolveAppUrl("reset-password.html");
-      const { error } = await supabaseClient.auth.resetPasswordForEmail(email, { redirectTo });
-      if (error) {
-        authMsg.textContent = "Could not send reset link: " + error.message;
-        return;
-      }
-      authMsg.textContent = "Reset link sent ✅ Check your email.";
-    } catch (err) {
-      authMsg.textContent = "Could not send reset link: " + (err.message || err);
-    }
-  };
-}
-
-if (btnSignUp) {
-  btnSignUp.onclick = async () => {
-    authMsg.classList.remove("hidden");
-    authMsg.textContent = "Creating account…";
-    const displayName = (el("signupName")?.value || "").trim();
-    const email = el("signupEmail")?.value.trim() || "";
-    const password = el("signupPassword")?.value || "";
-    const termsAccepted = el("termsAccepted")?.checked;
-
-    if (!displayName) {
-      authMsg.textContent = "Enter your name before registering.";
-      return;
-    }
-    if (!email || !password) {
-      authMsg.textContent = "Enter your email and password.";
-      return;
-    }
-    if (!termsAccepted) {
-      authMsg.textContent = "Please accept the Terms of Use and Privacy Policy.";
-      return;
-    }
-
-    const { data, error } = await supabaseClient.auth.signUp({
-      email,
-      password,
-      options: { data: { display_name: displayName } }
-    });
-    if (error) {
-      authMsg.textContent = "Sign up failed: " + error.message;
-    } else if (data?.user && !data?.session) {
-      authMsg.textContent =
-        "Account created ✅ Please check your email and verify your address before signing in.";
-      setAuthPanel("signin");
-    } else {
-      authMsg.textContent = "Sign up successful ✅ You can sign in now.";
-      setAuthPanel("signin");
-    }
-  };
-}
-
-function formatAuthError(error) {
-  if (!error) return "Sign in failed. Please try again.";
-  const msg = String(error.message || "");
-  const code = String(error.code || "");
-
-  if (
-    code === "invalid_credentials" ||
-    msg.toLowerCase().includes("invalid login credentials")
-  ) {
-    return "Incorrect email or password.";
-  }
-  if (
-    code === "email_not_confirmed" ||
-    msg.toLowerCase().includes("email not confirmed")
-  ) {
-    return "Please verify your email before signing in. Check your inbox for the confirmation link.";
-  }
-  if (msg.toLowerCase().includes("user banned")) {
-    return "This account has been disabled. Contact support.";
-  }
-  return msg || "Sign in failed. Please try again.";
-}
-
-if (btnSignIn) {
-  btnSignIn.onclick = async () => {
-    if (btnSignIn.disabled) return;
-
-    authMsg.classList.remove("hidden");
-    authMsg.textContent = "Signing in…";
-    btnSignIn.disabled = true;
-
-    const email = el("signinEmail")?.value.trim() || "";
-    const password = el("signinPassword")?.value || "";
-
-    if (!email || !password) {
-      authMsg.textContent = "Enter your email and password.";
-      btnSignIn.disabled = false;
-      return;
-    }
-
-    try {
-      const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
-
-      if (error) {
-        console.warn("Sign in error:", error.status, error.code, error.message);
-        authMsg.textContent = "Sign in failed: " + formatAuthError(error);
-        return;
-      }
-      if (!data?.session?.user) {
-        authMsg.textContent =
-          "Please verify your email address before signing in.";
-        return;
-      }
-
-      authMsg.textContent = "Signed in ✅";
-      stashAuthSession(data.session);
-      authHandledByButton = true;
-      await applyAuthSession(data.session, "SIGNED_IN");
-    } catch (err) {
-      console.error("Sign in exception:", err);
-      authMsg.textContent = "Sign in failed: " + (err.message || err);
-    } finally {
-      btnSignIn.disabled = false;
-    }
-  };
-}
-
+// ====== AUTH (sign-out only; sign-in handled by appAuthShell.js) ======
 if (btnSignOut) {
   btnSignOut.onclick = async () => {
     authHandledByButton = false;
@@ -3270,15 +3104,31 @@ function hideSubmitButton() {
   btnSubmit.classList.add("hidden");
 }
 
+function hideAdvanceButton() {
+  if (!btnNext) return;
+  btnNext.disabled = true;
+  btnNext.classList.add("hidden");
+}
+
 function showAdvanceButton() {
   if (!btnNext) return;
   const isLastQuestion = idx >= sessionQuestions.length - 1;
   btnNext.textContent = isLastQuestion ? "See summary" : "Advance to Next Question →";
+  btnNext.disabled = false;
   btnNext.classList.remove("hidden");
   try {
     btnNext.focus({ preventScroll: false });
     btnNext.scrollIntoView({ block: "nearest", behavior: "smooth" });
   } catch (_) { /* ignore */ }
+}
+
+function setAdvanceButtonPending(isPending) {
+  if (!btnNext) return;
+  if (isPending) {
+    btnNext.disabled = true;
+    btnNext.classList.remove("hidden");
+    btnNext.textContent = "Marking…";
+  }
 }
 
 async function questionLayoutOptions(q, extra = {}) {
@@ -3314,17 +3164,10 @@ async function loadQuestion() {
 
   updateExitPracticeVisibility();
 
-  console.log("DEBUG loadQuestion: Resolving markers maps asynchronously...");
-  const [keyRes, markRes] = await Promise.all([
-    supabaseClient.from("answer_keys").select("key_type,key_payload").eq("question_id", currentQ.id).maybeSingle(),
-    supabaseClient.from("mark_points").select("ao,point_text,feedback_if_missing,max_marks,image_url").eq("question_id", currentQ.id)
-  ]);
-
-  if (keyRes.error) console.error("DEBUG loadQuestion: Error resolving answer key:", keyRes.error);
-  if (markRes.error) console.error("DEBUG loadQuestion: Error resolving mark points:", markRes.error);
-
-  currentKey = keyRes.data;
-  currentMarkPoints = markRes.data || [];
+  console.log("DEBUG loadQuestion: Preparing question view...");
+  currentKey = null;
+  currentMarkPoints = [];
+  currentFeedbackContext = null;
 
   currentEquationSheet = null;
   const questionId = currentQ.id;
@@ -3521,11 +3364,13 @@ async function getResponsePayload(q) {
     return { type: "mcq", answer: picked };
   }
   if (q.question_type === "numeric") {
-    const { collectCalculationResponse } = await loadCalculationWorkflow();
-    const resp = collectCalculationResponse(q, sessionMode, currentEquationSheet);
-    const unit = (currentKey && currentKey.key_payload && currentKey.key_payload.unit)
-      ? currentKey.key_payload.unit
-      : "";
+    const calc = await loadCalculationWorkflow();
+    const resp = calc.collectCalculationResponse(q, sessionMode, currentEquationSheet);
+    const unit = calc.resolveAnswerDisplayUnit(
+      calc.getCalculationConfig(q),
+      null,
+      currentEquationSheet
+    );
     return { ...resp, unit };
   }
   if (q.question_type === "chemistry_interactive") {
@@ -3978,20 +3823,32 @@ async function refreshPlanState() {
   updateFreeAnalyticsSummary();
 }
 
-async function runLocalExtendedMarking(response) {
-  const customPayload = currentKey?.key_payload || {};
+function applyMcqAnswerHighlighting(correctVal, selectedAnswer) {
+  const inputs = document.querySelectorAll('input[name="mcq"]');
+  inputs.forEach((input) => {
+    const label = input.closest("label");
+    if (!label) return;
+    const val = input.value;
+    input.disabled = true;
+    if (val === correctVal) {
+      label.style.borderColor = "#10b981";
+      label.style.backgroundColor = "#ecfdf5";
+      label.style.color = "#065f46";
+      label.style.borderWidth = "2px";
+      label.style.boxShadow = "0 0 0 3px rgba(16, 185, 129, 0.15)";
+    } else if (selectedAnswer && val === selectedAnswer) {
+      label.style.borderColor = "#ef4444";
+      label.style.backgroundColor = "#fef2f2";
+      label.style.color = "#991b1b";
+      label.style.borderWidth = "2px";
+      label.style.boxShadow = "0 0 0 3px rgba(239, 68, 68, 0.15)";
+    }
+  });
+}
 
-  let localKeywords = [];
-  if (customPayload.key_scientific_points) {
-    const stopWords = new Set(["about", "above", "after", "again", "against", "all", "am", "an", "and", "any", "are", "arent", "as", "at", "be", "because", "been", "before", "being", "below", "between", "both", "but", "by", "cant", "cannot", "could", "couldnt", "did", "didnt", "do", "does", "doesnt", "doing", "dont", "down", "during", "each", "few", "for", "from", "further", "had", "hadnt", "has", "hasnt", "have", "havent", "having", "he", "hed", "hell", "hes", "her", "here", "heres", "herself", "him", "himself", "his", "how", "hows", "i", "id", "ill", "im", "ive", "if", "in", "into", "is", "isnt", "it", "its", "itself", "lets", "me", "more", "most", "mustnt", "my", "myself", "no", "nor", "not", "of", "off", "on", "once", "only", "or", "other", "ought", "our", "ours", "ourselves", "out", "over", "own", "same", "shant", "she", "shed", "shell", "shes", "should", "shouldnt", "so", "some", "such", "than", "that", "thats", "the", "their", "theirs", "them", "themselves", "then", "there", "theres", "these", "they", "theyd", "theyll", "theyre", "theyve", "this", "those", "through", "to", "too", "under", "until", "up", "very", "was", "wasnt", "we", "wed", "well", "were", "weve", "werent", "what", "whats", "when", "whens", "where", "wheres", "which", "while", "who", "whos", "whom", "why", "whys", "with", "wont", "would", "wouldnt", "you", "youd", "youll", "youre", "youve", "your", "yours", "yourself", "yourselves", "using", "with", "each", "other", "some", "more", "from", "into", "over"]);
-    const words = customPayload.key_scientific_points.join(" ").toLowerCase()
-      .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, " ")
-      .split(/\s+/)
-      .filter(w => w.length > 3 && !stopWords.has(w));
-    localKeywords = [...new Set(words)];
-  } else {
-    localKeywords = ["describe", "explain", "method", "results"];
-  }
+async function runLocalExtendedMarking(response) {
+  const customPayload = {};
+  const localKeywords = ["describe", "explain", "method", "results"];
 
   const studentTextRaw = (response.text || el("txtAns")?.value || "").trim();
   const cleanStudentText = studentTextRaw.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "");
@@ -5290,72 +5147,35 @@ window.addEventListener("resize", () => {
   filterResizeTimer = setTimeout(() => autoSizeFilterSelects(), 120);
 });
 
-console.log("DEBUG: Hooking up supabaseClient.auth.onAuthStateChange...");
+wireUpgradeModal();
 
-// Never await getSession() inside this callback — it deadlocks with supabase-js.
-supabaseClient.auth.onAuthStateChange((event, session) => {
-  console.log(`DEBUG AUTH CHG: [Event: ${event}]`, session ? `User: ${session.user.id}` : "No session");
-  if (event === "INITIAL_SESSION") {
-    return;
+export async function bootstrapStudentApp(session) {
+  if (session?.user) {
+    await applyAuthSession(session, "INITIAL_SESSION");
+  } else {
+    currentUser = null;
+    currentUserProfile = null;
+    cachedDominantSubject = null;
+    setSignedOutUI();
   }
+}
+
+export async function handleButtonSignIn(session) {
+  authHandledByButton = true;
+  await applyAuthSession(session, "SIGNED_IN");
+}
+
+export async function handleAuthStateChange(event, session) {
+  console.log(`DEBUG AUTH CHG: [Event: ${event}]`, session ? `User: ${session.user.id}` : "No session");
   if (event === "SIGNED_IN" && authHandledByButton) {
+    authHandledByButton = false;
     return;
   }
   if (event === "SIGNED_OUT" && isAuthGraceActive()) {
     return;
   }
-  setTimeout(() => {
-    applyAuthSession(session, event);
-  }, 0);
-});
-
-function applyInitialAuthUIState() {
-  if (currentUser) return;
-
-  const resetSuccess = new URLSearchParams(location.search).get("reset");
-  if (resetSuccess === "success" && authMsg) {
-    authMsg.textContent = "Password updated ✅ You can sign in with your new password.";
-    authMsg.classList.remove("hidden");
-    setAuthPanel("signin");
-    history.replaceState(null, "", location.pathname);
-    return;
-  }
-
-  if (location.hash === "#signup") {
-    setAuthPanel("signup");
-    if (authMsg) {
-      authMsg.textContent = "Create your student account.";
-      authMsg.classList.remove("hidden");
-    }
-  }
+  await applyAuthSession(session, event);
 }
-
-async function bootstrapAuth() {
-  wireUpgradeModal();
-  try {
-    const { data: { session }, error } = await supabaseClient.auth.getSession();
-    if (error) throw error;
-    if (session?.user) {
-      stashAuthSession(session);
-      await applyAuthSession(session, "INITIAL_SESSION");
-    } else {
-      currentUser = null;
-      currentUserProfile = null;
-  cachedDominantSubject = null;
-      setSignedOutUI();
-      applyInitialAuthUIState();
-    }
-  } catch (err) {
-    console.error("Auth bootstrap failed:", err);
-    if (authMsg) {
-      authMsg.textContent = "Could not connect to server. Check your connection and refresh.";
-      authMsg.classList.remove("hidden");
-    }
-    if (authSection) authSection.classList.remove("hidden");
-  }
-}
-
-bootstrapAuth();
 
 function isPracticeSubmitAvailable() {
   return !!(
@@ -5412,32 +5232,7 @@ async function submitCurrentAnswer() {
   const existingBanner = el("improveBanner");
   if (existingBanner) existingBanner.remove();
 
-  if (currentQ.question_type === "mcq") {
-    const selectedInput = document.querySelector('input[name="mcq"]:checked');
-    const correctVal = currentKey?.key_payload?.correct || currentKey?.key_payload?.answer || "";
-    const inputs = document.querySelectorAll('input[name="mcq"]');
-    
-    inputs.forEach(input => {
-      const label = input.closest('label');
-      if (label) {
-        const val = input.value;
-        input.disabled = true;
-        if (val === correctVal) {
-          label.style.borderColor = "#10b981";
-          label.style.backgroundColor = "#ecfdf5";
-          label.style.color = "#065f46";
-          label.style.borderWidth = "2px";
-          label.style.boxShadow = "0 0 0 3px rgba(16, 185, 129, 0.15)";
-        } else if (selectedInput && input === selectedInput) {
-          label.style.borderColor = "#ef4444";
-          label.style.backgroundColor = "#fef2f2";
-          label.style.color = "#991b1b";
-          label.style.borderWidth = "2px";
-          label.style.boxShadow = "0 0 0 3px rgba(239, 68, 68, 0.15)";
-        }
-      }
-    });
-  }
+  hideAdvanceButton();
 
   if (currentQ.question_type === "extended_response" || currentQ.marking_method === "ai_rubric") {
     let useAiMarking = !!currentAccess?.isPro;
@@ -5457,17 +5252,19 @@ async function submitCurrentAnswer() {
           );
         }
       } catch (quotaErr) {
-        console.warn("AI quota check skipped:", quotaErr?.message || quotaErr);
-        useAiMarking = true;
+        console.warn("AI quota check failed:", quotaErr?.message || quotaErr);
+        showToastBanner("Could not verify AI marking quota. Showing basic feedback instead.", true);
+        useAiMarking = false;
       }
     }
 
     if (!useAiMarking) {
       await runLocalExtendedMarking(response);
-      if (btnNext) showAdvanceButton();
+      showAdvanceButton();
       hideSubmitButton();
     } else {
-    feedback.innerHTML = `
+      setAdvanceButtonPending(true);
+      feedback.innerHTML = `
       <div style="text-align: center; padding: 24px 12px;">
         <div class="loader-spinner" style="margin: 0 auto 12px auto; width: 32px; height: 32px; border: 4px solid #f3f3f3; border-top: 4px solid var(--primary); border-radius: 50%; animation: spin 1s linear infinite;"></div>
         <strong style="color: var(--text); font-size: 0.92rem; display: block; margin-bottom: 4px;">🤖 AI GCSE Examiner Evaluating...</strong>
@@ -5477,7 +5274,6 @@ async function submitCurrentAnswer() {
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
       </style>
     `;
-    if (btnNext) showAdvanceButton();
 
     try {
       console.log("Invoking Edge Function 'mark-long-answer' for Question ID:", currentQ.id);
@@ -5499,7 +5295,6 @@ async function submitCurrentAnswer() {
         ? data
         : { ...data, improved_answer: lastAiImprovedAnswer };
 
-      // Prefer server ao_targets; fall back to question metadata if an older function omits them.
       if (!feedbackData.ao_targets && currentQ) {
         feedbackData.ao_targets = {
           AO1: Number(currentQ.ao1_marks) || 0,
@@ -5523,8 +5318,7 @@ async function submitCurrentAnswer() {
             textarea.scrollIntoView({ behavior: "smooth" });
 
             showSubmitButton("Submit Improved Answer");
-            // Keep advance available while drafting / after the first mark.
-            if (btnNext) showAdvanceButton();
+            hideAdvanceButton();
 
             let banner = el("improveBanner");
             if (!banner) {
@@ -5571,18 +5365,42 @@ async function submitCurrentAnswer() {
         xpEarned
       });
       await awardAttemptXp(xpEarned, hintsRevealed);
+      showAdvanceButton();
 
     } catch (err) {
       console.error("AI Marking route failed, applying local self-assessment failover:", err);
       showToastBanner("AI Grader slow or offline. Displaying local grading rubric schema.", true);
       await runLocalExtendedMarking(response);
+      showAdvanceButton();
     }
     hideSubmitButton();
     }
 
   } else {
-    const marking = await markResponse(currentQ, response, currentKey, currentMarkPoints);
+    setAdvanceButtonPending(true);
+    const serverResult = await markResponseOnServer(supabaseClient, {
+      question_id: currentQ.id,
+      response_payload: response,
+      equation_sheet: currentEquationSheet,
+    });
+
+    if (!serverResult.ok) {
+      showToastBanner(serverResult.error || "Could not mark your answer. Please try again.", true);
+      showSubmitButton();
+      hideAdvanceButton();
+      return;
+    }
+
+    const marking = serverResult.marking;
+    currentFeedbackContext = serverResult.feedback_context || null;
     const isExamPaper = sessionMode === "paper_practice";
+
+    if (currentQ.question_type === "mcq" && currentFeedbackContext?.mcq_correct) {
+      applyMcqAnswerHighlighting(
+        currentFeedbackContext.mcq_correct,
+        currentFeedbackContext.mcq_selected || response.answer
+      );
+    }
 
     if (feedback) {
       if (isExamPaper) {
@@ -5595,7 +5413,13 @@ async function submitCurrentAnswer() {
           </div>
         `;
       } else {
-        feedback.innerHTML = await renderFeedback(marking, currentQ, currentKey, currentMarkPoints);
+        feedback.innerHTML = await renderFeedback(
+          marking,
+          currentQ,
+          null,
+          [],
+          currentFeedbackContext
+        );
         triggerMathTypeset();
         if (currentQ.question_type === "numeric" && marking.stepResults) {
           const { applyCalculationStepHighlighting } = await loadCalculationWorkflow();
@@ -5603,8 +5427,6 @@ async function submitCurrentAnswer() {
         }
       }
     }
-    if (btnNext) showAdvanceButton();
-    hideSubmitButton();
 
     try {
       const result = await insertAttemptRow({
@@ -5635,9 +5457,13 @@ async function submitCurrentAnswer() {
         promptPreview: (currentQ.prompt || "").slice(0, 120)
       });
       await awardAttemptXp(xpEarned, hintsRevealed);
+      showAdvanceButton();
+      hideSubmitButton();
     } catch(err) {
       console.error("Sync backup failure logged:", err);
       showToastBanner("Warning: Failed to log performance metric: " + err.message, true);
+      showSubmitButton();
+      hideAdvanceButton();
     }
   }
 
