@@ -9,6 +9,9 @@ import {
   isAuthGraceActive,
 } from "./dbClient.js";
 import { resolveAppUrl } from "./utils.js";
+import {
+  validatePassword,
+} from "./passwordPolicy.js";
 
 const el = (id) => document.getElementById(id);
 
@@ -140,6 +143,11 @@ function wireAuthButtons() {
     }
     if (!email || !password) {
       authMsg.textContent = "Enter your email and password.";
+      return;
+    }
+    const passwordCheck = validatePassword(password);
+    if (!passwordCheck.valid) {
+      authMsg.textContent = passwordCheck.message;
       return;
     }
     if (!termsAccepted) {

@@ -28,6 +28,13 @@ export function safeHttpUrl(url) {
   return "";
 }
 
+/** Short accessible alt text from a question prompt. */
+export function altTextFromPrompt(prompt, fallback = "Question illustration") {
+  const text = String(prompt || "").replace(/\s+/g, " ").trim();
+  if (!text) return fallback;
+  return text.length > 120 ? `${text.slice(0, 117)}…` : text;
+}
+
 // Shuffles an array randomly (useful for mixing up question queues)
 export function shuffleArray(array) {
   for (let i = array.length - 1; i > 0; i--) {

@@ -16,7 +16,7 @@ import { triggerMathTypeset } from './mathEngine.js';
 import { checkKeywordOrSynonymsMatch, updateSRS, computeSessionQuality, getAQACommandWordHelper, isFuzzyMatch, computeQuestionAOMaxCaps, flashcardInsightFromMissing } from './evalEngine.js';
 import { buildWeeklyForecast } from './srsAnalytics.js';
 import { getHorizonSrsCaps, normalizeHorizonPreset, examDateToPersist } from './curriculumPace.js';
-import { escapeHtml, shuffleArray, todayISO, addDaysISO, resolveAppUrl } from './utils.js';
+import { escapeHtml, escapeAttr, safeHttpUrl, altTextFromPrompt, shuffleArray, todayISO, addDaysISO, resolveAppUrl } from './utils.js';
 import {
   EXPERT_CATEGORIES,
   expertCategoryLabel,
@@ -70,6 +70,13 @@ import {
   initialAdaptiveOffsetFromGrades
 } from './gradeConfig.js';
 import { markResponseOnServer } from './markClient.js';
+import {
+  savePracticeSession,
+  loadPracticeSession,
+  clearPracticeSession,
+  fetchQuestionsByIds,
+} from './sessionPersistence.js';
+import { wireModalAccessibility, focusModalOnOpen } from './modalA11y.js';
 import {
   resolveAccess,
   canStartExamPrepMode,
@@ -354,6 +361,9 @@ let currentEquationSheet = null;
 let currentKey = null;
 let currentMarkPoints = [];
 let currentFeedbackContext = null;
+let askExpertModalPreviousFocus = null;
+let expertReplyModalPreviousFocus = null;
+let sessionResumeBannerWired = false;
 let currentHintState = { revealedCount: 0, panelOpen: false };
 let currentQuestionHints = [];
 let lastAnswerFocusState = null;
@@ -930,6 +940,119 @@ function autoSizeFilterSelects() {
   }
 }
 
+function persistCurrentPracticeSession() {
+  if (!currentUser?.id || !sessionQuestions.length || !isPracticeSessionMode()) return;
+  if (sessionSection?.classList.contains("hidden")) return;
+  if (sessionSummary && !sessionSummary.classList.contains("hidden")) return;
+
+  savePracticeSession({
+    userId: currentUser.id,
+    questionIds: sessionQuestions.map((q) => q.id),
+    idx,
+    sessionMode,
+    sessionSpecPointId,
+    sessionSkillCode,
+    filters: getSelectedFilters(),
+    sessionAttemptLog,
+    sessionQualityLog,
+    sessionXpEarned,
+  });
+}
+
+function applyStoredPracticeFilters(filters = {}) {
+  if (subjectFilter && filters.subject) subjectFilter.value = filters.subject;
+  if (paperFilter && filters.paper) paperFilter.value = filters.paper;
+  if (topicFilter && filters.topic !== undefined) topicFilter.value = filters.topic || "";
+  const typeFilter = el("typeFilter");
+  if (typeFilter && filters.qType !== undefined) typeFilter.value = filters.qType || "";
+  if (tierFilter && filters.tier) tierFilter.value = filters.tier;
+}
+
+function removeSessionResumeBanner() {
+  el("sessionResumeBanner")?.remove();
+}
+
+function renderSessionResumeBanner(snapshot) {
+  removeSessionResumeBanner();
+  const host = el("dashboardTabPractice") || dashSection;
+  if (!host || !snapshot) return;
+
+  const banner = document.createElement("div");
+  banner.id = "sessionResumeBanner";
+  banner.className = "session-resume-banner";
+  banner.setAttribute("role", "region");
+  banner.setAttribute("aria-label", "Resume practice session");
+  const questionNum = Math.min(snapshot.idx + 1, snapshot.questionIds.length);
+  banner.innerHTML = `
+    <div class="session-resume-banner-inner">
+      <p><strong>Practice session interrupted</strong> — resume at question ${questionNum} of ${snapshot.questionIds.length}?</p>
+      <div class="session-resume-banner-actions">
+        <button type="button" id="btnResumeSession" class="btn-primary">Resume session</button>
+        <button type="button" id="btnDiscardSession" class="btn-secondary">Discard</button>
+      </div>
+    </div>`;
+  host.insertBefore(banner, host.firstChild);
+
+  el("btnResumeSession")?.addEventListener("click", () => {
+    void resumePracticeSession(snapshot);
+  });
+  el("btnDiscardSession")?.addEventListener("click", () => {
+    clearPracticeSession();
+    removeSessionResumeBanner();
+    showToastBanner("Saved session discarded.", false);
+  });
+}
+
+async function resumePracticeSession(snapshot) {
+  if (!snapshot || !currentUser) return;
+  try {
+    const questions = await fetchQuestionsByIds(supabaseClient, snapshot.questionIds);
+    if (!questions.length) {
+      throw new Error("Questions could not be loaded.");
+    }
+
+    applyStoredPracticeFilters(snapshot.filters);
+
+    sessionQuestions = questions;
+    idx = Math.min(Math.max(0, snapshot.idx), questions.length - 1);
+    sessionMode = snapshot.sessionMode ?? null;
+    sessionSpecPointId = snapshot.sessionSpecPointId ?? null;
+    sessionSkillCode = snapshot.sessionSkillCode ?? null;
+    sessionAttemptLog = Array.isArray(snapshot.sessionAttemptLog) ? snapshot.sessionAttemptLog : [];
+    sessionQualityLog = Array.isArray(snapshot.sessionQualityLog) ? snapshot.sessionQualityLog : [];
+    sessionXpEarned = Number(snapshot.sessionXpEarned) || 0;
+    updateSessionXpDisplay();
+
+    if (dashSection) dashSection.classList.add("hidden");
+    if (sessionSection) sessionSection.classList.remove("hidden");
+    if (sessionSummary) sessionSummary.classList.add("hidden");
+    if (questionView) questionView.classList.remove("hidden");
+
+    removeSessionResumeBanner();
+    await loadQuestion();
+    showToastBanner("Resumed your practice session.", false, 4000);
+  } catch (err) {
+    console.warn("Resume practice session failed:", err?.message || err);
+    clearPracticeSession();
+    removeSessionResumeBanner();
+    showToastBanner("Could not resume that session. Start a new practice session instead.", true);
+  }
+}
+
+async function maybeOfferResumePracticeSession() {
+  if (!currentUser?.id || sessionQuestions.length) return;
+  const snapshot = loadPracticeSession(currentUser.id);
+  if (!snapshot) return;
+  renderSessionResumeBanner(snapshot);
+}
+
+if (!sessionResumeBannerWired) {
+  sessionResumeBannerWired = true;
+  window.addEventListener("beforeunload", () => {
+    persistCurrentPracticeSession();
+  });
+}
+
 // ====== AUTH (sign-out only; sign-in handled by appAuthShell.js) ======
 if (btnSignOut) {
   btnSignOut.onclick = async () => {
@@ -970,7 +1093,12 @@ function scheduleDashboardHeatmapRender(activeSRS) {
               await startSessionForSpecPointWrapper(selectedPoint.id);
             }
           : null,
-        { readOnly: !currentAccess?.canHeatmapPractice }
+        {
+          readOnly: !currentAccess?.canHeatmapPractice,
+          onReadOnlyCellClick: currentAccess?.canHeatmapPractice
+            ? null
+            : () => showUpgradeModal("heatmap"),
+        }
       );
       heatmapContainer.appendChild(masteryHeatmapNode);
     } catch (err) {
@@ -1181,12 +1309,13 @@ async function renderFlashcardChemistryDiagram(att) {
   return "";
 }
 
-function renderFlashcardQuestionImage(imageUrl) {
-  const url = (imageUrl || "").trim();
+function renderFlashcardQuestionImage(imageUrl, prompt = "") {
+  const url = safeHttpUrl(imageUrl);
   if (!url) return "";
+  const alt = escapeAttr(altTextFromPrompt(prompt, "Question illustration"));
   return `
     <div class="revision-card-question-img-wrap">
-      <img class="revision-card-question-img" src="${escapeHtml(url)}" alt="" loading="lazy"/>
+      <img class="revision-card-question-img" src="${escapeAttr(url)}" alt="${alt}" loading="lazy"/>
     </div>
   `;
 }
@@ -1581,7 +1710,7 @@ async function loadRevisionCards() {
             <div class="card-front">
               ${renderFlashcardHeader(headerMeta, "Tap for answer")}
               <div class="revision-card-body">
-                ${renderFlashcardQuestionImage(questionImageUrl)}
+                ${renderFlashcardQuestionImage(questionImageUrl, q.prompt)}
                 ${chemStemFrontHtml}
                 <p class="revision-card-prompt">${escapeHtml(q.prompt)}</p>
                 ${renderFlashcardMcqOptions(q)}
@@ -1992,6 +2121,8 @@ const engineContext = {
     sessionMode = config.mode || null;
     sessionSpecPointId = config.specPointId || null;
     sessionSkillCode = config.skillCode || null;
+    removeSessionResumeBanner();
+    persistCurrentPracticeSession();
   },
   getDomSections: () => ({
     dashSection: document.getElementById('dashboard'), // replace with actual selector logic if different
@@ -2562,6 +2693,8 @@ async function exitSessionToDashboard() {
   sessionXpEarned = 0;
   sessionQualityLog = [];
   idx = 0;
+  clearPracticeSession();
+  removeSessionResumeBanner();
 
   clearFlashcardSelection();
 
@@ -2709,6 +2842,7 @@ async function exitPracticeEarly() {
 }
 
 async function showSessionSummary() {
+  clearPracticeSession();
   const qualitiesBySpec = captureSessionQualitiesBySpec();
   await finalizeSessionSRS();
 
@@ -3141,6 +3275,7 @@ async function questionLayoutOptions(q, extra = {}) {
 }
 
 async function loadQuestion() {
+  try {
   if (questionView) questionView.classList.remove("hidden");
   if (sessionSummary) sessionSummary.classList.add("hidden");
 
@@ -3302,6 +3437,9 @@ async function loadQuestion() {
   }
 
   renderQuestionHintsPanel();
+  } finally {
+    persistCurrentPracticeSession();
+  }
 }
 
 function wireAnswerLengthCounter() {
@@ -3479,6 +3617,16 @@ async function refreshStudentExpertReplies() {
   renderExpertRepliesList();
 }
 
+function isAskExpertModalOpen() {
+  const modal = el("askExpertModal");
+  return !!(modal && !modal.classList.contains("hidden"));
+}
+
+function isExpertReplyModalOpen() {
+  const modal = el("expertReplyModal");
+  return !!(modal && !modal.classList.contains("hidden"));
+}
+
 function openExpertReplyModal(id) {
   const row = (studentExpertQueries || []).find((r) => r.id === id);
   const modal = el("expertReplyModal");
@@ -3510,7 +3658,9 @@ function openExpertReplyModal(id) {
     )
     .join("");
 
+  expertReplyModalPreviousFocus = document.activeElement;
   modal.classList.remove("hidden");
+  focusModalOnOpen("expertReplyModal", "#btnCloseExpertReplyModal");
   if (row.status === "replied" && !row.student_seen_at) {
     markExpertQuerySeen(supabaseClient, row.id)
       .then(() => {
@@ -3523,6 +3673,11 @@ function openExpertReplyModal(id) {
 
 function closeExpertReplyModal() {
   el("expertReplyModal")?.classList.add("hidden");
+  const prev = expertReplyModalPreviousFocus;
+  expertReplyModalPreviousFocus = null;
+  if (prev && typeof prev.focus === "function" && document.contains(prev)) {
+    try { prev.focus(); } catch (_) { /* ignore */ }
+  }
 }
 
 function fillAskExpertCategories() {
@@ -3551,11 +3706,18 @@ function openAskExpertModal() {
     status.textContent = "";
     status.classList.add("hidden");
   }
+  askExpertModalPreviousFocus = document.activeElement;
   el("askExpertModal")?.classList.remove("hidden");
+  focusModalOnOpen("askExpertModal", "#btnCloseAskExpertModal");
 }
 
 function closeAskExpertModal() {
   el("askExpertModal")?.classList.add("hidden");
+  const prev = askExpertModalPreviousFocus;
+  askExpertModalPreviousFocus = null;
+  if (prev && typeof prev.focus === "function" && document.contains(prev)) {
+    try { prev.focus(); } catch (_) { /* ignore */ }
+  }
 }
 
 async function handleSubmitAskExpert() {
@@ -3630,6 +3792,18 @@ function wireAskExpertUi() {
   el("btnCloseExpertReplyModal")?.addEventListener("click", closeExpertReplyModal);
   el("btnDismissExpertReplyModal")?.addEventListener("click", closeExpertReplyModal);
   el("expertReplyModalBackdrop")?.addEventListener("click", closeExpertReplyModal);
+
+  wireModalAccessibility({
+    modalId: "askExpertModal",
+    cardSelector: ".ask-expert-modal-card",
+    isOpen: isAskExpertModalOpen,
+    close: closeAskExpertModal,
+  });
+  wireModalAccessibility({
+    modalId: "expertReplyModal",
+    isOpen: isExpertReplyModalOpen,
+    close: closeExpertReplyModal,
+  });
 }
 
 wireAskExpertUi();
@@ -3637,6 +3811,8 @@ wireAskExpertUi();
 
 function setSignedOutUI() {
   heatmapRenderGeneration += 1;
+  removeSessionResumeBanner();
+  clearPracticeSession();
 
   if (btnSignOut) btnSignOut.classList.add("hidden");      
   if (authSection) authSection.classList.remove("hidden");  
@@ -3724,10 +3900,7 @@ function showUpgradeModal(featureKey = "generic") {
   if (modal) {
     upgradeModalPreviousFocus = document.activeElement;
     modal.classList.remove("hidden");
-    const focusTarget = el("btnCloseUpgradeModal") || modal.querySelector("button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])");
-    if (focusTarget && typeof focusTarget.focus === "function") {
-      try { focusTarget.focus(); } catch (_) { /* ignore */ }
-    }
+    focusModalOnOpen("upgradeModal", "#btnCloseUpgradeModal");
   }
 }
 
@@ -3747,7 +3920,6 @@ function wireUpgradeModal() {
   const btnClose = el("btnCloseUpgradeModal");
   const btnDismiss = el("btnUpgradeModalDismiss");
   const btnAnalytics = el("btnUpgradeFromAnalytics");
-  const card = modal?.querySelector(".upgrade-modal-card");
 
   if (backdrop) backdrop.onclick = hideUpgradeModal;
   if (btnClose) btnClose.onclick = hideUpgradeModal;
@@ -3756,27 +3928,10 @@ function wireUpgradeModal() {
     btnAnalytics.onclick = () => showUpgradeModal("analytics");
   }
 
-  document.addEventListener("keydown", (e) => {
-    if (!isUpgradeModalOpen()) return;
-    if (e.key === "Escape") {
-      e.preventDefault();
-      hideUpgradeModal();
-      return;
-    }
-    if (e.key !== "Tab" || !card) return;
-    const focusables = [...card.querySelectorAll(
-      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
-    )].filter((node) => !node.hasAttribute("disabled") && node.offsetParent !== null);
-    if (!focusables.length) return;
-    const first = focusables[0];
-    const last = focusables[focusables.length - 1];
-    if (e.shiftKey && document.activeElement === first) {
-      e.preventDefault();
-      last.focus();
-    } else if (!e.shiftKey && document.activeElement === last) {
-      e.preventDefault();
-      first.focus();
-    }
+  wireModalAccessibility({
+    modalId: "upgradeModal",
+    isOpen: isUpgradeModalOpen,
+    close: hideUpgradeModal,
   });
 }
 
@@ -4730,6 +4885,7 @@ async function setSignedInUI(user) {
     loadWeeklyForecast(user)
   ]);
   void loadTopics();
+  await maybeOfferResumePracticeSession();
   endAuthGracePeriod();
 }
 
@@ -5467,6 +5623,8 @@ async function submitCurrentAnswer() {
     }
   }
 
+
+  persistCurrentPracticeSession();
 
   const focusTarget = isPracticeAdvanceAvailable() ? btnNext : el("feedback");
   if (focusTarget && typeof focusTarget.focus === "function") {

@@ -1,5 +1,5 @@
 // src/uiComponents.js
-import { escapeHtml, escapeAttr, safeHttpUrl } from './utils.js';
+import { escapeHtml, escapeAttr, safeHttpUrl, altTextFromPrompt } from './utils.js';
 import { isFuzzyMatch, renderPromptStemHtml, renderHighlightedStudentAnswer, checkKeywordOrSynonymsMatch, getGradableMarkPoints } from './evalEngine.js';
 import { classifyMasteryCell } from './srsAnalytics.js';
 import { XP_RULES_FOOTNOTE } from './xpEngine.js';
@@ -62,8 +62,9 @@ export function renderQuestionLayout(q, commandWordBanner, currentKey, layoutOpt
   const marksLabel = totalMarks === 1 ? "1 mark" : `${totalMarks} marks`;
 
   const safeImageUrl = safeHttpUrl(q.image_url);
+  const imageAlt = escapeAttr(altTextFromPrompt(q.prompt, "Question illustration"));
   let imageHtml = safeImageUrl
-    ? `<img src="${escapeAttr(safeImageUrl)}" alt="" style="max-width: 100%; border-radius: 8px; margin-bottom: 12px; border: 1px solid #e2e8f0; display: block;">`
+    ? `<img src="${escapeAttr(safeImageUrl)}" alt="${imageAlt}" style="max-width: 100%; border-radius: 8px; margin-bottom: 12px; border: 1px solid #e2e8f0; display: block;">`
     : "";
 
   const chemStemHtml = layoutOptions.chemStemHtml || "";
@@ -625,6 +626,7 @@ function attachHeatmapFloatingTooltips(container) {
  */
 export function renderMasteryHeatmap(allSpecPoints, srsStates, onCellClickCallback, options = {}) {
   const readOnly = !!options.readOnly || onCellClickCallback == null;
+  const onReadOnlyCellClick = options.onReadOnlyCellClick;
   // 1. Pivot user tracking array into a quick hashmap keyed by spec_point_id
   const trackingMap = new Map();
   if (Array.isArray(srsStates)) {
@@ -734,14 +736,27 @@ export function renderMasteryHeatmap(allSpecPoints, srsStates, onCellClickCallba
       } else {
         cell.classList.add("heatmap-cell-readonly");
         cell.setAttribute("tabindex", "0");
-        cell.setAttribute("role", "img");
-        cell.setAttribute("aria-label", tooltipText);
-        cell.onkeydown = (e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            cell.focus();
-          }
-        };
+        if (typeof onReadOnlyCellClick === "function") {
+          cell.setAttribute("role", "button");
+          cell.setAttribute("aria-label", `${tooltipText}. Student Pro required to practise this topic.`);
+          const activateReadOnly = () => onReadOnlyCellClick(point);
+          cell.onclick = activateReadOnly;
+          cell.onkeydown = (e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              activateReadOnly();
+            }
+          };
+        } else {
+          cell.setAttribute("role", "img");
+          cell.setAttribute("aria-label", tooltipText);
+          cell.onkeydown = (e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              cell.focus();
+            }
+          };
+        }
       }
 
       rowEl.appendChild(cell);

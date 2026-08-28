@@ -1,5 +1,6 @@
 import { supabaseClient } from "./dbClient.js";
 import { resolveAppUrl } from "./utils.js";
+import { validatePassword } from "./passwordPolicy.js";
 
 const el = (id) => document.getElementById(id);
 
@@ -41,8 +42,13 @@ async function updatePassword() {
   const newPassword = el("newPassword")?.value || "";
   const confirmPassword = el("confirmPassword")?.value || "";
 
-  if (!newPassword || newPassword.length < 6) {
-    showMsg("Password must be at least 6 characters.", true);
+  if (!newPassword || !confirmPassword) {
+    showMsg("Enter and confirm your new password.", true);
+    return;
+  }
+  const passwordCheck = validatePassword(newPassword);
+  if (!passwordCheck.valid) {
+    showMsg(passwordCheck.message, true);
     return;
   }
   if (newPassword !== confirmPassword) {
