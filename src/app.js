@@ -13,10 +13,10 @@ import {
   normalizeAdaptiveState
 } from './adaptiveSelector.js';
 import { triggerMathTypeset } from './mathEngine.js';
-import { checkKeywordOrSynonymsMatch, updateSRS, computeSessionQuality, getAQACommandWordHelper, isFuzzyMatch, computeQuestionAOMaxCaps, flashcardInsightFromMissing } from './evalEngine.js';
+import { checkKeywordOrSynonymsMatch, updateSRS, computeSessionQuality, getAQACommandWordHelper, isFuzzyMatch, computeQuestionAOMaxCaps, flashcardInsightFromMissing, splitFlashcardInsight } from './evalEngine.js';
 import { buildWeeklyForecast } from './srsAnalytics.js';
 import { getHorizonSrsCaps, normalizeHorizonPreset, examDateToPersist } from './curriculumPace.js';
-import { escapeHtml, shuffleArray, todayISO, addDaysISO, resolveAppUrl } from './utils.js';
+import { escapeHtml, escapeAttr, safeHttpUrl, altTextFromPrompt, shuffleArray, todayISO, addDaysISO, resolveAppUrl } from './utils.js';
 import {
   EXPERT_CATEGORIES,
   expertCategoryLabel,
@@ -69,7 +69,14 @@ import {
   formatGradesLabel,
   initialAdaptiveOffsetFromGrades
 } from './gradeConfig.js';
-import { markResponse } from './evalEngine.js';
+import { markResponseOnServer } from './markClient.js';
+import {
+  savePracticeSession,
+  loadPracticeSession,
+  clearPracticeSession,
+  fetchQuestionsByIds,
+} from './sessionPersistence.js';
+import { wireModalAccessibility, focusModalOnOpen } from './modalA11y.js';
 import {
   resolveAccess,
   canStartExamPrepMode,
@@ -353,6 +360,10 @@ let currentQ = null;
 let currentEquationSheet = null;
 let currentKey = null;
 let currentMarkPoints = [];
+let currentFeedbackContext = null;
+let askExpertModalPreviousFocus = null;
+let expertReplyModalPreviousFocus = null;
+let sessionResumeBannerWired = false;
 let currentHintState = { revealedCount: 0, panelOpen: false };
 let currentQuestionHints = [];
 let lastAnswerFocusState = null;
@@ -821,7 +832,7 @@ function buildOnboardingSummaryHtml() {
     .map((s) => s.charAt(0).toUpperCase() + s.slice(1))
     .join(" → ");
   const classLine = onboardingState.joined_class_name
-    ? `Class: ${onboardingState.joined_class_name}`
+    ? `Class: ${escapeHtml(onboardingState.joined_class_name)}`
     : "Class: none (individual)";
   const horizonLabels = {
     y10: "Starting Year 10 (~2 years)",
@@ -929,174 +940,119 @@ function autoSizeFilterSelects() {
   }
 }
 
-// ====== AUTH ======
-let authPanel = "signin";
+function persistCurrentPracticeSession() {
+  if (!currentUser?.id || !sessionQuestions.length || !isPracticeSessionMode()) return;
+  if (sessionSection?.classList.contains("hidden")) return;
+  if (sessionSummary && !sessionSummary.classList.contains("hidden")) return;
 
-function setAuthPanel(mode) {
-  const prevEmail =
-    (el("signinEmail")?.value || el("signupEmail")?.value || el("forgotEmail")?.value || "").trim();
+  savePracticeSession({
+    userId: currentUser.id,
+    questionIds: sessionQuestions.map((q) => q.id),
+    idx,
+    sessionMode,
+    sessionSpecPointId,
+    sessionSkillCode,
+    filters: getSelectedFilters(),
+    sessionAttemptLog,
+    sessionQualityLog,
+    sessionXpEarned,
+  });
+}
 
-  authView = mode === "signup" || mode === "forgot" ? mode : "signin";
-  const panelSignin = el("authPanelSignin");
-  const panelSignup = el("authPanelSignup");
-  const panelForgot = el("authPanelForgot");
-  if (panelSignin) panelSignin.classList.toggle("hidden", authView !== "signin");
-  if (panelSignup) panelSignup.classList.toggle("hidden", authView !== "signup");
-  if (panelForgot) panelForgot.classList.toggle("hidden", authView !== "forgot");
+function applyStoredPracticeFilters(filters = {}) {
+  if (subjectFilter && filters.subject) subjectFilter.value = filters.subject;
+  if (paperFilter && filters.paper) paperFilter.value = filters.paper;
+  if (topicFilter && filters.topic !== undefined) topicFilter.value = filters.topic || "";
+  const typeFilter = el("typeFilter");
+  if (typeFilter && filters.qType !== undefined) typeFilter.value = filters.qType || "";
+}
 
-  // 3.3.7 — reuse email already typed across auth modes
-  if (prevEmail) {
-    const signinEmail = el("signinEmail");
-    const signupEmail = el("signupEmail");
-    const forgotEmail = el("forgotEmail");
-    if (authView === "signin" && signinEmail) signinEmail.value = prevEmail;
-    if (authView === "signup" && signupEmail) signupEmail.value = prevEmail;
-    if (authView === "forgot" && forgotEmail) forgotEmail.value = prevEmail;
+function removeSessionResumeBanner() {
+  el("sessionResumeBanner")?.remove();
+}
+
+function renderSessionResumeBanner(snapshot) {
+  removeSessionResumeBanner();
+  const host = el("dashboardTabPractice") || dashSection;
+  if (!host || !snapshot) return;
+
+  const banner = document.createElement("div");
+  banner.id = "sessionResumeBanner";
+  banner.className = "session-resume-banner";
+  banner.setAttribute("role", "region");
+  banner.setAttribute("aria-label", "Resume practice session");
+  const questionNum = Math.min(snapshot.idx + 1, snapshot.questionIds.length);
+  banner.innerHTML = `
+    <div class="session-resume-banner-inner">
+      <p><strong>Practice session interrupted</strong> — resume at question ${questionNum} of ${snapshot.questionIds.length}?</p>
+      <div class="session-resume-banner-actions">
+        <button type="button" id="btnResumeSession" class="btn-primary">Resume session</button>
+        <button type="button" id="btnDiscardSession" class="btn-secondary">Discard</button>
+      </div>
+    </div>`;
+  host.insertBefore(banner, host.firstChild);
+
+  el("btnResumeSession")?.addEventListener("click", () => {
+    void resumePracticeSession(snapshot);
+  });
+  el("btnDiscardSession")?.addEventListener("click", () => {
+    clearPracticeSession();
+    removeSessionResumeBanner();
+    showToastBanner("Saved session discarded.", false);
+  });
+}
+
+async function resumePracticeSession(snapshot) {
+  if (!snapshot || !currentUser) return;
+  try {
+    const questions = await fetchQuestionsByIds(supabaseClient, snapshot.questionIds);
+    if (!questions.length) {
+      throw new Error("Questions could not be loaded.");
+    }
+
+    applyStoredPracticeFilters(snapshot.filters);
+
+    sessionQuestions = questions;
+    idx = Math.min(Math.max(0, snapshot.idx), questions.length - 1);
+    sessionMode = snapshot.sessionMode ?? null;
+    sessionSpecPointId = snapshot.sessionSpecPointId ?? null;
+    sessionSkillCode = snapshot.sessionSkillCode ?? null;
+    sessionAttemptLog = Array.isArray(snapshot.sessionAttemptLog) ? snapshot.sessionAttemptLog : [];
+    sessionQualityLog = Array.isArray(snapshot.sessionQualityLog) ? snapshot.sessionQualityLog : [];
+    sessionXpEarned = Number(snapshot.sessionXpEarned) || 0;
+    updateSessionXpDisplay();
+
+    if (dashSection) dashSection.classList.add("hidden");
+    if (sessionSection) sessionSection.classList.remove("hidden");
+    if (sessionSummary) sessionSummary.classList.add("hidden");
+    if (questionView) questionView.classList.remove("hidden");
+
+    removeSessionResumeBanner();
+    await loadQuestion();
+    showToastBanner("Resumed your practice session.", false, 4000);
+  } catch (err) {
+    console.warn("Resume practice session failed:", err?.message || err);
+    clearPracticeSession();
+    removeSessionResumeBanner();
+    showToastBanner("Could not resume that session. Start a new practice session instead.", true);
   }
 }
 
-const btnShowForgot = el("btnShowForgot");
-const btnShowSignup = el("btnShowSignup");
-const btnShowSigninFromSignup = el("btnShowSigninFromSignup");
-const btnShowSigninFromForgot = el("btnShowSigninFromForgot");
-const btnSendReset = el("btnSendReset");
-
-if (btnShowForgot) btnShowForgot.onclick = () => setAuthPanel("forgot");
-if (btnShowSignup) btnShowSignup.onclick = () => setAuthPanel("signup");
-if (btnShowSigninFromSignup) btnShowSigninFromSignup.onclick = () => setAuthPanel("signin");
-if (btnShowSigninFromForgot) btnShowSigninFromForgot.onclick = () => setAuthPanel("signin");
-
-if (btnSendReset) {
-  btnSendReset.onclick = async () => {
-    authMsg.classList.remove("hidden");
-    authMsg.textContent = "Sending reset link…";
-    const email = el("forgotEmail")?.value.trim() || "";
-    if (!email) {
-      authMsg.textContent = "Enter your email address.";
-      return;
-    }
-    try {
-      sessionStorage.setItem("resetRedirect", "app.html");
-      const redirectTo = resolveAppUrl("reset-password.html");
-      const { error } = await supabaseClient.auth.resetPasswordForEmail(email, { redirectTo });
-      if (error) {
-        authMsg.textContent = "Could not send reset link: " + error.message;
-        return;
-      }
-      authMsg.textContent = "Reset link sent ✅ Check your email.";
-    } catch (err) {
-      authMsg.textContent = "Could not send reset link: " + (err.message || err);
-    }
-  };
+async function maybeOfferResumePracticeSession() {
+  if (!currentUser?.id || sessionQuestions.length) return;
+  const snapshot = loadPracticeSession(currentUser.id);
+  if (!snapshot) return;
+  renderSessionResumeBanner(snapshot);
 }
 
-if (btnSignUp) {
-  btnSignUp.onclick = async () => {
-    authMsg.classList.remove("hidden");
-    authMsg.textContent = "Creating account…";
-    const displayName = (el("signupName")?.value || "").trim();
-    const email = el("signupEmail")?.value.trim() || "";
-    const password = el("signupPassword")?.value || "";
-    const termsAccepted = el("termsAccepted")?.checked;
-
-    if (!displayName) {
-      authMsg.textContent = "Enter your name before registering.";
-      return;
-    }
-    if (!email || !password) {
-      authMsg.textContent = "Enter your email and password.";
-      return;
-    }
-    if (!termsAccepted) {
-      authMsg.textContent = "Please accept the Terms of Use and Privacy Policy.";
-      return;
-    }
-
-    const { data, error } = await supabaseClient.auth.signUp({
-      email,
-      password,
-      options: { data: { display_name: displayName } }
-    });
-    if (error) {
-      authMsg.textContent = "Sign up failed: " + error.message;
-    } else if (data?.user && !data?.session) {
-      authMsg.textContent =
-        "Account created ✅ Please check your email and verify your address before signing in.";
-      setAuthPanel("signin");
-    } else {
-      authMsg.textContent = "Sign up successful ✅ You can sign in now.";
-      setAuthPanel("signin");
-    }
-  };
+if (!sessionResumeBannerWired) {
+  sessionResumeBannerWired = true;
+  window.addEventListener("beforeunload", () => {
+    persistCurrentPracticeSession();
+  });
 }
 
-function formatAuthError(error) {
-  if (!error) return "Sign in failed. Please try again.";
-  const msg = String(error.message || "");
-  const code = String(error.code || "");
-
-  if (
-    code === "invalid_credentials" ||
-    msg.toLowerCase().includes("invalid login credentials")
-  ) {
-    return "Incorrect email or password.";
-  }
-  if (
-    code === "email_not_confirmed" ||
-    msg.toLowerCase().includes("email not confirmed")
-  ) {
-    return "Please verify your email before signing in. Check your inbox for the confirmation link.";
-  }
-  if (msg.toLowerCase().includes("user banned")) {
-    return "This account has been disabled. Contact support.";
-  }
-  return msg || "Sign in failed. Please try again.";
-}
-
-if (btnSignIn) {
-  btnSignIn.onclick = async () => {
-    if (btnSignIn.disabled) return;
-
-    authMsg.classList.remove("hidden");
-    authMsg.textContent = "Signing in…";
-    btnSignIn.disabled = true;
-
-    const email = el("signinEmail")?.value.trim() || "";
-    const password = el("signinPassword")?.value || "";
-
-    if (!email || !password) {
-      authMsg.textContent = "Enter your email and password.";
-      btnSignIn.disabled = false;
-      return;
-    }
-
-    try {
-      const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
-
-      if (error) {
-        console.warn("Sign in error:", error.status, error.code, error.message);
-        authMsg.textContent = "Sign in failed: " + formatAuthError(error);
-        return;
-      }
-      if (!data?.session?.user) {
-        authMsg.textContent =
-          "Please verify your email address before signing in.";
-        return;
-      }
-
-      authMsg.textContent = "Signed in ✅";
-      stashAuthSession(data.session);
-      authHandledByButton = true;
-      await applyAuthSession(data.session, "SIGNED_IN");
-    } catch (err) {
-      console.error("Sign in exception:", err);
-      authMsg.textContent = "Sign in failed: " + (err.message || err);
-    } finally {
-      btnSignIn.disabled = false;
-    }
-  };
-}
-
+// ====== AUTH (sign-out only; sign-in handled by appAuthShell.js) ======
 if (btnSignOut) {
   btnSignOut.onclick = async () => {
     authHandledByButton = false;
@@ -1136,7 +1092,12 @@ function scheduleDashboardHeatmapRender(activeSRS) {
               await startSessionForSpecPointWrapper(selectedPoint.id);
             }
           : null,
-        { readOnly: !currentAccess?.canHeatmapPractice }
+        {
+          readOnly: !currentAccess?.canHeatmapPractice,
+          onReadOnlyCellClick: currentAccess?.canHeatmapPractice
+            ? null
+            : () => showUpgradeModal("heatmap"),
+        }
       );
       heatmapContainer.appendChild(masteryHeatmapNode);
     } catch (err) {
@@ -1232,12 +1193,33 @@ async function loadDashboard(user = currentUser) {
   scheduleJourneyPrefetch();
 }
 
-/** @returns {Promise<{ text: string, imageUrl: string }[]>} */
+/** @returns {Promise<{ text: string, answer?: string, explanation?: string, imageUrl: string }[]>} */
 async function extractFlashcardInsights(att) {
   const q = att.questions || {};
   const payload = att.feedback_payload;
+  const mcqOptions = q.question_type === "mcq" && Array.isArray(q.options) ? q.options : null;
 
-  const asInsight = (text, imageUrl = "") => ({ text: String(text || ""), imageUrl: imageUrl || "" });
+  const asInsight = (text, imageUrl = "", parts = null) => {
+    if (parts && (parts.answer || parts.explanation)) {
+      return {
+        answer: parts.answer || "",
+        explanation: parts.explanation || "",
+        text: parts.text || text || "",
+        imageUrl: imageUrl || "",
+      };
+    }
+    const raw = String(text || "");
+    const splitParts = raw.split(/\n\n+/).map((p) => p.trim()).filter(Boolean);
+    if (splitParts.length >= 2) {
+      return {
+        answer: splitParts[0],
+        explanation: splitParts.slice(1).join("\n\n"),
+        text: raw,
+        imageUrl: imageUrl || "",
+      };
+    }
+    return { text: raw, answer: "", explanation: "", imageUrl: imageUrl || "" };
+  };
 
   if (Array.isArray(payload?.flashcard_steps) && payload.flashcard_steps.length) {
     return payload.flashcard_steps.map((step) => asInsight(step));
@@ -1253,8 +1235,11 @@ async function extractFlashcardInsights(att) {
     const withFlashcardText = payload.missing.filter((m) => m.flashcard_text);
     const source = withFlashcardText.length > 0 ? withFlashcardText : payload.missing;
     const insights = source
-      .map((m) => asInsight(flashcardInsightFromMissing(m), m.image_url || ""))
-      .filter((row) => row.text.trim() || row.imageUrl);
+      .map((m) => {
+        const parts = splitFlashcardInsight(m, mcqOptions);
+        return asInsight(parts.text || flashcardInsightFromMissing(m), m.image_url || "", parts);
+      })
+      .filter((row) => row.text.trim() || row.answer || row.explanation || row.imageUrl);
     if (insights.length) return insights;
   }
   if (Array.isArray(payload?.missing_or_incorrect)) {
@@ -1347,23 +1332,31 @@ async function renderFlashcardChemistryDiagram(att) {
   return "";
 }
 
-function renderFlashcardQuestionImage(imageUrl) {
-  const url = (imageUrl || "").trim();
+function renderFlashcardQuestionImage(imageUrl, prompt = "") {
+  const url = safeHttpUrl(imageUrl);
   if (!url) return "";
+  const alt = escapeAttr(altTextFromPrompt(prompt, "Question illustration"));
   return `
     <div class="revision-card-question-img-wrap">
-      <img class="revision-card-question-img" src="${escapeHtml(url)}" alt="" loading="lazy"/>
+      <img class="revision-card-question-img" src="${escapeAttr(url)}" alt="${alt}" loading="lazy"/>
     </div>
   `;
 }
 
 function renderFlashcardInsightList(insights) {
   return (insights || [])
-    .map(({ text, imageUrl }) => {
+    .map(({ text, answer, explanation, imageUrl }) => {
       const img =
         (imageUrl || "").trim()
           ? `<img class="revision-card-feedback-img" src="${escapeHtml(imageUrl)}" alt="" loading="lazy"/>`
           : "";
+      if (answer) {
+        return `<li class="revision-card-insight-item">
+          <div class="revision-card-insight-answer">${escapeHtml(answer)}</div>
+          ${explanation ? `<div class="revision-card-insight-explain">${escapeHtml(explanation)}</div>` : ""}
+          ${img}
+        </li>`;
+      }
       return `<li class="revision-card-insight-item">${escapeHtml(text)}${img}</li>`;
     })
     .join("");
@@ -1747,7 +1740,7 @@ async function loadRevisionCards() {
             <div class="card-front">
               ${renderFlashcardHeader(headerMeta, "Tap for answer")}
               <div class="revision-card-body">
-                ${renderFlashcardQuestionImage(questionImageUrl)}
+                ${renderFlashcardQuestionImage(questionImageUrl, q.prompt)}
                 ${chemStemFrontHtml}
                 <p class="revision-card-prompt">${escapeHtml(q.prompt)}</p>
                 ${renderFlashcardMcqOptions(q)}
@@ -1831,10 +1824,15 @@ async function downloadStudyGuideText(attempts) {
         : "";
 
     const insightHtml = insights
-      .map(({ text, imageUrl }) => {
+      .map(({ text, answer, explanation, imageUrl }) => {
         const img = (imageUrl || "").trim()
           ? `<br/><img src="${escapeHtml(imageUrl)}" style="max-height:40px; max-width:100%; object-fit:contain; margin-top:2px;" alt=""/>`
           : "";
+        if (answer) {
+          return `<li style="margin:0 0 2px 0;"><strong>${escapeHtml(answer)}</strong>${
+            explanation ? `<br/><span style="font-weight:400;">${escapeHtml(explanation)}</span>` : ""
+          }${img}</li>`;
+        }
         return `<li style="margin:0 0 2px 0;">${escapeHtml(text)}${img}</li>`;
       })
       .join("");
@@ -2158,6 +2156,8 @@ const engineContext = {
     sessionMode = config.mode || null;
     sessionSpecPointId = config.specPointId || null;
     sessionSkillCode = config.skillCode || null;
+    removeSessionResumeBanner();
+    persistCurrentPracticeSession();
   },
   getDomSections: () => ({
     dashSection: document.getElementById('dashboard'), // replace with actual selector logic if different
@@ -2728,6 +2728,8 @@ async function exitSessionToDashboard() {
   sessionXpEarned = 0;
   sessionQualityLog = [];
   idx = 0;
+  clearPracticeSession();
+  removeSessionResumeBanner();
 
   clearFlashcardSelection();
 
@@ -2875,6 +2877,7 @@ async function exitPracticeEarly() {
 }
 
 async function showSessionSummary() {
+  clearPracticeSession();
   const qualitiesBySpec = captureSessionQualitiesBySpec();
   await finalizeSessionSRS();
 
@@ -3270,15 +3273,31 @@ function hideSubmitButton() {
   btnSubmit.classList.add("hidden");
 }
 
+function hideAdvanceButton() {
+  if (!btnNext) return;
+  btnNext.disabled = true;
+  btnNext.classList.add("hidden");
+}
+
 function showAdvanceButton() {
   if (!btnNext) return;
   const isLastQuestion = idx >= sessionQuestions.length - 1;
   btnNext.textContent = isLastQuestion ? "See summary" : "Advance to Next Question →";
+  btnNext.disabled = false;
   btnNext.classList.remove("hidden");
   try {
     btnNext.focus({ preventScroll: false });
     btnNext.scrollIntoView({ block: "nearest", behavior: "smooth" });
   } catch (_) { /* ignore */ }
+}
+
+function setAdvanceButtonPending(isPending) {
+  if (!btnNext) return;
+  if (isPending) {
+    btnNext.disabled = true;
+    btnNext.classList.remove("hidden");
+    btnNext.textContent = "Marking…";
+  }
 }
 
 async function questionLayoutOptions(q, extra = {}) {
@@ -3291,6 +3310,7 @@ async function questionLayoutOptions(q, extra = {}) {
 }
 
 async function loadQuestion() {
+  try {
   if (questionView) questionView.classList.remove("hidden");
   if (sessionSummary) sessionSummary.classList.add("hidden");
 
@@ -3314,17 +3334,10 @@ async function loadQuestion() {
 
   updateExitPracticeVisibility();
 
-  console.log("DEBUG loadQuestion: Resolving markers maps asynchronously...");
-  const [keyRes, markRes] = await Promise.all([
-    supabaseClient.from("answer_keys").select("key_type,key_payload").eq("question_id", currentQ.id).maybeSingle(),
-    supabaseClient.from("mark_points").select("ao,point_text,feedback_if_missing,max_marks,image_url").eq("question_id", currentQ.id)
-  ]);
-
-  if (keyRes.error) console.error("DEBUG loadQuestion: Error resolving answer key:", keyRes.error);
-  if (markRes.error) console.error("DEBUG loadQuestion: Error resolving mark points:", markRes.error);
-
-  currentKey = keyRes.data;
-  currentMarkPoints = markRes.data || [];
+  console.log("DEBUG loadQuestion: Preparing question view...");
+  currentKey = null;
+  currentMarkPoints = [];
+  currentFeedbackContext = null;
 
   currentEquationSheet = null;
   const questionId = currentQ.id;
@@ -3459,6 +3472,9 @@ async function loadQuestion() {
   }
 
   renderQuestionHintsPanel();
+  } finally {
+    persistCurrentPracticeSession();
+  }
 }
 
 function wireAnswerLengthCounter() {
@@ -3521,11 +3537,13 @@ async function getResponsePayload(q) {
     return { type: "mcq", answer: picked };
   }
   if (q.question_type === "numeric") {
-    const { collectCalculationResponse } = await loadCalculationWorkflow();
-    const resp = collectCalculationResponse(q, sessionMode, currentEquationSheet);
-    const unit = (currentKey && currentKey.key_payload && currentKey.key_payload.unit)
-      ? currentKey.key_payload.unit
-      : "";
+    const calc = await loadCalculationWorkflow();
+    const resp = calc.collectCalculationResponse(q, sessionMode, currentEquationSheet);
+    const unit = calc.resolveAnswerDisplayUnit(
+      calc.getCalculationConfig(q),
+      null,
+      currentEquationSheet
+    );
     return { ...resp, unit };
   }
   if (q.question_type === "chemistry_interactive") {
@@ -3634,6 +3652,16 @@ async function refreshStudentExpertReplies() {
   renderExpertRepliesList();
 }
 
+function isAskExpertModalOpen() {
+  const modal = el("askExpertModal");
+  return !!(modal && !modal.classList.contains("hidden"));
+}
+
+function isExpertReplyModalOpen() {
+  const modal = el("expertReplyModal");
+  return !!(modal && !modal.classList.contains("hidden"));
+}
+
 function openExpertReplyModal(id) {
   const row = (studentExpertQueries || []).find((r) => r.id === id);
   const modal = el("expertReplyModal");
@@ -3665,7 +3693,9 @@ function openExpertReplyModal(id) {
     )
     .join("");
 
+  expertReplyModalPreviousFocus = document.activeElement;
   modal.classList.remove("hidden");
+  focusModalOnOpen("expertReplyModal", "#btnCloseExpertReplyModal");
   if (row.status === "replied" && !row.student_seen_at) {
     markExpertQuerySeen(supabaseClient, row.id)
       .then(() => {
@@ -3678,6 +3708,11 @@ function openExpertReplyModal(id) {
 
 function closeExpertReplyModal() {
   el("expertReplyModal")?.classList.add("hidden");
+  const prev = expertReplyModalPreviousFocus;
+  expertReplyModalPreviousFocus = null;
+  if (prev && typeof prev.focus === "function" && document.contains(prev)) {
+    try { prev.focus(); } catch (_) { /* ignore */ }
+  }
 }
 
 function fillAskExpertCategories() {
@@ -3706,11 +3741,18 @@ function openAskExpertModal() {
     status.textContent = "";
     status.classList.add("hidden");
   }
+  askExpertModalPreviousFocus = document.activeElement;
   el("askExpertModal")?.classList.remove("hidden");
+  focusModalOnOpen("askExpertModal", "#btnCloseAskExpertModal");
 }
 
 function closeAskExpertModal() {
   el("askExpertModal")?.classList.add("hidden");
+  const prev = askExpertModalPreviousFocus;
+  askExpertModalPreviousFocus = null;
+  if (prev && typeof prev.focus === "function" && document.contains(prev)) {
+    try { prev.focus(); } catch (_) { /* ignore */ }
+  }
 }
 
 async function handleSubmitAskExpert() {
@@ -3785,6 +3827,18 @@ function wireAskExpertUi() {
   el("btnCloseExpertReplyModal")?.addEventListener("click", closeExpertReplyModal);
   el("btnDismissExpertReplyModal")?.addEventListener("click", closeExpertReplyModal);
   el("expertReplyModalBackdrop")?.addEventListener("click", closeExpertReplyModal);
+
+  wireModalAccessibility({
+    modalId: "askExpertModal",
+    cardSelector: ".ask-expert-modal-card",
+    isOpen: isAskExpertModalOpen,
+    close: closeAskExpertModal,
+  });
+  wireModalAccessibility({
+    modalId: "expertReplyModal",
+    isOpen: isExpertReplyModalOpen,
+    close: closeExpertReplyModal,
+  });
 }
 
 wireAskExpertUi();
@@ -3792,6 +3846,8 @@ wireAskExpertUi();
 
 function setSignedOutUI() {
   heatmapRenderGeneration += 1;
+  removeSessionResumeBanner();
+  clearPracticeSession();
 
   if (btnSignOut) btnSignOut.classList.add("hidden");      
   if (authSection) authSection.classList.remove("hidden");  
@@ -3879,10 +3935,7 @@ function showUpgradeModal(featureKey = "generic") {
   if (modal) {
     upgradeModalPreviousFocus = document.activeElement;
     modal.classList.remove("hidden");
-    const focusTarget = el("btnCloseUpgradeModal") || modal.querySelector("button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])");
-    if (focusTarget && typeof focusTarget.focus === "function") {
-      try { focusTarget.focus(); } catch (_) { /* ignore */ }
-    }
+    focusModalOnOpen("upgradeModal", "#btnCloseUpgradeModal");
   }
 }
 
@@ -3902,7 +3955,6 @@ function wireUpgradeModal() {
   const btnClose = el("btnCloseUpgradeModal");
   const btnDismiss = el("btnUpgradeModalDismiss");
   const btnAnalytics = el("btnUpgradeFromAnalytics");
-  const card = modal?.querySelector(".upgrade-modal-card");
 
   if (backdrop) backdrop.onclick = hideUpgradeModal;
   if (btnClose) btnClose.onclick = hideUpgradeModal;
@@ -3911,27 +3963,10 @@ function wireUpgradeModal() {
     btnAnalytics.onclick = () => showUpgradeModal("analytics");
   }
 
-  document.addEventListener("keydown", (e) => {
-    if (!isUpgradeModalOpen()) return;
-    if (e.key === "Escape") {
-      e.preventDefault();
-      hideUpgradeModal();
-      return;
-    }
-    if (e.key !== "Tab" || !card) return;
-    const focusables = [...card.querySelectorAll(
-      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
-    )].filter((node) => !node.hasAttribute("disabled") && node.offsetParent !== null);
-    if (!focusables.length) return;
-    const first = focusables[0];
-    const last = focusables[focusables.length - 1];
-    if (e.shiftKey && document.activeElement === first) {
-      e.preventDefault();
-      last.focus();
-    } else if (!e.shiftKey && document.activeElement === last) {
-      e.preventDefault();
-      first.focus();
-    }
+  wireModalAccessibility({
+    modalId: "upgradeModal",
+    isOpen: isUpgradeModalOpen,
+    close: hideUpgradeModal,
   });
 }
 
@@ -3978,20 +4013,32 @@ async function refreshPlanState() {
   updateFreeAnalyticsSummary();
 }
 
-async function runLocalExtendedMarking(response) {
-  const customPayload = currentKey?.key_payload || {};
+function applyMcqAnswerHighlighting(correctVal, selectedAnswer) {
+  const inputs = document.querySelectorAll('input[name="mcq"]');
+  inputs.forEach((input) => {
+    const label = input.closest("label");
+    if (!label) return;
+    const val = input.value;
+    input.disabled = true;
+    if (val === correctVal) {
+      label.style.borderColor = "#10b981";
+      label.style.backgroundColor = "#ecfdf5";
+      label.style.color = "#065f46";
+      label.style.borderWidth = "2px";
+      label.style.boxShadow = "0 0 0 3px rgba(16, 185, 129, 0.15)";
+    } else if (selectedAnswer && val === selectedAnswer) {
+      label.style.borderColor = "#ef4444";
+      label.style.backgroundColor = "#fef2f2";
+      label.style.color = "#991b1b";
+      label.style.borderWidth = "2px";
+      label.style.boxShadow = "0 0 0 3px rgba(239, 68, 68, 0.15)";
+    }
+  });
+}
 
-  let localKeywords = [];
-  if (customPayload.key_scientific_points) {
-    const stopWords = new Set(["about", "above", "after", "again", "against", "all", "am", "an", "and", "any", "are", "arent", "as", "at", "be", "because", "been", "before", "being", "below", "between", "both", "but", "by", "cant", "cannot", "could", "couldnt", "did", "didnt", "do", "does", "doesnt", "doing", "dont", "down", "during", "each", "few", "for", "from", "further", "had", "hadnt", "has", "hasnt", "have", "havent", "having", "he", "hed", "hell", "hes", "her", "here", "heres", "herself", "him", "himself", "his", "how", "hows", "i", "id", "ill", "im", "ive", "if", "in", "into", "is", "isnt", "it", "its", "itself", "lets", "me", "more", "most", "mustnt", "my", "myself", "no", "nor", "not", "of", "off", "on", "once", "only", "or", "other", "ought", "our", "ours", "ourselves", "out", "over", "own", "same", "shant", "she", "shed", "shell", "shes", "should", "shouldnt", "so", "some", "such", "than", "that", "thats", "the", "their", "theirs", "them", "themselves", "then", "there", "theres", "these", "they", "theyd", "theyll", "theyre", "theyve", "this", "those", "through", "to", "too", "under", "until", "up", "very", "was", "wasnt", "we", "wed", "well", "were", "weve", "werent", "what", "whats", "when", "whens", "where", "wheres", "which", "while", "who", "whos", "whom", "why", "whys", "with", "wont", "would", "wouldnt", "you", "youd", "youll", "youre", "youve", "your", "yours", "yourself", "yourselves", "using", "with", "each", "other", "some", "more", "from", "into", "over"]);
-    const words = customPayload.key_scientific_points.join(" ").toLowerCase()
-      .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, " ")
-      .split(/\s+/)
-      .filter(w => w.length > 3 && !stopWords.has(w));
-    localKeywords = [...new Set(words)];
-  } else {
-    localKeywords = ["describe", "explain", "method", "results"];
-  }
+async function runLocalExtendedMarking(response) {
+  const customPayload = {};
+  const localKeywords = ["describe", "explain", "method", "results"];
 
   const studentTextRaw = (response.text || el("txtAns")?.value || "").trim();
   const cleanStudentText = studentTextRaw.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "");
@@ -4873,6 +4920,7 @@ async function setSignedInUI(user) {
     loadWeeklyForecast(user)
   ]);
   void loadTopics();
+  await maybeOfferResumePracticeSession();
   endAuthGracePeriod();
 }
 
@@ -5290,72 +5338,35 @@ window.addEventListener("resize", () => {
   filterResizeTimer = setTimeout(() => autoSizeFilterSelects(), 120);
 });
 
-console.log("DEBUG: Hooking up supabaseClient.auth.onAuthStateChange...");
+wireUpgradeModal();
 
-// Never await getSession() inside this callback — it deadlocks with supabase-js.
-supabaseClient.auth.onAuthStateChange((event, session) => {
-  console.log(`DEBUG AUTH CHG: [Event: ${event}]`, session ? `User: ${session.user.id}` : "No session");
-  if (event === "INITIAL_SESSION") {
-    return;
+export async function bootstrapStudentApp(session) {
+  if (session?.user) {
+    await applyAuthSession(session, "INITIAL_SESSION");
+  } else {
+    currentUser = null;
+    currentUserProfile = null;
+    cachedDominantSubject = null;
+    setSignedOutUI();
   }
+}
+
+export async function handleButtonSignIn(session) {
+  authHandledByButton = true;
+  await applyAuthSession(session, "SIGNED_IN");
+}
+
+export async function handleAuthStateChange(event, session) {
+  console.log(`DEBUG AUTH CHG: [Event: ${event}]`, session ? `User: ${session.user.id}` : "No session");
   if (event === "SIGNED_IN" && authHandledByButton) {
+    authHandledByButton = false;
     return;
   }
   if (event === "SIGNED_OUT" && isAuthGraceActive()) {
     return;
   }
-  setTimeout(() => {
-    applyAuthSession(session, event);
-  }, 0);
-});
-
-function applyInitialAuthUIState() {
-  if (currentUser) return;
-
-  const resetSuccess = new URLSearchParams(location.search).get("reset");
-  if (resetSuccess === "success" && authMsg) {
-    authMsg.textContent = "Password updated ✅ You can sign in with your new password.";
-    authMsg.classList.remove("hidden");
-    setAuthPanel("signin");
-    history.replaceState(null, "", location.pathname);
-    return;
-  }
-
-  if (location.hash === "#signup") {
-    setAuthPanel("signup");
-    if (authMsg) {
-      authMsg.textContent = "Create your student account.";
-      authMsg.classList.remove("hidden");
-    }
-  }
+  await applyAuthSession(session, event);
 }
-
-async function bootstrapAuth() {
-  wireUpgradeModal();
-  try {
-    const { data: { session }, error } = await supabaseClient.auth.getSession();
-    if (error) throw error;
-    if (session?.user) {
-      stashAuthSession(session);
-      await applyAuthSession(session, "INITIAL_SESSION");
-    } else {
-      currentUser = null;
-      currentUserProfile = null;
-  cachedDominantSubject = null;
-      setSignedOutUI();
-      applyInitialAuthUIState();
-    }
-  } catch (err) {
-    console.error("Auth bootstrap failed:", err);
-    if (authMsg) {
-      authMsg.textContent = "Could not connect to server. Check your connection and refresh.";
-      authMsg.classList.remove("hidden");
-    }
-    if (authSection) authSection.classList.remove("hidden");
-  }
-}
-
-bootstrapAuth();
 
 function isPracticeSubmitAvailable() {
   return !!(
@@ -5412,32 +5423,7 @@ async function submitCurrentAnswer() {
   const existingBanner = el("improveBanner");
   if (existingBanner) existingBanner.remove();
 
-  if (currentQ.question_type === "mcq") {
-    const selectedInput = document.querySelector('input[name="mcq"]:checked');
-    const correctVal = currentKey?.key_payload?.correct || currentKey?.key_payload?.answer || "";
-    const inputs = document.querySelectorAll('input[name="mcq"]');
-    
-    inputs.forEach(input => {
-      const label = input.closest('label');
-      if (label) {
-        const val = input.value;
-        input.disabled = true;
-        if (val === correctVal) {
-          label.style.borderColor = "#10b981";
-          label.style.backgroundColor = "#ecfdf5";
-          label.style.color = "#065f46";
-          label.style.borderWidth = "2px";
-          label.style.boxShadow = "0 0 0 3px rgba(16, 185, 129, 0.15)";
-        } else if (selectedInput && input === selectedInput) {
-          label.style.borderColor = "#ef4444";
-          label.style.backgroundColor = "#fef2f2";
-          label.style.color = "#991b1b";
-          label.style.borderWidth = "2px";
-          label.style.boxShadow = "0 0 0 3px rgba(239, 68, 68, 0.15)";
-        }
-      }
-    });
-  }
+  hideAdvanceButton();
 
   if (currentQ.question_type === "extended_response" || currentQ.marking_method === "ai_rubric") {
     let useAiMarking = !!currentAccess?.isPro;
@@ -5457,27 +5443,25 @@ async function submitCurrentAnswer() {
           );
         }
       } catch (quotaErr) {
-        console.warn("AI quota check skipped:", quotaErr?.message || quotaErr);
-        useAiMarking = true;
+        console.warn("AI quota check failed:", quotaErr?.message || quotaErr);
+        showToastBanner("Could not verify AI marking quota. Showing basic feedback instead.", true);
+        useAiMarking = false;
       }
     }
 
     if (!useAiMarking) {
       await runLocalExtendedMarking(response);
-      if (btnNext) showAdvanceButton();
+      showAdvanceButton();
       hideSubmitButton();
     } else {
-    feedback.innerHTML = `
-      <div style="text-align: center; padding: 24px 12px;">
-        <div class="loader-spinner" style="margin: 0 auto 12px auto; width: 32px; height: 32px; border: 4px solid #f3f3f3; border-top: 4px solid var(--primary); border-radius: 50%; animation: spin 1s linear infinite;"></div>
-        <strong style="color: var(--text); font-size: 0.92rem; display: block; margin-bottom: 4px;">🤖 AI GCSE Examiner Evaluating...</strong>
-        <p style="font-size: 0.78rem; color: var(--text-muted); max-width: 250px; margin: 0 auto; line-height: 1.3;">Analyzing experimental descriptions, sequencing, error controls, and scientific terminology against official AQA grids.</p>
+      setAdvanceButtonPending(true);
+      feedback.innerHTML = `
+      <div class="marking-status marking-status--ai">
+        <div class="loader-spinner" aria-hidden="true"></div>
+        <strong>AI GCSE Examiner Evaluating...</strong>
+        <p>Analyzing experimental descriptions, sequencing, error controls, and scientific terminology against official AQA grids.</p>
       </div>
-      <style>
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-      </style>
     `;
-    if (btnNext) showAdvanceButton();
 
     try {
       console.log("Invoking Edge Function 'mark-long-answer' for Question ID:", currentQ.id);
@@ -5499,7 +5483,6 @@ async function submitCurrentAnswer() {
         ? data
         : { ...data, improved_answer: lastAiImprovedAnswer };
 
-      // Prefer server ao_targets; fall back to question metadata if an older function omits them.
       if (!feedbackData.ao_targets && currentQ) {
         feedbackData.ao_targets = {
           AO1: Number(currentQ.ao1_marks) || 0,
@@ -5523,8 +5506,7 @@ async function submitCurrentAnswer() {
             textarea.scrollIntoView({ behavior: "smooth" });
 
             showSubmitButton("Submit Improved Answer");
-            // Keep advance available while drafting / after the first mark.
-            if (btnNext) showAdvanceButton();
+            hideAdvanceButton();
 
             let banner = el("improveBanner");
             if (!banner) {
@@ -5571,18 +5553,51 @@ async function submitCurrentAnswer() {
         xpEarned
       });
       await awardAttemptXp(xpEarned, hintsRevealed);
+      showAdvanceButton();
 
     } catch (err) {
       console.error("AI Marking route failed, applying local self-assessment failover:", err);
       showToastBanner("AI Grader slow or offline. Displaying local grading rubric schema.", true);
       await runLocalExtendedMarking(response);
+      showAdvanceButton();
     }
     hideSubmitButton();
     }
 
   } else {
-    const marking = await markResponse(currentQ, response, currentKey, currentMarkPoints);
+    setAdvanceButtonPending(true);
+    if (feedback) {
+      feedback.innerHTML = `
+        <div class="marking-status">
+          <div class="loader-spinner loader-spinner--sm" aria-hidden="true"></div>
+          <strong>Marking your answer…</strong>
+        </div>
+      `;
+    }
+    const serverResult = await markResponseOnServer(supabaseClient, {
+      question_id: currentQ.id,
+      response_payload: response,
+      equation_sheet: currentEquationSheet,
+    });
+
+    if (!serverResult.ok) {
+      if (feedback) feedback.innerHTML = "";
+      showToastBanner(serverResult.error || "Could not mark your answer. Please try again.", true);
+      showSubmitButton();
+      hideAdvanceButton();
+      return;
+    }
+
+    const marking = serverResult.marking;
+    currentFeedbackContext = serverResult.feedback_context || null;
     const isExamPaper = sessionMode === "paper_practice";
+
+    if (currentQ.question_type === "mcq" && currentFeedbackContext?.mcq_correct) {
+      applyMcqAnswerHighlighting(
+        currentFeedbackContext.mcq_correct,
+        currentFeedbackContext.mcq_selected || response.answer
+      );
+    }
 
     if (feedback) {
       if (isExamPaper) {
@@ -5595,7 +5610,13 @@ async function submitCurrentAnswer() {
           </div>
         `;
       } else {
-        feedback.innerHTML = await renderFeedback(marking, currentQ, currentKey, currentMarkPoints);
+        feedback.innerHTML = await renderFeedback(
+          marking,
+          currentQ,
+          null,
+          [],
+          currentFeedbackContext
+        );
         triggerMathTypeset();
         if (currentQ.question_type === "numeric" && marking.stepResults) {
           const { applyCalculationStepHighlighting } = await loadCalculationWorkflow();
@@ -5603,8 +5624,6 @@ async function submitCurrentAnswer() {
         }
       }
     }
-    if (btnNext) showAdvanceButton();
-    hideSubmitButton();
 
     try {
       const result = await insertAttemptRow({
@@ -5635,12 +5654,18 @@ async function submitCurrentAnswer() {
         promptPreview: (currentQ.prompt || "").slice(0, 120)
       });
       await awardAttemptXp(xpEarned, hintsRevealed);
+      showAdvanceButton();
+      hideSubmitButton();
     } catch(err) {
       console.error("Sync backup failure logged:", err);
       showToastBanner("Warning: Failed to log performance metric: " + err.message, true);
+      showSubmitButton();
+      hideAdvanceButton();
     }
   }
 
+
+  persistCurrentPracticeSession();
 
   const focusTarget = isPracticeAdvanceAvailable() ? btnNext : el("feedback");
   if (focusTarget && typeof focusTarget.focus === "function") {

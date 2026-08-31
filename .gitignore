@@ -15,3 +15,7 @@ supabase/.temp/
 # Gemini batch job artefacts (regenerate locally)
 batch-output/
 batch-work/
+
+# Local npm installs (mark bundle build only)
+node_modules/
+package-lock.json

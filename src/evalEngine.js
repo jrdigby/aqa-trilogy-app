@@ -5,23 +5,140 @@ import { loadCalculationWorkflow } from './lazyCalculationWorkflow.js';
 export const MCQ_FLASHCARD_ADDED_MSG = "This question has been added to your flashcard list.";
 const LEGACY_FLASHCARD_REVIEW_SUFFIX = / Review your flashcards for this specific unit or definition\.?$/i;
 
-/** Text for flashcard backs — strips UI-only flashcard prompts from stored feedback. */
-export function flashcardInsightFromMissing(m) {
-  if (m?.flashcard_text) return m.flashcard_text;
-  let text = m?.text || m?.feedback || m?.label || "";
-  text = text.replace(LEGACY_FLASHCARD_REVIEW_SUFFIX, "");
-  text = text.replace(new RegExp(`\\s*${MCQ_FLASHCARD_ADDED_MSG.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*$`), "");
-  return text.trim();
-}
-
-function cleanMcqFeedbackText(text) {
-  return String(text || "").replace(LEGACY_FLASHCARD_REVIEW_SUFFIX, "").trim();
+/** Pretty-print synonym pools like "direct|directly proportional". */
+function formatAnswerLabel(answer) {
+  return String(answer || "").replace(/\|/g, " / ").trim();
 }
 
 /** True when text is (or contains) MathJax/$…$/mhchem that should not be wrapped in quotes. */
 function looksLikeInlineMath(text) {
   const s = String(text || "");
   return /\$[^$]+\$/.test(s) || /\\\(/.test(s) || /\\ce\{/.test(s);
+}
+
+/**
+ * Flashcard answer display: sentence case + terminal full stop.
+ * "directly proportional" → "Directly proportional."
+ * Preserves MCQ letter prefixes ("C. Gamma" → "C. Gamma.") and leaves maths alone.
+ */
+export function formatFlashcardAnswerDisplay(answer) {
+  let s = formatAnswerLabel(answer);
+  if (!s || looksLikeInlineMath(s)) return s;
+
+  const letterMatch = s.match(/^([A-Za-z]\.)\s+(.*)$/);
+  let prefix = "";
+  let body = s;
+  if (letterMatch) {
+    prefix = `${letterMatch[1]} `;
+    body = letterMatch[2].trim();
+  }
+  if (!body || looksLikeInlineMath(body)) return s;
+
+  // Avoid mangling pure numbers / already-punctuated values
+  if (/^[\d.+−\-×x/^eE\s]+$/.test(body)) return prefix + body;
+
+  if (/^[a-z]/.test(body)) {
+    body = body.charAt(0).toUpperCase() + body.slice(1);
+  }
+  if (!/[.!?]$/.test(body)) body += ".";
+
+  return prefix + body;
+}
+
+/** Prefix an MCQ answer with its option letter when options are known (e.g. "C. Gamma"). */
+export function formatMcqAnswerWithLetter(options, answerText) {
+  const answer = formatAnswerLabel(answerText).replace(/^[A-Za-z]\.\s+/, "");
+  if (!answer) return "";
+  const opts = Array.isArray(options) ? options : [];
+  const idx = opts.findIndex((opt) => String(opt).trim() === answer);
+  if (idx < 0) return formatFlashcardAnswerDisplay(answer);
+  return formatFlashcardAnswerDisplay(`${String.fromCharCode(65 + idx)}. ${answer}`);
+}
+
+/**
+ * Flashcard back: lead with the actual answer, then optional examiner explanation.
+ * Avoids cards that only say what the term "is for" without naming it.
+ */
+export function formatAnswerFlashcard(answer, explanation = "") {
+  const answerLabel = formatFlashcardAnswerDisplay(answer);
+  const explain = String(explanation || "").trim();
+  if (answerLabel && explain) {
+    const bare = answerLabel.replace(/^[A-Za-z]\.\s+/, "").replace(/[.!?]$/, "");
+    const explainHasAnswer = explain.toLowerCase().includes(bare.toLowerCase());
+    return explainHasAnswer ? explain : `${answerLabel}\n\n${explain}`;
+  }
+  return answerLabel || explain;
+}
+
+/**
+ * Split stored flashcard text / missing row into { answer, explanation } for UI.
+ * Newlines in plain text collapse in HTML — callers should render these as separate blocks.
+ */
+export function splitFlashcardInsight(m = {}, options = null) {
+  let answer = formatAnswerLabel(m?.answer_label || m?.answer || m?.point_text || "");
+  if (options) answer = formatMcqAnswerWithLetter(options, answer);
+
+  let explanation = "";
+  const flashcardText = String(m?.flashcard_text || "").trim();
+  if (flashcardText) {
+    const parts = flashcardText.split(/\n\n+/).map((p) => p.trim()).filter(Boolean);
+    if (!answer && parts.length) {
+      answer = options ? formatMcqAnswerWithLetter(options, parts[0]) : parts[0];
+      explanation = parts.slice(1).join("\n\n");
+    } else if (answer && parts.length) {
+      const answerBare = answer.replace(/^[A-Za-z]\.\s+/, "").replace(/[.!?]$/, "").toLowerCase();
+      explanation = parts
+        .filter((p) => {
+          const bare = p.replace(/^[A-Za-z]\.\s+/, "").replace(/[.!?]$/, "").toLowerCase();
+          return bare !== answerBare && bare !== answer.toLowerCase();
+        })
+        .join("\n\n");
+    }
+  }
+
+  // Practice `text` may be a wrong-option tip — only use it when there is no flashcard_text.
+  if (!explanation && !flashcardText) {
+    let text = m?.text || m?.feedback || m?.label || "";
+    text = text.replace(LEGACY_FLASHCARD_REVIEW_SUFFIX, "");
+    text = text.replace(new RegExp(`\\s*${MCQ_FLASHCARD_ADDED_MSG.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*$`), "");
+    text = text.trim();
+    const answerBare = answer.replace(/^[A-Za-z]\.\s+/, "").replace(/[.!?]$/, "").toLowerCase();
+    if (text && (!answer || !text.toLowerCase().includes(answerBare))) {
+      explanation = text;
+    } else if (text && !answer) {
+      answer = text;
+    }
+  }
+
+  // Infer MCQ answer from "The correct answer is …" when options exist but answer was not stored
+  if (!answer && options?.length) {
+    const hay = `${flashcardText}\n${m?.text || ""}`;
+    const quoted = hay.match(/The correct answer is\s+"([^"]+)"/i)
+      || hay.match(/The correct answer is\s+(\S.+?)\.?$/im);
+    if (quoted?.[1]) answer = formatMcqAnswerWithLetter(options, quoted[1]);
+    else {
+      const hit = options.find((opt) => hay.includes(String(opt)));
+      if (hit) answer = formatMcqAnswerWithLetter(options, hit);
+    }
+  }
+
+  answer = formatFlashcardAnswerDisplay(answer);
+
+  return {
+    answer: answer || "",
+    explanation: explanation || "",
+    text: answer && explanation ? `${answer}\n\n${explanation}` : (answer || explanation),
+  };
+}
+
+/** Text for flashcard backs — strips UI-only flashcard prompts from stored feedback. */
+export function flashcardInsightFromMissing(m) {
+  const split = splitFlashcardInsight(m);
+  return split.text.trim();
+}
+
+function cleanMcqFeedbackText(text) {
+  return String(text || "").replace(LEGACY_FLASHCARD_REVIEW_SUFFIX, "").trim();
 }
 
 /** Which AO earns the single MCQ mark — question metadata takes precedence over Section 3 mark points. */
@@ -50,8 +167,9 @@ function applyMcqMaxAoFromQuestion(q, max, maxAo) {
 /**
  * Build remediation blocks for a wrong MCQ answer.
  * Per-option feedback first, then generic Section 3 feedback; combined flashcard on first block only.
+ * Flashcard backs use the correct answer + generic tip only — not the tip for the option the student picked.
  */
-export function resolveMcqWrongFeedback(selectedAnswer, key, markPoints, targetCorrect, cleanUrl = null, targetAo = "AO1") {
+export function resolveMcqWrongFeedback(selectedAnswer, key, markPoints, targetCorrect, cleanUrl = null, targetAo = "AO1", options = null) {
   const optionFeedback = key?.key_payload?.option_feedback || {};
   const specificText = cleanMcqFeedbackText(optionFeedback[selectedAnswer]);
   const genericText = cleanMcqFeedbackText(markPoints?.[0]?.feedback_if_missing);
@@ -59,6 +177,7 @@ export function resolveMcqWrongFeedback(selectedAnswer, key, markPoints, targetC
     ? `The correct answer is ${targetCorrect}.`
     : `The correct answer is "${targetCorrect}".`;
   const imageUrl = markPoints?.[0]?.image_url || "";
+  const answerLabel = formatMcqAnswerWithLetter(options, targetCorrect) || formatFlashcardAnswerDisplay(targetCorrect);
 
   const contentBlocks = [];
   if (specificText) contentBlocks.push(specificText);
@@ -66,11 +185,17 @@ export function resolveMcqWrongFeedback(selectedAnswer, key, markPoints, targetC
   if (genericText && genericText !== specificText) contentBlocks.push(genericText);
   if (!contentBlocks.length) contentBlocks.push(fallbackText);
 
-  const combinedFlashcard = contentBlocks.join("\n\n");
+  // Study cards should reinforce the right answer, not a one-off wrong-option tip
+  const flashcardExplain = genericText || "";
+  const combinedFlashcard = flashcardExplain
+    ? formatAnswerFlashcard(answerLabel, flashcardExplain)
+    : (answerLabel || fallbackText);
   const missing = contentBlocks.map((blockText, index) => ({
     ao: targetAo,
     text: index === 0 ? `${blockText} ${MCQ_FLASHCARD_ADDED_MSG}` : blockText,
     flashcard_text: index === 0 ? combinedFlashcard : undefined,
+    answer: targetCorrect || undefined,
+    answer_label: answerLabel || undefined,
     url: cleanUrl,
     image_url: index === 0 ? imageUrl : ""
   }));
@@ -632,7 +757,7 @@ export async function markResponse(q, resp, key, markPoints) {
       ao[targetAo] = max;
     } else {
       missing.push(
-        ...resolveMcqWrongFeedback(resp.answer, key, markPoints, targetCorrect, cleanUrl, targetAo)
+        ...resolveMcqWrongFeedback(resp.answer, key, markPoints, targetCorrect, cleanUrl, targetAo, q.options)
       );
     }
   }
@@ -791,6 +916,8 @@ export async function markResponse(q, resp, key, markPoints) {
           missing.push({ 
             ao: mp.ao, 
             text: fbText,
+            flashcard_text: formatAnswerFlashcard(mp.point_text, mp.feedback_if_missing),
+            point_text: mp.point_text || "",
             url: cleanUrl,
             image_url: mp.image_url || ""
           });
@@ -822,7 +949,15 @@ export async function markResponse(q, resp, key, markPoints) {
           ? `Your answer is missing these required terms: **${missingTerms.join(", ")}**.`
           : "Your answer is missing some required keywords.";
         
-        missing.push({ ao: "AO1", text: feedbackText, url: cleanUrl });
+        missing.push({
+          ao: "AO1",
+          text: feedbackText,
+          flashcard_text: missingTerms.length
+            ? formatAnswerFlashcard(missingTerms.join(", "), "")
+            : feedbackText,
+          point_text: missingTerms.join(", "),
+          url: cleanUrl
+        });
       }
     }
 

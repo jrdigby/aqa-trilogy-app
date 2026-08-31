@@ -4,6 +4,37 @@
 export const escapeHtml = (s) => 
   String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
+/** Escape a value for safe use inside HTML attribute quotes (src, href, etc.). */
+export const escapeAttr = (s) =>
+  String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+
+/** Allow only http(s) URLs in user-facing links and images. */
+export function safeHttpUrl(url) {
+  const raw = String(url ?? "").trim();
+  if (!raw) return "";
+  try {
+    const parsed = new URL(raw);
+    if (parsed.protocol === "https:" || parsed.protocol === "http:") {
+      return parsed.href;
+    }
+  } catch (_) {
+    /* ignore */
+  }
+  return "";
+}
+
+/** Short accessible alt text from a question prompt. */
+export function altTextFromPrompt(prompt, fallback = "Question illustration") {
+  const text = String(prompt || "").replace(/\s+/g, " ").trim();
+  if (!text) return fallback;
+  return text.length > 120 ? `${text.slice(0, 117)}…` : text;
+}
+
 // Shuffles an array randomly (useful for mixing up question queues)
 export function shuffleArray(array) {
   for (let i = array.length - 1; i > 0; i--) {

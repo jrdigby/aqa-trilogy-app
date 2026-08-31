@@ -27,8 +27,12 @@ const QUESTION_SELECT =
   QUESTION_SKILLS_EMBED +
   ",spec_points!spec_point_id(subject,paper,topic_name,spec_ref,spec_text,course_track),triple_spec_point:spec_points!triple_spec_point_id(subject,paper,topic_name,spec_ref,spec_text,course_track)";
 
+export { QUESTION_SELECT };
+
 const QUESTION_SELECT_FALLBACK =
   "id,question_type,prompt,options,spec_point_id,triple_spec_point_id,audience,tier,difficulty,resource_links,marking_method,max_marks,image_url,spec_points!spec_point_id(subject,paper,topic_name,spec_ref,spec_text,course_track),triple_spec_point:spec_points!triple_spec_point_id(subject,paper,topic_name,spec_ref,spec_text,course_track)";
+
+export { QUESTION_SELECT_FALLBACK };
 
 /** Questions per scheduled spec-point session (Start Practice / SRS). */
 export const SCHEDULED_PRACTICE_QUESTION_COUNT = 10;

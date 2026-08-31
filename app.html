@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://hemcttqmhptwgxxrtolh.supabase.co wss://hemcttqmhptwgxxrtolh.supabase.co; font-src 'self' data: https://cdn.jsdelivr.net; object-src 'none'; base-uri 'self'; form-action 'self'">
   <link rel="preconnect" href="https://hemcttqmhptwgxxrtolh.supabase.co">
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <link rel="preconnect" href="https://commons.wikimedia.org" crossorigin>
@@ -573,7 +574,7 @@
     }
   </style>
   <link rel="stylesheet" href="styles.css">
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.8" integrity="sha384-z2hqtpr/vSDZ8zSjLOiNgnR/mpU799AD93s6rvkNJLI6Hl0YlKXEhDtREzNT749S" crossorigin="anonymous"></script>
 </head>
 <body>
 
@@ -779,7 +780,8 @@
         </div>
         <div class="input-group">
           <label for="signupPassword">Password</label>
-          <input id="signupPassword" type="password" placeholder="••••••••" autocomplete="new-password" />
+          <input id="signupPassword" type="password" placeholder="••••••••" autocomplete="new-password" minlength="8" aria-describedby="signupPasswordHint" />
+          <p id="signupPasswordHint" class="muted" style="margin-top: 6px; font-size: 0.85rem;">Use at least 8 characters.</p>
         </div>
         <div class="input-group auth-checkbox-group">
           <label class="auth-checkbox-label">
@@ -1234,7 +1236,7 @@
         <div id="hintsPanelMount" class="hints-panel-mount hidden"></div>
         <div id="qBox"></div>
 
-        <div id="feedback" style="margin: 15px 0;"></div>
+        <div id="feedback" style="margin: 15px 0;" aria-live="polite" aria-atomic="true"></div>
 
         <div class="btn-group" style="margin-top: 20px;">
           <button id="btnSubmit" class="btn-success">Submit Answer</button>
@@ -1307,7 +1309,7 @@
     </div>
   </div>
 
-  <script type="module" src="src/app.js"></script>
+  <script type="module" src="src/appBootstrap.js"></script>
 </body>
 </html>
 

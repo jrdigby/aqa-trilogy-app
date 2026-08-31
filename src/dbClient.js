@@ -478,9 +478,7 @@ export async function fetchSyllabusPipelineData(userId, subject, paper, targetTi
     return result;
   }
 
-  const markPointsQuery = supabaseClient
-    .from("mark_points")
-    .select("question_id, ao, max_marks, image_url");
+  const markPointsQuery = Promise.resolve({ data: [] });
 
   const [srsStateData, attemptsRes, markPointsRes] = await Promise.all([
     srsStatePromise,
@@ -746,7 +744,7 @@ export async function fetchDominantSubject(userId = null) {
 
   let query = supabaseClient
     .from("attempts")
-    .select("xp_earned, questions(spec_points(subject))")
+    .select("xp_earned, questions(spec_points!spec_point_id(subject))")
     .gt("xp_earned", 0)
     .gte("submitted_at", sinceTs);
 
