@@ -13,7 +13,7 @@ import {
   normalizeAdaptiveState
 } from './adaptiveSelector.js';
 import { triggerMathTypeset } from './mathEngine.js';
-import { checkKeywordOrSynonymsMatch, updateSRS, computeSessionQuality, getAQACommandWordHelper, isFuzzyMatch, computeQuestionAOMaxCaps, flashcardInsightFromMissing } from './evalEngine.js';
+import { checkKeywordOrSynonymsMatch, updateSRS, computeSessionQuality, getAQACommandWordHelper, isFuzzyMatch, computeQuestionAOMaxCaps, flashcardInsightFromMissing, splitFlashcardInsight } from './evalEngine.js';
 import { buildWeeklyForecast } from './srsAnalytics.js';
 import { getHorizonSrsCaps, normalizeHorizonPreset, examDateToPersist } from './curriculumPace.js';
 import { escapeHtml, escapeAttr, safeHttpUrl, altTextFromPrompt, shuffleArray, todayISO, addDaysISO, resolveAppUrl } from './utils.js';
@@ -965,7 +965,6 @@ function applyStoredPracticeFilters(filters = {}) {
   if (topicFilter && filters.topic !== undefined) topicFilter.value = filters.topic || "";
   const typeFilter = el("typeFilter");
   if (typeFilter && filters.qType !== undefined) typeFilter.value = filters.qType || "";
-  if (tierFilter && filters.tier) tierFilter.value = filters.tier;
 }
 
 function removeSessionResumeBanner() {
@@ -1194,12 +1193,33 @@ async function loadDashboard(user = currentUser) {
   scheduleJourneyPrefetch();
 }
 
-/** @returns {Promise<{ text: string, imageUrl: string }[]>} */
+/** @returns {Promise<{ text: string, answer?: string, explanation?: string, imageUrl: string }[]>} */
 async function extractFlashcardInsights(att) {
   const q = att.questions || {};
   const payload = att.feedback_payload;
+  const mcqOptions = q.question_type === "mcq" && Array.isArray(q.options) ? q.options : null;
 
-  const asInsight = (text, imageUrl = "") => ({ text: String(text || ""), imageUrl: imageUrl || "" });
+  const asInsight = (text, imageUrl = "", parts = null) => {
+    if (parts && (parts.answer || parts.explanation)) {
+      return {
+        answer: parts.answer || "",
+        explanation: parts.explanation || "",
+        text: parts.text || text || "",
+        imageUrl: imageUrl || "",
+      };
+    }
+    const raw = String(text || "");
+    const splitParts = raw.split(/\n\n+/).map((p) => p.trim()).filter(Boolean);
+    if (splitParts.length >= 2) {
+      return {
+        answer: splitParts[0],
+        explanation: splitParts.slice(1).join("\n\n"),
+        text: raw,
+        imageUrl: imageUrl || "",
+      };
+    }
+    return { text: raw, answer: "", explanation: "", imageUrl: imageUrl || "" };
+  };
 
   if (Array.isArray(payload?.flashcard_steps) && payload.flashcard_steps.length) {
     return payload.flashcard_steps.map((step) => asInsight(step));
@@ -1215,8 +1235,11 @@ async function extractFlashcardInsights(att) {
     const withFlashcardText = payload.missing.filter((m) => m.flashcard_text);
     const source = withFlashcardText.length > 0 ? withFlashcardText : payload.missing;
     const insights = source
-      .map((m) => asInsight(flashcardInsightFromMissing(m), m.image_url || ""))
-      .filter((row) => row.text.trim() || row.imageUrl);
+      .map((m) => {
+        const parts = splitFlashcardInsight(m, mcqOptions);
+        return asInsight(parts.text || flashcardInsightFromMissing(m), m.image_url || "", parts);
+      })
+      .filter((row) => row.text.trim() || row.answer || row.explanation || row.imageUrl);
     if (insights.length) return insights;
   }
   if (Array.isArray(payload?.missing_or_incorrect)) {
@@ -1322,11 +1345,18 @@ function renderFlashcardQuestionImage(imageUrl, prompt = "") {
 
 function renderFlashcardInsightList(insights) {
   return (insights || [])
-    .map(({ text, imageUrl }) => {
+    .map(({ text, answer, explanation, imageUrl }) => {
       const img =
         (imageUrl || "").trim()
           ? `<img class="revision-card-feedback-img" src="${escapeHtml(imageUrl)}" alt="" loading="lazy"/>`
           : "";
+      if (answer) {
+        return `<li class="revision-card-insight-item">
+          <div class="revision-card-insight-answer">${escapeHtml(answer)}</div>
+          ${explanation ? `<div class="revision-card-insight-explain">${escapeHtml(explanation)}</div>` : ""}
+          ${img}
+        </li>`;
+      }
       return `<li class="revision-card-insight-item">${escapeHtml(text)}${img}</li>`;
     })
     .join("");
@@ -1794,10 +1824,15 @@ async function downloadStudyGuideText(attempts) {
         : "";
 
     const insightHtml = insights
-      .map(({ text, imageUrl }) => {
+      .map(({ text, answer, explanation, imageUrl }) => {
         const img = (imageUrl || "").trim()
           ? `<br/><img src="${escapeHtml(imageUrl)}" style="max-height:40px; max-width:100%; object-fit:contain; margin-top:2px;" alt=""/>`
           : "";
+        if (answer) {
+          return `<li style="margin:0 0 2px 0;"><strong>${escapeHtml(answer)}</strong>${
+            explanation ? `<br/><span style="font-weight:400;">${escapeHtml(explanation)}</span>` : ""
+          }${img}</li>`;
+        }
         return `<li style="margin:0 0 2px 0;">${escapeHtml(text)}${img}</li>`;
       })
       .join("");
@@ -5421,14 +5456,11 @@ async function submitCurrentAnswer() {
     } else {
       setAdvanceButtonPending(true);
       feedback.innerHTML = `
-      <div style="text-align: center; padding: 24px 12px;">
-        <div class="loader-spinner" style="margin: 0 auto 12px auto; width: 32px; height: 32px; border: 4px solid #f3f3f3; border-top: 4px solid var(--primary); border-radius: 50%; animation: spin 1s linear infinite;"></div>
-        <strong style="color: var(--text); font-size: 0.92rem; display: block; margin-bottom: 4px;">🤖 AI GCSE Examiner Evaluating...</strong>
-        <p style="font-size: 0.78rem; color: var(--text-muted); max-width: 250px; margin: 0 auto; line-height: 1.3;">Analyzing experimental descriptions, sequencing, error controls, and scientific terminology against official AQA grids.</p>
+      <div class="marking-status marking-status--ai">
+        <div class="loader-spinner" aria-hidden="true"></div>
+        <strong>AI GCSE Examiner Evaluating...</strong>
+        <p>Analyzing experimental descriptions, sequencing, error controls, and scientific terminology against official AQA grids.</p>
       </div>
-      <style>
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-      </style>
     `;
 
     try {
@@ -5534,6 +5566,14 @@ async function submitCurrentAnswer() {
 
   } else {
     setAdvanceButtonPending(true);
+    if (feedback) {
+      feedback.innerHTML = `
+        <div class="marking-status">
+          <div class="loader-spinner loader-spinner--sm" aria-hidden="true"></div>
+          <strong>Marking your answer…</strong>
+        </div>
+      `;
+    }
     const serverResult = await markResponseOnServer(supabaseClient, {
       question_id: currentQ.id,
       response_payload: response,
@@ -5541,6 +5581,7 @@ async function submitCurrentAnswer() {
     });
 
     if (!serverResult.ok) {
+      if (feedback) feedback.innerHTML = "";
       showToastBanner(serverResult.error || "Could not mark your answer. Please try again.", true);
       showSubmitButton();
       hideAdvanceButton();

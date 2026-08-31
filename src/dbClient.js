@@ -744,7 +744,7 @@ export async function fetchDominantSubject(userId = null) {
 
   let query = supabaseClient
     .from("attempts")
-    .select("xp_earned, questions(spec_points(subject))")
+    .select("xp_earned, questions(spec_points!spec_point_id(subject))")
     .gt("xp_earned", 0)
     .gte("submitted_at", sinceTs);
 

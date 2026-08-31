@@ -1,6 +1,56 @@
 /* Component styles for student app — linked from app.html.
    Global layout resets live in app.html inline <style>. */
 
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.loader-spinner {
+  margin: 0 auto 12px;
+  width: 32px;
+  height: 32px;
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid var(--primary, #1d6fd0);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.loader-spinner.loader-spinner--sm {
+  margin-bottom: 10px;
+  width: 28px;
+  height: 28px;
+  border-width: 3px;
+}
+
+.marking-status {
+  text-align: center;
+  padding: 20px 12px;
+}
+
+.marking-status--ai {
+  padding: 24px 12px;
+}
+
+.marking-status strong {
+  color: var(--text, #1e293b);
+  font-size: 0.9rem;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.marking-status--ai strong {
+  font-size: 0.92rem;
+}
+
+.marking-status p {
+  font-size: 0.78rem;
+  color: var(--text-muted, #64748b);
+  max-width: 250px;
+  margin: 0 auto;
+  line-height: 1.3;
+}
+
 /* ===== AUTH PANELS ===== */
 .auth-link-btn {
   background: none;
@@ -1185,6 +1235,20 @@
 
 .revision-card-insight-item {
   margin-bottom: 6px;
+}
+
+.revision-card-insight-answer {
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 4px;
+  line-height: 1.35;
+}
+
+.revision-card-insight-explain {
+  font-weight: 400;
+  color: #475569;
+  margin: 0;
+  line-height: 1.4;
 }
 
 .revision-card-feedback-img {
