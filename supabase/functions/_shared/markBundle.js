@@ -1,7 +1,12 @@
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
-var __esm = (fn, res) => function __init() {
-  return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
+var __esm = (fn, res, err) => function __init() {
+  if (err) throw err[0];
+  try {
+    return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
+  } catch (e) {
+    throw err = [e], e;
+  }
 };
 var __export = (target, all) => {
   for (var name in all)
@@ -374,13 +379,26 @@ function normalizeLegacySlotAnswers(slotAnswers, template) {
   }
   return out;
 }
+function preferredSymbolTypeTarget(slotId) {
+  if (!slotId) return null;
+  if (SYMBOL_TYPE_TARGETS[slotId]) return SYMBOL_TYPE_TARGETS[slotId];
+  if (String(slotId).includes("_")) {
+    return { keyboard: String(slotId).replace(/_/g, ""), unicode: null };
+  }
+  return null;
+}
 function symbolLabelForHelper(template, slotId, equationId = null) {
   const canonical = canonicalSymbolSlotId(template, slotId, equationId);
   if (canonical === "E") return "E";
+  const target = preferredSymbolTypeTarget(canonical);
+  if (target?.keyboard) return target.keyboard;
   return slotLabelFromTemplate(template, canonical) || canonical;
 }
 function normalizeSlotValue(text) {
   return String(text ?? "").trim().toLowerCase().replace(/\s+/g, "").replace(/×/g, "*").replace(/÷/g, "/").replace(/²/g, "^2").replace(/³/g, "^3");
+}
+function normalizeSymbolToken(text) {
+  return normalizeSlotValue(text).replace(/_/g, "");
 }
 function findEquationInSheet(equationSheet, equationId) {
   const needle = String(equationId || "").trim();
@@ -493,15 +511,22 @@ function slotLabelFromTemplate(template, slotId) {
 function slotValueMatchesSymbol(slotId, studentVal, template = null) {
   const n = normalizeSlotValue(studentVal);
   if (!n) return false;
-  if (n === normalizeSlotValue(slotId)) return true;
+  const nCompact = normalizeSymbolToken(studentVal);
+  if (n === normalizeSlotValue(slotId) || nCompact === normalizeSymbolToken(slotId)) return true;
   if (slotId === "E") {
     const energyAliases = ["e", "e_k", "ek", "e_e", "ee", "e_p", "ep", "delta_e", "\u03B4e", "\u03B4E".toLowerCase()];
-    if (energyAliases.includes(n)) return true;
+    if (energyAliases.includes(n) || energyAliases.map(normalizeSymbolToken).includes(nCompact)) return true;
   }
   const label = template ? slotLabelFromTemplate(template, slotId) : null;
-  if (label && n === normalizeSlotValue(label)) return true;
+  if (label && (n === normalizeSlotValue(label) || nCompact === normalizeSymbolToken(label))) return true;
   for (const [unicode, id] of Object.entries(SLOT_ID_ALIASES)) {
-    if (id === slotId && n === normalizeSlotValue(unicode)) return true;
+    if (id === slotId && (n === normalizeSlotValue(unicode) || nCompact === normalizeSymbolToken(unicode))) {
+      return true;
+    }
+  }
+  const extras = SYMBOL_SLOT_ALIASES[slotId] || [];
+  for (const alias of extras) {
+    if (n === normalizeSlotValue(alias) || nCompact === normalizeSymbolToken(alias)) return true;
   }
   return false;
 }
@@ -511,9 +536,37 @@ function slotValueMatchesAccepted(slotId, studentVal, acceptedList, symbolSlotId
 }
 function renderSubstitutionHelper(template, symbolSlotIds, equationId = null) {
   if (!symbolSlotIds?.size) return "";
-  const labels = [...symbolSlotIds].map((id) => symbolLabelForHelper(template, id, equationId));
+  const ids = [...symbolSlotIds];
+  const hardWords = [];
+  for (const id of ids) {
+    const canonical = canonicalSymbolSlotId(template, id, equationId);
+    const target = preferredSymbolTypeTarget(canonical);
+    if (target?.keyboard && target?.unicode) hardWords.push(target.keyboard);
+  }
+  if (hardWords.length) {
+    const wordText = [...new Set(hardWords)].join(" or ");
+    return `<p class="calc-sub-hint" style="font-size:0.8rem;color:var(--text-muted);margin:0 0 8px;line-height:1.45;">Enter values from the question in each box. For the quantity you are finding, type the word (<strong>${escapeHtml(wordText)}</strong>), or insert the symbol into the selected box.</p>`;
+  }
+  const labels = ids.map((id) => symbolLabelForHelper(template, id, equationId));
   const symText = labels.length === 1 ? labels[0] : labels.join(" or ");
   return `<p class="calc-sub-hint" style="font-size:0.8rem;color:var(--text-muted);margin:0 0 8px;line-height:1.45;">Enter values from the question in each box. For the quantity you are finding, type its symbol (<strong>${escapeHtml(symText)}</strong>).</p>`;
+}
+function renderSubstitutionSymbolChips(symbolSlotIds) {
+  if (!symbolSlotIds?.size) return "";
+  const chips = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const id of symbolSlotIds) {
+    const unicode = SYMBOL_TYPE_TARGETS[id]?.unicode;
+    if (!unicode) continue;
+    const key = normalizeSlotValue(unicode);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    chips.push(
+      `<button type="button" class="calc-sub-symbol-chip" data-insert="${escapeHtml(unicode)}" aria-label="Insert ${escapeHtml(unicode)}">${escapeHtml(unicode)}</button>`
+    );
+  }
+  if (!chips.length) return "";
+  return `<div class="calc-sub-symbol-chips" role="group" aria-label="Insert symbol into the selected box">${chips.join("")}</div>`;
 }
 function firstMarkSchemeSlotValue(vals) {
   if (vals == null) return "";
@@ -693,7 +746,32 @@ function renderSubstitutionStepInner(ctx, inputStyle2, renderOpts = {}) {
   }
   const symbolSlotIds = renderOpts.symbolSlotIds ?? resolveSymbolSlotIds(ctx.template, renderOpts.subStep, renderOpts.config);
   const helper = renderSubstitutionHelper(ctx.template, symbolSlotIds, ctx.equationId);
-  return `${helper}<div id="calc_substitution_structured" data-equation-id="${escapeHtml(ctx.equationId || "")}">${renderSubstitutionHtml(ctx.template, inputStyle2)}</div>`;
+  const chips = renderSubstitutionSymbolChips(symbolSlotIds);
+  return `${helper}<div id="calc_substitution_structured" data-equation-id="${escapeHtml(ctx.equationId || "")}">${renderSubstitutionHtml(ctx.template, inputStyle2)}</div>${chips}`;
+}
+function wireSubstitutionSymbolChips(root = null) {
+  if (typeof document === "undefined") return;
+  const panel = root || resolveCalculationWorkflowRoot() || document;
+  if (panel._calcSubSymbolChipWired) return;
+  panel._calcSubSymbolChipWired = true;
+  panel.addEventListener("focusin", (e) => {
+    if (e.target?.classList?.contains("calc-sub-slot")) {
+      panel._lastCalcSubSlot = e.target;
+    }
+  });
+  panel.addEventListener("click", (e) => {
+    const chip = e.target?.closest?.(".calc-sub-symbol-chip");
+    if (!chip) return;
+    e.preventDefault();
+    const insert = chip.getAttribute("data-insert") || "";
+    if (!insert) return;
+    const input = panel._lastCalcSubSlot;
+    if (!input || !input.classList?.contains("calc-sub-slot")) return;
+    if (typeof panel.contains === "function" && !panel.contains(input)) return;
+    input.value = insert;
+    input.focus();
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
 }
 function collectStructuredSubstitution(template, root = null) {
   const slots = {};
@@ -1354,7 +1432,7 @@ function enrichCalculationConfigFromEquationSheet(config, equationSheet) {
   });
   return { ...config, steps };
 }
-var SLOT_ID_ALIASES, LEGACY_ENERGY_SLOT_IDS, UNIFIED_ENERGY_EQUATION_IDS, templateCatalog, catalogLoadPromise;
+var SLOT_ID_ALIASES, SYMBOL_TYPE_TARGETS, SYMBOL_SLOT_ALIASES, LEGACY_ENERGY_SLOT_IDS, UNIFIED_ENERGY_EQUATION_IDS, templateCatalog, catalogLoadPromise;
 var init_substitutionTemplate = __esm({
   "src/substitutionTemplate.js"() {
     init_utils();
@@ -1366,6 +1444,26 @@ var init_substitutionTemplate = __esm({
       "\u0394\u03B8": "delta_theta",
       "\u03C1": "rho",
       "\u03BB": "lambda"
+    };
+    SYMBOL_TYPE_TARGETS = {
+      rho: { keyboard: "rho", unicode: "\u03C1" },
+      lambda: { keyboard: "lambda", unicode: "\u03BB" },
+      delta_theta: { keyboard: "dtheta", unicode: "\u0394\u03B8" },
+      delta_v: { keyboard: "dv", unicode: "\u0394v" },
+      delta_t: { keyboard: "dt", unicode: "\u0394t" }
+    };
+    SYMBOL_SLOT_ALIASES = {
+      rho: ["\u03C1", "rho"],
+      lambda: ["\u03BB", "lambda"],
+      delta_theta: ["\u0394\u03B8", "delta_theta", "dtheta", "d\u03B8", "delta\u03B8"],
+      delta_v: ["\u0394v", "delta_v", "dv"],
+      delta_t: ["\u0394t", "delta_t", "dt"],
+      V_s: ["Vs", "V_s"],
+      V_p: ["Vp", "V_p"],
+      I_s: ["Is", "I_s"],
+      I_p: ["Ip", "I_p"],
+      n_s: ["ns", "n_s"],
+      n_p: ["np", "n_p"]
     };
     LEGACY_ENERGY_SLOT_IDS = /* @__PURE__ */ new Set(["E_k", "E_e", "E_p", "delta_E"]);
     UNIFIED_ENERGY_EQUATION_IDS = /* @__PURE__ */ new Set([
@@ -2920,6 +3018,7 @@ function wireStudentEquationSelectPreview(onTypeset, q = null, equationSheet = n
   if (!select || !preview) {
     rerenderStructuredSteps();
     wireSubstitutionSlotInputListener(refreshRearrangementOnly);
+    wireSubstitutionSymbolChips();
     wireConversionInputListener(refreshRearrangementOnly);
     wireStudentNumericInputPreviews(onTypeset, q);
     wireMultiPathWorkingReveals(q);
@@ -2942,6 +3041,7 @@ function wireStudentEquationSelectPreview(onTypeset, q = null, equationSheet = n
     rerenderStructuredSteps();
   });
   wireSubstitutionSlotInputListener(refreshRearrangementOnly);
+  wireSubstitutionSymbolChips();
   wireConversionInputListener(refreshRearrangementOnly);
   wireStudentNumericInputPreviews(onTypeset, q);
   wireMultiPathWorkingReveals(q);
@@ -12426,7 +12526,7 @@ function splitFlashcardInsight(m = {}, options = null) {
       }).join("\n\n");
     }
   }
-  if (!explanation) {
+  if (!explanation && !flashcardText) {
     let text = m?.text || m?.feedback || m?.label || "";
     text = text.replace(LEGACY_FLASHCARD_REVIEW_SUFFIX, "");
     text = text.replace(new RegExp(`\\s*${MCQ_FLASHCARD_ADDED_MSG.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*$`), "");

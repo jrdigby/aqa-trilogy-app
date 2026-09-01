@@ -52,7 +52,8 @@ import {
   formatSubstitutionEquationDisplay,
   formatSubstitutionSlotSummary,
   resolveSymbolSlotIds,
-  slotLabelFromTemplate
+  slotLabelFromTemplate,
+  wireSubstitutionSymbolChips
 } from "./substitutionTemplate.js";
 
 const CHEM_HT_MARKING_MODES = new Set([
@@ -1259,6 +1260,7 @@ export function wireStudentEquationSelectPreview(onTypeset, q = null, equationSh
   if (!select || !preview) {
     rerenderStructuredSteps();
     wireSubstitutionSlotInputListener(refreshRearrangementOnly);
+    wireSubstitutionSymbolChips();
     wireConversionInputListener(refreshRearrangementOnly);
     wireStudentNumericInputPreviews(onTypeset, q);
     wireMultiPathWorkingReveals(q);
@@ -1286,6 +1288,7 @@ export function wireStudentEquationSelectPreview(onTypeset, q = null, equationSh
     rerenderStructuredSteps();
   });
   wireSubstitutionSlotInputListener(refreshRearrangementOnly);
+  wireSubstitutionSymbolChips();
   wireConversionInputListener(refreshRearrangementOnly);
   wireStudentNumericInputPreviews(onTypeset, q);
   wireMultiPathWorkingReveals(q);
