@@ -4144,9 +4144,6 @@ function validateCalculationResponse(q, resp, sessionMode) {
   if (presentation === "exam" && missing.length) {
     return { valid: false, message: `Complete all steps before submitting: ${missing.join("; ")}` };
   }
-  if (presentation === "practice" && missing.length) {
-    return { valid: true, warn: `Some steps are empty: ${missing.join("; ")}` };
-  }
   return { valid: true };
 }
 function normalizeSubstitution(text) {

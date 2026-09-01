@@ -13,7 +13,7 @@ import {
   normalizeAdaptiveState
 } from './adaptiveSelector.js';
 import { triggerMathTypeset } from './mathEngine.js';
-import { checkKeywordOrSynonymsMatch, updateSRS, computeSessionQuality, getAQACommandWordHelper, isFuzzyMatch, computeQuestionAOMaxCaps, flashcardInsightFromMissing, splitFlashcardInsight } from './evalEngine.js';
+import { checkKeywordOrSynonymsMatch, updateSRS, computeSessionQuality, getAQACommandWordHelper, isFuzzyMatch, computeQuestionAOMaxCaps, flashcardInsightFromMissing, splitFlashcardInsight, markResponse } from './evalEngine.js';
 import { buildWeeklyForecast } from './srsAnalytics.js';
 import { getHorizonSrsCaps, normalizeHorizonPreset, examDateToPersist } from './curriculumPace.js';
 import { escapeHtml, escapeAttr, safeHttpUrl, altTextFromPrompt, shuffleArray, todayISO, addDaysISO, resolveAppUrl } from './utils.js';
@@ -69,7 +69,8 @@ import {
   formatGradesLabel,
   initialAdaptiveOffsetFromGrades
 } from './gradeConfig.js';
-import { markResponseOnServer } from './markClient.js';
+import { markResponseOnServer, prefetchMarkingData, prefetchMarkingDataBatch } from './markClient.js';
+import { buildFeedbackContext } from './feedbackContext.js';
 import {
   savePracticeSession,
   loadPracticeSession,
@@ -361,6 +362,61 @@ let currentEquationSheet = null;
 let currentKey = null;
 let currentMarkPoints = [];
 let currentFeedbackContext = null;
+/** @type {Map<string, { key: object|null, mark_points: object[] }>} */
+const markingDataCache = new Map();
+
+function isAiMarkedQuestion(q) {
+  return q?.question_type === "extended_response" || q?.marking_method === "ai_rubric";
+}
+
+function isGradableForPrefetch(q) {
+  return q && !isAiMarkedQuestion(q);
+}
+
+function storeMarkingDataInCache(questionId, key, markPoints) {
+  markingDataCache.set(questionId, { key, mark_points: markPoints || [] });
+  if (currentQ?.id === questionId) {
+    currentKey = key;
+    currentMarkPoints = markPoints || [];
+  }
+}
+
+function applyMarkingDataToCurrentQuestion(questionId) {
+  const cached = markingDataCache.get(questionId);
+  if (cached) {
+    currentKey = cached.key;
+    currentMarkPoints = cached.mark_points || [];
+  }
+}
+
+async function prefetchSessionMarkingData(questions) {
+  const ids = (questions || []).filter(isGradableForPrefetch).map((q) => q.id);
+  if (!ids.length) return;
+  try {
+    const result = await prefetchMarkingDataBatch(supabaseClient, ids);
+    if (!result.ok) return;
+    for (const [questionId, entry] of Object.entries(result.data || {})) {
+      storeMarkingDataInCache(questionId, entry.key, entry.mark_points);
+    }
+  } catch (err) {
+    console.warn("Session marking prefetch failed:", err?.message || err);
+  }
+}
+
+async function prefetchQuestionMarkingData(questionId) {
+  if (markingDataCache.has(questionId)) {
+    applyMarkingDataToCurrentQuestion(questionId);
+    return;
+  }
+  try {
+    const result = await prefetchMarkingData(supabaseClient, questionId);
+    if (result.ok) {
+      storeMarkingDataInCache(questionId, result.key, result.mark_points);
+    }
+  } catch (err) {
+    console.warn("Question marking prefetch failed:", err?.message || err);
+  }
+}
 let askExpertModalPreviousFocus = null;
 let expertReplyModalPreviousFocus = null;
 let sessionResumeBannerWired = false;
@@ -1021,6 +1077,8 @@ async function resumePracticeSession(snapshot) {
     sessionQualityLog = Array.isArray(snapshot.sessionQualityLog) ? snapshot.sessionQualityLog : [];
     sessionXpEarned = Number(snapshot.sessionXpEarned) || 0;
     updateSessionXpDisplay();
+    markingDataCache.clear();
+    void prefetchSessionMarkingData(questions);
 
     if (dashSection) dashSection.classList.add("hidden");
     if (sessionSection) sessionSection.classList.remove("hidden");
@@ -2156,6 +2214,8 @@ const engineContext = {
     sessionMode = config.mode || null;
     sessionSpecPointId = config.specPointId || null;
     sessionSkillCode = config.skillCode || null;
+    markingDataCache.clear();
+    void prefetchSessionMarkingData(questions);
     removeSessionResumeBanner();
     persistCurrentPracticeSession();
   },
@@ -2727,6 +2787,7 @@ async function exitSessionToDashboard() {
   sessionAttemptLog = [];
   sessionXpEarned = 0;
   sessionQualityLog = [];
+  markingDataCache.clear();
   idx = 0;
   clearPracticeSession();
   removeSessionResumeBanner();
@@ -3341,6 +3402,7 @@ async function loadQuestion() {
 
   currentEquationSheet = null;
   const questionId = currentQ.id;
+  applyMarkingDataToCurrentQuestion(questionId);
   const calcWorkflow = currentQ.question_type === "numeric"
     ? await loadCalculationWorkflow()
     : null;
@@ -3472,6 +3534,10 @@ async function loadQuestion() {
   }
 
   renderQuestionHintsPanel();
+
+  if (!markingDataCache.has(questionId) && isGradableForPrefetch(currentQ)) {
+    void prefetchQuestionMarkingData(questionId);
+  }
   } finally {
     persistCurrentPracticeSession();
   }
@@ -5402,16 +5468,13 @@ async function submitCurrentAnswer() {
     }
   }
 
-  if (currentQ.question_type === "numeric") {
+  if (currentQ.question_type === "numeric" && sessionMode === "paper_practice") {
     const { validateCalculationResponse } = await loadCalculationWorkflow();
     const calcValidation = validateCalculationResponse(currentQ, response, sessionMode);
     if (!calcValidation.valid) {
       showToastBanner(calcValidation.message, true);
       btnSubmit.disabled = false;
       return;
-    }
-    if (calcValidation.warn) {
-      showToastBanner(calcValidation.warn, false, 3500);
     }
   }
 
@@ -5566,36 +5629,58 @@ async function submitCurrentAnswer() {
 
   } else {
     setAdvanceButtonPending(true);
-    if (feedback) {
-      feedback.innerHTML = `
+
+    let marking;
+    let feedbackContext;
+
+    if (currentKey) {
+      marking = await markResponse(
+        { ...currentQ, _equationSheet: currentEquationSheet },
+        response,
+        currentKey,
+        currentMarkPoints
+      );
+      feedbackContext = buildFeedbackContext(
+        currentQ,
+        currentKey,
+        currentMarkPoints,
+        response
+      );
+      currentFeedbackContext = feedbackContext;
+    } else {
+      if (feedback) {
+        feedback.innerHTML = `
         <div class="marking-status">
           <div class="loader-spinner loader-spinner--sm" aria-hidden="true"></div>
           <strong>Marking your answer…</strong>
         </div>
       `;
-    }
-    const serverResult = await markResponseOnServer(supabaseClient, {
-      question_id: currentQ.id,
-      response_payload: response,
-      equation_sheet: currentEquationSheet,
-    });
+      }
+      const serverResult = await markResponseOnServer(supabaseClient, {
+        question_id: currentQ.id,
+        response_payload: response,
+        equation_sheet: currentEquationSheet,
+      });
 
-    if (!serverResult.ok) {
-      if (feedback) feedback.innerHTML = "";
-      showToastBanner(serverResult.error || "Could not mark your answer. Please try again.", true);
-      showSubmitButton();
-      hideAdvanceButton();
-      return;
+      if (!serverResult.ok) {
+        if (feedback) feedback.innerHTML = "";
+        showToastBanner(serverResult.error || "Could not mark your answer. Please try again.", true);
+        showSubmitButton();
+        hideAdvanceButton();
+        return;
+      }
+
+      marking = serverResult.marking;
+      feedbackContext = serverResult.feedback_context || null;
+      currentFeedbackContext = feedbackContext;
     }
 
-    const marking = serverResult.marking;
-    currentFeedbackContext = serverResult.feedback_context || null;
     const isExamPaper = sessionMode === "paper_practice";
 
-    if (currentQ.question_type === "mcq" && currentFeedbackContext?.mcq_correct) {
+    if (currentQ.question_type === "mcq" && feedbackContext?.mcq_correct) {
       applyMcqAnswerHighlighting(
-        currentFeedbackContext.mcq_correct,
-        currentFeedbackContext.mcq_selected || response.answer
+        feedbackContext.mcq_correct,
+        feedbackContext.mcq_selected || response.answer
       );
     }
 
@@ -5615,7 +5700,7 @@ async function submitCurrentAnswer() {
           currentQ,
           null,
           [],
-          currentFeedbackContext
+          feedbackContext
         );
         triggerMathTypeset();
         if (currentQ.question_type === "numeric" && marking.stepResults) {
