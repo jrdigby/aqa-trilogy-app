@@ -7,6 +7,8 @@ import {
   isRearrangementInputReady,
   resolveSymbolSlotIds,
   renderSubstitutionHelper,
+  renderSubstitutionSymbolChips,
+  slotValueMatchesSymbol,
   enrichEquation
 } from "../src/substitutionTemplate.js";
 import { markCalculationResponse, buildSubstitutionFeedbackText, buildSubstitutionStepFeedback, applyDefaultStepFeedbackToConfig, resolveAnswerDisplayUnit } from "../src/calculationWorkflow.js";
@@ -168,6 +170,62 @@ test("enrichEquation patches stale specific heat template to use E slot", () => 
   const enriched = enrichEquation(stale);
   assert.equal(enriched.substitution_template.tokens[0].id, "E");
   assert.equal(enriched.substitution_template.tokens[0].label, "E");
+});
+
+test("density symbol slot accepts rho and ρ but not density", () => {
+  const densityTemplate = {
+    layout: "fraction",
+    lhs: [{ kind: "slot", id: "rho", label: "ρ" }],
+    numerator: [{ kind: "slot", id: "m", label: "m" }],
+    denominator: [{ kind: "slot", id: "V", label: "volume" }]
+  };
+  assert.equal(slotValueMatchesSymbol("rho", "rho", densityTemplate), true);
+  assert.equal(slotValueMatchesSymbol("rho", "ρ", densityTemplate), true);
+  assert.equal(slotValueMatchesSymbol("rho", "density", densityTemplate), false);
+
+  const helper = renderSubstitutionHelper(densityTemplate, new Set(["rho"]), "density");
+  assert.match(helper, /type the word \(<strong>rho<\/strong>\), or insert the symbol into the selected box/);
+  assert.doesNotMatch(helper, /placeholder="rho"/);
+
+  const chips = renderSubstitutionSymbolChips(new Set(["rho"]));
+  assert.match(chips, /data-insert="ρ"/);
+  assert.doesNotMatch(chips, /data-insert="rho"/);
+  assert.doesNotMatch(chips, /Insert into selected box:/);
+});
+
+test("delta and transformer symbol aliases accept keyboard-friendly forms", () => {
+  assert.equal(slotValueMatchesSymbol("delta_theta", "dtheta", shcTemplate), true);
+  assert.equal(slotValueMatchesSymbol("delta_theta", "Δθ", shcTemplate), true);
+  assert.equal(slotValueMatchesSymbol("delta_v", "dv"), true);
+  assert.equal(slotValueMatchesSymbol("delta_t", "dt"), true);
+  assert.equal(slotValueMatchesSymbol("V_s", "Vs"), true);
+  assert.equal(slotValueMatchesSymbol("V_s", "V_s"), true);
+  assert.equal(slotValueMatchesSymbol("lambda", "lambda"), true);
+  assert.equal(slotValueMatchesSymbol("lambda", "λ"), true);
+  assert.equal(slotValueMatchesSymbol("lambda", "wavelength"), false);
+});
+
+test("commutative substitution accepts rho typed as symbol for blank density unknown", () => {
+  const densityTemplate = {
+    layout: "fraction",
+    lhs: [{ kind: "slot", id: "rho", label: "ρ" }],
+    numerator: [{ kind: "slot", id: "m", label: "m" }],
+    denominator: [{ kind: "slot", id: "V", label: "volume" }]
+  };
+  const subStep = {
+    equation_id: "density",
+    slot_answers: { m: ["12"], V: ["3"] }
+  };
+  const payload = {
+    mode: "structured",
+    equation_id: "density",
+    slots: { rho: "rho", m: "12", V: "3" }
+  };
+  assert.equal(substitutionSlotsMatchCommutative(payload, subStep, densityTemplate), true);
+  payload.slots.rho = "ρ";
+  assert.equal(substitutionSlotsMatchCommutative(payload, subStep, densityTemplate), true);
+  payload.slots.rho = "density";
+  assert.equal(substitutionSlotsMatchCommutative(payload, subStep, densityTemplate), false);
 });
 
 test("isRearrangementInputReady accepts variable symbol in non-unknown slots", () => {
