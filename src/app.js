@@ -1231,17 +1231,35 @@ async function loadDashboard(user = currentUser) {
           const chipHtml = sp.spec_ref
             ? ` <span class="chip">${escapeHtml(isTriplePath ? formatSpecRefChipForProfile(sp, currentUserProfile) : sp.spec_ref)}</span>`
             : "";
+          const specPointId = d.spec_point_id || sp.id || "";
+          const ariaTitle = String(titleLine || "Spec point").replace(/\s+/g, " ").trim();
           return `
-        <div class="item">
+        <button type="button" class="item due-queue-item" data-spec-point-id="${escapeAttr(specPointId)}" aria-label="Practise ${escapeAttr(ariaTitle)}">
           <div><strong>${escapeHtml(titleLine)}</strong>${chipHtml}</div>
           <div class="muted">${escapeHtml(sp.spec_text ?? "")}</div>
           <div class="muted">Due: ${dueDateDisplay} • EF: ${d.ease_factor.toFixed(2)} • Interval: ${d.interval_days}d</div>
-        </div>
+          <div class="due-queue-item-cta muted">Click to practise this topic</div>
+        </button>
       `;
         }).join("")
       : hasStudentStartedPractice(activeSRS)
         ? CAUGHT_UP_SCHEDULE_HTML
         : `<div class="item muted">Nothing due today yet. Your first scheduled topics will appear here once your practice deck is ready.</div>`;
+
+    dueList.querySelectorAll(".due-queue-item[data-spec-point-id]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const specPointId = btn.getAttribute("data-spec-point-id");
+        if (!specPointId || !currentUser) return;
+        btn.disabled = true;
+        try {
+          await startSessionForSpecPointWrapper(specPointId);
+        } catch (err) {
+          console.error("DEBUG due-queue-item: start failed:", err);
+          showToastBanner("Could not start practice for that topic.", true);
+          btn.disabled = false;
+        }
+      });
+    });
   }
 
   await updateStartPracticePreview(due, activeSRS);

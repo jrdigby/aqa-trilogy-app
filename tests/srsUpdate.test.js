@@ -85,19 +85,20 @@ test("computeSessionQuality treats quality >= 3 as pass", () => {
 });
 
 test("classifyMasteryCell matches dashboard rules", () => {
+  const today = "2026-09-04";
   assert.equal(classifyMasteryCell(null).stateClass, "cell-unattempted");
-  assert.equal(
-    classifyMasteryCell(createSeedSrsRow("sp1", "2026-08-01")).stateClass,
-    "cell-scheduled"
-  );
+  const scheduled = classifyMasteryCell(createSeedSrsRow("sp1", "2026-08-01"), today);
+  assert.equal(scheduled.stateClass, "cell-scheduled");
+  assert.match(scheduled.label, /first practice was due/);
   assert.equal(
     classifyMasteryCell({
       repetitions: 0,
       interval_days: 1,
       lapses: 1,
       last_quality: 1,
-      ease_factor: 2.3
-    }).stateClass,
+      ease_factor: 2.3,
+      due_date: "2026-09-10"
+    }, today).stateClass,
     "cell-gap"
   );
   assert.equal(
@@ -106,8 +107,9 @@ test("classifyMasteryCell matches dashboard rules", () => {
       interval_days: 6,
       lapses: 0,
       last_quality: 5,
-      ease_factor: 2.6
-    }).stateClass,
+      ease_factor: 2.6,
+      due_date: "2026-09-10"
+    }, today).stateClass,
     "cell-mastery-l2"
   );
   assert.equal(
@@ -116,8 +118,9 @@ test("classifyMasteryCell matches dashboard rules", () => {
       interval_days: 15,
       lapses: 0,
       last_quality: 5,
-      ease_factor: 2.6
-    }).stateClass,
+      ease_factor: 2.6,
+      due_date: "2026-09-20"
+    }, today).stateClass,
     "cell-mastery-l3"
   );
   assert.equal(
@@ -126,10 +129,66 @@ test("classifyMasteryCell matches dashboard rules", () => {
       interval_days: 1,
       lapses: 0,
       last_quality: 5,
-      ease_factor: 1.9
-    }).stateClass,
+      ease_factor: 1.9,
+      due_date: "2026-09-10"
+    }, today).stateClass,
     "cell-gap"
   );
+});
+
+test("classifyMasteryCell labels include due dates", () => {
+  const today = "2026-09-04";
+
+  const scheduledFuture = classifyMasteryCell(
+    createSeedSrsRow("sp1", "2026-09-12"),
+    today
+  );
+  assert.equal(scheduledFuture.stateClass, "cell-scheduled");
+  assert.equal(scheduledFuture.label, "Scheduled — first practice due 12 Sep");
+
+  const gapPast = classifyMasteryCell({
+    repetitions: 0,
+    interval_days: 1,
+    lapses: 1,
+    last_quality: 1,
+    ease_factor: 2.3,
+    due_date: "2026-06-30"
+  }, today);
+  assert.equal(gapPast.stateClass, "cell-gap");
+  assert.equal(gapPast.label, "Concept gap — was due for review 30 Jun");
+
+  const overdue = classifyMasteryCell({
+    repetitions: 1,
+    interval_days: 1,
+    lapses: 0,
+    last_quality: 5,
+    ease_factor: 2.5,
+    due_date: "2026-06-30"
+  }, today);
+  assert.equal(overdue.stateClass, "cell-gap");
+  assert.equal(overdue.label, "Review overdue — was due 30 Jun");
+
+  const dueToday = classifyMasteryCell({
+    repetitions: 2,
+    interval_days: 6,
+    lapses: 0,
+    last_quality: 5,
+    ease_factor: 2.6,
+    due_date: today
+  }, today);
+  assert.equal(dueToday.stateClass, "cell-gap");
+  assert.equal(dueToday.label, "Due for review today");
+
+  const stillSecure = classifyMasteryCell({
+    repetitions: 1,
+    interval_days: 1,
+    lapses: 0,
+    last_quality: 5,
+    ease_factor: 2.5,
+    due_date: "2026-09-05"
+  }, today);
+  assert.equal(stillSecure.stateClass, "cell-mastery-l1");
+  assert.equal(stillSecure.label, "Secure — next practice due 5 Sep");
 });
 
 test("applySrsSession mirrors upsertSRS due_date = today + newInterval", () => {

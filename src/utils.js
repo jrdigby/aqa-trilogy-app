@@ -62,6 +62,16 @@ export function addDaysISO(isoStr, days) {
   return `${y}-${m}-${day}`;
 }
 
+/** Short en-GB-style date for labels (e.g. "4 Sep"). Returns "" if invalid. */
+export function formatShortDateISO(isoStr) {
+  const raw = String(isoStr || "").slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return "";
+  const d = new Date(`${raw}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return "";
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return `${d.getDate()} ${months[d.getMonth()]}`;
+}
+
 /** Directory path for the static app (supports GitHub Pages project sites). */
 export function getAppBasePath() {
   const path = window.location.pathname;
