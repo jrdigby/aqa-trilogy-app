@@ -1,6 +1,6 @@
 // Pure SRS analytics helpers shared by dashboard UI, tests, and the scenario simulator.
 import { updateSRS } from "./evalEngine.js";
-import { addDaysISO } from "./utils.js";
+import { addDaysISO, formatShortDateISO, todayISO } from "./utils.js";
 import {
   clampIntervalForExam,
   getHorizonSrsCaps,
@@ -27,13 +27,38 @@ export const LONG_INTERVAL_THRESHOLD_DAYS = 21;
 export { longIntervalThresholdForPreset };
 
 /**
+ * Human-readable due phrasing relative to today.
+ * @param {string} dueDate — YYYY-MM-DD
+ * @param {string} todayStr — YYYY-MM-DD
+ * @returns {{ relative: "today"|"past"|"future"|"unknown", shortDate: string }}
+ */
+function dueDateRelative(dueDate, todayStr) {
+  const shortDate = formatShortDateISO(dueDate);
+  if (!dueDate || !shortDate) {
+    return { relative: "unknown", shortDate: "" };
+  }
+  if (dueDate === todayStr) return { relative: "today", shortDate };
+  if (dueDate < todayStr) return { relative: "past", shortDate };
+  return { relative: "future", shortDate };
+}
+
+/**
  * Classify a mastery heatmap cell from an srs_state row (or null if untracked).
  * Matches renderMasteryHeatmap rules in uiComponents.js.
  *
+ * Colours reflect current review readiness, not “last practised N days ago”.
+ * Green “Secure” only applies while the SM-2 due date is still in the future;
+ * overdue / due-today practised items surface as review-needed (amber).
+ *
+ * “Concept gap” (amber) means the SRS engine flagged struggling performance:
+ * failed review (reps reset), collapsed interval, or ease factor below 2.0 —
+ * not merely that a healthy topic is due.
+ *
  * @param {object|null|undefined} srsRecord
+ * @param {string} [today] — YYYY-MM-DD (defaults to local today)
  * @returns {{ stateClass: string, baseColor: string, borderStyle: string, label: string }}
  */
-export function classifyMasteryCell(srsRecord) {
+export function classifyMasteryCell(srsRecord, today = null) {
   if (!srsRecord) {
     return {
       stateClass: "cell-unattempted",
@@ -43,36 +68,74 @@ export function classifyMasteryCell(srsRecord) {
     };
   }
 
+  const todayStr = today || todayISO();
   const reps = srsRecord.repetitions ?? 0;
   const days = srsRecord.interval_days || 0;
   const lapses = srsRecord.lapses ?? 0;
   const lastQuality = srsRecord.last_quality ?? 0;
   const hasBeenPractised = reps > 0 || lapses > 0 || lastQuality > 0;
+  const dueDate = String(srsRecord.due_date || "").slice(0, 10);
+  const { relative, shortDate } = dueDateRelative(dueDate, todayStr);
 
   if (reps === 0 && !hasBeenPractised) {
+    let label = "Scheduled (not practised yet)";
+    if (relative === "today") {
+      label = "Scheduled — first practice due today";
+    } else if (relative === "past") {
+      label = `Scheduled — first practice was due ${shortDate}`;
+    } else if (relative === "future") {
+      label = `Scheduled — first practice due ${shortDate}`;
+    }
     return {
       stateClass: "cell-scheduled",
       baseColor: "#dbeafe",
       borderStyle: "1px solid #93c5fd",
-      label: "Scheduled (not practised yet)"
+      label
     };
   }
 
   if (reps === 0 || days === 0 || (srsRecord.ease_factor && srsRecord.ease_factor < 2.0)) {
+    let label = "Concept gap — needs consolidation";
+    if (relative === "today") {
+      label = "Concept gap — due for review today";
+    } else if (relative === "past") {
+      label = `Concept gap — was due for review ${shortDate}`;
+    } else if (relative === "future") {
+      label = `Concept gap — due for review ${shortDate}`;
+    }
     return {
       stateClass: "cell-gap",
       baseColor: "#f59e0b",
       borderStyle: "1px solid #d97706",
-      label: "Active Concept Gap (Review Needed)"
+      label
     };
   }
+
+  // Practised + healthy ease, but due now or overdue → not “secure” green.
+  // Matches teacher portal: strengths require due_date > today.
+  if (dueDate && dueDate <= todayStr) {
+    return {
+      stateClass: "cell-gap",
+      baseColor: "#f59e0b",
+      borderStyle: "1px solid #d97706",
+      label:
+        relative === "past"
+          ? `Review overdue — was due ${shortDate}`
+          : "Due for review today"
+    };
+  }
+
+  const nextDue =
+    relative === "future" && shortDate
+      ? `next practice due ${shortDate}`
+      : "next practice date unknown";
 
   if (days <= 3) {
     return {
       stateClass: "cell-mastery-l1",
       baseColor: "#bbf7d0",
       borderStyle: "1px solid #166534",
-      label: `Secure (Interval: ${days} days)`
+      label: `Secure — ${nextDue}`
     };
   }
   if (days <= 10) {
@@ -80,14 +143,14 @@ export function classifyMasteryCell(srsRecord) {
       stateClass: "cell-mastery-l2",
       baseColor: "#4ade80",
       borderStyle: "1px solid #166534",
-      label: `Secure (Interval: ${days} days)`
+      label: `Secure — ${nextDue}`
     };
   }
   return {
     stateClass: "cell-mastery-l3",
     baseColor: "#16a34a",
     borderStyle: "1px solid #166534",
-    label: `Secure (Interval: ${days} days)`
+    label: `Secure — ${nextDue}`
   };
 }
 
@@ -248,11 +311,13 @@ export function createSeedSrsRow(specPointId, dueDate, opts = {}) {
  *
  * @param {Array<{ id: string }>} specPoints
  * @param {Map<string, object>|object[]} srsStates
+ * @param {string} [today] — YYYY-MM-DD for overdue classification
  */
-export function summariseMasteryMatrix(specPoints, srsStates) {
+export function summariseMasteryMatrix(specPoints, srsStates, today = null) {
   const trackingMap = srsStates instanceof Map
     ? srsStates
     : new Map((srsStates || []).filter((s) => s?.spec_point_id).map((s) => [s.spec_point_id, s]));
+  const todayStr = today || todayISO();
 
   const counts = {
     "cell-unattempted": 0,
@@ -266,7 +331,7 @@ export function summariseMasteryMatrix(specPoints, srsStates) {
 
   for (const point of specPoints || []) {
     const record = trackingMap.get(point.id) || null;
-    const classified = classifyMasteryCell(record);
+    const classified = classifyMasteryCell(record, todayStr);
     counts[classified.stateClass] = (counts[classified.stateClass] || 0) + 1;
     cells.push({
       specPointId: point.id,

@@ -660,7 +660,7 @@ export function renderMasteryHeatmap(allSpecPoints, srsStates, onCellClickCallba
     <div class="heatmap-header">
       <div>
         <h3 style="margin:0; font-size:1.1rem; color:#1e293b; font-weight:700;">Curriculum Mastery Matrix</h3>
-        <p style="margin:2px 0 0 0; font-size:0.8rem; color:var(--text-muted);">Visualizing active tracking intervals vs concept gaps across the AQA Specification footprint</p>
+        <p style="margin:2px 0 0 0; font-size:0.8rem; color:var(--text-muted);">Green = secure (next practice date). Amber = struggling or due/overdue. Blue = scheduled, not yet practised.</p>
       </div>
     </div>
     <div class="heatmap-body" id="heatmapRowsTarget"></div>
@@ -697,9 +697,14 @@ export function renderMasteryHeatmap(allSpecPoints, srsStates, onCellClickCallba
       const stateClass = classified.stateClass;
       const baseColor = classified.baseColor;
       const borderStyle = classified.borderStyle;
+      const isOverdueReview =
+        stateClass === "cell-gap" &&
+        /Review overdue|Due for review today|was due/.test(classified.label || "");
       let tooltipText = `[${point.spec_ref || "Spec"}] ${point.topic_name || "Topic"} - ${classified.label}`;
       if (srsRecord && stateClass === "cell-scheduled") {
         tooltipText = `📅 [${point.spec_ref}] ${point.topic_name} - ${classified.label}`;
+      } else if (srsRecord && isOverdueReview) {
+        tooltipText = `⏰ [${point.spec_ref}] ${point.topic_name} - ${classified.label}`;
       } else if (srsRecord && stateClass === "cell-gap") {
         tooltipText = `⚠️ [${point.spec_ref}] ${point.topic_name} - ${classified.label}`;
       } else if (srsRecord && stateClass.startsWith("cell-mastery")) {

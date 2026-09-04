@@ -156,7 +156,6 @@ export function renderJourneyMap({ totalXp = 0, journeyState } = {}) {
          style="cursor: pointer;">
         <circle r="16" class="journey-landmark-hit" fill="transparent" />
         <circle r="6" class="journey-landmark-dot" />
-        <title>${escapeHtml(formatLocationLabel(loc))} — ${escapeHtml(scientist?.name || "")}</title>
         <text y="-14" text-anchor="middle" class="journey-landmark-city">${escapeHtml(loc.name)}</text>
         <text y="-3" text-anchor="middle" class="journey-landmark-country">${escapeHtml(loc.country)}</text>
       </g>`;
@@ -219,10 +218,12 @@ export function renderJourneyPanel({
 } = {}) {
   const state = normalizeJourneyState(journeyState);
   const current = getLocationById(state.current_location_id);
+  const pending = getLocationById(state.pending_destination_id);
   const scientist = getScientistForLocation(state.current_location_id, { dominantSubject });
   const flag = COUNTRY_FLAGS[current?.countryKey] || "🌍";
   const world = getWorldProgress(state.distance_travelled);
   const visitedCount = (state.visited || []).length;
+  const regionLabel = pending ? "You have just visited" : "You are in:";
 
   return `
     <div class="journey-panel">
@@ -240,7 +241,7 @@ export function renderJourneyPanel({
       ${renderWorldProgressBars(state)}
       ${renderJourneyMap({ totalXp, journeyState: state })}
       <div class="journey-region-row">
-        <span class="journey-region-label">You are in:</span>
+        <span class="journey-region-label">${regionLabel}</span>
         <span class="journey-region-value">${flag} ${escapeHtml(formatLocationLabel(current))}</span>
       </div>
       <div id="journeyScientistMount">
