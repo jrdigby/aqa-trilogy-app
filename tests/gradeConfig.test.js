@@ -147,3 +147,32 @@ test("formatGradesLabel and defaults", () => {
     physics: 5
   });
 });
+
+test("triple grade checks can be limited to selected subjects", () => {
+  assert.equal(
+    compareGrades(
+      { biology: 4, chemistry: 5, physics: 3 },
+      { biology: 5, chemistry: 4, physics: 4 },
+      "triple",
+      ["physics"]
+    ),
+    true
+  );
+  assert.equal(
+    primaryGradeNumber({ biology: 6, chemistry: 4, physics: 8 }, "triple", ["physics"]),
+    8
+  );
+  assert.equal(
+    formatGradesLabel({ biology: 6, chemistry: 5, physics: 4 }, "triple", ["physics"]),
+    "Phy 4"
+  );
+  assert.equal(
+    initialAdaptiveOffsetFromGrades(
+      { biology: 1, chemistry: 1, physics: 9 },
+      "triple",
+      { biology: "FT", chemistry: "FT", physics: "HT" },
+      ["physics"]
+    ),
+    2
+  );
+});

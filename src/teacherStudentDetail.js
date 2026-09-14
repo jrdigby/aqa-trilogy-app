@@ -9,7 +9,7 @@ import {
   fetchStudentSRSStateDetailed,
   fetchTeacherStudentProfile,
 } from "./dbClient.js";
-import { formatSciencePathLabel, courseTrackForProfile } from "./sciencePath.js";
+import { formatSciencePathLabel, courseTrackForProfile, getActiveSubjects } from "./sciencePath.js";
 import { renderMasteryHeatmap } from "./uiComponents.js";
 import { addDaysISO, escapeHtml, todayISO } from "./utils.js";
 import { computeQuestionAOMaxCaps } from "./evalEngine.js";
@@ -147,8 +147,9 @@ function deriveStrengthsWeaknesses(srsStates, specPointMap, gapAttempts, today) 
   };
 }
 
-function computeSubjectMastery(srsStates, specPointMap) {
-  const subjects = { biology: { tracked: 0, mastered: 0 }, chemistry: { tracked: 0, mastered: 0 }, physics: { tracked: 0, mastered: 0 } };
+function computeSubjectMastery(srsStates, specPointMap, activeSubjects) {
+  const keys = activeSubjects?.length ? activeSubjects : ["biology", "chemistry", "physics"];
+  const subjects = Object.fromEntries(keys.map((key) => [key, { tracked: 0, mastered: 0 }]));
 
   for (const srs of srsStates || []) {
     const point = specPointMap.get(srs.spec_point_id);
@@ -415,7 +416,10 @@ async function loadTabContent(tab, ctx) {
 
   if (tab === "mastery") {
     content.innerHTML = "";
-    const heatmap = renderMasteryHeatmap(ctx.specPoints, ctx.srsStates, null, { readOnly: true });
+    const heatmap = renderMasteryHeatmap(ctx.specPoints, ctx.srsStates, null, {
+      readOnly: true,
+      subjects: ctx.activeSubjects
+    });
     content.appendChild(heatmap);
     return;
   }
@@ -542,15 +546,20 @@ export async function openStudentDetail(studentId, displayName) {
       ]);
 
     const rosterStats = rosterStatsMap[studentId] || {};
-    const specPointMap = buildSpecPointMap(specPoints);
-    const masteryPct = computeMasteryPct(srsStates, specPoints);
+    const activeSubjects = getActiveSubjects(profile || {});
+    const activeSet = new Set(activeSubjects);
+    const visibleSpecPoints = (specPoints || []).filter((point) =>
+      activeSet.has(String(point.subject || "").toLowerCase())
+    );
+    const specPointMap = buildSpecPointMap(visibleSpecPoints);
+    const masteryPct = computeMasteryPct(srsStates, visibleSpecPoints);
     const { strengths, weaknesses } = deriveStrengthsWeaknesses(
       srsStates,
       specPointMap,
       gapAttempts,
       today
     );
-    const subjectMastery = computeSubjectMastery(srsStates, specPointMap);
+    const subjectMastery = computeSubjectMastery(srsStates, specPointMap, activeSubjects);
 
     const resolvedName = profile?.display_name?.trim() || displayName || "Student";
     if (nameEl) nameEl.textContent = resolvedName;
@@ -583,9 +592,10 @@ export async function openStudentDetail(studentId, displayName) {
     const ctx = {
       studentId,
       srsStates,
-      specPoints,
+      specPoints: visibleSpecPoints,
       activityAttempts,
       subjectMastery,
+      activeSubjects,
     };
 
     bindTabHandlers(ctx);
