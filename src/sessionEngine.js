@@ -5,6 +5,7 @@ import {
 import { buildExamPaper } from "./paperBuilder.js";
 import {
   courseTrackForProfile,
+  getActiveSubjects,
   targetTiersForProfile,
   filterQuestionsForProfile,
   questionMatchesStudent,
@@ -346,7 +347,7 @@ export async function startSkillPractice(context, { fullCode }) {
   const courseTrack = courseTrackForProfile(profile);
   const tierSet = new Set(["both"]);
   if (profile) {
-    for (const sub of ["biology", "chemistry", "physics"]) {
+    for (const sub of getActiveSubjects(profile)) {
       targetTiersForProfile(profile, sub).forEach((t) => tierSet.add(t));
     }
   } else {

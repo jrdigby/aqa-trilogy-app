@@ -50,6 +50,8 @@ import {
   resolveSpecPointIdForTrack,
   questionMatchesProfileTier,
   getSubjectTiers,
+  getActiveSubjects,
+  normalizeScienceSubjects,
   resolveQuestionSpecMeta,
   questionLinksToSpecPoint,
   buildSpecPointQuestionsOrFilter,
@@ -546,6 +548,7 @@ let planQuotas = {
 let settingsTier = "FT";
 let settingsSciencePath = "combined";
 let settingsSubjectTiers = { biology: "FT", chemistry: "FT", physics: "FT" };
+let settingsScienceSubjects = ["biology", "chemistry", "physics"];
 let settingsCurrentGrades = defaultCurrentGrades("combined");
 let settingsTargetGrades = defaultTargetGrades("combined");
 
@@ -615,6 +618,7 @@ function syncOnboardingGradePanels() {
       onboardingState.target_grades[subject]
     );
   }
+  syncTripleGradeRows("onboardingTripleGrades", onboardingActiveSubjects());
 }
 
 function syncSettingsGradePanels() {
@@ -660,6 +664,7 @@ function syncSettingsGradePanels() {
       settingsTargetGrades[subject]
     );
   }
+  syncTripleGradeRows("settingsTripleGrades", settingsActiveSubjects());
 }
 
 function readOnboardingGradesFromDom() {
@@ -774,11 +779,14 @@ function syncOnboardingTierPanels() {
     triplePanel.classList.toggle("hidden", !isTriple);
     triplePanel.style.display = isTriple ? "flex" : "none";
   }
+  const hint = el("onboardingTripleHint");
+  if (hint) hint.classList.toggle("hidden", !isTriple);
   if (heading) {
     heading.textContent = isTriple
-      ? "Choose your tier for each science subject"
+      ? "Which sciences are you taking?"
       : "Which exam tier are you studying?";
   }
+  syncSubjectChecks(".onboarding-subject-check", onboardingState.science_subjects);
 }
 
 function syncSettingsTierPanels() {
@@ -793,9 +801,10 @@ function syncSettingsTierPanels() {
   }
   if (hint) {
     hint.textContent = isTriple
-      ? "Choose Foundation (FT) or Higher (HT) for each subject."
+      ? "Tick the sciences you are entered for. Each can be Foundation (FT) or Higher (HT)."
       : "Foundation (FT) or Higher (HT) — filters question difficulty.";
   }
+  syncSubjectChecks(".settings-subject-check", settingsScienceSubjects);
 }
 
 function wireOnboardingPathButtons() {
@@ -838,6 +847,17 @@ function wireOnboardingSubjectTierButtons() {
       });
     };
   });
+  document.querySelectorAll(".onboarding-subject-check").forEach((box) => {
+    box.onchange = () => {
+      onboardingState.science_subjects = readCheckedSubjects(".onboarding-subject-check");
+      syncSubjectChecks(".onboarding-subject-check", onboardingState.science_subjects);
+      syncTripleGradeRows("onboardingTripleGrades", onboardingActiveSubjects());
+      if (onboardingState.science_subjects.length) {
+        showGradeValidationMsg(el("onboardingSubjectMsg"), true);
+      }
+    };
+  });
+  syncSubjectChecks(".onboarding-subject-check", onboardingState.science_subjects);
 }
 
 function wireSettingsPathButtons() {
@@ -869,22 +889,34 @@ function wireSettingsSubjectTierButtons() {
       });
     };
   });
+  document.querySelectorAll(".settings-subject-check").forEach((box) => {
+    box.onchange = () => {
+      settingsScienceSubjects = readCheckedSubjects(".settings-subject-check");
+      syncSubjectChecks(".settings-subject-check", settingsScienceSubjects);
+      syncTripleGradeRows("settingsTripleGrades", settingsActiveSubjects());
+      if (settingsScienceSubjects.length) {
+        showGradeValidationMsg(el("settingsSubjectMsg"), true);
+      }
+    };
+  });
+  syncSubjectChecks(".settings-subject-check", settingsScienceSubjects);
 }
 
 function buildOnboardingSummaryHtml() {
   const pathLabel =
     onboardingState.science_path === "triple" ? "Triple Science" : "Combined Science (Trilogy)";
+  const active = onboardingActiveSubjects();
   let tierLine;
   if (onboardingState.science_path === "triple") {
-    tierLine = ONBOARDING_SUBJECTS.map((s) => {
+    tierLine = active.map((s) => {
       const label = s.charAt(0).toUpperCase() + s.slice(1);
       return `${label} ${onboardingState.subject_tiers[s] || "FT"}`;
     }).join(" · ");
   } else {
     tierLine = onboardingState.preferred_tier === "HT" ? "Higher Tier" : "Foundation Tier";
   }
-  const prefOrder = [...ONBOARDING_SUBJECTS]
-    .sort((a, b) => onboardingState.subject_preference[a] - onboardingState.subject_preference[b])
+  const prefOrder = [...active]
+    .sort((a, b) => (onboardingState.subject_preference[a] ?? 99) - (onboardingState.subject_preference[b] ?? 99))
     .map((s) => s.charAt(0).toUpperCase() + s.slice(1))
     .join(" → ");
   const classLine = onboardingState.joined_class_name
@@ -899,11 +931,13 @@ function buildOnboardingSummaryHtml() {
     horizonLabels[onboardingState.revision_horizon_preset] || horizonLabels.y11;
   const currentGradeLine = formatGradesLabel(
     onboardingState.current_grades,
-    onboardingState.science_path
+    onboardingState.science_path,
+    active
   );
   const targetGradeLine = formatGradesLabel(
     onboardingState.target_grades,
-    onboardingState.science_path
+    onboardingState.science_path,
+    active
   );
   return `
     <div><strong>Course:</strong> ${pathLabel}</div>
@@ -925,6 +959,7 @@ const onboardingState = {
   science_path: "combined",
   preferred_tier: "FT",
   subject_tiers: { biology: "FT", chemistry: "FT", physics: "FT" },
+  science_subjects: ["biology", "chemistry", "physics"],
   subject_preference: { biology: 1, chemistry: 2, physics: 3 },
   revision_horizon_preset: "y11",
   current_grades: defaultCurrentGrades("combined"),
@@ -933,11 +968,110 @@ const onboardingState = {
   joined_class_name: null
 };
 
+function onboardingActiveSubjects() {
+  if (onboardingState.science_path !== "triple") return [...ONBOARDING_SUBJECTS];
+  const selected = Array.isArray(onboardingState.science_subjects)
+    ? onboardingState.science_subjects.filter((s) => ONBOARDING_SUBJECTS.includes(s))
+    : [];
+  return selected.length ? selected : [...ONBOARDING_SUBJECTS];
+}
+
+function settingsActiveSubjects() {
+  if (settingsSciencePath !== "triple") return [...ONBOARDING_SUBJECTS];
+  const selected = Array.isArray(settingsScienceSubjects)
+    ? settingsScienceSubjects.filter((s) => ONBOARDING_SUBJECTS.includes(s))
+    : [];
+  return selected;
+}
+
+function syncTripleGradeRows(tableId, selected) {
+  const set = new Set(selected);
+  document.querySelectorAll(`#${tableId} tr[data-subject]`).forEach((row) => {
+    row.classList.toggle("hidden", !set.has(row.dataset.subject));
+  });
+}
+
+function syncSubjectChecks(selector, selected) {
+  const set = new Set(selected || []);
+  document.querySelectorAll(selector).forEach((box) => {
+    const subject = box.dataset.subject;
+    box.checked = set.has(subject);
+    const row = box.closest(".onboarding-subject-tier-row");
+    if (row) row.classList.toggle("is-off", !box.checked);
+  });
+}
+
+function readCheckedSubjects(selector) {
+  return [...document.querySelectorAll(selector)]
+    .filter((box) => box.checked && ONBOARDING_SUBJECTS.includes(box.dataset.subject))
+    .map((box) => box.dataset.subject);
+}
+
+function preferenceForSubjects(selected, previous = {}) {
+  const ordered = [...selected].sort(
+    (a, b) => (previous[a] ?? 99) - (previous[b] ?? 99)
+  );
+  const pref = { biology: 99, chemistry: 99, physics: 99 };
+  ordered.forEach((subject, index) => {
+    pref[subject] = index + 1;
+  });
+  return pref;
+}
+
+function syncOnboardingStudyOrder() {
+  const selected = onboardingActiveSubjects();
+  const list = el("preferenceRankList");
+  const hint = el("onboardingStudyOrderHint");
+  const note = el("onboardingStudyOrderNote");
+  if (selected.length < 2) {
+    if (list) list.classList.add("hidden");
+    if (hint) hint.classList.add("hidden");
+    if (note) {
+      const label = selected[0]
+        ? selected[0].charAt(0).toUpperCase() + selected[0].slice(1)
+        : "that subject";
+      note.textContent = `You're only taking ${label}, so we'll schedule ${label} topics.`;
+      note.classList.remove("hidden");
+    }
+    onboardingState.subject_preference = preferenceForSubjects(
+      selected,
+      onboardingState.subject_preference
+    );
+    return;
+  }
+  if (note) note.classList.add("hidden");
+  if (hint) hint.classList.remove("hidden");
+  if (!list) return;
+  list.classList.remove("hidden");
+  const ordered = [...selected].sort(
+    (a, b) =>
+      (onboardingState.subject_preference[a] ?? 99) - (onboardingState.subject_preference[b] ?? 99)
+  );
+  renderRankList(list, ordered);
+}
+
 function updateSciencePathChip() {
   const chip = el("sciencePathChip");
   if (!chip || !currentUserProfile) return;
   chip.textContent = formatSciencePathLabel(currentUserProfile);
   chip.classList.remove("hidden");
+  syncSubjectFilterOptions(currentUserProfile);
+}
+
+const SUBJECT_FILTER_LABELS = {
+  biology: "Biology",
+  chemistry: "Chemistry",
+  physics: "Physics"
+};
+
+function syncSubjectFilterOptions(profile) {
+  if (!subjectFilter) return;
+  const subjects = getActiveSubjects(profile);
+  const current = subjectFilter.value;
+  subjectFilter.innerHTML = subjects
+    .map((subject) => `<option value="${subject}">${SUBJECT_FILTER_LABELS[subject] || subject}</option>`)
+    .join("");
+  subjectFilter.value = subjects.includes(current) ? current : (subjects[0] || "biology");
 }
 
 function getSelectedFilters() {
@@ -1141,6 +1275,7 @@ function scheduleDashboardHeatmapRender(activeSRS) {
       heatmapContainer.innerHTML = "";
       if (!allSpecs?.length) return;
 
+      const activeSubjects = getActiveSubjects(currentUserProfile);
       const masteryHeatmapNode = renderMasteryHeatmap(
         allSpecs,
         activeSRS,
@@ -1155,6 +1290,7 @@ function scheduleDashboardHeatmapRender(activeSRS) {
           onReadOnlyCellClick: currentAccess?.canHeatmapPractice
             ? null
             : () => showUpgradeModal("heatmap"),
+          subjects: activeSubjects
         }
       );
       heatmapContainer.appendChild(masteryHeatmapNode);
@@ -4284,6 +4420,7 @@ function loadSettingsPanel() {
   settingsSciencePath = getSciencePath(currentUserProfile);
   settingsTier = normalizeTier(currentUserProfile.preferred_tier || "FT");
   settingsSubjectTiers = getSubjectTiers(currentUserProfile);
+  settingsScienceSubjects = normalizeScienceSubjects(currentUserProfile.science_subjects);
   settingsCurrentGrades = normalizeCurrentGrades(
     currentUserProfile.current_grades,
     settingsSciencePath
@@ -4474,11 +4611,23 @@ function wireSettingsControls() {
     if (msgEl) msgEl.classList.add("hidden");
 
     try {
+      settingsScienceSubjects = readCheckedSubjects(".settings-subject-check");
+      if (settingsSciencePath === "triple" && !settingsScienceSubjects.length) {
+        showGradeValidationMsg(
+          el("settingsSubjectMsg"),
+          false,
+          "Choose at least one science subject."
+        );
+        return;
+      }
+      showGradeValidationMsg(el("settingsSubjectMsg"), true);
+
       readSettingsGradesFromDom();
       const gradesOk = compareGrades(
         settingsCurrentGrades,
         settingsTargetGrades,
-        settingsSciencePath
+        settingsSciencePath,
+        settingsActiveSubjects()
       );
       if (!gradesOk) {
         showGradeValidationMsg(
@@ -4526,6 +4675,9 @@ function wireSettingsControls() {
         preferred_tier: settingsTier,
         science_path: settingsSciencePath,
         subject_tiers: settingsSubjectTiers,
+        science_subjects: settingsScienceSubjects.length
+          ? settingsScienceSubjects
+          : [...ONBOARDING_SUBJECTS],
         display_name,
         revision_horizon_preset: settingsHorizonPreset,
         target_exam_date: (el("settingsExamDateInput")?.value || "").trim() || null,
@@ -4544,9 +4696,10 @@ function wireSettingsControls() {
         }
       }
 
+      const settingsSubjects = settingsActiveSubjects();
       const tier = normalizeTier(
         settingsSciencePath === "triple"
-          ? settingsSubjectTiers.physics || settingsTier
+          ? settingsSubjectTiers[settingsSubjects[0]] || settingsTier
           : settingsTier
       );
       localStorage.setItem("preferred_tier", tier);
@@ -4595,10 +4748,12 @@ function updateOnboardingStepUI() {
   syncOnboardingTierPanels();
   syncOnboardingGradePanels();
   syncOnboardingHorizonButtons();
+  if (onboardingStep === 4 || onboardingStep === 7) {
+    syncOnboardingStudyOrder();
+  }
 
   if (onboardingStep === 7) {
-    const prefList = el("preferenceRankList");
-    if (prefList) onboardingState.subject_preference = buildRankMapsFromList(prefList);
+    readOnboardingPreference();
     readOnboardingGradesFromDom();
 
     const summary = el("onboardingSummary");
@@ -4615,7 +4770,7 @@ function showOnboardingUI() {
   if (btnSignOut) btnSignOut.classList.remove("hidden");
 
   onboardingStep = 1;
-  renderRankList(el("preferenceRankList"), [...ONBOARDING_SUBJECTS]);
+  syncOnboardingStudyOrder();
 
   wireOnboardingPathButtons();
   wireOnboardingCombinedTierButtons();
@@ -4628,9 +4783,25 @@ function showOnboardingUI() {
   updateOnboardingStepUI();
 }
 
+function readOnboardingPreference() {
+  const selected = onboardingActiveSubjects();
+  const list = el("preferenceRankList");
+  if (list && !list.classList.contains("hidden") && list.querySelector(".onboarding-rank-item")) {
+    onboardingState.subject_preference = preferenceForSubjects(
+      selected,
+      buildRankMapsFromList(list)
+    );
+    return;
+  }
+  onboardingState.subject_preference = preferenceForSubjects(
+    selected,
+    onboardingState.subject_preference
+  );
+}
+
 async function finishOnboarding() {
-  const prefList = el("preferenceRankList");
-  if (prefList) onboardingState.subject_preference = buildRankMapsFromList(prefList);
+  syncOnboardingStudyOrder();
+  readOnboardingPreference();
   readOnboardingGradesFromDom();
 
   const btnFinish = el("btnOnboardingFinish");
@@ -4655,6 +4826,7 @@ async function finishOnboarding() {
       preferred_tier: onboardingState.preferred_tier,
       science_path: onboardingState.science_path,
       subject_tiers: onboardingState.subject_tiers,
+      science_subjects: onboardingActiveSubjects(),
       subject_preference: onboardingState.subject_preference,
       revision_horizon_preset: onboardingState.revision_horizon_preset,
       target_exam_date: lockedExamDate,
@@ -4662,9 +4834,10 @@ async function finishOnboarding() {
       target_grades: onboardingState.target_grades
     });
 
+    const activeSubjects = onboardingActiveSubjects();
     const tier = normalizeTier(
       onboardingState.science_path === "triple"
-        ? onboardingState.subject_tiers.physics || onboardingState.preferred_tier
+        ? onboardingState.subject_tiers[activeSubjects[0]] || onboardingState.preferred_tier
         : onboardingState.preferred_tier
     );
     localStorage.setItem("preferred_tier", tier);
@@ -4676,7 +4849,8 @@ async function finishOnboarding() {
     const initialOffset = initialAdaptiveOffsetFromGrades(
       onboardingState.current_grades,
       onboardingState.science_path,
-      offsetTier
+      offsetTier,
+      activeSubjects
     );
     adaptivePracticeState = normalizeAdaptiveState({
       ...DEFAULT_ADAPTIVE_STATE,
@@ -4695,6 +4869,7 @@ async function finishOnboarding() {
       science_path: onboardingState.science_path,
       preferred_tier: normalizeTier(onboardingState.preferred_tier),
       subject_tiers: onboardingState.subject_tiers,
+      science_subjects: onboardingActiveSubjects(),
       subject_preference: onboardingState.subject_preference,
       revision_horizon_preset: onboardingState.revision_horizon_preset,
       target_exam_date: lockedExamDate
@@ -4721,12 +4896,26 @@ function wireOnboardingControls() {
 
   if (btnNext) {
     btnNext.onclick = async () => {
+      if (onboardingStep === 2 && onboardingState.science_path === "triple") {
+        onboardingState.science_subjects = readCheckedSubjects(".onboarding-subject-check");
+        if (!onboardingState.science_subjects.length) {
+          showGradeValidationMsg(
+            el("onboardingSubjectMsg"),
+            false,
+            "Choose at least one science subject."
+          );
+          return;
+        }
+        showGradeValidationMsg(el("onboardingSubjectMsg"), true);
+      }
+
       if (onboardingStep === 3) {
         readOnboardingGradesFromDom();
         const ok = compareGrades(
           onboardingState.current_grades,
           onboardingState.target_grades,
-          onboardingState.science_path
+          onboardingState.science_path,
+          onboardingActiveSubjects()
         );
         if (!ok) {
           showGradeValidationMsg(

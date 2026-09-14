@@ -79,6 +79,33 @@ export function courseTrackForProfile(profile) {
   return getSciencePath(profile);
 }
 
+/**
+ * Non-empty subset of biology / chemistry / physics.
+ * Empty or invalid input falls back to all three.
+ */
+export function normalizeScienceSubjects(raw) {
+  if (!Array.isArray(raw) || !raw.length) return [...SUBJECTS];
+  const seen = new Set();
+  const out = [];
+  for (const item of raw) {
+    const subject = String(item || "").toLowerCase().trim();
+    if (!SUBJECTS.includes(subject) || seen.has(subject)) continue;
+    seen.add(subject);
+    out.push(subject);
+  }
+  return out.length ? out : [...SUBJECTS];
+}
+
+/**
+ * Sciences this student is entered for.
+ * Combined always means all three. Triple uses science_subjects; missing means all three.
+ */
+export function getActiveSubjects(profile) {
+  if (getSciencePath(profile) !== "triple") return [...SUBJECTS];
+  if (profile?.science_subjects == null) return [...SUBJECTS];
+  return normalizeScienceSubjects(profile.science_subjects);
+}
+
 export function getSubjectTiers(profile) {
   const base = { ...DEFAULT_SUBJECT_TIERS };
   const stored = profile?.subject_tiers;
@@ -101,13 +128,14 @@ export function targetTiersForProfile(profile, subject) {
   return targetTiersForTier(getTierForSubject(profile, subject));
 }
 
+function shortSubjectLabel(subject) {
+  return subject.charAt(0).toUpperCase() + subject.slice(1, 3);
+}
+
 export function formatSciencePathLabel(profile) {
   if (getSciencePath(profile) === "triple") {
     const tiers = getSubjectTiers(profile);
-    const parts = SUBJECTS.map((s) => {
-      const short = s.charAt(0).toUpperCase() + s.slice(1, 3);
-      return `${short} ${tiers[s]}`;
-    });
+    const parts = getActiveSubjects(profile).map((s) => `${shortSubjectLabel(s)} ${tiers[s]}`);
     return `Triple · ${parts.join(" · ")}`;
   }
   const tier = normalizeTier(profile?.preferred_tier || "FT");
@@ -115,7 +143,11 @@ export function formatSciencePathLabel(profile) {
 }
 
 export function formatSciencePathShort(profile) {
-  return getSciencePath(profile) === "triple" ? "Triple Science" : "Combined Science";
+  if (getSciencePath(profile) !== "triple") return "Combined Science";
+  const active = getActiveSubjects(profile);
+  if (active.length === SUBJECTS.length) return "Triple Science";
+  const names = active.map((s) => s.charAt(0).toUpperCase() + s.slice(1));
+  return `Triple Science · ${names.join(", ")}`;
 }
 
 const SUBJECT_DISPLAY_NAMES = {
@@ -244,6 +276,7 @@ export function normalizeSeedProfile(profile) {
     science_path,
     preferred_tier: normalizeTier(profile?.preferred_tier || "FT"),
     subject_tiers: getSubjectTiers(profile),
+    science_subjects: getActiveSubjects(profile),
     /** Onboarding-only: order subjects are first seeded. Default Bio → Chem → Phys. */
     subject_preference: profile?.subject_preference || {
       biology: 1,

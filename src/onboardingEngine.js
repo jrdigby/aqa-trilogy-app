@@ -16,6 +16,8 @@ import {
   targetTiersForTier,
   normalizeSeedProfile,
   courseTrackForProfile,
+  getActiveSubjects,
+  normalizeScienceSubjects,
   getTierForSubject,
   targetTiersForProfile,
   questionMatchesStudent,
@@ -45,6 +47,25 @@ export {
 };
 
 
+function normalizeScienceSubjectsForSave(raw) {
+  if (raw == null) return [...SUBJECTS];
+  return normalizeScienceSubjects(raw);
+}
+
+function subjectOfSrsRow(row) {
+  const subject = row?.spec_points?.subject || row?.subject;
+  return subject ? String(subject).toLowerCase() : null;
+}
+
+function filterRowsToActiveSubjects(rows, profile) {
+  const active = new Set(getActiveSubjects(profile));
+  return (rows || []).filter((row) => {
+    const subject = subjectOfSrsRow(row);
+    if (!subject) return true;
+    return active.has(subject);
+  });
+}
+
 export function sortSubjectsByPreference(preference = {}) {
   return [...SUBJECTS].sort(
     (a, b) => (preference[a] ?? 99) - (preference[b] ?? 99)
@@ -70,6 +91,7 @@ export async function saveOnboardingProfile(userId, payload) {
     preferred_tier,
     science_path,
     subject_tiers,
+    science_subjects,
     subject_preference,
     revision_horizon_preset,
     target_exam_date,
@@ -80,6 +102,7 @@ export async function saveOnboardingProfile(userId, payload) {
   const patch = {
     preferred_tier: normalizeTier(preferred_tier),
     science_path: path,
+    science_subjects: normalizeScienceSubjectsForSave(science_subjects),
     subject_preference: subject_preference || {
       biology: 1,
       chemistry: 2,
@@ -113,6 +136,7 @@ export async function saveUserProfileSettings(userId, payload) {
     preferred_tier,
     science_path,
     subject_tiers,
+    science_subjects,
     display_name,
     revision_horizon_preset,
     target_exam_date,
@@ -125,7 +149,8 @@ export async function saveUserProfileSettings(userId, payload) {
   const path = science_path === "triple" ? "triple" : "combined";
   const patch = {
     preferred_tier: normalizeTier(preferred_tier),
-    science_path: path
+    science_path: path,
+    science_subjects: normalizeScienceSubjectsForSave(science_subjects)
   };
   if (science_path === "triple" && subject_tiers) {
     patch.subject_tiers = subject_tiers;
@@ -276,9 +301,10 @@ export async function pickWeeklyStarterSpecPoints(
 ) {
   const seedProfile = normalizeSeedProfile(profile);
   const courseTrack = courseTrackForProfile(seedProfile);
+  const active = getActiveSubjects(seedProfile);
   const ordered = opts.useStudyOrder
-    ? sortSubjectsByPreference(seedProfile.subject_preference)
-    : [...SUBJECTS];
+    ? sortSubjectsByPreference(seedProfile.subject_preference).filter((s) => active.includes(s))
+    : active;
   const seen = new Set(existingSpecIds);
   /** @type {Record<string, { id: string }[]>} */
   const queues = {};
@@ -358,11 +384,11 @@ export async function populateWeekForecast(userId, profile) {
 
   const { data: allSrs, error: allErr } = await supabaseClient
     .from("srs_state")
-    .select("spec_point_id, due_date")
+    .select("spec_point_id, due_date, spec_points(subject)")
     .eq("user_id", userId);
   if (allErr) throw allErr;
 
-  const rows = allSrs || [];
+  const rows = filterRowsToActiveSubjects(allSrs || [], seedProfile);
   const dayCounts = buildDayCountMap(today);
   let dueTodayCount = 0;
 
@@ -395,7 +421,7 @@ export async function populateWeekForecast(userId, profile) {
     return { added: 0, reason: "week_sufficient", upcomingInWeek, dueTodayCount, weekTarget };
   }
 
-  const existingIds = new Set(rows.map((row) => row.spec_point_id));
+  const existingIds = new Set((allSrs || []).map((row) => row.spec_point_id));
   const newIds = await pickWeeklyStarterSpecPoints(seedProfile, existingIds, pickCount, {
     useStudyOrder: true
   });
@@ -499,12 +525,13 @@ export async function ensureScheduleReady(userId, profile) {
     console.warn("DEBUG ensureScheduleReady: schedule fetch failed:", err);
   }
 
-  const dueToday = (srsRowsFull || []).filter(
-    (row) => String(row.due_date || "").slice(0, 10) <= today
-  );
+  const activeSrs = () => filterRowsToActiveSubjects(srsRowsFull, seedProfile);
+  const activeDue = () => filterRowsToActiveSubjects(dueRows, seedProfile);
+  const dueToday = () =>
+    activeSrs().filter((row) => String(row.due_date || "").slice(0, 10) <= today);
 
   console.log(
-    `DEBUG ensureScheduleReady: ${srsRowsFull.length} SRS row(s), ${dueToday.length} due on or before ${today}`
+    `DEBUG ensureScheduleReady: ${srsRowsFull.length} SRS row(s), ${dueToday().length} due on or before ${today}`
   );
 
   if (srsRowsFull.length === 0) {
@@ -517,29 +544,49 @@ export async function ensureScheduleReady(userId, profile) {
     try {
       ({ srsRows: srsRowsFull, dueRows } = await loadScheduleSnapshot(userId, today));
     } catch (_) { /* ignore */ }
-    return { action: "seed", ...seedResult, weekTopUp: weekAfterSeed.added || 0, dueRows, srsRows: srsRowsFull };
+    return {
+      action: "seed",
+      ...seedResult,
+      weekTopUp: weekAfterSeed.added || 0,
+      dueRows: activeDue(),
+      srsRows: srsRowsFull
+    };
   }
 
-  if (!(await hasStartedPractice(userId)) && srsRowsFull.length < resolveBootstrapWeekTarget(seedProfile, today)) {
+  if (!(await hasStartedPractice(userId)) && activeSrs().length < resolveBootstrapWeekTarget(seedProfile, today)) {
     const weekResult = await populateWeekForecast(userId, seedProfile);
     if (weekResult.added > 0) {
       console.log("DEBUG ensureScheduleReady: week bootstrap →", weekResult);
       try {
         ({ srsRows: srsRowsFull, dueRows } = await loadScheduleSnapshot(userId, today));
       } catch (_) { /* ignore */ }
-      return { action: "week_forecast", ...weekResult, dueRows, srsRows: srsRowsFull };
+      return {
+        action: "week_forecast",
+        ...weekResult,
+        dueRows: activeDue(),
+        srsRows: srsRowsFull
+      };
     }
   }
 
   // Before first practice only: pull a few scheduled topics forward so Start Practice works.
-  if (dueToday.length === 0 && !(await hasStartedPractice(userId))) {
-    const toRepair = [...srsRowsFull]
+  if (dueToday().length === 0 && !(await hasStartedPractice(userId))) {
+    const toRepair = [...activeSrs()]
       .sort((a, b) =>
         String(a.due_date || "").slice(0, 10).localeCompare(String(b.due_date || "").slice(0, 10))
       )
       .slice(0, 5);
 
-    const specPointIds = toRepair.map((row) => row.spec_point_id);
+    const specPointIds = toRepair.map((row) => row.spec_point_id).filter(Boolean);
+    if (!specPointIds.length) {
+      return {
+        action: "ok",
+        srsCount: activeSrs().length,
+        dueCount: 0,
+        dueRows: activeDue(),
+        srsRows: srsRowsFull
+      };
+    }
     const { error: repairErr } = await supabaseClient
       .from("srs_state")
       .update({ due_date: today })
@@ -553,7 +600,12 @@ export async function ensureScheduleReady(userId, profile) {
     try {
       ({ srsRows: srsRowsFull, dueRows } = await loadScheduleSnapshot(userId, today));
     } catch (_) { /* ignore */ }
-    return { action: "repair", repaired: specPointIds.length, dueRows, srsRows: srsRowsFull };
+    return {
+      action: "repair",
+      repaired: specPointIds.length,
+      dueRows: activeDue(),
+      srsRows: srsRowsFull
+    };
   }
 
   // After practice has started: paced curriculum intros (weekly budget), not fill-to-N.
@@ -571,7 +623,7 @@ export async function ensureScheduleReady(userId, profile) {
           action: "curriculum_intro",
           added: intro.added,
           reason: intro.reason,
-          dueRows,
+          dueRows: activeDue(),
           srsRows: srsRowsFull
         };
       }
@@ -582,9 +634,9 @@ export async function ensureScheduleReady(userId, profile) {
 
   return {
     action: "ok",
-    srsCount: srsRowsFull.length,
-    dueCount: dueToday.length,
-    dueRows,
+    srsCount: activeSrs().length,
+    dueCount: dueToday().length,
+    dueRows: activeDue(),
     srsRows: srsRowsFull
   };
 }
@@ -633,8 +685,8 @@ async function specPointsWithQuestions(specPointIds, targetTiers, courseTrack = 
 }
 
 export async function pickStarterSpecPoints(profile, existingSpecIds = new Set()) {
-  // One topic per subject in onboarding study order (default Bio → Chem → Phys).
-  return pickWeeklyStarterSpecPoints(profile, existingSpecIds, SUBJECTS.length, {
+  // One topic per selected subject in onboarding study order (default Bio → Chem → Phys).
+  return pickWeeklyStarterSpecPoints(profile, existingSpecIds, getActiveSubjects(profile).length, {
     useStudyOrder: true
   });
 }
@@ -658,7 +710,7 @@ export async function countEligibleSpecPoints(profile) {
   }
 
   let eligible = 0;
-  for (const subject of SUBJECTS) {
+  for (const subject of getActiveSubjects(seedProfile)) {
     const ids = bySubject[subject] || [];
     if (!ids.length) continue;
     const targetTiers = targetTiersForProfile(seedProfile, subject);
@@ -697,13 +749,14 @@ export async function introduceCurriculumTopics(userId, profile, opts = {}) {
 
   const { data: rows, error } = await supabaseClient
     .from("srs_state")
-    .select("spec_point_id, due_date")
+    .select("spec_point_id, due_date, spec_points(subject)")
     .eq("user_id", userId);
   if (error) throw error;
 
   const allRows = rows || [];
+  const activeRows = filterRowsToActiveSubjects(allRows, seedProfile);
   const existingIds = new Set(allRows.map((row) => row.spec_point_id));
-  const dueTodayCount = allRows.filter(
+  const dueTodayCount = activeRows.filter(
     (row) => String(row.due_date || "").slice(0, 10) <= today
   ).length;
 
@@ -718,7 +771,7 @@ export async function introduceCurriculumTopics(userId, profile, opts = {}) {
   const plan = planCurriculumIntros({
     profile: seedProfile,
     today,
-    trackedCount: existingIds.size,
+    trackedCount: activeRows.length,
     eligibleCount,
     dueTodayCount,
     paceStateRaw: seedProfile?.revision_pace_state || profile?.revision_pace_state

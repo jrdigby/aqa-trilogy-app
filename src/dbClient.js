@@ -16,7 +16,7 @@ export const SRS_DUE_SELECT =
   "spec_point_id,due_date,interval_days,ease_factor,repetitions,lapses,last_quality, spec_points(id,subject,topic_name,spec_ref,spec_text)";
 
 export const SRS_STATE_SELECT =
-  "spec_point_id, interval_days, ease_factor, due_date, repetitions, lapses, last_quality";
+  "spec_point_id, interval_days, ease_factor, due_date, repetitions, lapses, last_quality, spec_points(subject)";
 
 // Core Supabase client initialization bound locally
 export const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -497,6 +497,8 @@ export async function fetchSyllabusPipelineData(userId, subject, paper, targetTi
 
 // ====== USER PROFILE (ONBOARDING) ======
 const PROFILE_COLUMNS_FULL =
+  "user_id, role, preferred_tier, science_path, subject_tiers, science_subjects, subscription_tier, onboarding_completed_at, subject_preference, class_id, display_name, total_xp, xp_rewards, revision_horizon_preset, target_exam_date, revision_pace_state, current_grades, target_grades, weekly_report_enabled, parent_email, parent_email_enabled, weekly_report_unsubscribed_at";
+const PROFILE_COLUMNS_FULL_WITHOUT_SCIENCE_SUBJECTS =
   "user_id, role, preferred_tier, science_path, subject_tiers, subscription_tier, onboarding_completed_at, subject_preference, class_id, display_name, total_xp, xp_rewards, revision_horizon_preset, target_exam_date, revision_pace_state, current_grades, target_grades, weekly_report_enabled, parent_email, parent_email_enabled, weekly_report_unsubscribed_at";
 const PROFILE_COLUMNS_BASE = "user_id, preferred_tier";
 const PROFILE_COLUMNS_LEGACY =
@@ -555,6 +557,7 @@ function normalizeProfileRow(data, userId) {
     preferred_tier: data.preferred_tier ?? "FT",
     science_path: data.science_path ?? "combined",
     subject_tiers: data.subject_tiers ?? null,
+    science_subjects: data.science_subjects ?? null,
     subscription_tier: data.subscription_tier ?? "free",
     onboarding_completed_at: data.onboarding_completed_at ?? null,
     subject_preference: data.subject_preference ?? null,
@@ -597,24 +600,35 @@ export async function patchUserProfile(userId, payload) {
   await restPatch("profiles", userId, payload, { user_id: `eq.${userId}` });
 }
 
+const PROFILE_SELECT_FALLBACKS = [
+  PROFILE_COLUMNS_FULL,
+  PROFILE_COLUMNS_FULL_WITHOUT_SCIENCE_SUBJECTS,
+  PROFILE_COLUMNS_WITHOUT_REPORTS,
+  PROFILE_COLUMNS_LEGACY,
+  PROFILE_COLUMNS_BASE
+];
+
+async function queryProfileWithFallbacks(userId) {
+  let lastErr = null;
+  for (const columns of PROFILE_SELECT_FALLBACKS) {
+    try {
+      return await queryProfileRow(userId, columns);
+    } catch (err) {
+      if (!isMissingColumnError(err)) throw err;
+      lastErr = err;
+    }
+  }
+  if (lastErr) throw lastErr;
+  return null;
+}
+
 export async function ensureUserProfile(userId) {
   let data = null;
 
   try {
-    data = await queryProfileRow(userId, PROFILE_COLUMNS_FULL);
+    data = await queryProfileWithFallbacks(userId);
   } catch (err) {
     if (!isMissingColumnError(err)) throw err;
-    try {
-      data = await queryProfileRow(userId, PROFILE_COLUMNS_WITHOUT_REPORTS);
-    } catch (err2) {
-      if (!isMissingColumnError(err2)) throw err2;
-      try {
-        data = await queryProfileRow(userId, PROFILE_COLUMNS_LEGACY);
-      } catch (err3) {
-        if (!isMissingColumnError(err3)) throw err3;
-        data = await queryProfileRow(userId, PROFILE_COLUMNS_BASE);
-      }
-    }
   }
 
   if (data) return normalizeProfileRow(data, userId);
@@ -635,20 +649,9 @@ export async function ensureUserProfile(userId) {
   }
 
   try {
-    data = await queryProfileRow(userId, PROFILE_COLUMNS_FULL);
+    data = await queryProfileWithFallbacks(userId);
   } catch (err) {
     if (!isMissingColumnError(err)) throw err;
-    try {
-      data = await queryProfileRow(userId, PROFILE_COLUMNS_WITHOUT_REPORTS);
-    } catch (err2) {
-      if (!isMissingColumnError(err2)) throw err2;
-      try {
-        data = await queryProfileRow(userId, PROFILE_COLUMNS_LEGACY);
-      } catch (err3) {
-        if (!isMissingColumnError(err3)) throw err3;
-        data = await queryProfileRow(userId, PROFILE_COLUMNS_BASE);
-      }
-    }
   }
 
   return normalizeProfileRow(data, userId);
@@ -782,15 +785,24 @@ export async function fetchStudentSRSStateDetailed(userId) {
 }
 
 export async function fetchTeacherStudentProfile(userId) {
-  const { data, error } = await supabaseClient
+  const withSubjects =
+    "user_id, display_name, preferred_tier, science_path, subject_tiers, science_subjects, subscription_tier, onboarding_completed_at, current_streak, last_login_date, class_id, total_xp, xp_rewards";
+  const withoutSubjects =
+    "user_id, display_name, preferred_tier, science_path, subject_tiers, subscription_tier, onboarding_completed_at, current_streak, last_login_date, class_id, total_xp, xp_rewards";
+  let result = await supabaseClient
     .from("profiles")
-    .select(
-      "user_id, display_name, preferred_tier, science_path, subject_tiers, subscription_tier, onboarding_completed_at, current_streak, last_login_date, class_id, total_xp, xp_rewards"
-    )
+    .select(withSubjects)
     .eq("user_id", userId)
     .maybeSingle();
-  if (error) throw error;
-  return data;
+  if (result.error && isMissingColumnError(result.error)) {
+    result = await supabaseClient
+      .from("profiles")
+      .select(withoutSubjects)
+      .eq("user_id", userId)
+      .maybeSingle();
+  }
+  if (result.error) throw result.error;
+  return result.data;
 }
 
 export async function fetchClassRosterStats(studentIds) {

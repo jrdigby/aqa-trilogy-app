@@ -34,6 +34,13 @@ function clamp(n, min, max) {
   return Math.max(min, Math.min(max, n));
 }
 
+/** Triple grade maths uses this list. Omitted or empty means all three subjects. */
+function subjectsForGrades(subjects) {
+  if (!Array.isArray(subjects) || !subjects.length) return SUBJECTS;
+  const filtered = SUBJECTS.filter((s) => subjects.includes(s));
+  return filtered.length ? filtered : SUBJECTS;
+}
+
 function parseCombinedPair(value) {
   const m = String(value || "").match(/^([1-9])\/([1-9])$/);
   if (!m) return null;
@@ -86,16 +93,16 @@ export function normalizeTargetGrades(raw, path = "combined") {
   return normalizeCurrentGrades(raw, path);
 }
 
-export function gradesMatchPath(grades, path) {
+export function gradesMatchPath(grades, path, subjects) {
   if (!grades || typeof grades !== "object") return false;
   if (path === "triple") {
-    return SUBJECTS.every((s) => normalizeTripleNumber(grades[s]) != null);
+    return subjectsForGrades(subjects).every((s) => normalizeTripleNumber(grades[s]) != null);
   }
   return parseCombinedPair(grades.combined) != null;
 }
 
 /** True when every target component is >= the matching current component. */
-export function compareGrades(current, target, path) {
+export function compareGrades(current, target, path, subjects) {
   const track = path === "triple" ? "triple" : "combined";
   const cur = normalizeCurrentGrades(current, track);
   const tgt = normalizeTargetGrades(target, track);
@@ -107,14 +114,14 @@ export function compareGrades(current, target, path) {
     return b.high >= a.high && b.low >= a.low;
   }
 
-  return SUBJECTS.every((s) => tgt[s] >= cur[s]);
+  return subjectsForGrades(subjects).every((s) => tgt[s] >= cur[s]);
 }
 
 /**
  * Combined: lower of the dual-award pair.
- * Triple: rounded average of the three subjects.
+ * Triple: rounded average of the selected subjects (all three if omitted).
  */
-export function primaryGradeNumber(grades, path) {
+export function primaryGradeNumber(grades, path, subjects) {
   const track = path === "triple" ? "triple" : "combined";
   const normalized = normalizeCurrentGrades(grades, track);
 
@@ -123,8 +130,9 @@ export function primaryGradeNumber(grades, path) {
     return pair ? Math.min(pair.high, pair.low) : DEFAULT_TRIPLE;
   }
 
-  const sum = SUBJECTS.reduce((acc, s) => acc + normalized[s], 0);
-  return Math.round(sum / SUBJECTS.length);
+  const list = subjectsForGrades(subjects);
+  const sum = list.reduce((acc, s) => acc + normalized[s], 0);
+  return Math.round(sum / list.length);
 }
 
 /**
@@ -158,8 +166,9 @@ export function gradeToDifficultyOffset(gradeNum, tier) {
  * @param {object} grades - current_grades shape
  * @param {"combined"|"triple"} path
  * @param {string|object} tierOrSubjectTiers - preferred_tier string, or { biology, chemistry, physics } for triple
+ * @param {string[]} [subjects] - triple subjects to include (default all three)
  */
-export function initialAdaptiveOffsetFromGrades(grades, path, tierOrSubjectTiers) {
+export function initialAdaptiveOffsetFromGrades(grades, path, tierOrSubjectTiers, subjects) {
   const track = path === "triple" ? "triple" : "combined";
   const normalized = normalizeCurrentGrades(grades, track);
 
@@ -175,18 +184,19 @@ export function initialAdaptiveOffsetFromGrades(grades, path, tierOrSubjectTiers
     tierOrSubjectTiers && typeof tierOrSubjectTiers === "object"
       ? tierOrSubjectTiers
       : {};
-  const offsets = SUBJECTS.map((s) =>
+  const list = subjectsForGrades(subjects);
+  const offsets = list.map((s) =>
     gradeToDifficultyOffset(normalized[s], tiers[s] || "FT")
   );
   const avg = offsets.reduce((a, b) => a + b, 0) / offsets.length;
   return clamp(Math.round(avg), -2, 2);
 }
 
-export function formatGradesLabel(grades, path) {
+export function formatGradesLabel(grades, path, subjects) {
   const track = path === "triple" ? "triple" : "combined";
   const normalized = normalizeCurrentGrades(grades, track);
   if (track === "combined") return normalized.combined;
-  return SUBJECTS.map(
+  return subjectsForGrades(subjects).map(
     (s) => `${s.charAt(0).toUpperCase()}${s.slice(1, 3)} ${normalized[s]}`
   ).join(" · ");
 }

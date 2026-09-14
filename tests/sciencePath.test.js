@@ -6,7 +6,10 @@ import {
   questionTierMatchesProfile,
   questionMatchesProfileTier,
   questionTiersForFetch,
-  targetTiersForTier
+  targetTiersForTier,
+  getActiveSubjects,
+  formatSciencePathLabel,
+  formatSciencePathShort
 } from "../src/sciencePath.js";
 
 const ftTiers = targetTiersForTier("FT");
@@ -47,6 +50,54 @@ test("questionMatchesProfileTier — crossover rows stored under any tier", () =
   const htOnly = { tier: "HT", demand_level: "standard_67" };
   assert.equal(questionMatchesProfileTier(htOnly, ftTiers), false);
   assert.equal(questionMatchesProfileTier(htOnly, htTiers), true);
+});
+
+test("getActiveSubjects — combined ignores a subset", () => {
+  assert.deepEqual(
+    getActiveSubjects({ science_path: "combined", science_subjects: ["physics"] }),
+    ["biology", "chemistry", "physics"]
+  );
+});
+
+test("getActiveSubjects — triple uses the stored subset", () => {
+  assert.deepEqual(
+    getActiveSubjects({ science_path: "triple", science_subjects: ["physics"] }),
+    ["physics"]
+  );
+  assert.deepEqual(
+    getActiveSubjects({
+      science_path: "triple",
+      science_subjects: ["chemistry", "physics", "chemistry"]
+    }),
+    ["chemistry", "physics"]
+  );
+});
+
+test("getActiveSubjects — missing triple selection means all three", () => {
+  assert.deepEqual(getActiveSubjects({ science_path: "triple" }), [
+    "biology",
+    "chemistry",
+    "physics"
+  ]);
+  assert.deepEqual(
+    getActiveSubjects({ science_path: "triple", science_subjects: [] }),
+    ["biology", "chemistry", "physics"]
+  );
+});
+
+test("formatSciencePathLabel lists only selected triple subjects", () => {
+  assert.equal(
+    formatSciencePathLabel({
+      science_path: "triple",
+      science_subjects: ["physics"],
+      subject_tiers: { physics: "HT" }
+    }),
+    "Triple · Phy HT"
+  );
+  assert.equal(
+    formatSciencePathShort({ science_path: "triple", science_subjects: ["physics"] }),
+    "Triple Science · Physics"
+  );
 });
 
 test("questionTiersForFetch — returns all stored tiers", () => {

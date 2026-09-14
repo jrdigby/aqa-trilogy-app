@@ -674,8 +674,13 @@ export function renderMasteryHeatmap(allSpecPoints, srsStates, onCellClickCallba
     physics: `Physics`
   };
 
-  // 4. Map rows independently for each subject track (label paired with its cell row)
+  const allowedSubjects = Array.isArray(options.subjects) && options.subjects.length
+    ? new Set(options.subjects.map((s) => String(s || "").toLowerCase()))
+    : null;
+
+  // 4. Map rows independently for each subject the student is taking.
   ['biology', 'chemistry', 'physics'].forEach(subKey => {
+    if (allowedSubjects && !allowedSubjects.has(subKey)) return;
     const subjectRow = document.createElement("div");
     subjectRow.className = "heatmap-subject-row";
 
