@@ -1,6 +1,6 @@
 # Ask an expert
 
-Students can flag a practice question for developer review. You get an in-app admin inbox plus email; you send **one** written reply the student reads under Settings → Expert replies.
+Students can flag a practice question for developer review. You get an in-app admin inbox plus email; you send **one** written reply the student reads in the Ask an Expert tab.
 
 ## What was built
 
@@ -17,7 +17,7 @@ Students can flag a practice question for developer review. You get an in-app ad
 1. During practice, tap **Ask an expert** under the question.
 2. Choose a reason (misconception vs suspected content error) and optional note.
 3. Edge Function inserts `expert_queries` (snapshot of stem, correct answer summary, student response) and emails you.
-4. When you reply, the student sees it in **Settings → Expert replies** (unread badge on Settings).
+4. When you reply, the student sees it in the **Ask an Expert** tab (unread badge on that tab).
 
 Anti-spam: one open flag per question, max 5 open overall, max 10 creates per UTC day.
 
@@ -63,7 +63,7 @@ supabase functions deploy submit-expert-query --project-ref hemcttqmhptwgxxrtolh
 2. Confirm a row appears in `expert_queries` with `status = open` and a populated `snapshot`.
 3. Confirm email arrives (or `email.skipped` / dry-run in the function response if secrets unset).
 4. As **developer**, open Expert Queries → see the item with Q / correct answer / student response / note.
-5. Send a reply → student Settings shows unread Expert replies → opening marks seen.
+5. Send a reply → student Ask an Expert tab shows an unread badge → opening marks seen.
 6. Optional: Dismiss path; rate-limit by flagging the same question twice while open.
 7. Email deep link `#expert&id=…` opens the Expert Queries tab on that row.
 

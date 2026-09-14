@@ -4,6 +4,8 @@
 import {
   EXPERT_CATEGORY_LABELS,
   expertCategoryLabel,
+  expertFeedbackLabel,
+  formatExpertStudentAnswer,
   escapeExpertHtml,
   truncateExpertText,
   formatExpertAge,
@@ -23,6 +25,12 @@ function scoreLine(snapshot) {
     return `${snapshot.score_total} / ${snapshot.score_max}`;
   }
   return "Not submitted yet";
+}
+
+function feedbackChip(row) {
+  const label = expertFeedbackLabel(row?.student_feedback);
+  if (!label) return "";
+  return `<span class="expert-admin-chip">${escapeExpertHtml(label)}</span>`;
 }
 
 function metaLine(snapshot) {
@@ -100,6 +108,7 @@ export function createExpertQueriesController(deps) {
           <button type="button" class="expert-admin-list-item${active}" data-expert-id="${escapeExpertHtml(row.id)}">
             <div class="expert-admin-list-top">
               <span class="expert-admin-chip">${escapeExpertHtml(expertCategoryLabel(row.category))}</span>
+              ${feedbackChip(row)}
               <span class="expert-admin-age">${escapeExpertHtml(formatExpertAge(row.created_at))}</span>
             </div>
             <div class="expert-admin-list-meta">${escapeExpertHtml(metaLine(s) || "—")}</div>
@@ -146,6 +155,7 @@ export function createExpertQueriesController(deps) {
     detail.innerHTML = `
       <div class="expert-admin-detail-head">
         <span class="expert-admin-chip">${escapeExpertHtml(expertCategoryLabel(row.category))}</span>
+        ${feedbackChip(row)}
         <span class="expert-admin-status">${escapeExpertHtml(row.status)}</span>
       </div>
       <p class="expert-admin-detail-meta">${escapeExpertHtml(metaLine(s) || "—")} · ${escapeExpertHtml(row.student_display_name || "Student")} · ${escapeExpertHtml(formatExpertAge(row.created_at))}</p>
@@ -169,7 +179,7 @@ export function createExpertQueriesController(deps) {
 
       <section class="expert-admin-section">
         <h4>Student response</h4>
-        <div class="expert-admin-box">${escapeExpertHtml(s.student_response_summary || "—")}</div>
+        <div class="expert-admin-box">${escapeExpertHtml(formatExpertStudentAnswer(s))}</div>
         <p class="muted" style="margin-top:6px;font-size:0.8rem;">Score: ${escapeExpertHtml(scoreLine(s))}</p>
       </section>
 

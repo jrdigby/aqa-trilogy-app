@@ -865,7 +865,7 @@
           <span id="tierBoundaryBadge" class="tier-boundary-badge hidden" role="status"></span>
 
           <span id="userChip" class="chip">...</span>
-          <button type="button" id="btnOpenSettings" class="btn-secondary btn-settings-with-badge" style="padding: 5px 12px; font-size: 0.8rem; flex: none;">⚙️ Settings<span id="settingsExpertDot" class="btn-settings-expert-dot hidden" aria-hidden="true"></span></button>
+          <button type="button" id="btnOpenSettings" class="btn-secondary" style="padding: 5px 12px; font-size: 0.8rem; flex: none;">⚙️ Settings</button>
           <button id="btnSignOut" class="btn-secondary" style="padding: 5px 10px; font-size: 0.8rem; flex: none;">Sign Out</button>
         </div>
       </div>
@@ -875,6 +875,7 @@
         <button type="button" id="tabAnalytics" class="dashboard-tab" role="tab" aria-selected="false" aria-controls="dashboardTabAnalytics">📊 Analytics</button>
         <button type="button" id="tabFlashcards" class="dashboard-tab" role="tab" aria-selected="false" aria-controls="dashboardTabFlashcards">📚 Flashcards</button>
         <button type="button" id="tabJourney" class="dashboard-tab" role="tab" aria-selected="false" aria-controls="dashboardTabJourney">🌍 Science Journey</button>
+        <button type="button" id="tabExpert" class="dashboard-tab" role="tab" aria-selected="false" aria-controls="dashboardTabExpert">💬 Ask an Expert<span id="expertTabUnreadBadge" class="expert-unread-badge hidden">0</span></button>
       </div>
 
       <div class="schedule-practice-block">
@@ -1079,18 +1080,25 @@
         <div id="journeyMapMount" class="journey-map-mount"></div>
       </div>
 
+      <div id="dashboardTabExpert" class="dashboard-tab-panel hidden" role="tabpanel">
+        <div class="dashboard-scoped-panel dashboard-scoped-panel--expert">
+          <h3 class="scoped-panel-heading">Ask an Expert <span id="expertRepliesUnreadBadge" class="expert-unread-badge hidden">0</span></h3>
+          <p class="muted settings-hint">These items only appear when you use <strong>Ask an expert</strong> on a practice question. Replies show up here.</p>
+          <p class="muted settings-hint">This is not a place to type a new question. To ask about something else, open a practice question and choose <strong>Ask an expert</strong> there.</p>
+          <div id="expertRepliesList" class="expert-replies-list">
+            <p class="muted" style="font-size: 0.85rem;">Loading…</p>
+          </div>
+          <details id="expertArchivedSection" class="expert-archived hidden">
+            <summary>Archived (<span id="expertArchivedCount">0</span>)</summary>
+            <div id="expertArchivedList" class="expert-replies-list"></div>
+          </details>
+        </div>
+      </div>
+
       <div id="dashboardTabSettings" class="dashboard-settings-panel hidden">
         <div class="dashboard-scoped-panel dashboard-scoped-panel--settings">
           <h3 class="scoped-panel-heading">⚙️ Study preferences</h3>
           <p class="muted" style="margin-bottom: 20px; font-size: 0.9rem;">Update the same choices you made at sign-up. Changes affect which questions you see and how new topics are scheduled.</p>
-
-          <div class="settings-section" id="expertRepliesSection">
-            <h4 class="settings-heading">Expert replies <span id="expertRepliesUnreadBadge" class="expert-unread-badge hidden">0</span></h4>
-            <p class="muted settings-hint">When you use <strong>Ask an expert</strong> on a question, replies appear here.</p>
-            <div id="expertRepliesList" class="expert-replies-list">
-              <p class="muted" style="font-size: 0.85rem;">Loading…</p>
-            </div>
-          </div>
 
           <div class="settings-section">
             <h4 class="settings-heading">Your name</h4>
@@ -1337,7 +1345,7 @@
     <div class="upgrade-modal-card ask-expert-modal-card">
       <button type="button" id="btnCloseAskExpertModal" class="upgrade-modal-close" aria-label="Close">×</button>
       <h2 id="askExpertModalTitle">Ask an expert</h2>
-      <p class="muted" style="margin-bottom: 14px; font-size: 0.9rem;">Flag this question if you&apos;re stuck, or if you think the content is wrong. You&apos;ll get one written reply in Settings → Expert replies.</p>
+      <p class="muted" style="margin-bottom: 14px; font-size: 0.9rem;">Flag this question if you&apos;re stuck, or if you think the content is wrong. You&apos;ll get one written reply in the Ask an Expert tab.</p>
       <fieldset class="ask-expert-fieldset">
         <legend class="ask-expert-legend">Why are you asking?</legend>
         <div id="askExpertCategoryOptions" class="ask-expert-categories"></div>
@@ -1358,6 +1366,7 @@
       <button type="button" id="btnCloseExpertReplyModal" class="upgrade-modal-close" aria-label="Close">×</button>
       <h2 id="expertReplyModalTitle">Expert reply</h2>
       <div id="expertReplyModalBody" class="expert-reply-modal-body"></div>
+      <div id="expertReplyModalActions" class="expert-reply-actions"></div>
       <div class="upgrade-modal-actions">
         <button type="button" id="btnDismissExpertReplyModal" class="btn-secondary">Close</button>
       </div>
