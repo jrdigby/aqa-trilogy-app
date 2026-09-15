@@ -1,7 +1,8 @@
-/** Free vs Student Pro tier logic — see free_vs_pro_plan.md */
+/** Trial + hard paywall access — see production_rollout_plan.md */
 
 export const FREE_AI_MARKS_PER_WEEK = 3;
 export const FREE_HALF_PAPERS_PER_MONTH = 1;
+export const TRIAL_DAYS = 14;
 export const PRO_PRICE_EARLY_ADOPTER_GBP = 15;
 export const PRO_PRICE_STANDARD_GBP = 20;
 
@@ -12,6 +13,7 @@ const FEATURE_COPY = {
   heatmap: "Click any topic on the mastery matrix to practise",
   pdf_flashcards: "Download your gap flashcards as a PDF",
   analytics: "Full analytics — activity charts, AO breakdown, MS/WS skills, and mastery index",
+  paywall: "Your free trial has ended. Subscribe for full access, or ask your school admin to unlock your account.",
   generic: "Student Pro features",
 };
 
@@ -21,46 +23,92 @@ export function isClassLicenceActive(classInfo) {
   return new Date(classInfo.paid_until) > new Date();
 }
 
+export function isTrialActive(profile) {
+  if (!profile?.trial_ends_at) return false;
+  const ends = new Date(profile.trial_ends_at);
+  if (Number.isNaN(ends.getTime())) return false;
+  return ends > new Date();
+}
+
+export function trialDaysRemaining(profile) {
+  if (!isTrialActive(profile)) return 0;
+  const ends = new Date(profile.trial_ends_at);
+  const ms = ends.getTime() - Date.now();
+  return Math.max(0, Math.ceil(ms / (24 * 60 * 60 * 1000)));
+}
+
+export function trialEndsAtIso(fromDate = new Date()) {
+  const d = new Date(fromDate);
+  d.setUTCDate(d.getUTCDate() + TRIAL_DAYS);
+  return d.toISOString();
+}
+
+/**
+ * @returns {{
+ *   isPro: boolean,
+ *   hasAccess: boolean,
+ *   accessSource: 'trial'|'paid'|'class'|'developer'|'locked',
+ *   tier: 'pro'|'trial'|'locked',
+ *   trialEndsAt: string|null,
+ *   trialDaysLeft: number,
+ *   canHeatmapPractice: boolean,
+ *   canPdfFlashcards: boolean,
+ *   canFullAnalytics: boolean,
+ *   canSkillPractice: boolean,
+ *   canFullPaperSim: boolean,
+ *   aiMarksLimit: number|null,
+ *   halfPaperLimit: number|null,
+ * }}
+ */
 export function resolveAccess(profile, classInfo = null) {
-  const isPro =
-    profile?.role === "developer" ||
-    profile?.subscription_tier === "paid" ||
-    isClassLicenceActive(classInfo);
+  const trialActive = isTrialActive(profile);
+  const classActive = isClassLicenceActive(classInfo);
+  const isDeveloper = profile?.role === "developer";
+  const isPaid = profile?.subscription_tier === "paid";
+
+  let accessSource = "locked";
+  if (isDeveloper) accessSource = "developer";
+  else if (isPaid) accessSource = "paid";
+  else if (classActive) accessSource = "class";
+  else if (trialActive) accessSource = "trial";
+
+  const hasAccess = accessSource !== "locked";
+  const isPro = hasAccess;
 
   return {
     isPro,
-    tier: isPro ? "pro" : "free",
-    canHeatmapPractice: isPro,
-    canPdfFlashcards: isPro,
-    canFullAnalytics: isPro,
-    canSkillPractice: isPro,
-    canFullPaperSim: isPro,
-    aiMarksLimit: isPro ? null : FREE_AI_MARKS_PER_WEEK,
-    halfPaperLimit: isPro ? null : FREE_HALF_PAPERS_PER_MONTH,
+    hasAccess,
+    accessSource,
+    tier: accessSource === "trial" ? "trial" : hasAccess ? "pro" : "locked",
+    trialEndsAt: profile?.trial_ends_at ?? null,
+    trialDaysLeft: trialDaysRemaining(profile),
+    canHeatmapPractice: hasAccess,
+    canPdfFlashcards: hasAccess,
+    canFullAnalytics: hasAccess,
+    canSkillPractice: hasAccess,
+    canFullPaperSim: hasAccess,
+    aiMarksLimit: hasAccess ? null : 0,
+    halfPaperLimit: hasAccess ? null : 0,
   };
 }
 
 /** @param {number} targetMarks - 10, 20, 35, or 70 */
 export function canStartExamPrepMode(access, targetMarks, quotas = {}) {
+  if (!access?.hasAccess) {
+    return {
+      allowed: false,
+      feature: "paywall",
+      reason: FEATURE_COPY.paywall,
+    };
+  }
   if (targetMarks === 10 || targetMarks === 20) {
     return { allowed: true };
   }
   if (targetMarks === 70) {
-    if (access.isPro) return { allowed: true };
-    return { allowed: false, feature: "full_paper", reason: "Full papers are a Student Pro feature." };
+    return { allowed: true };
   }
   if (targetMarks === 35) {
-    if (access.isPro) return { allowed: true };
-    const used = quotas.half_paper_used ?? 0;
-    const limit = quotas.half_paper_limit ?? FREE_HALF_PAPERS_PER_MONTH;
-    if (used < limit) {
-      return { allowed: true, consumesHalfPaperQuota: true };
-    }
-    return {
-      allowed: false,
-      feature: "half_paper",
-      reason: `You've used your ${limit} free half-paper this month. Upgrade for unlimited mock papers.`,
-    };
+    return { allowed: true };
   }
   return { allowed: true };
 }

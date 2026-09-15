@@ -32,7 +32,7 @@ import {
   setExpertQueryFeedback,
   setExpertQueryArchived
 } from './askExpert.js';
-import { supabaseClient, timeoutPromise, fetchDashboardDueItems, fetchConceptGapAttempts, fetchWeeklyForecastSchedules, fetchSyllabusPipelineData, fetchAttemptActivity, fetchUserProfile, fetchUserClassLicense, fetchPlanQuotas, tryConsumeAiMark, tryConsumeHalfPaper, stashAuthSession, clearAuthGraceSession, endAuthGracePeriod, isAuthGraceActive, incrementUserXp, claimXpMilestone, consumeStreakFreeze, fetchDominantSubject, patchUserProfile } from './dbClient.js';
+import { supabaseClient, timeoutPromise, fetchDashboardDueItems, fetchConceptGapAttempts, fetchWeeklyForecastSchedules, fetchSyllabusPipelineData, fetchAttemptActivity, fetchUserProfile, fetchUserClassLicense, fetchPlanQuotas, stashAuthSession, clearAuthGraceSession, endAuthGracePeriod, isAuthGraceActive, incrementUserXp, claimXpMilestone, consumeStreakFreeze, fetchDominantSubject, patchUserProfile } from './dbClient.js';
 import dbClient from "./dbClient.js";
 import {
   saveOnboardingProfile,
@@ -89,8 +89,6 @@ import {
   canStartExamPrepMode,
   featureLabel,
   formatProPricing,
-  FREE_AI_MARKS_PER_WEEK,
-  FREE_HALF_PAPERS_PER_MONTH,
 } from './featureAccess.js';
 import { computeAttemptXp, formatXpToastMessage, XP_RULES_FOOTNOTE, XP_RULES_TOAST_KEY } from './xpEngine.js';
 import {
@@ -557,9 +555,9 @@ let currentAccess = resolveAccess(null);
 let planQuotas = {
   is_pro: false,
   ai_used: 0,
-  ai_limit: FREE_AI_MARKS_PER_WEEK,
+  ai_limit: 0,
   half_paper_used: 0,
-  half_paper_limit: FREE_HALF_PAPERS_PER_MONTH,
+  half_paper_limit: 0,
 };
 let settingsTier = "FT";
 let settingsSciencePath = "combined";
@@ -1199,6 +1197,7 @@ function renderSessionResumeBanner(snapshot) {
   host.insertBefore(banner, host.firstChild);
 
   el("btnResumeSession")?.addEventListener("click", () => {
+    if (!requireAccess("paywall")) return;
     void resumePracticeSession(snapshot);
   });
   el("btnDiscardSession")?.addEventListener("click", () => {
@@ -1305,7 +1304,7 @@ function scheduleDashboardHeatmapRender(activeSRS) {
           readOnly: !currentAccess?.canHeatmapPractice,
           onReadOnlyCellClick: currentAccess?.canHeatmapPractice
             ? null
-            : () => showUpgradeModal("heatmap"),
+            : () => showUpgradeModal("paywall"),
           subjects: activeSubjects
         }
       );
@@ -1402,6 +1401,7 @@ async function loadDashboard(user = currentUser) {
       btn.addEventListener("click", async () => {
         const specPointId = btn.getAttribute("data-spec-point-id");
         if (!specPointId || !currentUser) return;
+        if (!requireAccess("paywall")) return;
         btn.disabled = true;
         try {
           await startSessionForSpecPointWrapper(specPointId);
@@ -1800,6 +1800,7 @@ function wireFlashcardSelectionBar(deck) {
   }
   if (btnExamPrep) {
     btnExamPrep.onclick = async () => {
+      if (!requireAccess("paywall")) return;
       const selected = (deck || [])
         .map((att) => att.question_id)
         .filter((id) => id && flashcardSelectedIds.has(id));
@@ -1927,10 +1928,7 @@ async function loadRevisionCards() {
     if (btnDl) {
       btnDl.style.display = "block";
       btnDl.onclick = async () => {
-        if (!currentAccess?.canPdfFlashcards) {
-          showUpgradeModal("pdf_flashcards");
-          return;
-        }
+        if (!requireAccess("pdf_flashcards")) return;
         await downloadStudyGuideText(failedAttempts);
       };
     }
@@ -2175,6 +2173,12 @@ async function pickNextScheduledSpecPoint({ excludeSpecPointId } = {}) {
 async function updateStartPracticePreview(dueItems, srsRows = cachedActiveSRS) {
   if (!startPracticePreview || !btnStartPractice) return;
 
+  if (currentAccess && !currentAccess.hasAccess) {
+    setPracticePreviewText("Your free trial has ended — subscribe or ask an admin to unlock practice.");
+    btnStartPractice.disabled = true;
+    return;
+  }
+
   if (!dueItems?.length) {
     if (hasStudentStartedPractice(srsRows)) {
       setPracticePreviewCaughtUp();
@@ -2214,6 +2218,7 @@ async function updateStartPracticePreview(dueItems, srsRows = cachedActiveSRS) {
 if (btnStartPractice) {
   btnStartPractice.onclick = async () => {
     if (!currentUser) return;
+    if (!requireAccess("paywall")) return;
 
     let targeted = null;
     try {
@@ -2312,6 +2317,7 @@ async function refreshExamPaperPreview() {
 
 if (btnExamPrep) {
   btnExamPrep.onclick = async () => {
+    if (!requireAccess("paywall")) return;
     const selection = getExamPrepSelection();
     if (isPaperExamMode(selection)) {
       if (!isPaperModeAllowed()) {
@@ -2321,24 +2327,9 @@ if (btnExamPrep) {
       }
       const gate = canStartExamPrepMode(currentAccess, selection, planQuotas);
       if (!gate.allowed) {
-        showUpgradeModal(gate.feature || "full_paper");
+        showUpgradeModal(gate.feature || "paywall");
         showToastBanner(gate.reason, true);
         return;
-      }
-      if (gate.consumesHalfPaperQuota) {
-        try {
-          const consumed = await tryConsumeHalfPaper();
-          if (!consumed?.allowed) {
-            showUpgradeModal("half_paper");
-            showToastBanner("You've used your free half-paper for this month.", true);
-            await refreshPlanState();
-            return;
-          }
-          planQuotas.half_paper_used = consumed.used ?? planQuotas.half_paper_used + 1;
-          updatePlanQuotaChip();
-        } catch (err) {
-          console.warn("Half-paper quota check failed:", err);
-        }
       }
       await startExamPrep(engineContext, { targetMarks: selection });
       await refreshPlanState();
@@ -2398,9 +2389,11 @@ const engineContext = {
 
 // Reroute old global hooks smoothly to your isolated module execution patterns:
 async function startAnyPracticeWrapper() {
+  if (!requireAccess("paywall")) return;
   await startAnyPractice(engineContext);
 }
 async function startSessionForSpecPointWrapper(specPointId, qType = "") {
+  if (!requireAccess("paywall")) return;
   await startSessionForSpecPoint(specPointId, qType, engineContext);
 }
 
@@ -4301,10 +4294,12 @@ function setSignedOutUI() {
   planQuotas = {
     is_pro: false,
     ai_used: 0,
-    ai_limit: FREE_AI_MARKS_PER_WEEK,
+    ai_limit: 0,
     half_paper_used: 0,
-    half_paper_limit: FREE_HALF_PAPERS_PER_MONTH,
+    half_paper_limit: 0,
   };
+  applyHardPaywallBanner();
+  updatePlanQuotaChip();
 
   if (authMsg) {
     authMsg.textContent = "Not signed in.";
@@ -4315,35 +4310,48 @@ function setSignedOutUI() {
 function updateUserChipDisplay() {
   if (!userChip || !currentUser) return;
   const email = currentUser.email || currentUser.id;
-  const label = currentAccess?.isPro ? "pro" : "free";
-  const badgeClass = currentAccess?.isPro ? "subscription-badge paid" : "subscription-badge";
+  const source = currentAccess?.accessSource || "locked";
+  let label = "locked";
+  let badgeClass = "subscription-badge locked";
+  if (source === "trial") {
+    const days = currentAccess?.trialDaysLeft ?? 0;
+    label = days > 0 ? `trial · ${days}d` : "trial";
+    badgeClass = "subscription-badge trial";
+  } else if (source === "paid" || source === "class" || source === "developer") {
+    label = "pro";
+    badgeClass = "subscription-badge paid";
+  }
   userChip.innerHTML = `${escapeHtml(email)}<span class="${badgeClass}">${escapeHtml(label)}</span>`;
 }
 
 function updatePlanQuotaChip() {
   const chip = el("planQuotaChip");
   if (!chip) return;
-  if (!currentUser || currentAccess?.isPro) {
-    chip.classList.add("hidden");
-    chip.textContent = "";
-    return;
-  }
-  const aiLeft = Math.max(0, (planQuotas.ai_limit ?? FREE_AI_MARKS_PER_WEEK) - (planQuotas.ai_used ?? 0));
-  const halfLeft = Math.max(
-    0,
-    (planQuotas.half_paper_limit ?? FREE_HALF_PAPERS_PER_MONTH) - (planQuotas.half_paper_used ?? 0)
-  );
-  chip.classList.remove("hidden");
-  chip.textContent = `AI: ${aiLeft}/${planQuotas.ai_limit ?? FREE_AI_MARKS_PER_WEEK} · Half-paper: ${halfLeft}/${planQuotas.half_paper_limit ?? FREE_HALF_PAPERS_PER_MONTH}`;
-  chip.title = "Free plan allowances this week / month. Upgrade for unlimited.";
+  // Hard paywall: no freemium quota chip (trial/pro unlimited; locked has no allowances).
+  chip.classList.add("hidden");
+  chip.textContent = "";
+}
+
+function applyHardPaywallBanner() {
+  const banner = el("hardPaywallBanner");
+  if (!banner) return;
+  const locked = !!currentUser && currentAccess && !currentAccess.hasAccess;
+  banner.classList.toggle("hidden", !locked);
 }
 
 function applyAnalyticsTierUI() {
   const freePanel = el("analyticsFreeSummary");
   const proPanel = el("analyticsProContent");
-  const isPro = currentAccess?.canFullAnalytics;
-  if (freePanel) freePanel.classList.toggle("hidden", !!isPro);
-  if (proPanel) proPanel.classList.toggle("hidden", !isPro);
+  const hasAccess = !!currentAccess?.hasAccess;
+  if (freePanel) freePanel.classList.toggle("hidden", true);
+  if (proPanel) proPanel.classList.toggle("hidden", !hasAccess);
+}
+
+/** @returns {boolean} true if the user may start practice / use Pro features */
+function requireAccess(featureKey = "paywall") {
+  if (currentAccess?.hasAccess) return true;
+  showUpgradeModal(featureKey === "generic" ? "paywall" : featureKey);
+  return false;
 }
 
 function updateFreeAnalyticsSummary() {
@@ -4365,8 +4373,13 @@ function showUpgradeModal(featureKey = "generic") {
   const modal = el("upgradeModal");
   const featureEl = el("upgradeModalFeature");
   const pricingEl = el("upgradeModalPricing");
+  const titleEl = el("upgradeModalTitle");
+  const key = !currentAccess?.hasAccess ? "paywall" : featureKey;
+  if (titleEl) {
+    titleEl.textContent = key === "paywall" ? "Subscribe to continue" : "Upgrade to Student Pro";
+  }
   if (featureEl) {
-    featureEl.textContent = featureLabel(featureKey);
+    featureEl.textContent = featureLabel(key);
   }
   if (pricingEl) {
     pricingEl.textContent = formatProPricing();
@@ -4389,17 +4402,20 @@ function hideUpgradeModal() {
 }
 
 function wireUpgradeModal() {
-  const modal = el("upgradeModal");
   const backdrop = el("upgradeModalBackdrop");
   const btnClose = el("btnCloseUpgradeModal");
   const btnDismiss = el("btnUpgradeModalDismiss");
   const btnAnalytics = el("btnUpgradeFromAnalytics");
+  const btnHardPaywall = el("btnHardPaywallUpgrade");
 
   if (backdrop) backdrop.onclick = hideUpgradeModal;
   if (btnClose) btnClose.onclick = hideUpgradeModal;
   if (btnDismiss) btnDismiss.onclick = hideUpgradeModal;
   if (btnAnalytics) {
-    btnAnalytics.onclick = () => showUpgradeModal("analytics");
+    btnAnalytics.onclick = () => showUpgradeModal("paywall");
+  }
+  if (btnHardPaywall) {
+    btnHardPaywall.onclick = () => showUpgradeModal("paywall");
   }
 
   wireModalAccessibility({
@@ -4426,28 +4442,33 @@ async function refreshPlanState() {
     planQuotas = {
       is_pro: !!q?.is_pro,
       ai_used: Number(q?.ai_used) || 0,
-      ai_limit: Number(q?.ai_limit) || FREE_AI_MARKS_PER_WEEK,
+      ai_limit: Number(q?.ai_limit) || 0,
       half_paper_used: Number(q?.half_paper_used) || 0,
-      half_paper_limit: Number(q?.half_paper_limit) || FREE_HALF_PAPERS_PER_MONTH,
+      half_paper_limit: Number(q?.half_paper_limit) || 0,
     };
-    const profileForAccess = q?.is_pro
-      ? { ...currentUserProfile, subscription_tier: "paid" }
-      : currentUserProfile;
-    currentAccess = resolveAccess(profileForAccess, classInfo);
+    currentAccess = resolveAccess(currentUserProfile, classInfo);
+    // Server may grant access via class licence even if client class fetch failed.
+    if (q?.is_pro && !currentAccess.hasAccess) {
+      currentAccess = resolveAccess(
+        { ...currentUserProfile, subscription_tier: "paid" },
+        classInfo
+      );
+    }
   } catch (err) {
     console.warn("Plan quotas unavailable (run migration?):", err?.message || err);
     currentAccess = resolveAccess(currentUserProfile, classInfo);
     planQuotas = {
       is_pro: currentAccess.isPro,
       ai_used: 0,
-      ai_limit: FREE_AI_MARKS_PER_WEEK,
+      ai_limit: 0,
       half_paper_used: 0,
-      half_paper_limit: FREE_HALF_PAPERS_PER_MONTH,
+      half_paper_limit: 0,
     };
   }
 
   updateUserChipDisplay();
   updatePlanQuotaChip();
+  applyHardPaywallBanner();
   applyAnalyticsTierUI();
   updateFreeAnalyticsSummary();
 }
@@ -5747,10 +5768,7 @@ async function loadTopics() {
         { questions, attempts, validQuestionIds },
         {
           onPracticeSkill: (code) => {
-            if (!currentAccess?.canSkillPractice) {
-              showUpgradeModal("analytics");
-              return;
-            }
+            if (!requireAccess("analytics")) return;
             startSkillPractice(engineContext, { fullCode: code });
           },
         }
@@ -5915,27 +5933,11 @@ async function submitCurrentAnswer() {
   hideAdvanceButton();
 
   if (currentQ.question_type === "extended_response" || currentQ.marking_method === "ai_rubric") {
-    let useAiMarking = !!currentAccess?.isPro;
+    let useAiMarking = !!currentAccess?.hasAccess;
 
     if (!useAiMarking) {
-      try {
-        const quota = await tryConsumeAiMark();
-        if (quota?.allowed) {
-          useAiMarking = true;
-          planQuotas.ai_used = Number(quota.used) || planQuotas.ai_used + 1;
-          updatePlanQuotaChip();
-        } else {
-          showUpgradeModal("ai_marking");
-          showToastBanner(
-            `You've used your ${quota?.limit ?? FREE_AI_MARKS_PER_WEEK} free AI examiner marks this week. Showing basic feedback instead.`,
-            true
-          );
-        }
-      } catch (quotaErr) {
-        console.warn("AI quota check failed:", quotaErr?.message || quotaErr);
-        showToastBanner("Could not verify AI marking quota. Showing basic feedback instead.", true);
-        useAiMarking = false;
-      }
+      showUpgradeModal("paywall");
+      showToastBanner("AI examiner marking requires an active trial or Student Pro subscription.", true);
     }
 
     if (!useAiMarking) {

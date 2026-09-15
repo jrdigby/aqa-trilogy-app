@@ -723,7 +723,7 @@ export function renderMasteryHeatmap(allSpecPoints, srsStates, onCellClickCallba
       cell.setAttribute(
         "data-tooltip",
         readOnly && typeof onCellClickCallback !== "function"
-          ? `${tooltipText} — Student Pro: click to practise`
+          ? `${tooltipText} — Subscribe or use your trial to practise`
           : tooltipText
       );
 

@@ -2129,6 +2129,115 @@
     #editSaveError.visible {
       display: block;
     }
+    .pilot-access-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: end;
+      margin-top: 14px;
+    }
+    .pilot-access-toolbar .field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 160px;
+    }
+    .pilot-access-toolbar label {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+    .pilot-access-toolbar input[type="search"],
+    .pilot-access-toolbar select {
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 0.9rem;
+    }
+    .pilot-access-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+      margin: 14px 0 8px;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+    .pilot-access-table-wrap {
+      overflow: auto;
+      max-height: min(60vh, 520px);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #fff;
+    }
+    .pilot-access-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+    }
+    .pilot-access-table th,
+    .pilot-access-table td {
+      padding: 10px 12px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+    .pilot-access-table th {
+      position: sticky;
+      top: 0;
+      background: #f8fafc;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      color: #64748b;
+      z-index: 1;
+    }
+    .pilot-access-table tbody tr:hover {
+      background: #f8fafc;
+    }
+    .pilot-access-table tbody tr.is-selected {
+      background: #eff6ff;
+    }
+    .pilot-access-email {
+      font-weight: 600;
+      color: #0f172a;
+      word-break: break-all;
+    }
+    .pilot-access-name {
+      color: var(--text-muted);
+      font-size: 0.82rem;
+    }
+    .pilot-status-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .pilot-status-badge.pro {
+      background: #ecfdf5;
+      color: #047857;
+      border: 1px solid #a7f3d0;
+    }
+    .pilot-status-badge.trial {
+      background: #eff6ff;
+      color: #1d4ed8;
+      border: 1px solid #bfdbfe;
+    }
+    .pilot-status-badge.locked {
+      background: #fef2f2;
+      color: #b91c1c;
+      border: 1px solid #fecaca;
+    }
+    .pilot-access-empty {
+      padding: 24px 16px;
+      text-align: center;
+      color: var(--text-muted);
+    }
   </style>
 </head>
 <body>
@@ -3896,22 +4005,59 @@
         <div class="card">
           <h3 style="margin-top:0; color:var(--primary-dark); font-size:1.1rem; border-bottom:1px solid var(--border); padding-bottom:8px;">Pilot: Grant Student Pro</h3>
           <p style="color:var(--text-muted); font-size:0.85rem; line-height:1.45;">
-            Manually set a student&apos;s subscription tier before Stripe checkout is live. Developer accounts only — teachers cannot promote students.
+            Review every student account, multi-select rows, then grant full access (bypass paywall) or return them to free (trial / hard paywall rules).
+            Developer accounts only — teachers cannot promote students.
           </p>
-          <div class="row" style="margin-top: 16px;">
-            <div>
-              <label>Student email</label>
-              <input type="email" id="pilotStudentEmail" placeholder="student@school.example" />
+
+          <div class="pilot-access-toolbar">
+            <div class="field" style="flex: 1 1 220px;">
+              <label for="pilotStudentFilter">Filter</label>
+              <input type="search" id="pilotStudentFilter" placeholder="Search email or name…" />
             </div>
-            <div>
-              <label>Subscription tier</label>
-              <select id="pilotSubscriptionTier">
-                <option value="paid">Student Pro (paid)</option>
-                <option value="free">Free</option>
+            <div class="field">
+              <label for="pilotStatusFilter">Status</label>
+              <select id="pilotStatusFilter">
+                <option value="all">All</option>
+                <option value="pro">Pro</option>
+                <option value="trial">Trial</option>
+                <option value="locked">Locked</option>
               </select>
             </div>
+            <div class="field">
+              <label for="pilotSubscriptionTier">Set access to</label>
+              <select id="pilotSubscriptionTier">
+                <option value="paid">Full access (bypass paywall)</option>
+                <option value="free">Free (trial / hard paywall)</option>
+              </select>
+            </div>
+            <button type="button" id="btnPilotGrantPro" class="btn btn-primary">Apply to selected</button>
+            <button type="button" id="btnPilotRefreshList" class="btn btn-secondary">Refresh</button>
           </div>
-          <button type="button" id="btnPilotGrantPro" class="btn btn-primary" style="margin-top: 12px;">Update subscription</button>
+
+          <div class="pilot-access-meta">
+            <span id="pilotSelectionSummary">0 selected</span>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <button type="button" id="btnPilotSelectVisible" class="btn btn-secondary" style="padding:6px 10px; font-size:0.8rem;">Select visible</button>
+              <button type="button" id="btnPilotClearSelection" class="btn btn-secondary" style="padding:6px 10px; font-size:0.8rem;">Clear selection</button>
+            </div>
+          </div>
+
+          <div class="pilot-access-table-wrap">
+            <table class="pilot-access-table" aria-label="Student access list">
+              <thead>
+                <tr>
+                  <th style="width:42px;"><input type="checkbox" id="pilotSelectAllVisible" title="Select all visible" aria-label="Select all visible" /></th>
+                  <th>Email</th>
+                  <th>Name</th>
+                  <th>Status</th>
+                  <th>Trial ends</th>
+                </tr>
+              </thead>
+              <tbody id="pilotStudentTableBody">
+                <tr><td colspan="5" class="pilot-access-empty">Open this tab to load students…</td></tr>
+              </tbody>
+            </table>
+          </div>
           <p id="pilotGrantStatus" class="muted" style="margin-top: 12px; font-size: 0.85rem;"></p>
         </div>
       </div>
@@ -4937,23 +5083,193 @@
   document.getElementById("btnAddCreatorHint")?.addEventListener("click", () => addHintRow("creatorHintsList"));
   document.getElementById("btnAddEditHint")?.addEventListener("click", () => addHintRow("editHintsList"));
 
+  let pilotStudentsCache = [];
+  const pilotSelectedIds = new Set();
+  let pilotListLoadedOnce = false;
+
+  function escapePilotHtml(value) {
+    return String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function formatPilotTrialEnds(iso) {
+    if (!iso) return "—";
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "—";
+    return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  }
+
+  function pilotStatusLabel(student) {
+    if (student.access_status === "pro") return "Pro";
+    if (student.access_status === "trial") {
+      const days = Number(student.trial_days_left) || 0;
+      return days > 0 ? `Trial · ${days}d` : "Trial";
+    }
+    return "Locked";
+  }
+
+  function getFilteredPilotStudents() {
+    const q = (document.getElementById("pilotStudentFilter")?.value || "").trim().toLowerCase();
+    const status = document.getElementById("pilotStatusFilter")?.value || "all";
+    return pilotStudentsCache.filter((s) => {
+      if (status !== "all" && s.access_status !== status) return false;
+      if (!q) return true;
+      const email = String(s.email || "").toLowerCase();
+      const name = String(s.display_name || "").toLowerCase();
+      return email.includes(q) || name.includes(q);
+    });
+  }
+
+  function updatePilotSelectionSummary() {
+    const summary = document.getElementById("pilotSelectionSummary");
+    const filtered = getFilteredPilotStudents();
+    const selectedVisible = filtered.filter((s) => pilotSelectedIds.has(s.user_id)).length;
+    if (summary) {
+      summary.textContent = `${pilotSelectedIds.size} selected · ${filtered.length} visible · ${pilotStudentsCache.length} total`;
+    }
+    const selectAll = document.getElementById("pilotSelectAllVisible");
+    if (selectAll) {
+      selectAll.checked = filtered.length > 0 && selectedVisible === filtered.length;
+      selectAll.indeterminate = selectedVisible > 0 && selectedVisible < filtered.length;
+    }
+  }
+
+  function renderPilotStudentTable() {
+    const tbody = document.getElementById("pilotStudentTableBody");
+    if (!tbody) return;
+    const rows = getFilteredPilotStudents();
+    if (!rows.length) {
+      tbody.innerHTML = `<tr><td colspan="5" class="pilot-access-empty">${
+        pilotStudentsCache.length ? "No students match this filter." : "No student accounts found."
+      }</td></tr>`;
+      updatePilotSelectionSummary();
+      return;
+    }
+    tbody.innerHTML = rows.map((s) => {
+      const selected = pilotSelectedIds.has(s.user_id);
+      return `<tr class="${selected ? "is-selected" : ""}" data-user-id="${escapePilotHtml(s.user_id)}">
+        <td><input type="checkbox" class="pilot-row-check" data-user-id="${escapePilotHtml(s.user_id)}" ${selected ? "checked" : ""} aria-label="Select ${escapePilotHtml(s.email || "student")}" /></td>
+        <td><div class="pilot-access-email">${escapePilotHtml(s.email || "—")}</div></td>
+        <td><div class="pilot-access-name">${escapePilotHtml(s.display_name || "—")}</div></td>
+        <td><span class="pilot-status-badge ${escapePilotHtml(s.access_status || "locked")}">${escapePilotHtml(pilotStatusLabel(s))}</span></td>
+        <td>${escapePilotHtml(formatPilotTrialEnds(s.trial_ends_at))}</td>
+      </tr>`;
+    }).join("");
+    updatePilotSelectionSummary();
+  }
+
+  async function loadPilotStudentList({ quiet = false } = {}) {
+    const statusEl = document.getElementById("pilotGrantStatus");
+    const tbody = document.getElementById("pilotStudentTableBody");
+    if (tbody && !quiet) {
+      tbody.innerHTML = `<tr><td colspan="5" class="pilot-access-empty">Loading students…</td></tr>`;
+    }
+    try {
+      const { data, error } = await supabaseClient.rpc("developer_list_student_access");
+      if (error) throw error;
+      if (!data?.ok) {
+        const reason = data?.reason || "unknown_error";
+        const messages = {
+          forbidden: "Developer role required.",
+          not_authenticated: "Sign in again and retry.",
+        };
+        throw new Error(messages[reason] || `Could not load students (${reason}).`);
+      }
+      pilotStudentsCache = Array.isArray(data.students) ? data.students : [];
+      const validIds = new Set(pilotStudentsCache.map((s) => s.user_id));
+      for (const id of [...pilotSelectedIds]) {
+        if (!validIds.has(id)) pilotSelectedIds.delete(id);
+      }
+      pilotListLoadedOnce = true;
+      renderPilotStudentTable();
+      if (statusEl && !quiet) {
+        statusEl.textContent = `Loaded ${pilotStudentsCache.length} student${pilotStudentsCache.length === 1 ? "" : "s"}.`;
+      }
+    } catch (err) {
+      if (tbody) {
+        tbody.innerHTML = `<tr><td colspan="5" class="pilot-access-empty">${escapePilotHtml(err.message || "Could not load students.")}</td></tr>`;
+      }
+      if (!quiet) showAdminToast(err.message || "Could not load students.", true);
+    }
+  }
+
+  document.getElementById("btnPilotRefreshList")?.addEventListener("click", () => {
+    loadPilotStudentList().catch(() => {});
+  });
+
+  document.getElementById("pilotStudentFilter")?.addEventListener("input", () => {
+    renderPilotStudentTable();
+  });
+
+  document.getElementById("pilotStatusFilter")?.addEventListener("change", () => {
+    renderPilotStudentTable();
+  });
+
+  document.getElementById("pilotStudentTableBody")?.addEventListener("change", (e) => {
+    const check = e.target?.closest?.(".pilot-row-check");
+    if (!check) return;
+    const id = check.getAttribute("data-user-id");
+    if (!id) return;
+    if (check.checked) pilotSelectedIds.add(id);
+    else pilotSelectedIds.delete(id);
+    const row = check.closest("tr");
+    if (row) row.classList.toggle("is-selected", check.checked);
+    updatePilotSelectionSummary();
+  });
+
+  document.getElementById("pilotStudentTableBody")?.addEventListener("click", (e) => {
+    if (e.target?.closest?.("input, button, a, label")) return;
+    const row = e.target?.closest?.("tr[data-user-id]");
+    if (!row) return;
+    const id = row.getAttribute("data-user-id");
+    const check = row.querySelector(".pilot-row-check");
+    if (!id || !check) return;
+    check.checked = !check.checked;
+    if (check.checked) pilotSelectedIds.add(id);
+    else pilotSelectedIds.delete(id);
+    row.classList.toggle("is-selected", check.checked);
+    updatePilotSelectionSummary();
+  });
+
+  document.getElementById("pilotSelectAllVisible")?.addEventListener("change", (e) => {
+    const checked = !!e.target.checked;
+    for (const s of getFilteredPilotStudents()) {
+      if (checked) pilotSelectedIds.add(s.user_id);
+      else pilotSelectedIds.delete(s.user_id);
+    }
+    renderPilotStudentTable();
+  });
+
+  document.getElementById("btnPilotSelectVisible")?.addEventListener("click", () => {
+    for (const s of getFilteredPilotStudents()) pilotSelectedIds.add(s.user_id);
+    renderPilotStudentTable();
+  });
+
+  document.getElementById("btnPilotClearSelection")?.addEventListener("click", () => {
+    pilotSelectedIds.clear();
+    renderPilotStudentTable();
+  });
+
   document.getElementById("btnPilotGrantPro")?.addEventListener("click", async () => {
-    const email = document.getElementById("pilotStudentEmail")?.value?.trim();
     const tier = document.getElementById("pilotSubscriptionTier")?.value || "paid";
     const statusEl = document.getElementById("pilotGrantStatus");
+    const selected = [...pilotSelectedIds];
 
-    if (!email) {
-      showAdminToast("Enter the student email address.", true);
+    if (!selected.length) {
+      showAdminToast("Select one or more students first.", true);
       return;
     }
 
     const btn = document.getElementById("btnPilotGrantPro");
     if (btn) btn.disabled = true;
-    if (statusEl) statusEl.textContent = "Updating subscription…";
+    if (statusEl) statusEl.textContent = `Updating ${selected.length} student${selected.length === 1 ? "" : "s"}…`;
 
     try {
-      const { data, error } = await supabaseClient.rpc("developer_set_subscription_by_email", {
-        p_email: email,
+      const { data, error } = await supabaseClient.rpc("developer_set_subscription_bulk", {
+        p_user_ids: selected,
         p_tier: tier,
       });
       if (error) throw error;
@@ -4961,18 +5277,19 @@
         const reason = data?.reason || "unknown_error";
         const messages = {
           forbidden: "Developer role required.",
-          user_not_found: "No student account found for that email.",
           invalid_tier: "Invalid tier selected.",
           not_authenticated: "Sign in again and retry.",
+          no_users: "Select one or more students first.",
         };
         throw new Error(messages[reason] || `Update failed (${reason}).`);
       }
-      const label = data.subscription_tier === "paid" ? "Student Pro" : "Free";
-      const name = data.display_name ? ` (${data.display_name})` : "";
+      const label = data.subscription_tier === "paid" ? "Full access (Pro)" : "Free (trial/paywall)";
+      const updated = Number(data.updated) || 0;
       if (statusEl) {
-        statusEl.textContent = `Updated${name} to ${label}. Previous tier: ${data.previous_tier || "unknown"}.`;
+        statusEl.textContent = `Updated ${updated} student${updated === 1 ? "" : "s"} to ${label}.`;
       }
-      showAdminToast(`Subscription set to ${label}.`);
+      showAdminToast(`Set ${updated} student${updated === 1 ? "" : "s"} to ${label}.`);
+      await loadPilotStudentList({ quiet: true });
     } catch (err) {
       if (statusEl) statusEl.textContent = "";
       showAdminToast(err.message || "Could not update subscription.", true);
@@ -5145,6 +5462,9 @@
       if (isPlaceholderState) {
         loadAiUsageSummary().catch(() => {});
       }
+    }
+    if (panelId === "pilot") {
+      loadPilotStudentList({ quiet: pilotListLoadedOnce }).catch(() => {});
     }
   };
 

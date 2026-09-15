@@ -599,6 +599,16 @@
       margin-left: 6px;
     }
 
+    .subscription-badge.trial {
+      background: #ecfdf5;
+      color: #047857;
+      border: 1px solid #a7f3d0;
+    }
+    .subscription-badge.locked {
+      background: #fef2f2;
+      color: #b91c1c;
+      border: 1px solid #fecaca;
+    }
     .subscription-badge.paid {
       background: #ecfdf5;
       color: #047857;
@@ -876,6 +886,12 @@
         <button type="button" id="tabFlashcards" class="dashboard-tab" role="tab" aria-selected="false" aria-controls="dashboardTabFlashcards">📚 Flashcards</button>
         <button type="button" id="tabJourney" class="dashboard-tab" role="tab" aria-selected="false" aria-controls="dashboardTabJourney">🌍 Science Journey</button>
         <button type="button" id="tabExpert" class="dashboard-tab" role="tab" aria-selected="false" aria-controls="dashboardTabExpert">💬 Ask an Expert<span id="expertTabUnreadBadge" class="expert-unread-badge hidden">0</span></button>
+      </div>
+
+      <div id="hardPaywallBanner" class="hard-paywall-banner hidden" role="status">
+        <h3 class="hard-paywall-title">Your free trial has ended</h3>
+        <p class="hard-paywall-copy muted">Full access needs a Student Pro subscription. Online checkout is coming soon — ask your school or admin to unlock your account in the meantime.</p>
+        <button type="button" id="btnHardPaywallUpgrade" class="btn-primary">See subscription options</button>
       </div>
 
       <div class="schedule-practice-block">
@@ -1332,10 +1348,10 @@
         <li>Click any cell on the mastery matrix to practise</li>
       </ul>
       <p id="upgradeModalPricing" class="upgrade-modal-pricing"></p>
-      <p class="muted upgrade-modal-note">Online checkout coming soon. Early adopters: <strong>£15/year</strong> (then £20/year).</p>
+      <p class="muted upgrade-modal-note">Online checkout coming soon. Early adopters: <strong>£15/year</strong> (then £20/year). Your school admin can also unlock full access.</p>
       <div class="upgrade-modal-actions">
         <button type="button" id="btnUpgradeModalPrimary" class="btn-primary" disabled title="Stripe checkout coming soon">Upgrade — coming soon</button>
-        <button type="button" id="btnUpgradeModalDismiss" class="btn-secondary">Continue with Free</button>
+        <button type="button" id="btnUpgradeModalDismiss" class="btn-secondary">Not now</button>
       </div>
     </div>
   </div>
