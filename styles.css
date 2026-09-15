@@ -3903,7 +3903,9 @@ body.teacher-detail-open {
 }
 
 .chem-diagram-wrap--responsive {
-  max-width: 100%;
+  max-width: min(100%, 560px);
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .chem-svg {
@@ -3948,7 +3950,8 @@ body.teacher-detail-open {
 .chem-svg--fluid {
   width: 100%;
   height: auto;
-  max-width: 100%;
+  /* Ionic / covalent layouts are ~300–520 viewBox units; don't stretch full page */
+  max-width: min(100%, 520px);
 }
 
 .chem-nucleus-inputs {

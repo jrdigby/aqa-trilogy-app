@@ -1453,10 +1453,39 @@ function renderCovalentDiagram(state, { interactive = true } = {}) {
     svg += `<text x="${p.x}" y="${p.y + 5}" text-anchor="middle" fill="#f8fafc" font-size="${fontSize}" font-weight="700" pointer-events="none">${escapeHtml(atom.symbol)}</text>`;
   });
 
+  // Add-target hit areas first; electrons are painted last so tap-to-remove wins
+  // over overlapping bond / slot / shell add targets.
+  if (interactive) {
+    bonds.forEach((bond, bi) => {
+      if (getBondSharedCount(bond) >= covalentMaxSharedElectrons(bond)) return;
+      const pa = positions[bond.a];
+      const pb = positions[bond.b];
+      if (!pa || !pb) return;
+      const mx = (pa.x + pb.x) / 2;
+      const my = (pa.y + pb.y) / 2;
+      const hitR = Math.max(shellRadii[bond.a], shellRadii[bond.b]) * 0.45;
+      svg += `<circle class="chem-bond-hit" data-bond="${bi}" cx="${mx}" cy="${my}" r="${hitR}" fill="transparent" tabindex="0" role="button" aria-label="Add one shared electron on bond ${bi + 1}" style="cursor:pointer"/>`;
+    });
+
+    atoms.forEach((atom, ai) => {
+      const p = positions[ai];
+      const shellR = shellRadii[ai];
+      const loneCounts = getAtomLoneElectronCounts(atom, bondDirs[ai]);
+      svg += `<circle class="chem-cov-shell-hit" data-atom-idx="${ai}" cx="${p.x}" cy="${p.y}" r="${shellR}" fill="none" stroke="transparent" stroke-width="20" pointer-events="stroke" tabindex="0" role="button" aria-label="Add lone electron on ${escapeHtml(atom.symbol)} outer shell" style="cursor:pointer"/>`;
+      COVALENT_LONE_SLOTS.forEach((slot) => {
+        const count = loneCounts[slot] || 0;
+        if (count >= COVALENT_LONE_ELECTRONS_PER_SLOT) return;
+        const ang = COVALENT_LONE_SLOT_ANGLES[slot];
+        const lx = p.x + shellR * Math.cos(ang);
+        const ly = p.y + shellR * Math.sin(ang);
+        svg += `<circle class="chem-lone-slot-hit${count > 0 ? " chem-lone-slot-hit--active" : ""}" data-atom-idx="${ai}" data-slot="${slot}" cx="${lx}" cy="${ly}" r="16" fill="transparent" tabindex="0" role="button" aria-label="Add one lone electron ${slot} on ${escapeHtml(atom.symbol)}" style="cursor:pointer"/>`;
+      });
+    });
+  }
+
   // Shared electrons on each atom's shell circle (one dot / cross per side)
   bonds.forEach((bond, bi) => {
     const sharedPts = covalentSharedElectronPositions(bond, positions, shellRadii);
-
     sharedPts.forEach((pt, ei) => {
       const style = covSharedElectronStyle(bond, pt.atom);
       const color = covSharedElectronColor(bond, pt.atom);
@@ -1467,15 +1496,6 @@ function renderCovalentDiagram(state, { interactive = true } = {}) {
         svg += renderCovElectron(pt.x, pt.y, style, color);
       }
     });
-
-    if (interactive && getBondSharedCount(bond) < covalentMaxSharedElectrons(bond)) {
-      const pa = positions[bond.a];
-      const pb = positions[bond.b];
-      const mx = (pa.x + pb.x) / 2;
-      const my = (pa.y + pb.y) / 2;
-      const hitR = Math.max(shellRadii[bond.a], shellRadii[bond.b]) * 0.45;
-      svg += `<circle class="chem-bond-hit" data-bond="${bi}" cx="${mx}" cy="${my}" r="${hitR}" fill="transparent" tabindex="0" role="button" aria-label="Add one shared electron on bond ${bi + 1}" style="cursor:pointer"/>`;
-    }
   });
 
   // Lone electrons at cardinal shell positions (one per click, up to 2 per slot)
@@ -1511,15 +1531,7 @@ function renderCovalentDiagram(state, { interactive = true } = {}) {
           svg += renderCovElectron(lx, ly, style, color);
         }
       }
-
-      if (interactive && count < COVALENT_LONE_ELECTRONS_PER_SLOT) {
-        svg += `<circle class="chem-lone-slot-hit${count > 0 ? " chem-lone-slot-hit--active" : ""}" data-atom-idx="${ai}" data-slot="${slot}" cx="${lx}" cy="${ly}" r="16" fill="transparent" tabindex="0" role="button" aria-label="Add one lone electron ${slot} on ${escapeHtml(atom.symbol)}" style="cursor:pointer"/>`;
-      }
     });
-
-    if (interactive) {
-      svg += `<circle class="chem-cov-shell-hit" data-atom-idx="${ai}" cx="${p.x}" cy="${p.y}" r="${shellR}" fill="none" stroke="transparent" stroke-width="20" pointer-events="stroke" tabindex="0" role="button" aria-label="Add lone electron on ${escapeHtml(atom.symbol)} outer shell" style="cursor:pointer"/>`;
-    }
   });
 
   const statusHtml = interactive
