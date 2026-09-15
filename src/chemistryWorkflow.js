@@ -1143,17 +1143,64 @@ function covElectronStyle(ai) {
   return ai % 2 === 0 ? "dot" : "cross";
 }
 
-function covElectronColor(ai) {
-  return ai % 2 === 0 ? "#2563eb" : "#dc2626";
+/**
+ * Stable per-atom electron glyph for a covalent molecule (GCSE convention).
+ * Central atom uses dots; every satellite (including all hydrogens) uses crosses.
+ * Diatomics: atom 0 = dots, atom 1 = crosses.
+ */
+function covalentAtomElectronStyles(atoms = [], bonds = []) {
+  const n = atoms.length;
+  const styles = Array.from({ length: n }, () => "cross");
+  if (n === 0) return styles;
+  if (n <= 2) {
+    styles[0] = "dot";
+    if (n === 2) styles[1] = "cross";
+    return styles;
+  }
+
+  const degree = atoms.map(() => 0);
+  (bonds || []).forEach((b) => {
+    if (degree[b.a] != null) degree[b.a] += 1;
+    if (degree[b.b] != null) degree[b.b] += 1;
+  });
+  let centre = 0;
+  let best = -1;
+  atoms.forEach((a, i) => {
+    const score = degree[i] * 10 + (a.symbol === "H" ? 0 : 5);
+    if (score > best) {
+      best = score;
+      centre = i;
+    }
+  });
+
+  styles[centre] = "dot";
+  for (let i = 0; i < n; i++) {
+    if (i === centre) continue;
+    styles[i] = "cross";
+  }
+  // Hydrogens are always crosses when bonded to a non-H centre.
+  if (atoms.some((a) => a.symbol !== "H")) {
+    atoms.forEach((a, i) => {
+      if (a.symbol === "H") styles[i] = "cross";
+    });
+  }
+  return styles;
 }
 
-/** GCSE dot-and-cross: bond.a contributes dots, bond.b contributes crosses in the overlap. */
-function covSharedElectronStyle(bond, atomIdx) {
+function covElectronColorForStyle(style) {
+  return style === "cross" ? "#dc2626" : "#2563eb";
+}
+
+/** GCSE dot-and-cross: each atom keeps one glyph for shared + lone electrons. */
+function covSharedElectronStyle(bond, atomIdx, atomStyles = null) {
+  if (Array.isArray(atomStyles) && atomStyles[atomIdx]) {
+    return atomStyles[atomIdx] === "cross" ? "cross" : "dot";
+  }
   return atomIdx === bond.a ? "dot" : "cross";
 }
 
-function covSharedElectronColor(bond, atomIdx) {
-  return atomIdx === bond.a ? "#2563eb" : "#dc2626";
+function covSharedElectronColor(bond, atomIdx, atomStyles = null) {
+  return covElectronColorForStyle(covSharedElectronStyle(bond, atomIdx, atomStyles));
 }
 
 function lonePairsFromElectronCounts(loneElectrons) {
@@ -1431,6 +1478,7 @@ function renderCovalentDiagram(state, { interactive = true } = {}) {
   const atoms = state.atoms || [];
   const bonds = state.bonds || [];
   const { w, h, positions, shellRadii } = layoutCovalentAtoms(atoms, bonds);
+  const atomStyles = covalentAtomElectronStyles(atoms, bonds);
   let svg = "";
 
   const bondDirs = atoms.map(() => []);
@@ -1487,8 +1535,8 @@ function renderCovalentDiagram(state, { interactive = true } = {}) {
   bonds.forEach((bond, bi) => {
     const sharedPts = covalentSharedElectronPositions(bond, positions, shellRadii);
     sharedPts.forEach((pt, ei) => {
-      const style = covSharedElectronStyle(bond, pt.atom);
-      const color = covSharedElectronColor(bond, pt.atom);
+      const style = covSharedElectronStyle(bond, pt.atom, atomStyles);
+      const color = covSharedElectronColor(bond, pt.atom, atomStyles);
       if (interactive) {
         svg += renderCovElectronInteractive(pt.x, pt.y, style, color,
           `data-cov-kind="shared" data-bond="${bi}" data-e="${ei}" aria-label="Remove shared electron ${ei + 1} on bond ${bi + 1}"`);
@@ -1502,8 +1550,8 @@ function renderCovalentDiagram(state, { interactive = true } = {}) {
   atoms.forEach((atom, ai) => {
     const p = positions[ai];
     const shellR = shellRadii[ai];
-    const style = covElectronStyle(ai);
-    const color = covElectronColor(ai);
+    const style = atomStyles[ai] || covElectronStyle(ai);
+    const color = covElectronColorForStyle(style);
     const loneCounts = getAtomLoneElectronCounts(atom, bondDirs[ai]);
 
     COVALENT_LONE_SLOTS.forEach((slot) => {
@@ -5107,4 +5155,4 @@ export function stemPreviewHtml(presetIdOrConfig) {
   return `<div class="chem-stem-preview">${svg}${caption}</div>`;
 }
 
-export { layoutCovalentAtoms, covalentSharedElectronPositions, covSharedElectronStyle };
+export { layoutCovalentAtoms, covalentSharedElectronPositions, covSharedElectronStyle, covalentAtomElectronStyles };

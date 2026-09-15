@@ -18,6 +18,7 @@ import {
   layoutCovalentAtoms,
   covalentSharedElectronPositions,
   covSharedElectronStyle,
+  covalentAtomElectronStyles,
   renderPolymerRepeatUnitSvg,
   normalizeMoleculeGraph,
   renderMetallicBondingSvg,
@@ -226,11 +227,16 @@ describe("markChemistryResponse", () => {
   it("places CH4 shared electrons on both atom shells", () => {
     const preset = CHEMISTRY_PRESETS.ch4_covalent;
     const { positions, shellRadii } = layoutCovalentAtoms(preset.answer.atoms, preset.answer.bonds);
+    const atomStyles = covalentAtomElectronStyles(preset.answer.atoms, preset.answer.bonds);
+    assert.equal(atomStyles[0], "dot", "carbon uses dots");
+    for (let i = 1; i < atomStyles.length; i++) {
+      assert.equal(atomStyles[i], "cross", `hydrogen ${i} uses crosses`);
+    }
     for (const bond of preset.answer.bonds) {
       const pts = covalentSharedElectronPositions(bond, positions, shellRadii);
       assert.equal(pts.length, 2, "each C–H bond has one dot and one cross");
-      assert.equal(covSharedElectronStyle(bond, pts[0].atom), "dot");
-      assert.equal(covSharedElectronStyle(bond, pts[1].atom), "cross");
+      assert.equal(covSharedElectronStyle(bond, pts[0].atom, atomStyles), "dot");
+      assert.equal(covSharedElectronStyle(bond, pts[1].atom, atomStyles), "cross");
       for (const pt of pts) {
         const centre = positions[pt.atom];
         const r = shellRadii[pt.atom];
@@ -243,9 +249,14 @@ describe("markChemistryResponse", () => {
   it("assigns dot and cross per bond side for ammonia", () => {
     const preset = CHEMISTRY_PRESETS.nh3;
     const { positions, shellRadii } = layoutCovalentAtoms(preset.answer.atoms, preset.answer.bonds);
+    const atomStyles = covalentAtomElectronStyles(preset.answer.atoms, preset.answer.bonds);
+    assert.equal(atomStyles[0], "dot", "nitrogen uses dots");
+    for (let i = 1; i < atomStyles.length; i++) {
+      assert.equal(atomStyles[i], "cross", `hydrogen ${i} uses crosses`);
+    }
     for (const bond of preset.answer.bonds) {
-      assert.equal(covSharedElectronStyle(bond, bond.a), "dot");
-      assert.equal(covSharedElectronStyle(bond, bond.b), "cross");
+      assert.equal(covSharedElectronStyle(bond, bond.a, atomStyles), "dot");
+      assert.equal(covSharedElectronStyle(bond, bond.b, atomStyles), "cross");
       const pts = covalentSharedElectronPositions(bond, positions, shellRadii);
       assert.equal(pts.length, 2);
       for (const pt of pts) {
@@ -255,6 +266,12 @@ describe("markChemistryResponse", () => {
         assert.ok(Math.abs(d - r) <= 1, `NH₃ electron should sit on shell (d=${d.toFixed(1)}, r=${r})`);
       }
     }
+  });
+
+  it("keeps both water hydrogens as crosses", () => {
+    const preset = CHEMISTRY_PRESETS.h2o;
+    const atomStyles = covalentAtomElectronStyles(preset.answer.atoms, preset.answer.bonds);
+    assert.deepEqual(atomStyles, ["dot", "cross", "cross"]);
   });
 
   it("marks ethene double bond", () => {

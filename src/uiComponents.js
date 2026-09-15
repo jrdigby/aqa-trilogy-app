@@ -64,7 +64,7 @@ export function renderQuestionLayout(q, commandWordBanner, currentKey, layoutOpt
   const safeImageUrl = safeHttpUrl(q.image_url);
   const imageAlt = escapeAttr(altTextFromPrompt(q.prompt, "Question illustration"));
   let imageHtml = safeImageUrl
-    ? `<img src="${escapeAttr(safeImageUrl)}" alt="${imageAlt}" style="max-width: 100%; border-radius: 8px; margin-bottom: 12px; border: 1px solid #e2e8f0; display: block;">`
+    ? `<img class="question-diagram" src="${escapeAttr(safeImageUrl)}" alt="${imageAlt}">`
     : "";
 
   const chemStemHtml = layoutOptions.chemStemHtml || "";
@@ -180,12 +180,12 @@ export async function renderFeedback(marking, currentQ, currentKey, currentMarkP
   html += `<hr/>`;
   
   html += `<div style="margin-top: 10px; margin-bottom: 5px;"><strong>GCSE Assessment Objectives (AO) Breakdown</strong></div>`;
-  html += `<div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">`;
+  html += `<div class="feedback-ao-stack">`;
   
   const aosConfig = [
-    { id: "AO1", name: "AO1: Knowledge &amp; Understanding", desc: "Demonstrate knowledge and understanding of scientific ideas, processes, techniques, and procedures.", color: "#3b82f6", bg: "#f8fafc", textCol: "#1e3a8a", badgeBg: "#10b981", badgeBgZero: "#cbd5e1" },
-    { id: "AO2", name: "AO2: Application of Science", desc: "Apply knowledge and understanding of scientific ideas, processes, techniques, and procedures in theoretical and practical contexts.", color: "#10b981", bg: "#f8fafc", textCol: "#065f46", badgeBg: "#10b981", badgeBgZero: "#cbd5e1" },
-    { id: "AO3", name: "AO3: Analysis &amp; Evaluation", desc: "Analyse, interpret, and evaluate scientific information, ideas, and evidence to make judgements, draw conclusions, and develop procedures.", color: "#f59e0b", bg: "#f8fafc", textCol: "#78350f", badgeBg: "#10b981", badgeBgZero: "#cbd5e1" }
+    { id: "AO1", name: "AO1: Knowledge &amp; Understanding", desc: "Demonstrate knowledge and understanding of scientific ideas, processes, techniques, and procedures.", color: "#3b82f6", textCol: "#1e3a8a", badgeBg: "#10b981", badgeBgZero: "#cbd5e1" },
+    { id: "AO2", name: "AO2: Application of Science", desc: "Apply knowledge and understanding of scientific ideas, processes, techniques, and procedures in theoretical and practical contexts.", color: "#10b981", textCol: "#065f46", badgeBg: "#10b981", badgeBgZero: "#cbd5e1" },
+    { id: "AO3", name: "AO3: Analysis &amp; Evaluation", desc: "Analyse, interpret, and evaluate scientific information, ideas, and evidence to make judgements, draw conclusions, and develop procedures.", color: "#f59e0b", textCol: "#78350f", badgeBg: "#10b981", badgeBgZero: "#cbd5e1" }
   ];
 
   aosConfig.forEach(ao => {
@@ -195,12 +195,12 @@ export async function renderFeedback(marking, currentQ, currentKey, currentMarkP
       const badgeColor = earnedVal > 0 ? ao.badgeBg : ao.badgeBgZero;
       
       html += `
-        <div style="font-size: 0.85rem; padding: 8px 12px; background: ${ao.bg}; border-left: 4px solid ${ao.color}; border-radius: 0 6px 6px 0; box-shadow: 0 1px 2px rgba(0,0,0,0.02); border-top: 1px solid #f1f5f9; border-bottom: 1px solid #f1f5f9; border-right: 1px solid #f1f5f9;">
-          <div style="display: flex; justify-content: space-between; align-items: center;">
-            <span style="font-weight: 700; color: ${ao.textCol};">${ao.name}</span> 
-            <span class="chip" style="font-weight: 700; background: ${badgeColor}; color: white; padding: 2px 6px; border-radius: 4px;">${earnedVal}/${maxVal} marks</span>
+        <div class="feedback-ao-row" style="border-left: 4px solid ${ao.color};">
+          <div class="feedback-ao-row-head">
+            <span style="font-weight: 700; color: ${ao.textCol};">${ao.name}</span>
+            <span class="chip" style="font-weight: 700; background: ${badgeColor}; color: white; padding: 2px 6px; border-radius: 4px; flex-shrink: 0;">${earnedVal}/${maxVal} marks</span>
           </div>
-          <div style="font-size: 0.76rem; color: #475569; margin-top: 4px; line-height: 1.3;">${ao.desc}</div>
+          <div class="feedback-ao-row-desc">${ao.desc}</div>
         </div>
       `;
     }
@@ -300,13 +300,12 @@ export async function renderFeedback(marking, currentQ, currentKey, currentMarkP
           }
         }).join(" ");
 
+    const targetsLabel = keywordKeyType === "pick_n" ? "Acceptable Answers" : "Target Keywords";
     html += `<hr/>`;
-    html += `<div style="margin-bottom: 12px;"><strong>Your Answer Analysis:</strong></div>`;
-    html += `<div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 14px; border-radius: 8px; font-size: 0.95rem; line-height: 1.6; margin-bottom: 15px; color: #0f172a;">${highlightedStudentHtml}</div>`;
-
-    const targetsLabel = keywordKeyType === "pick_n" ? "Acceptable Answers" : "Syllabus Target Keywords";
-    html += `<div><strong>${targetsLabel}:</strong></div>`;
-    html += `<div style="margin-top: 6px; margin-bottom: 10px;">${highlightedTargetsHTML}</div>`;
+    html += `<strong class="feedback-section-label">Your Answer</strong>`;
+    html += `<div class="feedback-answer-box">${highlightedStudentHtml}</div>`;
+    html += `<strong class="feedback-section-label">${targetsLabel}</strong>`;
+    html += `<div class="feedback-keywords-wrap">${highlightedTargetsHTML}</div>`;
   }
 
   if (marking.missing && marking.missing.length > 0) {
@@ -320,9 +319,7 @@ export async function renderFeedback(marking, currentQ, currentKey, currentMarkP
     html += marking.missing.map(m => {
       const feedbackImgUrl = safeHttpUrl(m.image_url);
       let feedbackImgHtml = feedbackImgUrl
-        ? `<div style="margin-top: 8px; max-width: 100%;">
-             <img src="${escapeAttr(feedbackImgUrl)}" style="max-width: 100%; max-height: 180px; object-fit: contain; border: 1px solid #fed7d7; border-radius: 6px; display: block;" alt="Feedback diagram" />
-           </div>`
+        ? `<img class="feedback-diagram" src="${escapeAttr(feedbackImgUrl)}" alt="Feedback diagram" />`
         : "";
 
       const isEcf = !!m.isEcf;
@@ -357,16 +354,20 @@ export async function renderFeedback(marking, currentQ, currentKey, currentMarkP
     }).join("");
     }
   } else {
-    html += `<hr/><div class="good">Nice — perfect marks on this specification point!</div>`;
+    html += `<hr/><div class="good">Nice — perfect marks on this question!</div>`;
   }
   return html;
 }
 
 // ====== AI GRADER EXPERT PANELS VIEW SYSTEM ======
 export function renderLiveAIFeedback(evaluation, hasImprovedCurrentQ) {
-  const score = evaluation.score_total || 0;
+  const score = Number(evaluation.score_total) || 0;
   const max = evaluation.score_max || 6;
-  const level = evaluation.level_achieved || "Level 1";
+  // Level 1 requires at least 1 mark — 0 marks is below the level bands.
+  const level = score >= 1 ? (evaluation.level_achieved || "Level 1") : "";
+  const scoreChipLabel = score >= 1
+    ? `${escapeHtml(level)} (${score}/${max} Marks)`
+    : `${score}/${max} Marks`;
   const pct = Math.round((score / max) * 100);
   const targets = evaluation.ao_targets && typeof evaluation.ao_targets === "object"
     ? evaluation.ao_targets
@@ -383,9 +384,9 @@ export function renderLiveAIFeedback(evaluation, hasImprovedCurrentQ) {
     if (target === 0) return "";
     const denom = target == null ? "" : `/${target}`;
     return `
-          <div style="font-size: 0.78rem; padding: 6px 10px; background: #f8fafc; border-left: 3px solid ${color}; border-radius: 0 4px 4px 0; display: flex; justify-content: space-between;">
+          <div class="feedback-ao-row--ai" style="border-left: 3px solid ${color};">
             <span style="font-weight: 700; color: ${textCol};">${label}</span>
-            <span style="font-weight: 700;">${awarded}${denom} marks</span>
+            <span style="font-weight: 700; flex-shrink: 0;">${awarded}${denom} marks</span>
           </div>`;
   }).join("");
 
@@ -417,7 +418,7 @@ export function renderLiveAIFeedback(evaluation, hasImprovedCurrentQ) {
         </div>
         <div style="text-align: right;">
           <div style="background: #4f46e5; color: white; padding: 4px 10px; border-radius: 6px; font-weight: 700; font-size: 0.85rem;">
-            ${escapeHtml(level)} (${score}/${max} Marks)
+            ${scoreChipLabel}
           </div>
           <div style="font-size: 0.72rem; font-weight: 700; color: #4f46e5; margin-top: 3px;">${pct}% Success</div>
         </div>
@@ -425,7 +426,7 @@ export function renderLiveAIFeedback(evaluation, hasImprovedCurrentQ) {
 
       <div style="margin-top: 15px; margin-bottom: 15px;">
         <strong style="font-size: 0.82rem; color: #1e293b; display: block; margin-bottom: 8px;">Assessment objective split:</strong>
-        <div style="display: flex; flex-direction: column; gap: 6px;">
+        <div class="feedback-ao-stack feedback-ao-stack--ai">
           ${aoRowsHtml || `<div style="font-size: 0.78rem; color: var(--text-muted);">AO split not available for this mark.</div>`}
         </div>
       </div>
