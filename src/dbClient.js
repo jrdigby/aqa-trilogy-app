@@ -497,14 +497,16 @@ export async function fetchSyllabusPipelineData(userId, subject, paper, targetTi
 
 // ====== USER PROFILE (ONBOARDING) ======
 const PROFILE_COLUMNS_FULL =
-  "user_id, role, preferred_tier, science_path, subject_tiers, science_subjects, subscription_tier, onboarding_completed_at, subject_preference, class_id, display_name, total_xp, xp_rewards, revision_horizon_preset, target_exam_date, revision_pace_state, current_grades, target_grades, weekly_report_enabled, parent_email, parent_email_enabled, weekly_report_unsubscribed_at";
+  "user_id, role, preferred_tier, science_path, subject_tiers, science_subjects, subscription_tier, trial_ends_at, onboarding_completed_at, subject_preference, class_id, display_name, total_xp, xp_rewards, revision_horizon_preset, target_exam_date, revision_pace_state, current_grades, target_grades, weekly_report_enabled, parent_email, parent_email_enabled, weekly_report_unsubscribed_at";
 const PROFILE_COLUMNS_FULL_WITHOUT_SCIENCE_SUBJECTS =
-  "user_id, role, preferred_tier, science_path, subject_tiers, subscription_tier, onboarding_completed_at, subject_preference, class_id, display_name, total_xp, xp_rewards, revision_horizon_preset, target_exam_date, revision_pace_state, current_grades, target_grades, weekly_report_enabled, parent_email, parent_email_enabled, weekly_report_unsubscribed_at";
+  "user_id, role, preferred_tier, science_path, subject_tiers, subscription_tier, trial_ends_at, onboarding_completed_at, subject_preference, class_id, display_name, total_xp, xp_rewards, revision_horizon_preset, target_exam_date, revision_pace_state, current_grades, target_grades, weekly_report_enabled, parent_email, parent_email_enabled, weekly_report_unsubscribed_at";
 const PROFILE_COLUMNS_BASE = "user_id, preferred_tier";
 const PROFILE_COLUMNS_LEGACY =
   "user_id, role, preferred_tier, science_path, subject_tiers, subscription_tier, onboarding_completed_at, subject_preference, class_id, display_name, total_xp, xp_rewards";
 const PROFILE_COLUMNS_WITHOUT_REPORTS =
-  "user_id, role, preferred_tier, science_path, subject_tiers, subscription_tier, onboarding_completed_at, subject_preference, class_id, display_name, total_xp, xp_rewards, revision_horizon_preset, target_exam_date, revision_pace_state, current_grades, target_grades";
+  "user_id, role, preferred_tier, science_path, subject_tiers, subscription_tier, trial_ends_at, onboarding_completed_at, subject_preference, class_id, display_name, total_xp, xp_rewards, revision_horizon_preset, target_exam_date, revision_pace_state, current_grades, target_grades";
+const PROFILE_COLUMNS_WITHOUT_TRIAL =
+  "user_id, role, preferred_tier, science_path, subject_tiers, science_subjects, subscription_tier, onboarding_completed_at, subject_preference, class_id, display_name, total_xp, xp_rewards, revision_horizon_preset, target_exam_date, revision_pace_state, current_grades, target_grades, weekly_report_enabled, parent_email, parent_email_enabled, weekly_report_unsubscribed_at";
 
 function isMissingColumnError(error) {
   const msg = error?.message || "";
@@ -559,6 +561,7 @@ function normalizeProfileRow(data, userId) {
     subject_tiers: data.subject_tiers ?? null,
     science_subjects: data.science_subjects ?? null,
     subscription_tier: data.subscription_tier ?? "free",
+    trial_ends_at: data.trial_ends_at ?? null,
     onboarding_completed_at: data.onboarding_completed_at ?? null,
     subject_preference: data.subject_preference ?? null,
     class_id: data.class_id ?? null,
@@ -603,6 +606,7 @@ export async function patchUserProfile(userId, payload) {
 const PROFILE_SELECT_FALLBACKS = [
   PROFILE_COLUMNS_FULL,
   PROFILE_COLUMNS_FULL_WITHOUT_SCIENCE_SUBJECTS,
+  PROFILE_COLUMNS_WITHOUT_TRIAL,
   PROFILE_COLUMNS_WITHOUT_REPORTS,
   PROFILE_COLUMNS_LEGACY,
   PROFILE_COLUMNS_BASE
@@ -633,7 +637,18 @@ export async function ensureUserProfile(userId) {
 
   if (data) return normalizeProfileRow(data, userId);
 
+  const trialEnds = new Date();
+  trialEnds.setUTCDate(trialEnds.getUTCDate() + 14);
+  const trialIso = trialEnds.toISOString();
+
   const payloads = [
+    {
+      user_id: userId,
+      preferred_tier: "FT",
+      role: "student",
+      subscription_tier: "free",
+      trial_ends_at: trialIso,
+    },
     { user_id: userId, preferred_tier: "FT", role: "student", subscription_tier: "free" },
     { user_id: userId, preferred_tier: "FT" },
     { user_id: userId }
