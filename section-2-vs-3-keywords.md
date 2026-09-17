@@ -10,8 +10,8 @@ Do not merge the two models or add per-term remediation fields to Section 2 keyw
 
 | Path | Role | Flashcard quality |
 |------|------|-------------------|
-| Section 3 checkpoints | Preferred short-text marking + authored `feedback_if_missing` | Strong — examiner-style tips per missed concept |
-| Section 2 `pick_n` | Correct tool for “name/state N from a pool” | Useful in practice; pool list must not spoil revision cards |
+| Section 3 checkpoints | Preferred short-text marking + authored `feedback_if_missing` | Strong — flashcard back shows **one bold bullet per checkpoint answer** |
+| Section 2 `pick_n` | Correct tool for “name/state N from a pool” | Flashcard back lists the full acceptable pool |
 | Section 2 `keywords` | All-or-nothing fallback when Section 3 is empty | Weak — “missing these required terms…” with no authored tips |
 
 ### Marking priority (short_text)
@@ -30,7 +30,7 @@ Do not merge the two models or add per-term remediation fields to Section 2 keyw
 - Prefer Section 3 for multi-mark / concept short answers so flashcard backs carry authored remediation.
 - Use Section 2 `pick_n` for “State two… / Name three…” style questions; leave Section 3 blank. **Create form defaults to `pick_n`.**
 - Use Section 2 keywords only as a simple fallback, with admin warnings that flashcards will lack remedial tips.
-- Practice feedback for `pick_n` may still list acceptable answers; flashcard backs use a non-spoiler summary.
+- Practice feedback for `pick_n` includes a progress tip plus still-needed answers; flashcard backs show the **full** acceptable pool (so partial credit does not drop matched terms like “ions” from “positive / +, ions”).
 
 ## Admin audit flags
 

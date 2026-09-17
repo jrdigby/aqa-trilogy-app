@@ -4,6 +4,15 @@ import { loadCalculationWorkflow } from './lazyCalculationWorkflow.js';
 
 export const MCQ_FLASHCARD_ADDED_MSG = "This question has been added to your flashcard list.";
 const LEGACY_FLASHCARD_REVIEW_SUFFIX = / Review your flashcards for this specific unit or definition\.?$/i;
+/** Old pick_n flashcard backs that only stored progress tips (no answers). */
+const LEGACY_PICK_N_PROGRESS_FLASHCARD =
+  /^(?:You correctly named \d+\.\s*)?Give \d+ more correct responses? for full marks\.?$/i;
+
+/** Pull "Acceptable answers include: …" from practice feedback text. */
+function extractAcceptableAnswersFromFeedback(text) {
+  const m = String(text || "").match(/Acceptable answers include:\s*(.+?)\.?\s*$/i);
+  return m ? m[1].trim().replace(/\.$/, "") : "";
+}
 
 /** Pretty-print synonym pools like "direct|directly proportional". */
 function formatAnswerLabel(answer) {
@@ -70,6 +79,51 @@ export function formatAnswerFlashcard(answer, explanation = "") {
   return answerLabel || explain;
 }
 
+/** Full pick_n pool for flashcard backs (all acceptable answers, not only unmatched). */
+export function formatPickNFlashcardText(pool) {
+  const poolLabel = (Array.isArray(pool) ? pool : [])
+    .map((i) => formatAnswerLabel(i))
+    .filter(Boolean)
+    .join(", ");
+  return poolLabel ? formatAnswerFlashcard(poolLabel, "") : "";
+}
+
+/** Split "Salt, hydrogen." / "coal, oil / petroleum" into separate answer terms. */
+export function splitFlashcardAnswerList(text) {
+  const s = String(text || "").trim().replace(/[.!?]+$/, "");
+  if (!s || !s.includes(",")) return [];
+  return s.split(/\s*,\s*/).map((t) => t.trim()).filter(Boolean);
+}
+
+/** One bold flashcard insight per mark-scheme / pool term. */
+export function insightsFromAnswerList(text) {
+  const terms = splitFlashcardAnswerList(text);
+  if (terms.length < 2) return [];
+  return terms.map((term) => {
+    const answer = formatFlashcardAnswerDisplay(term);
+    return { answer, explanation: "", text: answer };
+  });
+}
+
+/** Full Section 3 checkpoint answers as separate flashcard bullets. */
+export function buildMarkPointsFlashcardSteps(markPoints) {
+  return getGradableMarkPoints(markPoints)
+    .map((mp) => {
+      const answer = formatFlashcardAnswerDisplay(formatAnswerLabel(mp.point_text));
+      if (!answer) return null;
+      return { answer, explanation: "", text: answer };
+    })
+    .filter(Boolean);
+}
+
+/** @deprecated Prefer buildMarkPointsFlashcardSteps for multi-bullet cards. */
+export function formatMarkPointsFlashcardText(markPoints) {
+  const labels = getGradableMarkPoints(markPoints)
+    .map((mp) => formatAnswerLabel(mp.point_text))
+    .filter(Boolean);
+  return labels.length ? formatAnswerFlashcard(labels.join(", "), "") : "";
+}
+
 /**
  * Split stored flashcard text / missing row into { answer, explanation } for UI.
  * Newlines in plain text collapse in HTML — callers should render these as separate blocks.
@@ -80,7 +134,14 @@ export function splitFlashcardInsight(m = {}, options = null) {
 
   let explanation = "";
   const flashcardText = String(m?.flashcard_text || "").trim();
-  if (flashcardText) {
+  // Legacy pick_n cards stored only "Give N more…" — recover answers from practice text.
+  const isLegacyPickNProgress = LEGACY_PICK_N_PROGRESS_FLASHCARD.test(flashcardText);
+  if (!answer && isLegacyPickNProgress) {
+    const recovered = extractAcceptableAnswersFromFeedback(m?.text);
+    if (recovered) answer = recovered;
+  }
+  // When answers were recovered, do not treat the progress tip as the card answer.
+  if (flashcardText && !(isLegacyPickNProgress && answer)) {
     const parts = flashcardText.split(/\n\n+/).map((p) => p.trim()).filter(Boolean);
     if (!answer && parts.length) {
       answer = options ? formatMcqAnswerWithLetter(options, parts[0]) : parts[0];
@@ -715,6 +776,7 @@ export async function markResponse(q, resp, key, markPoints) {
   let maxAo = { AO1: 0, AO2: 0, AO3: 0 };
   let missing = [], quality = 0;
   let stepResults = null;
+  let flashcardSteps = null;
   const gradableMarkPoints = getGradableMarkPoints(markPoints);
 
   if (!key) return { total: 0, max, ao, maxAo, missing, quality: 0, feedbackPayload: {} };
@@ -874,16 +936,18 @@ export async function markResponse(q, resp, key, markPoints) {
     if (total < max) {
       const marksShort = max - total;
       const moreNeeded = Math.max(1, Math.ceil(marksShort / marksPerHit));
-      const acceptable = missingItems.map((i) => i.replace(/\|/g, " / ")).join(", ");
+      // Practice tip lists what is still needed; flashcard shows the full pool for revision.
+      const stillNeeded = missingItems.map((i) => i.replace(/\|/g, " / ")).join(", ");
+      const poolFlashcard = formatPickNFlashcardText(pool);
       const foundNote = matched.length > 0
         ? `You correctly named ${matched.length}. `
         : "";
       const coreText = `${foundNote}Give ${moreNeeded} more correct response${moreNeeded === 1 ? "" : "s"} for full marks.`;
-      const acceptableNote = acceptable ? ` Acceptable answers include: ${acceptable}.` : "";
+      const acceptableNote = stillNeeded ? ` Acceptable answers include: ${stillNeeded}.` : "";
       missing.push({
         ao: targetAo,
         text: `${coreText}${acceptableNote}`,
-        flashcard_text: coreText.trim(),
+        flashcard_text: poolFlashcard || coreText.trim(),
         url: cleanUrl
       });
     }
@@ -916,13 +980,17 @@ export async function markResponse(q, resp, key, markPoints) {
           missing.push({ 
             ao: mp.ao, 
             text: fbText,
-            flashcard_text: formatAnswerFlashcard(mp.point_text, mp.feedback_if_missing),
             point_text: mp.point_text || "",
             url: cleanUrl,
             image_url: mp.image_url || ""
           });
         }
       });
+
+      // Revision cards: one bold bullet per checkpoint (full scheme, not only missed).
+      if (missing.length > 0) {
+        flashcardSteps = buildMarkPointsFlashcardSteps(gradableMarkPoints);
+      }
     } else {
       const hasAllRequired = required.every(targetKeyword => 
         checkKeywordOrSynonymsMatch(targetKeyword, studentWords, textRaw)
@@ -966,7 +1034,19 @@ export async function markResponse(q, resp, key, markPoints) {
     else quality = 5;
   }
 
-  return { total, max, ao, maxAo, missing, quality, feedbackPayload: { missing }, stepResults };
+  return {
+    total,
+    max,
+    ao,
+    maxAo,
+    missing,
+    quality,
+    feedbackPayload: {
+      missing,
+      ...(flashcardSteps?.length ? { flashcard_steps: flashcardSteps } : {}),
+    },
+    stepResults,
+  };
 }
 
 /** Max AO marks per question — mirrors markResponse / markCalculationResponse caps. */

@@ -12732,6 +12732,11 @@ function loadCalculationWorkflow() {
 // src/evalEngine.js
 var MCQ_FLASHCARD_ADDED_MSG = "This question has been added to your flashcard list.";
 var LEGACY_FLASHCARD_REVIEW_SUFFIX = / Review your flashcards for this specific unit or definition\.?$/i;
+var LEGACY_PICK_N_PROGRESS_FLASHCARD = /^(?:You correctly named \d+\.\s*)?Give \d+ more correct responses? for full marks\.?$/i;
+function extractAcceptableAnswersFromFeedback(text) {
+  const m = String(text || "").match(/Acceptable answers include:\s*(.+?)\.?\s*$/i);
+  return m ? m[1].trim().replace(/\.$/, "") : "";
+}
 function formatAnswerLabel(answer) {
   return String(answer || "").replace(/\|/g, " / ").trim();
 }
@@ -12777,12 +12782,45 @@ ${explain}`;
   }
   return answerLabel || explain;
 }
+function formatPickNFlashcardText(pool) {
+  const poolLabel = (Array.isArray(pool) ? pool : []).map((i) => formatAnswerLabel(i)).filter(Boolean).join(", ");
+  return poolLabel ? formatAnswerFlashcard(poolLabel, "") : "";
+}
+function splitFlashcardAnswerList(text) {
+  const s = String(text || "").trim().replace(/[.!?]+$/, "");
+  if (!s || !s.includes(",")) return [];
+  return s.split(/\s*,\s*/).map((t) => t.trim()).filter(Boolean);
+}
+function insightsFromAnswerList(text) {
+  const terms = splitFlashcardAnswerList(text);
+  if (terms.length < 2) return [];
+  return terms.map((term) => {
+    const answer = formatFlashcardAnswerDisplay(term);
+    return { answer, explanation: "", text: answer };
+  });
+}
+function buildMarkPointsFlashcardSteps(markPoints) {
+  return getGradableMarkPoints(markPoints).map((mp) => {
+    const answer = formatFlashcardAnswerDisplay(formatAnswerLabel(mp.point_text));
+    if (!answer) return null;
+    return { answer, explanation: "", text: answer };
+  }).filter(Boolean);
+}
+function formatMarkPointsFlashcardText(markPoints) {
+  const labels = getGradableMarkPoints(markPoints).map((mp) => formatAnswerLabel(mp.point_text)).filter(Boolean);
+  return labels.length ? formatAnswerFlashcard(labels.join(", "), "") : "";
+}
 function splitFlashcardInsight(m = {}, options = null) {
   let answer = formatAnswerLabel(m?.answer_label || m?.answer || m?.point_text || "");
   if (options) answer = formatMcqAnswerWithLetter(options, answer);
   let explanation = "";
   const flashcardText = String(m?.flashcard_text || "").trim();
-  if (flashcardText) {
+  const isLegacyPickNProgress = LEGACY_PICK_N_PROGRESS_FLASHCARD.test(flashcardText);
+  if (!answer && isLegacyPickNProgress) {
+    const recovered = extractAcceptableAnswersFromFeedback(m?.text);
+    if (recovered) answer = recovered;
+  }
+  if (flashcardText && !(isLegacyPickNProgress && answer)) {
     const parts = flashcardText.split(/\n\n+/).map((p) => p.trim()).filter(Boolean);
     if (!answer && parts.length) {
       answer = options ? formatMcqAnswerWithLetter(options, parts[0]) : parts[0];
@@ -13286,6 +13324,7 @@ async function markResponse(q, resp, key, markPoints) {
   let maxAo = { AO1: 0, AO2: 0, AO3: 0 };
   let missing = [], quality = 0;
   let stepResults = null;
+  let flashcardSteps = null;
   const gradableMarkPoints = getGradableMarkPoints(markPoints);
   if (!key) return { total: 0, max, ao, maxAo, missing, quality: 0, feedbackPayload: {} };
   const cleanUrl = q && typeof q.resource_links === "string" && q.resource_links.trim().toLowerCase().startsWith("http") ? q.resource_links.trim() : null;
@@ -13418,14 +13457,15 @@ async function markResponse(q, resp, key, markPoints) {
     if (total < max) {
       const marksShort = max - total;
       const moreNeeded = Math.max(1, Math.ceil(marksShort / marksPerHit));
-      const acceptable = missingItems.map((i) => i.replace(/\|/g, " / ")).join(", ");
+      const stillNeeded = missingItems.map((i) => i.replace(/\|/g, " / ")).join(", ");
+      const poolFlashcard = formatPickNFlashcardText(pool);
       const foundNote = matched.length > 0 ? `You correctly named ${matched.length}. ` : "";
       const coreText = `${foundNote}Give ${moreNeeded} more correct response${moreNeeded === 1 ? "" : "s"} for full marks.`;
-      const acceptableNote = acceptable ? ` Acceptable answers include: ${acceptable}.` : "";
+      const acceptableNote = stillNeeded ? ` Acceptable answers include: ${stillNeeded}.` : "";
       missing.push({
         ao: targetAo,
         text: `${coreText}${acceptableNote}`,
-        flashcard_text: coreText.trim(),
+        flashcard_text: poolFlashcard || coreText.trim(),
         url: cleanUrl
       });
     }
@@ -13452,13 +13492,15 @@ async function markResponse(q, resp, key, markPoints) {
           missing.push({
             ao: mp.ao,
             text: fbText,
-            flashcard_text: formatAnswerFlashcard(mp.point_text, mp.feedback_if_missing),
             point_text: mp.point_text || "",
             url: cleanUrl,
             image_url: mp.image_url || ""
           });
         }
       });
+      if (missing.length > 0) {
+        flashcardSteps = buildMarkPointsFlashcardSteps(gradableMarkPoints);
+      }
     } else {
       const hasAllRequired = required.every(
         (targetKeyword) => checkKeywordOrSynonymsMatch(targetKeyword, studentWords, textRaw)
@@ -13491,7 +13533,19 @@ async function markResponse(q, resp, key, markPoints) {
     else if (total < max) quality = 3;
     else quality = 5;
   }
-  return { total, max, ao, maxAo, missing, quality, feedbackPayload: { missing }, stepResults };
+  return {
+    total,
+    max,
+    ao,
+    maxAo,
+    missing,
+    quality,
+    feedbackPayload: {
+      missing,
+      ...flashcardSteps?.length ? { flashcard_steps: flashcardSteps } : {}
+    },
+    stepResults
+  };
 }
 function computeQuestionAOMaxCaps(q, markPoints = [], calculationWorkflow = null) {
   const max = q.max_marks || 1;
@@ -13545,6 +13599,7 @@ function computeQuestionAOMaxCaps(q, markPoints = [], calculationWorkflow = null
 }
 export {
   MCQ_FLASHCARD_ADDED_MSG,
+  buildMarkPointsFlashcardSteps,
   checkKeywordOrSynonymsMatch,
   computeQuestionAOMaxCaps,
   computeSessionQuality,
@@ -13552,13 +13607,16 @@ export {
   flashcardInsightFromMissing,
   formatAnswerFlashcard,
   formatFlashcardAnswerDisplay,
+  formatMarkPointsFlashcardText,
   formatMcqAnswerWithLetter,
+  formatPickNFlashcardText,
   getAQACommandWordHelper,
   getGradableMarkPoints,
   getLevenshteinDistance,
   getMcqTargetAo,
   getTipTextForCommandWord,
   highlightCommandWordsInPrompt,
+  insightsFromAnswerList,
   isFuzzyMatch,
   isShellConfigKeyword,
   markResponse,
@@ -13567,6 +13625,7 @@ export {
   renderHighlightedStudentAnswer,
   renderPromptStemHtml,
   resolveMcqWrongFeedback,
+  splitFlashcardAnswerList,
   splitFlashcardInsight,
   updateSRS
 };

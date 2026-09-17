@@ -13,7 +13,7 @@ import {
   normalizeAdaptiveState
 } from './adaptiveSelector.js';
 import { triggerMathTypeset } from './mathEngine.js';
-import { checkKeywordOrSynonymsMatch, updateSRS, computeSessionQuality, getAQACommandWordHelper, isFuzzyMatch, computeQuestionAOMaxCaps, flashcardInsightFromMissing, splitFlashcardInsight, markResponse } from './evalEngine.js';
+import { checkKeywordOrSynonymsMatch, updateSRS, computeSessionQuality, getAQACommandWordHelper, isFuzzyMatch, computeQuestionAOMaxCaps, flashcardInsightFromMissing, splitFlashcardInsight, insightsFromAnswerList, markResponse } from './evalEngine.js';
 import { buildWeeklyForecast } from './srsAnalytics.js';
 import { getHorizonSrsCaps, normalizeHorizonPreset, examDateToPersist } from './curriculumPace.js';
 import { escapeHtml, escapeAttr, safeHttpUrl, altTextFromPrompt, shuffleArray, todayISO, addDaysISO, resolveAppUrl } from './utils.js';
@@ -1447,7 +1447,20 @@ async function extractFlashcardInsights(att) {
   };
 
   if (Array.isArray(payload?.flashcard_steps) && payload.flashcard_steps.length) {
-    return payload.flashcard_steps.map((step) => asInsight(step));
+    return payload.flashcard_steps.map((step) => {
+      if (step && typeof step === "object" && (step.answer || step.explanation)) {
+        const parts = {
+          answer: step.answer || "",
+          explanation: step.explanation || "",
+          text: step.text
+            || (step.answer && step.explanation
+              ? `${step.answer}\n\n${step.explanation}`
+              : (step.answer || step.explanation || "")),
+        };
+        return asInsight(parts.text, step.imageUrl || "", parts);
+      }
+      return asInsight(typeof step === "string" ? step : step?.text || "");
+    });
   }
 
   if (q.question_type === "numeric") {
@@ -1477,12 +1490,20 @@ async function extractFlashcardInsights(att) {
   if (Array.isArray(payload?.missing)) {
     const withFlashcardText = payload.missing.filter((m) => m.flashcard_text);
     const source = withFlashcardText.length > 0 ? withFlashcardText : payload.missing;
-    const insights = source
-      .map((m) => {
-        const parts = splitFlashcardInsight(m, mcqOptions);
-        return asInsight(parts.text || flashcardInsightFromMissing(m), m.image_url || "", parts);
-      })
-      .filter((row) => row.text.trim() || row.answer || row.explanation || row.imageUrl);
+    const insights = [];
+    for (const m of source) {
+      // Legacy combined backs ("Hydrogen, Salt.") → one bold bullet per term.
+      const expanded = insightsFromAnswerList(m.flashcard_text);
+      if (expanded.length) {
+        for (const parts of expanded) {
+          insights.push(asInsight(parts.text, m.image_url || "", parts));
+        }
+        continue;
+      }
+      const parts = splitFlashcardInsight(m, mcqOptions);
+      const row = asInsight(parts.text || flashcardInsightFromMissing(m), m.image_url || "", parts);
+      if (row.text.trim() || row.answer || row.explanation || row.imageUrl) insights.push(row);
+    }
     if (insights.length) return insights;
   }
   if (Array.isArray(payload?.missing_or_incorrect)) {
