@@ -31,6 +31,9 @@ import {
   normalizeIonFormula,
   halfEquationLayout,
   finalizeBalanceEquationConfig,
+  addElectronToInteractiveShell,
+  removeElectronAtInteractiveSlot,
+  INTERACTIVE_SHELL_CAP,
 } from "../src/chemistryWorkflow.js";
 
 describe("chemistry shells helpers", () => {
@@ -42,6 +45,31 @@ describe("chemistry shells helpers", () => {
   it("returns known element shells", () => {
     assert.deepEqual(shellsForElement("C"), [2, 4]);
     assert.deepEqual(shellsForElement("Na"), [2, 8, 1]);
+  });
+
+  it("allows up to 8 electrons on the inner shell for misconceptions", () => {
+    const state = initialStateForConfig(CHEMISTRY_PRESETS.carbon12);
+    for (let i = 0; i < INTERACTIVE_SHELL_CAP; i++) {
+      addElectronToInteractiveShell(state, 0);
+    }
+    assert.equal(state.shells[0], 8);
+    addElectronToInteractiveShell(state, 0);
+    assert.equal(state.shells[0], 8);
+    assert.deepEqual(state.shellSlots[0], [0, 1, 2, 3, 4, 5, 6, 7]);
+  });
+
+  it("removes the specific electron slot that was clicked", () => {
+    const state = initialStateForConfig(CHEMISTRY_PRESETS.carbon12);
+    addElectronToInteractiveShell(state, 0);
+    addElectronToInteractiveShell(state, 0);
+    addElectronToInteractiveShell(state, 0);
+    assert.deepEqual(state.shellSlots[0], [0, 1, 2]);
+    removeElectronAtInteractiveSlot(state, 0, 0);
+    assert.deepEqual(state.shellSlots[0], [1, 2]);
+    assert.equal(state.shells[0], 2);
+    removeElectronAtInteractiveSlot(state, 0, 2);
+    assert.deepEqual(state.shellSlots[0], [1]);
+    assert.equal(state.shells[0], 1);
   });
 });
 
@@ -395,6 +423,23 @@ describe("ionic charge notation", () => {
     assert.match(html, /Cl⁻/);
     assert.doesNotMatch(html, /Mg⁺2/);
     assert.doesNotMatch(html, /Cl⁻1/);
+  });
+
+  it("compares student and mark-scheme ionic diagrams side by side", () => {
+    const preset = CHEMISTRY_PRESETS.nacl;
+    const student = {
+      kind: "ionic_bonding",
+      atoms: [
+        { symbol: "Na", shells: [2, 8, 1], charge: 0, brackets: false, style: "dot" },
+        { symbol: "Cl", shells: [2, 8, 7], charge: 0, brackets: false, style: "cross" },
+      ],
+    };
+    const html = renderChemistryModelAnswerHtml(preset.answer, { compare: student });
+    assert.match(html, /chem-answer-compare/);
+    assert.match(html, /Your answer/);
+    assert.match(html, /Mark scheme/);
+    assert.match(html, /Your ionic bonding diagram/);
+    assert.match(html, /Mark scheme ionic bonding diagram/);
   });
 });
 
@@ -858,8 +903,22 @@ describe("balance equation formulas and states", () => {
   it("shows formulas and states on the model-answer caption", () => {
     const preset = CHEMISTRY_PRESETS.water_balance_states;
     const html = renderChemistryModelAnswerHtml(preset.answer, { template: preset.template });
+    assert.match(html, /\\ce\{/);
     assert.match(html, /2H2\(g\)/);
     assert.match(html, /H2O\(l\)/);
+  });
+
+  it("compares student and mark-scheme balance captions when incorrect", () => {
+    const answerPreset = CHEMISTRY_PRESETS.water_balance_states;
+    const html = renderChemistryModelAnswerHtml(answerPreset.answer, {
+      template: answerPreset.template,
+      compare: { kind: "balance_equation", coeffs: [1, 1, 1], states: ["g", "g", "l"] },
+    });
+    assert.match(html, /Your answer/);
+    assert.match(html, /Mark scheme/);
+    assert.match(html, /chem-answer-compare/);
+    assert.match(html, /\\ce\{/);
+    assert.match(html, /2H2\(g\)/);
   });
 });
 
@@ -1002,8 +1061,9 @@ describe("half-equation structured slots", () => {
     const html = renderChemistryModelAnswerHtml(CHEMISTRY_PRESETS.half_cu.answer, {
       template: CHEMISTRY_PRESETS.half_cu.template,
     });
-    assert.match(html, /Cu2\+/);
-    assert.match(html, /2e-/);
+    assert.match(html, /\\ce\{/);
+    assert.match(html, /Cu\^\{2\+\}/);
+    assert.match(html, /2e\^\{-\}/);
     assert.match(html, /Cu/);
   });
 
@@ -1020,7 +1080,7 @@ describe("half-equation structured slots", () => {
     const html = renderChemistryModelAnswerHtml(answer, {
       template: { subtype: "half", halfLayout: "cation" },
     });
-    assert.match(html, /Al3\+ \+ 3e- → Al/);
+    assert.match(html, /Al\^\{3\+\} \+ 3e\^\{-\} -> Al/);
     assert.doesNotMatch(html, /\(l\)/);
     assert.doesNotMatch(html, /\(g\)/);
     assert.doesNotMatch(html, /\(aq\)/);

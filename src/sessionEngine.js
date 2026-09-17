@@ -136,11 +136,15 @@ async function fetchFilteredPracticePool(context) {
 }
 
 function beginSession(context, questions, sessionConfig) {
-  const { loadQuestion, setSessionState, getDomSections } = context;
+  const { loadQuestion, setSessionState, enterPracticeView, getDomSections } = context;
   setSessionState(questions, 0, sessionConfig);
-  const { dashSection, sessionSection } = getDomSections();
-  if (dashSection) dashSection.classList.add("hidden");
-  if (sessionSection) sessionSection.classList.remove("hidden");
+  if (typeof enterPracticeView === "function") {
+    enterPracticeView();
+  } else {
+    const { dashSection, sessionSection } = getDomSections();
+    if (dashSection) dashSection.classList.add("hidden");
+    if (sessionSection) sessionSection.classList.remove("hidden");
+  }
   return loadQuestion();
 }
 
@@ -263,6 +267,7 @@ export async function startSessionForSpecPoint(specPointId, qType = "", context)
     loadQuestion,
     setSessionState,
     getDomSections,
+    enterPracticeView,
     currentUser
   } = context;
   const { tier, subject: filterSubject } = getSelectedFilters();
@@ -334,10 +339,13 @@ export async function startSessionForSpecPoint(specPointId, qType = "", context)
 
   setSessionState(localizedQs, 0, { mode: "spec_point", specPointId });
 
-  const { dashSection, sessionSection } = getDomSections();
-
-  if (dashSection) dashSection.classList.add("hidden");
-  if (sessionSection) sessionSection.classList.remove("hidden");
+  if (typeof enterPracticeView === "function") {
+    enterPracticeView();
+  } else {
+    const { dashSection, sessionSection } = getDomSections();
+    if (dashSection) dashSection.classList.add("hidden");
+    if (sessionSection) sessionSection.classList.remove("hidden");
+  }
   await loadQuestion();
 }
 

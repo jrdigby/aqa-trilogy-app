@@ -1229,10 +1229,7 @@ async function resumePracticeSession(snapshot) {
     markingDataCache.clear();
     void prefetchSessionMarkingData(questions);
 
-    if (dashSection) dashSection.classList.add("hidden");
-    if (sessionSection) sessionSection.classList.remove("hidden");
-    if (sessionSummary) sessionSummary.classList.add("hidden");
-    if (questionView) questionView.classList.remove("hidden");
+    enterPracticeView();
 
     removeSessionResumeBanner();
     await loadQuestion();
@@ -2384,6 +2381,7 @@ const engineContext = {
     dashSection: document.getElementById('dashboard'), // replace with actual selector logic if different
     sessionSection: document.getElementById('session')
   }),
+  enterPracticeView: () => enterPracticeView(),
   getAdaptivePracticeState: () => adaptivePracticeState
 };
 
@@ -2932,6 +2930,17 @@ function updateExitPracticeVisibility() {
   if (!btnExitPractice) return;
   const onSummary = sessionSummary && !sessionSummary.classList.contains("hidden");
   btnExitPractice.classList.toggle("hidden", !isPracticeSessionMode() || onSummary);
+}
+
+/** Hide dashboard and show the practice session card as the sole main view. */
+function enterPracticeView() {
+  if (dashSection) dashSection.classList.add("hidden");
+  if (sessionSection) sessionSection.classList.remove("hidden");
+  if (sessionSummary) sessionSummary.classList.add("hidden");
+  if (questionView) questionView.classList.remove("hidden");
+  try {
+    window.scrollTo(0, 0);
+  } catch (_) { /* ignore */ }
 }
 
 async function exitSessionToDashboard() {
@@ -4075,10 +4084,7 @@ async function retryExpertQuestion(questionId) {
       return;
     }
     engineContext.setSessionState(questions, 0, { mode: "any_practice" });
-    if (dashSection) dashSection.classList.add("hidden");
-    if (sessionSection) sessionSection.classList.remove("hidden");
-    if (sessionSummary) sessionSummary.classList.add("hidden");
-    if (questionView) questionView.classList.remove("hidden");
+    enterPracticeView();
     await loadQuestion();
     showToastBanner("Opened that question so you can try it again.", false);
   } catch (err) {
@@ -5281,9 +5287,10 @@ async function applyAuthSession(session, event = "") {
 
     const dashVisible = dashSection && !dashSection.classList.contains("hidden");
     const onboardingVisible = onboardingSection && !onboardingSection.classList.contains("hidden");
+    const sessionVisible = sessionSection && !sessionSection.classList.contains("hidden");
     if (
       currentUser?.id === session.user.id &&
-      (isInitializingPipeline || dashVisible || onboardingVisible)
+      (isInitializingPipeline || dashVisible || onboardingVisible || sessionVisible)
     ) {
       currentUser = session.user;
       return;
@@ -5361,7 +5368,14 @@ async function syncAdaptivePracticeState(user) {
 function showSignedInLayout() {
   if (btnSignOut) btnSignOut.classList.remove("hidden");
   if (authSection) authSection.classList.add("hidden");
-  if (dashSection) dashSection.classList.remove("hidden");
+
+  // Do not re-show the dashboard over an open practice session (stacking bug).
+  const sessionOpen = sessionSection && !sessionSection.classList.contains("hidden");
+  if (sessionOpen) {
+    if (dashSection) dashSection.classList.add("hidden");
+  } else if (dashSection) {
+    dashSection.classList.remove("hidden");
+  }
 
   if (currentUser) {
     updateUserChipDisplay();
@@ -6134,6 +6148,11 @@ async function submitCurrentAnswer() {
         if (currentQ.question_type === "numeric" && marking.stepResults) {
           const { applyCalculationStepHighlighting } = await loadCalculationWorkflow();
           applyCalculationStepHighlighting(marking.stepResults);
+        }
+        if (currentQ.question_type === "chemistry_interactive") {
+          const { loadChemistryWorkflow } = await import("./lazyChemistryWorkflow.js");
+          const { lockChemistryWorkflow } = await loadChemistryWorkflow();
+          lockChemistryWorkflow();
         }
       }
     }

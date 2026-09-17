@@ -178,10 +178,10 @@ export async function renderFeedback(marking, currentQ, currentKey, currentMarkP
 
   let html = `<div><span class="${isPerfect ? "good" : "bad"}">${isPerfect ? "Correct" : "Not quite"}</span> — ${marking.total}/${marking.max} (${pct}%)</div>`;
   html += `<hr/>`;
-  
-  html += `<div style="margin-top: 10px; margin-bottom: 5px;"><strong>GCSE Assessment Objectives (AO) Breakdown</strong></div>`;
-  html += `<div class="feedback-ao-stack">`;
-  
+
+  let aoHtml = `<div class="feedback-ao-heading"><strong>GCSE Assessment Objectives (AO) Breakdown</strong></div>`;
+  aoHtml += `<div class="feedback-ao-stack">`;
+
   const aosConfig = [
     { id: "AO1", name: "AO1: Knowledge &amp; Understanding", desc: "Demonstrate knowledge and understanding of scientific ideas, processes, techniques, and procedures.", color: "#3b82f6", textCol: "#1e3a8a", badgeBg: "#10b981", badgeBgZero: "#cbd5e1" },
     { id: "AO2", name: "AO2: Application of Science", desc: "Apply knowledge and understanding of scientific ideas, processes, techniques, and procedures in theoretical and practical contexts.", color: "#10b981", textCol: "#065f46", badgeBg: "#10b981", badgeBgZero: "#cbd5e1" },
@@ -193,8 +193,8 @@ export async function renderFeedback(marking, currentQ, currentKey, currentMarkP
     if (maxVal > 0) {
       const earnedVal = marking.ao?.[ao.id] || 0;
       const badgeColor = earnedVal > 0 ? ao.badgeBg : ao.badgeBgZero;
-      
-      html += `
+
+      aoHtml += `
         <div class="feedback-ao-row" style="border-left: 4px solid ${ao.color};">
           <div class="feedback-ao-row-head">
             <span style="font-weight: 700; color: ${ao.textCol};">${ao.name}</span>
@@ -206,28 +206,48 @@ export async function renderFeedback(marking, currentQ, currentKey, currentMarkP
     }
   });
 
-  html += `</div>`;
+  aoHtml += `</div>`;
 
   if (currentQ.question_type === "numeric" && marking.stepResults) {
     const { renderCalculationStepSummary } = await loadCalculationWorkflow();
     html += renderCalculationStepSummary(marking.stepResults);
   }
 
+  let chemDiagramHtml = "";
+  let chemDetailHtml = "";
   if (currentQ.question_type === "chemistry_interactive") {
     const { loadChemistryWorkflow } = await import("./lazyChemistryWorkflow.js");
     const { renderChemistryModelAnswerHtml } = await loadChemistryWorkflow();
     const expected = feedbackContext?.model_answer || currentKey?.key_payload || currentQ.chemistry_config?.answer || {};
     const studentResp = marking.feedbackPayload?.chemistry?.student || null;
-    const showCompare = !isPerfect && (expected.kind === "electron_shell" || expected.shells);
-    html += renderChemistryModelAnswerHtml(expected, {
+    const showCompare = !!studentResp && (
+      expected.kind === "ionic_bonding"
+      || (
+        !isPerfect && (
+          expected.kind === "electron_shell"
+          || expected.shells
+          || expected.kind === "balance_equation"
+        )
+      )
+    );
+    chemDiagramHtml = renderChemistryModelAnswerHtml(expected, {
       title: "Model answer",
       compare: showCompare ? studentResp : null,
       template: feedbackContext?.chemistry_template || currentQ.chemistry_config?.template,
     });
     const chemDetail = marking.feedbackPayload?.chemistry?.detail;
     if (!isPerfect && chemDetail) {
-      html += `<div style="margin:8px 0 4px;font-size:0.88rem;color:#0f172a;">${escapeHtml(chemDetail)}</div>`;
+      chemDetailHtml = `<div style="margin:8px 0 4px;font-size:0.88rem;color:#0f172a;">${escapeHtml(chemDetail)}</div>`;
     }
+  }
+
+  // Diagram compares first so AO is not sandwiched between student and model answers
+  if (currentQ.question_type === "chemistry_interactive") {
+    html += chemDiagramHtml;
+    html += chemDetailHtml;
+    html += aoHtml;
+  } else {
+    html += aoHtml;
   }
 
   if (currentQ.question_type === "circuit_interactive") {

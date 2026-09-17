@@ -205,6 +205,11 @@
 }
 
 /* Compact AO rows — marks sit beside the label, not full-width justified */
+.feedback-ao-heading {
+  margin-top: 12px;
+  margin-bottom: 5px;
+}
+
 .feedback-ao-stack {
   display: flex;
   flex-direction: column;
@@ -3998,6 +4003,15 @@ body.teacher-detail-open {
 .chem-btn {
   padding: 6px 10px;
   font-size: 0.8rem;
+  /* Override app.html `button { color: white }` — light chrome needs dark text */
+  background: #e2e8f0;
+  color: #0f172a;
+  border: 1px solid #94a3b8;
+}
+
+.chem-btn:hover {
+  background: #cbd5e1;
+  color: #0f172a;
 }
 
 .chem-chip {
@@ -4005,6 +4019,13 @@ body.teacher-detail-open {
   font-size: 0.85rem;
   border: 1px solid #cbd5e1;
   background: #fff;
+  color: #1e293b;
+}
+
+.chem-chip:hover {
+  border-color: #2563eb;
+  background: #eff6ff;
+  color: #1e40af;
 }
 
 .chem-chip-active {
@@ -4136,6 +4157,15 @@ body.teacher-detail-open {
 .chem-ion-btn {
   padding: 4px 8px;
   min-width: 32px;
+  background: #fff;
+  color: #1e293b;
+  border: 1px solid #cbd5e1;
+}
+
+.chem-ion-btn:hover {
+  border-color: #2563eb;
+  background: #eff6ff;
+  color: #1e40af;
 }
 
 .chem-ion-btn--active {
@@ -4303,12 +4333,60 @@ body.teacher-detail-open {
   margin-top: 6px;
 }
 
+.chem-answer-caption--equation {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #0f172a;
+  text-align: left;
+  word-break: break-word;
+  line-height: 1.45;
+}
+
+.chem-workflow--locked input:disabled,
+.chem-workflow--locked select:disabled,
+.chem-workflow--locked textarea:disabled {
+  opacity: 1;
+  color: #0f172a;
+  -webkit-text-fill-color: #0f172a;
+  background: #f8fafc;
+  cursor: default;
+}
+
+.chem-coeff--correct {
+  border-color: #10b981 !important;
+  background: #ecfdf5 !important;
+  color: #065f46 !important;
+  -webkit-text-fill-color: #065f46 !important;
+}
+
+.chem-coeff--incorrect {
+  border-color: #ef4444 !important;
+  background: #fef2f2 !important;
+  color: #991b1b !important;
+  -webkit-text-fill-color: #991b1b !important;
+}
+
 .chem-answer-compare {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 10px;
   align-items: start;
   width: 100%;
+}
+
+@media (min-width: 720px) {
+  .chem-answer-compare {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.chem-workflow--compare-in-feedback .chem-diagram-wrap,
+.chem-workflow--compare-in-feedback .chem-toolbar,
+.chem-workflow--compare-in-feedback .chem-hint,
+.chem-workflow--compare-in-feedback .chem-ion-controls-row,
+.chem-workflow--compare-in-feedback .chem-status,
+.chem-workflow--compare-in-feedback .chem-title {
+  display: none;
 }
 
 .chem-answer-panel {
@@ -4328,6 +4406,10 @@ body.teacher-detail-open {
 @media (min-width: 640px) {
   .chem-answer-panel .chem-answer-svg {
     max-width: 200px !important;
+  }
+
+  .chem-answer-panel .chem-answer-svg--wide {
+    max-width: 100% !important;
   }
 }
 
