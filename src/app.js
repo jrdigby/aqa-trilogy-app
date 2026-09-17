@@ -1551,7 +1551,10 @@ async function renderFlashcardChemistryDiagram(att) {
       if (diagramCfg.kind === "balance_equation") return "";
       const svg = renderStemDiagramSvg(diagramCfg);
       if (!svg) return "";
-      return `<div class="revision-card-chem-diagram">${svg}</div>`;
+      const kindClass = diagramCfg.kind
+        ? ` revision-card-chem-diagram--${String(diagramCfg.kind).replace(/[^a-z0-9_-]/gi, "")}`
+        : "";
+      return `<div class="revision-card-chem-diagram${kindClass}">${svg}</div>`;
     } catch (err) {
       console.warn("Flashcard chemistry diagram failed:", err);
       return "";
@@ -1659,14 +1662,36 @@ function renderFlashcardMcqOptions(q) {
   `;
 }
 
+function getQuestionChemKind(q) {
+  const cfg = q?.chemistry_config;
+  if (!cfg) return null;
+  if (typeof cfg === "string") {
+    try {
+      return JSON.parse(cfg)?.kind || null;
+    } catch {
+      return null;
+    }
+  }
+  return cfg.kind || null;
+}
+
 function revisionCardClassNames(q, hasQuestionImg, hasChemDiagram = false) {
   const parts = ["revision-card"];
   if (q.question_type === "mcq") parts.push("revision-card--mcq");
   if (hasQuestionImg) parts.push("revision-card--has-question-img");
-  if (hasChemDiagram || q.question_type === "chemistry_interactive"
+  const chemKind = getQuestionChemKind(q);
+  const isInteractiveStem =
+    q.question_type === "chemistry_interactive"
     || q.question_type === "circuit_interactive"
-    || q.question_type === "equipment_interactive") {
-    parts.push("revision-card--chemistry");
+    || q.question_type === "equipment_interactive";
+  if (hasChemDiagram || isInteractiveStem) {
+    if (chemKind === "balance_equation") {
+      // Equation text only — avoid the tall diagram card height.
+      parts.push("revision-card--chemistry-eq");
+    } else {
+      // Shell / ionic / covalent / other diagram cards share one height.
+      parts.push("revision-card--chemistry");
+    }
   }
   return parts.join(" ");
 }

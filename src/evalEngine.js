@@ -88,11 +88,35 @@ export function formatPickNFlashcardText(pool) {
   return poolLabel ? formatAnswerFlashcard(poolLabel, "") : "";
 }
 
-/** Split "Salt, hydrogen." / "coal, oil / petroleum" into separate answer terms. */
+/** Split "Salt, hydrogen." / "coal, oil / petroleum" into separate answer terms.
+ *  Refuses prose, thousand-separators (1/10,000), and sentence commas (much, much).
+ */
 export function splitFlashcardAnswerList(text) {
-  const s = String(text || "").trim().replace(/[.!?]+$/, "");
+  const raw = String(text || "").trim();
+  const s = raw.replace(/[.!?]+$/, "");
   if (!s || !s.includes(",")) return [];
-  return s.split(/\s*,\s*/).map((t) => t.trim()).filter(Boolean);
+  // "1/10,000" or "1,000" — not a list separator
+  if (/\d,\d/.test(s)) return [];
+  // Sentence / explanation prose ("The nucleus is much, much smaller…")
+  if (/\.\s/.test(raw)) return [];
+
+  const terms = s.split(/\s*,\s*/).map((t) => t.trim()).filter(Boolean);
+  if (terms.length < 2) return [];
+  // Count words in each synonym arm ("high speed / fast" → max(2, 1) = 2), not slash tokens.
+  const wordCount = (t) => Math.max(
+    1,
+    ...t.split(/\s*\/\s*/).map((arm) => arm.split(/\s+/).filter(Boolean).length),
+  );
+  // Each term must look like a short keyword/pool answer, not a clause
+  const looksLikeAnswerToken = (t) =>
+    t.length <= 48
+    && wordCount(t) <= 3
+    && !/^[0-9]+$/.test(t)
+    && !/^0{2,}/.test(t)
+    && !/^\d+\.\s/.test(t)
+    && !/^(the|a|an|this|that|these|those|you|it)\b/i.test(t);
+  if (!terms.every(looksLikeAnswerToken)) return [];
+  return terms;
 }
 
 /** One bold flashcard insight per mark-scheme / pool term. */
@@ -129,32 +153,68 @@ export function formatMarkPointsFlashcardText(markPoints) {
  * Newlines in plain text collapse in HTML — callers should render these as separate blocks.
  */
 export function splitFlashcardInsight(m = {}, options = null) {
-  let answer = formatAnswerLabel(m?.answer_label || m?.answer || m?.point_text || "");
-  if (options) answer = formatMcqAnswerWithLetter(options, answer);
+  // Prefer explicit answer fields; point_text is only a fallback (missed-checkpoint label).
+  let answer = formatAnswerLabel(m?.answer_label || m?.answer || "");
+  if (options && answer) answer = formatMcqAnswerWithLetter(options, answer);
 
   let explanation = "";
   const flashcardText = String(m?.flashcard_text || "").trim();
+  const pointText = formatAnswerLabel(m?.point_text || "");
   // Legacy pick_n cards stored only "Give N more…" — recover answers from practice text.
   const isLegacyPickNProgress = LEGACY_PICK_N_PROGRESS_FLASHCARD.test(flashcardText);
   if (!answer && isLegacyPickNProgress) {
     const recovered = extractAcceptableAnswersFromFeedback(m?.text);
     if (recovered) answer = recovered;
   }
+
   // When answers were recovered, do not treat the progress tip as the card answer.
   if (flashcardText && !(isLegacyPickNProgress && answer)) {
     const parts = flashcardText.split(/\n\n+/).map((p) => p.trim()).filter(Boolean);
-    if (!answer && parts.length) {
-      answer = options ? formatMcqAnswerWithLetter(options, parts[0]) : parts[0];
-      explanation = parts.slice(1).join("\n\n");
-    } else if (answer && parts.length) {
-      const answerBare = answer.replace(/^[A-Za-z]\.\s+/, "").replace(/[.!?]$/, "").toLowerCase();
+    if (parts.length >= 2) {
+      // Structured "answer\n\nexplanation" (typical MCQ / tip cards)
+      if (!answer) {
+        answer = options ? formatMcqAnswerWithLetter(options, parts[0]) : parts[0];
+      }
+      const answerBare = String(answer || "")
+        .replace(/^[A-Za-z]\.\s+/, "")
+        .replace(/[.!?]$/, "")
+        .toLowerCase();
       explanation = parts
-        .filter((p) => {
+        .filter((p, idx) => {
+          if (!answer && idx === 0) return false;
           const bare = p.replace(/^[A-Za-z]\.\s+/, "").replace(/[.!?]$/, "").toLowerCase();
-          return bare !== answerBare && bare !== answer.toLowerCase();
+          return bare !== answerBare && bare !== String(answer || "").toLowerCase();
         })
         .join("\n\n");
+      // If point_text was a section heading inside the explanation, do not promote it to answer.
+    } else if (!answer) {
+      const only = parts[0] || flashcardText;
+      const listTerms = splitFlashcardAnswerList(only);
+      if (listTerms.length >= 2) {
+        // Compact multi-answer list — keep as one block here; UI may expand to bullets.
+        answer = only;
+      } else if (
+        pointText
+        && !only.includes(",")
+        && only.toLowerCase().includes(pointText.replace(/[.!?]$/, "").toLowerCase())
+        && only.length > pointText.length + 5
+      ) {
+        // Checkpoint tip that names the missed term — bold the term, tip underneath.
+        answer = pointText;
+        explanation = only;
+      } else {
+        answer = options ? formatMcqAnswerWithLetter(options, only) : only;
+      }
+    } else {
+      const answerBare = answer.replace(/^[A-Za-z]\.\s+/, "").replace(/[.!?]$/, "").toLowerCase();
+      const only = parts[0] || flashcardText;
+      const bare = only.replace(/^[A-Za-z]\.\s+/, "").replace(/[.!?]$/, "").toLowerCase();
+      if (bare !== answerBare && bare !== answer.toLowerCase()) explanation = only;
     }
+  }
+
+  if (!answer && pointText) {
+    answer = options ? formatMcqAnswerWithLetter(options, pointText) : pointText;
   }
 
   // Practice `text` may be a wrong-option tip — only use it when there is no flashcard_text.

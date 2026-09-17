@@ -12787,9 +12787,20 @@ function formatPickNFlashcardText(pool) {
   return poolLabel ? formatAnswerFlashcard(poolLabel, "") : "";
 }
 function splitFlashcardAnswerList(text) {
-  const s = String(text || "").trim().replace(/[.!?]+$/, "");
+  const raw = String(text || "").trim();
+  const s = raw.replace(/[.!?]+$/, "");
   if (!s || !s.includes(",")) return [];
-  return s.split(/\s*,\s*/).map((t) => t.trim()).filter(Boolean);
+  if (/\d,\d/.test(s)) return [];
+  if (/\.\s/.test(raw)) return [];
+  const terms = s.split(/\s*,\s*/).map((t) => t.trim()).filter(Boolean);
+  if (terms.length < 2) return [];
+  const wordCount = (t) => Math.max(
+    1,
+    ...t.split(/\s*\/\s*/).map((arm) => arm.split(/\s+/).filter(Boolean).length)
+  );
+  const looksLikeAnswerToken = (t) => t.length <= 48 && wordCount(t) <= 3 && !/^[0-9]+$/.test(t) && !/^0{2,}/.test(t) && !/^\d+\.\s/.test(t) && !/^(the|a|an|this|that|these|those|you|it)\b/i.test(t);
+  if (!terms.every(looksLikeAnswerToken)) return [];
+  return terms;
 }
 function insightsFromAnswerList(text) {
   const terms = splitFlashcardAnswerList(text);
@@ -12811,10 +12822,11 @@ function formatMarkPointsFlashcardText(markPoints) {
   return labels.length ? formatAnswerFlashcard(labels.join(", "), "") : "";
 }
 function splitFlashcardInsight(m = {}, options = null) {
-  let answer = formatAnswerLabel(m?.answer_label || m?.answer || m?.point_text || "");
-  if (options) answer = formatMcqAnswerWithLetter(options, answer);
+  let answer = formatAnswerLabel(m?.answer_label || m?.answer || "");
+  if (options && answer) answer = formatMcqAnswerWithLetter(options, answer);
   let explanation = "";
   const flashcardText = String(m?.flashcard_text || "").trim();
+  const pointText = formatAnswerLabel(m?.point_text || "");
   const isLegacyPickNProgress = LEGACY_PICK_N_PROGRESS_FLASHCARD.test(flashcardText);
   if (!answer && isLegacyPickNProgress) {
     const recovered = extractAcceptableAnswersFromFeedback(m?.text);
@@ -12822,16 +12834,36 @@ function splitFlashcardInsight(m = {}, options = null) {
   }
   if (flashcardText && !(isLegacyPickNProgress && answer)) {
     const parts = flashcardText.split(/\n\n+/).map((p) => p.trim()).filter(Boolean);
-    if (!answer && parts.length) {
-      answer = options ? formatMcqAnswerWithLetter(options, parts[0]) : parts[0];
-      explanation = parts.slice(1).join("\n\n");
-    } else if (answer && parts.length) {
-      const answerBare = answer.replace(/^[A-Za-z]\.\s+/, "").replace(/[.!?]$/, "").toLowerCase();
-      explanation = parts.filter((p) => {
+    if (parts.length >= 2) {
+      if (!answer) {
+        answer = options ? formatMcqAnswerWithLetter(options, parts[0]) : parts[0];
+      }
+      const answerBare = String(answer || "").replace(/^[A-Za-z]\.\s+/, "").replace(/[.!?]$/, "").toLowerCase();
+      explanation = parts.filter((p, idx) => {
+        if (!answer && idx === 0) return false;
         const bare = p.replace(/^[A-Za-z]\.\s+/, "").replace(/[.!?]$/, "").toLowerCase();
-        return bare !== answerBare && bare !== answer.toLowerCase();
+        return bare !== answerBare && bare !== String(answer || "").toLowerCase();
       }).join("\n\n");
+    } else if (!answer) {
+      const only = parts[0] || flashcardText;
+      const listTerms = splitFlashcardAnswerList(only);
+      if (listTerms.length >= 2) {
+        answer = only;
+      } else if (pointText && !only.includes(",") && only.toLowerCase().includes(pointText.replace(/[.!?]$/, "").toLowerCase()) && only.length > pointText.length + 5) {
+        answer = pointText;
+        explanation = only;
+      } else {
+        answer = options ? formatMcqAnswerWithLetter(options, only) : only;
+      }
+    } else {
+      const answerBare = answer.replace(/^[A-Za-z]\.\s+/, "").replace(/[.!?]$/, "").toLowerCase();
+      const only = parts[0] || flashcardText;
+      const bare = only.replace(/^[A-Za-z]\.\s+/, "").replace(/[.!?]$/, "").toLowerCase();
+      if (bare !== answerBare && bare !== answer.toLowerCase()) explanation = only;
     }
+  }
+  if (!answer && pointText) {
+    answer = options ? formatMcqAnswerWithLetter(options, pointText) : pointText;
   }
   if (!explanation && !flashcardText) {
     let text = m?.text || m?.feedback || m?.label || "";
