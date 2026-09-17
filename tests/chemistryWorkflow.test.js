@@ -34,6 +34,7 @@ import {
   addElectronToInteractiveShell,
   removeElectronAtInteractiveSlot,
   INTERACTIVE_SHELL_CAP,
+  balanceEquationFlashcardText,
 } from "../src/chemistryWorkflow.js";
 
 describe("chemistry shells helpers", () => {
@@ -860,6 +861,39 @@ describe("balance equation formulas and states", () => {
     );
     assert.equal(result.total, 1);
     assert.match(result.feedbackPayload.chemistry.detail, /Equation not balanced/);
+  });
+
+  it("stores the balanced mhchem equation on flashcard_text when unbalanced", () => {
+    const preset = CHEMISTRY_PRESETS.water_balance_states;
+    const q = {
+      question_type: "chemistry_interactive",
+      max_marks: 2,
+      chemistry_config: { kind: preset.kind, template: preset.template, answer: preset.answer },
+    };
+    const key = { key_type: "chemistry", key_payload: preset.answer };
+    const result = markChemistryResponse(
+      q,
+      { kind: "balance_equation", coeffs: [1, 1, 1], states: ["g", "g", "l"] },
+      key,
+      [],
+      null
+    );
+    const card = result.missing.find((m) => m.flashcard_text);
+    assert.ok(card);
+    assert.match(card.flashcard_text, /\\ce\{/);
+    assert.match(card.flashcard_text, /2H2\(g\)/);
+    assert.match(card.flashcard_text, /2H2O\(l\)/);
+    assert.doesNotMatch(card.flashcard_text, /Equation not balanced/);
+    assert.match(card.text, /Equation not balanced/);
+  });
+
+  it("balanceEquationFlashcardText wraps the mark-scheme equation in mhchem", () => {
+    const preset = CHEMISTRY_PRESETS.water_balance_states;
+    const text = balanceEquationFlashcardText(preset.answer, {
+      template: preset.template,
+      answer: preset.answer,
+    });
+    assert.equal(text, "$\\ce{2H2(g) + O2(g) -> 2H2O(l)}$");
   });
 
   it("tells students the ion formula is incorrect when charge is missing", () => {

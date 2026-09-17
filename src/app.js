@@ -1456,6 +1456,24 @@ async function extractFlashcardInsights(att) {
     if (rebuilt?.length) return rebuilt.map((step) => asInsight(step));
   }
 
+  // Balance equations: show the correctly balanced mhchem equation (not "Equation not balanced").
+  if (
+    payload?.chemistry?.kind === "balance_equation"
+    || (typeof q.chemistry_config === "object" && q.chemistry_config?.kind === "balance_equation")
+    || (typeof q.chemistry_config === "string" && /"kind"\s*:\s*"balance_equation"/.test(q.chemistry_config))
+  ) {
+    try {
+      const { loadChemistryWorkflow } = await import("./lazyChemistryWorkflow.js");
+      const { getChemistryConfig, balanceEquationFlashcardText } = await loadChemistryWorkflow();
+      const cfg = getChemistryConfig(q);
+      const expected = payload?.chemistry?.expected || cfg?.answer;
+      const eq = balanceEquationFlashcardText(expected, cfg || { template: {}, answer: expected });
+      if (eq) return [asInsight(eq)];
+    } catch (err) {
+      console.warn("Balance equation flashcard rebuild failed:", err);
+    }
+  }
+
   if (Array.isArray(payload?.missing)) {
     const withFlashcardText = payload.missing.filter((m) => m.flashcard_text);
     const source = withFlashcardText.length > 0 ? withFlashcardText : payload.missing;

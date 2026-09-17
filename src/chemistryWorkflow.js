@@ -361,6 +361,11 @@ function balanceCaptionHtml(captionBody) {
   return `$\\ce{${body}}$`;
 }
 
+/** Flashcard-back answer: correctly balanced equation as mhchem (`$\\ce{...}$`). */
+export function balanceEquationFlashcardText(answer, cfg) {
+  return balanceCaptionHtml(formatBalanceCaption(answer, cfg));
+}
+
 /** Student response caption for balance / half-equation feedback compare. */
 function formatBalanceCaptionFromResponse(resp, cfg) {
   const template = cfg?.template || {};
@@ -2951,14 +2956,20 @@ export function markChemistryResponse(q, resp, key, markPoints, cleanUrl) {
   const pointsForMissing = (kind === "ionic_bonding" && shellsFailed)
     ? appliedPoints.filter((p) => p.id === "shells")
     : appliedPoints.filter((p) => !p.correct);
-  pointsForMissing.filter((p) => !p.correct).forEach((p) => {
+  const balanceFlashcard =
+    kind === "balance_equation" ? balanceEquationFlashcardText(answer, cfg) : "";
+  pointsForMissing.filter((p) => !p.correct).forEach((p, index) => {
     const tip = p.feedback || p.label || result.detail;
+    // One mhchem model equation on the flashcard; keep tips for in-session feedback.
+    const flashcardText = balanceFlashcard
+      ? (index === 0 ? balanceFlashcard : undefined)
+      : tip;
     missing.push({
       ao: "AO1",
       label: p.label,
       feedback: tip,
       text: tip,
-      flashcard_text: tip,
+      ...(flashcardText != null ? { flashcard_text: flashcardText } : {}),
       resource_url: cleanUrl || null,
     });
   });
@@ -2969,7 +2980,7 @@ export function markChemistryResponse(q, resp, key, markPoints, cleanUrl) {
       label: result.detail,
       feedback: tip,
       text: tip,
-      flashcard_text: tip,
+      flashcard_text: balanceFlashcard || tip,
       resource_url: cleanUrl || null,
     });
   }

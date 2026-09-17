@@ -6026,8 +6026,11 @@ var chemistryWorkflow_exports = {};
 __export(chemistryWorkflow_exports, {
   CHEMISTRY_PRESETS: () => CHEMISTRY_PRESETS,
   ELEMENT_DATA: () => ELEMENT_DATA,
+  INTERACTIVE_SHELL_CAP: () => INTERACTIVE_SHELL_CAP,
+  addElectronToInteractiveShell: () => addElectronToInteractiveShell,
   answerStateFromKey: () => answerStateFromKey,
   applyChemistryPresetToForm: () => applyChemistryPresetToForm,
+  balanceEquationFlashcardText: () => balanceEquationFlashcardText,
   buildAtomConfigFromForm: () => buildAtomConfigFromForm,
   buildAtomDiagramConfig: () => buildAtomDiagramConfig,
   buildChemistryConfigFromForm: () => buildChemistryConfigFromForm,
@@ -6037,6 +6040,7 @@ __export(chemistryWorkflow_exports, {
   chemistryStemSourceFromQuestion: () => chemistryStemSourceFromQuestion,
   collectChemistryResponse: () => collectChemistryResponse,
   covSharedElectronStyle: () => covSharedElectronStyle,
+  covalentAtomElectronStyles: () => covalentAtomElectronStyles,
   covalentSharedElectronPositions: () => covalentSharedElectronPositions,
   displayStateFromPresetOrConfig: () => displayStateFromPresetOrConfig,
   distributeElectrons: () => distributeElectrons,
@@ -6051,6 +6055,7 @@ __export(chemistryWorkflow_exports, {
   isIonFormula: () => isIonFormula,
   layoutCovalentAtoms: () => layoutCovalentAtoms,
   listStemDiagramPresets: () => listStemDiagramPresets,
+  lockChemistryWorkflow: () => lockChemistryWorkflow,
   markChemistryResponse: () => markChemistryResponse,
   normalizeIonFormula: () => normalizeIonFormula,
   normalizeMoleculeAtomSymbols: () => normalizeMoleculeAtomSymbols,
@@ -6061,6 +6066,7 @@ __export(chemistryWorkflow_exports, {
   parseHalfSlot: () => parseHalfSlot,
   populateChemistryPresetSelect: () => populateChemistryPresetSelect,
   questionHasChemistryStem: () => questionHasChemistryStem,
+  removeElectronAtInteractiveSlot: () => removeElectronAtInteractiveSlot,
   renderChemistryModelAnswerHtml: () => renderChemistryModelAnswerHtml,
   renderChemistryWorkflow: () => renderChemistryWorkflow,
   renderDisplayedFormulaSvg: () => renderDisplayedFormulaSvg,
@@ -6295,6 +6301,16 @@ function formulaMarkFeedback(formulaSpecies, resp, species) {
   if (sawCase) return "Check chemical formula case (Co is cobalt, CO is carbon monoxide).";
   return "Chemical formula is incorrect.";
 }
+function formulaToMhchemToken(formula) {
+  let s = String(formula || "").trim();
+  if (!s || s === "?") return s || "?";
+  if (/\^\{/.test(s)) return s;
+  s = s.replace(/(\d+)\+/g, "^{$1+}");
+  s = s.replace(/(\d+)-/g, "^{$1-}");
+  s = s.replace(/([A-Za-z])\+$/g, "$1^{+}");
+  s = s.replace(/([A-Za-z0-9])-$/g, "$1^{-}");
+  return s;
+}
 function formatBalanceCaption(answer, cfg) {
   const terms = equationTermsFromAnswer(answer, cfg);
   if (!terms.length) {
@@ -6305,11 +6321,53 @@ function formatBalanceCaption(answer, cfg) {
   const fmt = (t) => {
     const coeffLabel = t.coeff > 1 ? String(t.coeff) : "";
     const st = !omitStates && t.state ? `(${t.state})` : "";
-    return `${coeffLabel}${t.formula}${st}`;
+    return `${coeffLabel}${formulaToMhchemToken(t.formula)}${st}`;
   };
   const left = terms.filter((t) => t.side !== "right").map(fmt);
   const right = terms.filter((t) => t.side === "right").map(fmt);
-  return `${left.join(" + ")} \u2192 ${right.join(" + ")}`;
+  return `${left.join(" + ")} -> ${right.join(" + ")}`;
+}
+function balanceCaptionHtml(captionBody) {
+  const body = String(captionBody || "").trim();
+  if (!body) return "";
+  if (body.startsWith("Coefficients:")) return escapeHtml2(body);
+  return `$\\ce{${body}}$`;
+}
+function balanceEquationFlashcardText(answer, cfg) {
+  return balanceCaptionHtml(formatBalanceCaption(answer, cfg));
+}
+function formatBalanceCaptionFromResponse(resp, cfg) {
+  const template = cfg?.template || {};
+  if ((resp?.subtype || template.subtype) === "half") {
+    const layout = halfEquationLayout(cfg?.answer || resp, template);
+    const slots = (resp?.halfSlots || []).map((s) => {
+      const raw = String(s || "").trim() || "?";
+      return raw === "?" ? "?" : formulaToMhchemToken(raw);
+    });
+    if (layout === "anion") {
+      return `${slots[0] || "?"} -> ${slots[1] || "?"} + ${slots[2] || "?"}`;
+    }
+    return `${slots[0] || "?"} + ${slots[1] || "?"} -> ${slots[2] || "?"}`;
+  }
+  const species = (template.species || []).map((sp, i) => {
+    const entered = sp.studentEntersFormula ? String(resp?.formulas?.[i] ?? "").trim() : "";
+    const stateVal = resp?.states?.[i];
+    return {
+      ...sp,
+      formula: entered || sp.formula || "?",
+      state: stateVal != null && stateVal !== "" ? stateVal : sp.state || ""
+    };
+  });
+  return formatBalanceCaption(
+    {
+      kind: "balance_equation",
+      coeffs: resp?.coeffs || [],
+      extraSpecies: resp?.extraSpecies || [],
+      species,
+      subtype: template.subtype
+    },
+    { template }
+  );
 }
 function renderStateSelect(value, attr, extra = false) {
   const selected = String(value || "");
@@ -6328,9 +6386,16 @@ function electronPositions(cx, cy, r, count, shellIndex = 1) {
   const n = Math.max(0, count);
   if (n === 0) return pts;
   if (shellIndex === 0) {
-    const angles = [-Math.PI / 2, Math.PI / 2];
+    if (n <= 2) {
+      const angles = [-Math.PI / 2, Math.PI / 2];
+      for (let i = 0; i < n; i++) {
+        const angle = angles[i];
+        pts.push({ x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) });
+      }
+      return pts;
+    }
     for (let i = 0; i < n; i++) {
-      const angle = angles[i % angles.length];
+      const angle = -Math.PI / 2 + 2 * Math.PI * i / n;
       pts.push({ x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) });
     }
     return pts;
@@ -6350,6 +6415,66 @@ function electronPositions(cx, cy, r, count, shellIndex = 1) {
     pts.push({ x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) });
   }
   return pts;
+}
+function interactiveShellSlotPositions(cx, cy, r, shellIndex, maxSlots = INTERACTIVE_SHELL_CAP) {
+  if (shellIndex === 0) {
+    const preferred = [-Math.PI / 2, Math.PI / 2];
+    const angles = [...preferred];
+    for (let i = 0; i < maxSlots * 2 && angles.length < maxSlots; i++) {
+      const a = -Math.PI / 2 + 2 * Math.PI * i / maxSlots;
+      if (preferred.some((p) => Math.abs(p - a) < 1e-6)) continue;
+      angles.push(a);
+    }
+    return angles.slice(0, maxSlots).map((angle) => ({
+      x: cx + r * Math.cos(angle),
+      y: cy + r * Math.sin(angle)
+    }));
+  }
+  return electronPositions(cx, cy, r, maxSlots, shellIndex);
+}
+function ensureShellSlots(state) {
+  const counts = Array.isArray(state?.shells) ? state.shells : [];
+  const shellCount = Math.max(counts.length, 1);
+  if (!Array.isArray(state.shellSlots) || state.shellSlots.length !== shellCount) {
+    state.shellSlots = counts.map((count) => {
+      const n = Math.min(INTERACTIVE_SHELL_CAP, Math.max(0, Number(count) || 0));
+      return Array.from({ length: n }, (_, i) => i);
+    });
+  }
+  while (state.shellSlots.length < shellCount) state.shellSlots.push([]);
+  return state;
+}
+function syncShellCountsFromSlots(state) {
+  if (!Array.isArray(state?.shellSlots)) return state;
+  state.shells = state.shellSlots.map((slots) => Array.isArray(slots) ? slots.length : 0);
+  return state;
+}
+function addElectronToInteractiveShell(state, shellIndex) {
+  ensureShellSlots(state);
+  while (state.shellSlots.length <= shellIndex) state.shellSlots.push([]);
+  while ((state.shells || []).length <= shellIndex) {
+    state.shells = state.shells || [];
+    state.shells.push(0);
+  }
+  const slots = state.shellSlots[shellIndex];
+  if (slots.length >= INTERACTIVE_SHELL_CAP) return state;
+  const occupied = new Set(slots);
+  for (let i = 0; i < INTERACTIVE_SHELL_CAP; i++) {
+    if (!occupied.has(i)) {
+      slots.push(i);
+      slots.sort((a, b) => a - b);
+      break;
+    }
+  }
+  syncShellCountsFromSlots(state);
+  return state;
+}
+function removeElectronAtInteractiveSlot(state, shellIndex, slotIndex) {
+  ensureShellSlots(state);
+  if (!state.shellSlots[shellIndex]) return state;
+  state.shellSlots[shellIndex] = state.shellSlots[shellIndex].filter((s) => s !== slotIndex);
+  syncShellCountsFromSlots(state);
+  return state;
 }
 function atomOuterRadius(shellCount, baseR = 28, gap = 22) {
   return baseR + Math.max(shellCount - 1, 0) * gap;
@@ -6384,10 +6509,12 @@ function renderAtomSvg(opts) {
     maxShells = null,
     brackets = false,
     baseR = 28,
-    gap = 22
+    gap = 22,
+    shellSlots = null
   } = opts;
   const shellList = Array.isArray(shells) ? shells : [];
   const shellCount = maxShells || Math.max(shellList.length, 1);
+  const useSlots = interactive && Array.isArray(shellSlots);
   let svg = "";
   if (showNucleus) {
     svg += `<circle class="chem-nucleus" data-atom="${escapeHtml2(atomId)}" cx="${cx}" cy="${cy}" r="18" fill="#1e293b" stroke="#0f172a" stroke-width="2"/>`;
@@ -6411,18 +6538,29 @@ function renderAtomSvg(opts) {
   }
   for (let s = 0; s < shellCount; s++) {
     const r = baseR + s * gap;
-    const count = shellList[s] || 0;
     svg += `<circle class="chem-shell" data-atom="${escapeHtml2(atomId)}" data-shell="${s}" cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#64748b" stroke-width="1.5" stroke-dasharray="4 3" style="pointer-events:none"/>`;
-    const pts = electronPositions(cx, cy, r, count, s);
-    pts.forEach((pt, ei) => {
-      const fill = interactive ? "#2563eb" : "#059669";
-      const stroke = interactive ? "#1e40af" : "#047857";
-      const pe = interactive ? "all" : "none";
-      svg += `<circle class="chem-electron" data-atom="${escapeHtml2(atomId)}" data-shell="${s}" data-e="${ei}" cx="${pt.x}" cy="${pt.y}" r="6" fill="${fill}" stroke="${stroke}" stroke-width="1" tabindex="${interactive ? "0" : "-1"}" role="${interactive ? "button" : "presentation"}" aria-label="${interactive ? `Remove electron from shell ${s + 1}` : ""}" style="cursor:${interactive ? "pointer" : "default"};pointer-events:${pe}"/>`;
-      if (interactive) {
-        svg += `<circle class="chem-electron-hit" data-atom="${escapeHtml2(atomId)}" data-shell="${s}" data-e="${ei}" cx="${pt.x}" cy="${pt.y}" r="12" fill="transparent" stroke="none" tabindex="-1" aria-hidden="true" style="cursor:pointer;pointer-events:all"/>`;
-      }
-    });
+    const fill = interactive ? "#2563eb" : "#059669";
+    const stroke = interactive ? "#1e40af" : "#047857";
+    const pe = interactive ? "all" : "none";
+    if (useSlots) {
+      const occupied = Array.isArray(shellSlots[s]) ? shellSlots[s] : [];
+      const layout = interactiveShellSlotPositions(cx, cy, r, s, INTERACTIVE_SHELL_CAP);
+      occupied.forEach((slotIdx) => {
+        const pt = layout[slotIdx];
+        if (!pt) return;
+        svg += `<circle class="chem-electron" data-atom="${escapeHtml2(atomId)}" data-shell="${s}" data-e="${slotIdx}" cx="${pt.x}" cy="${pt.y}" r="6" fill="${fill}" stroke="${stroke}" stroke-width="1" tabindex="0" role="button" aria-label="Remove electron from shell ${s + 1}" style="cursor:pointer;pointer-events:${pe}"/>`;
+        svg += `<circle class="chem-electron-hit" data-atom="${escapeHtml2(atomId)}" data-shell="${s}" data-e="${slotIdx}" cx="${pt.x}" cy="${pt.y}" r="12" fill="transparent" stroke="none" tabindex="-1" aria-hidden="true" style="cursor:pointer;pointer-events:all"/>`;
+      });
+    } else {
+      const count = shellList[s] || 0;
+      const pts = electronPositions(cx, cy, r, count, s);
+      pts.forEach((pt, ei) => {
+        svg += `<circle class="chem-electron" data-atom="${escapeHtml2(atomId)}" data-shell="${s}" data-e="${ei}" cx="${pt.x}" cy="${pt.y}" r="6" fill="${fill}" stroke="${stroke}" stroke-width="1" tabindex="${interactive ? "0" : "-1"}" role="${interactive ? "button" : "presentation"}" aria-label="${interactive ? `Remove electron from shell ${s + 1}` : ""}" style="cursor:${interactive ? "pointer" : "default"};pointer-events:${pe}"/>`;
+        if (interactive) {
+          svg += `<circle class="chem-electron-hit" data-atom="${escapeHtml2(atomId)}" data-shell="${s}" data-e="${ei}" cx="${pt.x}" cy="${pt.y}" r="12" fill="transparent" stroke="none" tabindex="-1" aria-hidden="true" style="cursor:pointer;pointer-events:all"/>`;
+        }
+      });
+    }
   }
   if (brackets) {
     svg += renderIonBrackets(cx, cy, atomOuterRadius(shellCount, baseR, gap), charge);
@@ -6510,22 +6648,50 @@ function renderChemistryModelAnswerHtml(answer, opts = {}) {
   } else if (kind === "ionic_bonding") {
     const ions = ionicAnswerAtoms(answer);
     if (!ions.length) return "";
-    const { w, h, positions, baseR, gap } = layoutIonicAtoms(ions);
-    const ionSvgs = ions.map((ion, i) => renderIonicDotCrossAtomSvg({
-      cx: positions[i].x,
-      cy: positions[i].y,
-      symbol: ion.symbol,
-      shells: ion.shells,
-      style: ion.style || (i % 2 === 0 ? "dot" : "cross"),
-      brackets: ion.brackets !== false,
-      charge: ion.charge,
-      interactive: false,
-      atomIdx: i,
-      baseR,
-      gap
-    })).join("");
-    diagram = `<svg class="chem-svg chem-answer-svg chem-answer-svg--wide chem-svg--fluid" viewBox="0 0 ${w} ${h}" width="100%" style="display:block;margin:0 auto;" preserveAspectRatio="xMidYMid meet">${ionSvgs}</svg>`;
-    caption = ions.map((ion) => `${ion.symbol}${fmtCharge(ion.charge)}`).join(" + ");
+    const renderIonicPanelSvg = (atomsSource, ariaLabel) => {
+      const panelIons = ionicAnswerAtoms(atomsSource);
+      if (!panelIons.length) return { svg: "", caption: "" };
+      const { w, h, positions, baseR, gap } = layoutIonicAtoms(panelIons);
+      const ionSvgs = panelIons.map((ion, i) => renderIonicDotCrossAtomSvg({
+        cx: positions[i].x,
+        cy: positions[i].y,
+        symbol: ion.symbol,
+        shells: ion.shells,
+        style: ion.style || (i % 2 === 0 ? "dot" : "cross"),
+        brackets: ion.brackets !== false,
+        charge: ion.charge,
+        interactive: false,
+        atomIdx: i,
+        baseR,
+        gap
+      })).join("");
+      return {
+        svg: `<svg class="chem-svg chem-answer-svg chem-answer-svg--wide chem-svg--fluid" viewBox="0 0 ${w} ${h}" width="100%" style="display:block;margin:0 auto;" preserveAspectRatio="xMidYMid meet" aria-label="${escapeHtml2(ariaLabel)}">${ionSvgs}</svg>`,
+        caption: panelIons.map((ion) => `${ion.symbol}${fmtCharge(ion.charge)}`).join(" + ")
+      };
+    };
+    const modelPanel = renderIonicPanelSvg(answer, "Mark scheme ionic bonding diagram");
+    diagram = modelPanel.svg;
+    caption = modelPanel.caption;
+    if (compare && ionicAnswerAtoms(compare).length) {
+      const studentPanel = renderIonicPanelSvg(compare, "Your ionic bonding diagram");
+      return `
+        <div class="chem-model-answer chem-model-answer--compare">
+          <div class="chem-model-answer-title">${escapeHtml2(title)}</div>
+          <div class="chem-answer-compare">
+            <div class="chem-answer-panel">
+              <div class="chem-answer-panel-label">Your answer</div>
+              ${studentPanel.svg}
+              <div class="chem-answer-caption">${escapeHtml2(studentPanel.caption)}</div>
+            </div>
+            <div class="chem-answer-panel chem-answer-panel-correct">
+              <div class="chem-answer-panel-label">Mark scheme</div>
+              ${diagram}
+              <div class="chem-answer-caption">${escapeHtml2(caption)}</div>
+            </div>
+          </div>
+        </div>`;
+    }
   } else if (kind === "organic_structure") {
     diagram = renderDisplayedFormulaSvg({
       carbons: answer.carbons,
@@ -6553,6 +6719,26 @@ function renderChemistryModelAnswerHtml(answer, opts = {}) {
     caption = CARBON_ALLOTROPE_LABELS[answer.allotrope] || answer.allotrope || "Carbon allotrope";
   } else if (kind === "balance_equation" && Array.isArray(answer.coeffs)) {
     caption = formatBalanceCaption(answer, { template: opts.template || {} });
+    if (compare) {
+      const studentCaption = formatBalanceCaptionFromResponse(compare, {
+        template: opts.template || {},
+        answer
+      });
+      return `
+        <div class="chem-model-answer">
+          <div class="chem-model-answer-title">${escapeHtml2(title)}</div>
+          <div class="chem-answer-compare">
+            <div class="chem-answer-panel">
+              <div class="chem-answer-panel-label">Your answer</div>
+              <div class="chem-answer-caption chem-answer-caption--equation">${balanceCaptionHtml(studentCaption)}</div>
+            </div>
+            <div class="chem-answer-panel chem-answer-panel-correct">
+              <div class="chem-answer-panel-label">Mark scheme</div>
+              <div class="chem-answer-caption chem-answer-caption--equation">${balanceCaptionHtml(caption)}</div>
+            </div>
+          </div>
+        </div>`;
+    }
   } else if (kind === "covalent_bonding") {
     const wrap = renderCovalentDiagram({
       kind: "covalent_bonding",
@@ -6570,7 +6756,7 @@ function renderChemistryModelAnswerHtml(answer, opts = {}) {
     <div class="chem-model-answer">
       <div class="chem-model-answer-title">${escapeHtml2(title)}</div>
       ${diagram}
-      ${caption ? `<div class="chem-answer-caption">${escapeHtml2(caption)}</div>` : ""}
+      ${caption ? `<div class="chem-answer-caption${kind === "balance_equation" ? " chem-answer-caption--equation" : ""}">${kind === "balance_equation" ? balanceCaptionHtml(caption) : escapeHtml2(caption)}</div>` : ""}
     </div>`;
 }
 function initialStateForConfig(cfg) {
@@ -6584,6 +6770,7 @@ function initialStateForConfig(cfg) {
       kind,
       symbol,
       shells: Array(shellCount).fill(0),
+      shellSlots: Array.from({ length: shellCount }, () => []),
       nucleus: {
         p: cfg.template?.protons ?? data.Z,
         n: cfg.template?.neutrons ?? Math.round(data.A - data.Z)
@@ -6863,6 +7050,7 @@ function shellAnswerViewport(shellCount, { baseR = 36, gap = 28, pad = 10, brack
   return { size: Math.max(width, height), width, height, baseR, gap, cx, cy, maxShells: n };
 }
 function renderShellDiagram(state, cfg) {
+  ensureShellSlots(state);
   const maxShells = state.shells?.length || 2;
   const baseR = 36;
   const gap = 28;
@@ -6878,6 +7066,7 @@ function renderShellDiagram(state, cfg) {
     cy,
     symbol: state.symbol || cfg.template?.symbol || "C",
     shells: state.shells,
+    shellSlots: state.shellSlots,
     protons,
     neutrons: state.nucleus?.n,
     charge: null,
@@ -7008,14 +7197,52 @@ function emptyLoneElectronCounts() {
 function covElectronStyle(ai) {
   return ai % 2 === 0 ? "dot" : "cross";
 }
-function covElectronColor(ai) {
-  return ai % 2 === 0 ? "#2563eb" : "#dc2626";
+function covalentAtomElectronStyles(atoms = [], bonds = []) {
+  const n = atoms.length;
+  const styles = Array.from({ length: n }, () => "cross");
+  if (n === 0) return styles;
+  if (n <= 2) {
+    styles[0] = "dot";
+    if (n === 2) styles[1] = "cross";
+    return styles;
+  }
+  const degree = atoms.map(() => 0);
+  (bonds || []).forEach((b) => {
+    if (degree[b.a] != null) degree[b.a] += 1;
+    if (degree[b.b] != null) degree[b.b] += 1;
+  });
+  let centre = 0;
+  let best = -1;
+  atoms.forEach((a, i) => {
+    const score = degree[i] * 10 + (a.symbol === "H" ? 0 : 5);
+    if (score > best) {
+      best = score;
+      centre = i;
+    }
+  });
+  styles[centre] = "dot";
+  for (let i = 0; i < n; i++) {
+    if (i === centre) continue;
+    styles[i] = "cross";
+  }
+  if (atoms.some((a) => a.symbol !== "H")) {
+    atoms.forEach((a, i) => {
+      if (a.symbol === "H") styles[i] = "cross";
+    });
+  }
+  return styles;
 }
-function covSharedElectronStyle(bond, atomIdx) {
+function covElectronColorForStyle(style) {
+  return style === "cross" ? "#dc2626" : "#2563eb";
+}
+function covSharedElectronStyle(bond, atomIdx, atomStyles = null) {
+  if (Array.isArray(atomStyles) && atomStyles[atomIdx]) {
+    return atomStyles[atomIdx] === "cross" ? "cross" : "dot";
+  }
   return atomIdx === bond.a ? "dot" : "cross";
 }
-function covSharedElectronColor(bond, atomIdx) {
-  return atomIdx === bond.a ? "#2563eb" : "#dc2626";
+function covSharedElectronColor(bond, atomIdx, atomStyles = null) {
+  return covElectronColorForStyle(covSharedElectronStyle(bond, atomIdx, atomStyles));
 }
 function lonePairsFromElectronCounts(loneElectrons) {
   if (!loneElectrons) return 0;
@@ -7252,6 +7479,7 @@ function renderCovalentDiagram(state, { interactive = true } = {}) {
   const atoms = state.atoms || [];
   const bonds = state.bonds || [];
   const { w, h, positions, shellRadii } = layoutCovalentAtoms(atoms, bonds);
+  const atomStyles = covalentAtomElectronStyles(atoms, bonds);
   let svg = "";
   const bondDirs = atoms.map(() => []);
   bonds.forEach((bond) => {
@@ -7270,11 +7498,37 @@ function renderCovalentDiagram(state, { interactive = true } = {}) {
     svg += `<circle class="chem-cov-atom" data-atom-idx="${ai}" cx="${p.x}" cy="${p.y}" r="${coreR}" fill="#1e293b" tabindex="-1" role="presentation" aria-hidden="true"/>`;
     svg += `<text x="${p.x}" y="${p.y + 5}" text-anchor="middle" fill="#f8fafc" font-size="${fontSize}" font-weight="700" pointer-events="none">${escapeHtml2(atom.symbol)}</text>`;
   });
+  if (interactive) {
+    bonds.forEach((bond, bi) => {
+      if (getBondSharedCount(bond) >= covalentMaxSharedElectrons(bond)) return;
+      const pa = positions[bond.a];
+      const pb = positions[bond.b];
+      if (!pa || !pb) return;
+      const mx = (pa.x + pb.x) / 2;
+      const my = (pa.y + pb.y) / 2;
+      const hitR = Math.max(shellRadii[bond.a], shellRadii[bond.b]) * 0.45;
+      svg += `<circle class="chem-bond-hit" data-bond="${bi}" cx="${mx}" cy="${my}" r="${hitR}" fill="transparent" tabindex="0" role="button" aria-label="Add one shared electron on bond ${bi + 1}" style="cursor:pointer"/>`;
+    });
+    atoms.forEach((atom, ai) => {
+      const p = positions[ai];
+      const shellR = shellRadii[ai];
+      const loneCounts = getAtomLoneElectronCounts(atom, bondDirs[ai]);
+      svg += `<circle class="chem-cov-shell-hit" data-atom-idx="${ai}" cx="${p.x}" cy="${p.y}" r="${shellR}" fill="none" stroke="transparent" stroke-width="20" pointer-events="stroke" tabindex="0" role="button" aria-label="Add lone electron on ${escapeHtml2(atom.symbol)} outer shell" style="cursor:pointer"/>`;
+      COVALENT_LONE_SLOTS.forEach((slot) => {
+        const count = loneCounts[slot] || 0;
+        if (count >= COVALENT_LONE_ELECTRONS_PER_SLOT) return;
+        const ang = COVALENT_LONE_SLOT_ANGLES[slot];
+        const lx = p.x + shellR * Math.cos(ang);
+        const ly = p.y + shellR * Math.sin(ang);
+        svg += `<circle class="chem-lone-slot-hit${count > 0 ? " chem-lone-slot-hit--active" : ""}" data-atom-idx="${ai}" data-slot="${slot}" cx="${lx}" cy="${ly}" r="16" fill="transparent" tabindex="0" role="button" aria-label="Add one lone electron ${slot} on ${escapeHtml2(atom.symbol)}" style="cursor:pointer"/>`;
+      });
+    });
+  }
   bonds.forEach((bond, bi) => {
     const sharedPts = covalentSharedElectronPositions(bond, positions, shellRadii);
     sharedPts.forEach((pt, ei) => {
-      const style = covSharedElectronStyle(bond, pt.atom);
-      const color = covSharedElectronColor(bond, pt.atom);
+      const style = covSharedElectronStyle(bond, pt.atom, atomStyles);
+      const color = covSharedElectronColor(bond, pt.atom, atomStyles);
       if (interactive) {
         svg += renderCovElectronInteractive(
           pt.x,
@@ -7287,20 +7541,12 @@ function renderCovalentDiagram(state, { interactive = true } = {}) {
         svg += renderCovElectron(pt.x, pt.y, style, color);
       }
     });
-    if (interactive && getBondSharedCount(bond) < covalentMaxSharedElectrons(bond)) {
-      const pa = positions[bond.a];
-      const pb = positions[bond.b];
-      const mx = (pa.x + pb.x) / 2;
-      const my = (pa.y + pb.y) / 2;
-      const hitR = Math.max(shellRadii[bond.a], shellRadii[bond.b]) * 0.45;
-      svg += `<circle class="chem-bond-hit" data-bond="${bi}" cx="${mx}" cy="${my}" r="${hitR}" fill="transparent" tabindex="0" role="button" aria-label="Add one shared electron on bond ${bi + 1}" style="cursor:pointer"/>`;
-    }
   });
   atoms.forEach((atom, ai) => {
     const p = positions[ai];
     const shellR = shellRadii[ai];
-    const style = covElectronStyle(ai);
-    const color = covElectronColor(ai);
+    const style = atomStyles[ai] || covElectronStyle(ai);
+    const color = covElectronColorForStyle(style);
     const loneCounts = getAtomLoneElectronCounts(atom, bondDirs[ai]);
     COVALENT_LONE_SLOTS.forEach((slot) => {
       const ang = COVALENT_LONE_SLOT_ANGLES[slot];
@@ -7331,13 +7577,7 @@ function renderCovalentDiagram(state, { interactive = true } = {}) {
           svg += renderCovElectron(lx, ly, style, color);
         }
       }
-      if (interactive && count < COVALENT_LONE_ELECTRONS_PER_SLOT) {
-        svg += `<circle class="chem-lone-slot-hit${count > 0 ? " chem-lone-slot-hit--active" : ""}" data-atom-idx="${ai}" data-slot="${slot}" cx="${lx}" cy="${ly}" r="16" fill="transparent" tabindex="0" role="button" aria-label="Add one lone electron ${slot} on ${escapeHtml2(atom.symbol)}" style="cursor:pointer"/>`;
-      }
     });
-    if (interactive) {
-      svg += `<circle class="chem-cov-shell-hit" data-atom-idx="${ai}" cx="${p.x}" cy="${p.y}" r="${shellR}" fill="none" stroke="transparent" stroke-width="20" pointer-events="stroke" tabindex="0" role="button" aria-label="Add lone electron on ${escapeHtml2(atom.symbol)} outer shell" style="cursor:pointer"/>`;
-    }
   });
   const statusHtml = interactive ? `<div class="chem-status" id="chemStatus">Tap overlap or shell edge to add one electron \xB7 tap an electron to remove it</div>` : "";
   return `
@@ -7528,18 +7768,6 @@ function refreshDiagram() {
     setTimeout(() => forceInlineChemMath(mount), 250);
   }
 }
-function addElectron(shells, shellIndex, cap) {
-  const next = [...shells];
-  while (next.length <= shellIndex) next.push(0);
-  const limit = cap ?? SHELL_CAPS[shellIndex] ?? 8;
-  if (next[shellIndex] < limit) next[shellIndex] += 1;
-  return next;
-}
-function removeElectron(shells, shellIndex) {
-  const next = [...shells];
-  if (next[shellIndex] > 0) next[shellIndex] -= 1;
-  return next;
-}
 function wireChemistryWorkflow(q = null) {
   const root = document.getElementById("chemistryWorkflowRoot");
   if (!root) return;
@@ -7564,6 +7792,7 @@ function wireChemistryWorkflow(q = null) {
     return el.closest(".chem-shell-hitarea") || el.closest(".chem-shell");
   };
   root.addEventListener("click", (e) => {
+    if (root.dataset.locked === "1") return;
     const state = readState();
     const cfg = readConfig();
     if (!state || !cfg) return;
@@ -7580,7 +7809,7 @@ function wireChemistryWorkflow(q = null) {
       if (hit) {
         e.preventDefault();
         const shell = Number(hit.getAttribute("data-shell"));
-        state.shells = addElectron(state.shells, shell);
+        addElectronToInteractiveShell(state, shell);
         writeState(state);
         refreshDiagram();
         return;
@@ -7589,7 +7818,8 @@ function wireChemistryWorkflow(q = null) {
       if (elec) {
         e.preventDefault();
         const shell = Number(elec.getAttribute("data-shell"));
-        state.shells = removeElectron(state.shells, shell);
+        const slot = Number(elec.getAttribute("data-e"));
+        removeElectronAtInteractiveSlot(state, shell, slot);
         writeState(state);
         refreshDiagram();
         return;
@@ -7869,6 +8099,7 @@ function wireChemistryWorkflow(q = null) {
     interactive.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
   });
   root.addEventListener("change", (e) => {
+    if (root.dataset.locked === "1") return;
     const state = readState();
     const cfg = readConfig();
     if (!state || !cfg) return;
@@ -7919,6 +8150,7 @@ function wireChemistryWorkflow(q = null) {
     }
   });
   root.addEventListener("input", (e) => {
+    if (root.dataset.locked === "1") return;
     const t = e.target;
     const state = readState();
     if (!state) return;
@@ -7953,10 +8185,47 @@ function wireChemistryWorkflow(q = null) {
     }
   });
 }
+function lockChemistryWorkflow() {
+  const root = document.getElementById("chemistryWorkflowRoot");
+  if (!root) return;
+  root.dataset.locked = "1";
+  root.classList.add("chem-workflow--locked");
+  const kind = root.getAttribute("data-chem-kind") || readConfig()?.kind;
+  if (kind === "ionic_bonding") {
+    root.classList.add("chem-workflow--compare-in-feedback");
+  }
+  root.querySelectorAll('[data-chem-action="reset"]').forEach((btn) => btn.remove());
+  root.querySelectorAll("input, select, textarea").forEach((el) => {
+    el.disabled = true;
+  });
+  root.querySelectorAll(
+    "button.chem-chip, button.chem-btn, button.chem-group-btn, button.chem-ion-btn, [data-chem-token], [data-chem-remove-extra], [data-chem-repeat], [data-chem-linkage], [data-mol-symbol], [data-mol-mode]"
+  ).forEach((btn) => {
+    btn.disabled = true;
+  });
+  const cfg = readConfig();
+  const state = readState();
+  if (cfg?.kind === "balance_equation" && Array.isArray(cfg.answer?.coeffs) && Array.isArray(state?.coeffs)) {
+    const expected = normalizeCoeffs(cfg.answer.coeffs);
+    const student = normalizeCoeffs(state.coeffs);
+    root.querySelectorAll(".chem-coeff").forEach((input) => {
+      const i = Number(input.getAttribute("data-coeff-idx"));
+      if (!Number.isFinite(i) || i < 0 || i >= expected.length) return;
+      const ok = student[i] === expected[i];
+      input.classList.toggle("chem-coeff--correct", ok);
+      input.classList.toggle("chem-coeff--incorrect", !ok);
+    });
+  }
+}
 function collectChemistryResponse(q) {
   const cfg = getChemistryConfig(q);
   const state = readState() || initialStateForConfig(cfg);
   const cloned = deepClone(state);
+  if (cloned.kind === "electron_shell") {
+    ensureShellSlots(cloned);
+    syncShellCountsFromSlots(cloned);
+    delete cloned.shellSlots;
+  }
   if (cloned.kind === "ionic_bonding" && Array.isArray(cloned.atoms)) {
     cloned.atoms = cloned.atoms.map((a) => ({
       symbol: a.symbol,
@@ -8332,14 +8601,16 @@ function markChemistryResponse(q, resp, key, markPoints, cleanUrl) {
   const missing = [];
   const shellsFailed = appliedPoints.some((p) => p.id === "shells" && !p.correct);
   const pointsForMissing = kind === "ionic_bonding" && shellsFailed ? appliedPoints.filter((p) => p.id === "shells") : appliedPoints.filter((p) => !p.correct);
-  pointsForMissing.filter((p) => !p.correct).forEach((p) => {
+  const balanceFlashcard = kind === "balance_equation" ? balanceEquationFlashcardText(answer, cfg) : "";
+  pointsForMissing.filter((p) => !p.correct).forEach((p, index) => {
     const tip = p.feedback || p.label || result.detail;
+    const flashcardText = balanceFlashcard ? index === 0 ? balanceFlashcard : void 0 : tip;
     missing.push({
       ao: "AO1",
       label: p.label,
       feedback: tip,
       text: tip,
-      flashcard_text: tip,
+      ...flashcardText != null ? { flashcard_text: flashcardText } : {},
       resource_url: cleanUrl || null
     });
   });
@@ -8350,7 +8621,7 @@ function markChemistryResponse(q, resp, key, markPoints, cleanUrl) {
       label: result.detail,
       feedback: tip,
       text: tip,
-      flashcard_text: tip,
+      flashcard_text: balanceFlashcard || tip,
       resource_url: cleanUrl || null
     });
   }
@@ -9751,7 +10022,7 @@ function stemPreviewHtml(presetIdOrConfig) {
   }
   return `<div class="chem-stem-preview">${svg}${caption}</div>`;
 }
-var ELEMENT_DATA, SHELL_CAPS, CHEM_STEM_KINDS, STATE_SYMBOLS, STATE_SUFFIX_RE, SUPER_DIGIT_MAP, SUPER_DIGITS, COVALENT_SHELL_OVERLAP, COVALENT_MAX_SHARED_CAP, COVALENT_LONE_SLOTS, COVALENT_LONE_SLOT_ANGLES, COVALENT_ELECTRON_HIT_R, COVALENT_LONE_ELECTRONS_PER_SLOT, liveState, liveConfig, CHEMISTRY_PRESETS, POLYMER_REPEAT_STRUCTURES, MOLECULE_BUILDER_SYMBOLS, METALLIC_LATTICE_SITES, METALLIC_ELECTRON_ANGLES, PARTICLE_MODEL_BOX, PARTICLE_MODEL_R, PARTICLE_MODEL_STROKE, IONIC_LATTICE_COMPOUNDS;
+var ELEMENT_DATA, SHELL_CAPS, INTERACTIVE_SHELL_CAP, CHEM_STEM_KINDS, STATE_SYMBOLS, STATE_SUFFIX_RE, SUPER_DIGIT_MAP, SUPER_DIGITS, COVALENT_SHELL_OVERLAP, COVALENT_MAX_SHARED_CAP, COVALENT_LONE_SLOTS, COVALENT_LONE_SLOT_ANGLES, COVALENT_ELECTRON_HIT_R, COVALENT_LONE_ELECTRONS_PER_SLOT, liveState, liveConfig, CHEMISTRY_PRESETS, POLYMER_REPEAT_STRUCTURES, MOLECULE_BUILDER_SYMBOLS, METALLIC_LATTICE_SITES, METALLIC_ELECTRON_ANGLES, PARTICLE_MODEL_BOX, PARTICLE_MODEL_R, PARTICLE_MODEL_STROKE, IONIC_LATTICE_COMPOUNDS;
 var init_chemistryWorkflow = __esm({
   "src/chemistryWorkflow.js"() {
     init_mathEngine();
@@ -9780,6 +10051,7 @@ var init_chemistryWorkflow = __esm({
       Br: { Z: 35, A: 80, shells: [2, 8, 18, 7] }
     };
     SHELL_CAPS = [2, 8, 8, 18];
+    INTERACTIVE_SHELL_CAP = 8;
     CHEM_STEM_KINDS = /* @__PURE__ */ new Set([
       "electron_shell",
       "ionic_bonding",
