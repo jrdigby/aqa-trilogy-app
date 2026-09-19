@@ -31,6 +31,12 @@ function setAuthPanel(mode) {
   if (panelSignup) panelSignup.classList.toggle("hidden", authView !== "signup");
   if (panelForgot) panelForgot.classList.toggle("hidden", authView !== "forgot");
 
+  const authHeading = el("auth")?.querySelector("h2");
+  if (authHeading) {
+    authHeading.textContent =
+      authView === "signup" ? "Create student account" : "Student account";
+  }
+
   if (prevEmail) {
     const signinEmail = el("signinEmail");
     const signupEmail = el("signupEmail");

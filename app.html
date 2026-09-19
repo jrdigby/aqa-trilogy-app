@@ -176,6 +176,7 @@
       font-size: 0.9rem;
       font-weight: 500;
     }
+    .input-group input[type="text"],
     .input-group input[type="email"],
     .input-group input[type="password"] {
       width: 100%;
@@ -183,6 +184,7 @@
       border: 1px solid var(--border);
       border-radius: 6px;
       font-size: 0.95rem;
+      box-sizing: border-box;
     }
 
     .mcq-container {
@@ -817,7 +819,6 @@
       </div>
 
       <div id="authPanelSignup" class="auth-panel hidden">
-        <h3 style="font-size: 1.05rem; margin-bottom: 12px; color: #34495e;">Create account</h3>
         <div class="input-group">
           <label for="signupName">Your name</label>
           <input id="signupName" type="text" placeholder="e.g. Alex Smith" autocomplete="name" maxlength="80" />
