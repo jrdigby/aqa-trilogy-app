@@ -1,6 +1,7 @@
 import { startAnyPractice, startExamPrep, startFlashcardPractice, startSessionForSpecPoint, startSkillPractice, previewExamPaper, upsertSRS as importUpsertSRS } from './sessionEngine.js';
 import { formatPaperPreviewSummary } from './paperBuilder.js';
-import { showToastBanner, renderQuestionLayout, renderFeedback, renderLiveAIFeedback, renderAQAExtendedResponseFeedback, renderMasteryHeatmap, renderSessionContext, renderSessionCompleteSummary, renderExamPaperFeedbackSummary, renderSelfRatingPrompt, renderAdaptiveFeedback, renderHintsPanel, normalizeQuestionHints, mountNumericQuestionWorkflow, mountChemistryQuestionWorkflow, mountCircuitQuestionWorkflow, mountEquipmentQuestionWorkflow, QUESTION_TYPE_ORDER, renderQuestionTypeMasteryBars } from './uiComponents.js';
+import { showToastBanner, renderQuestionLayout, renderFeedback, renderLiveAIFeedback, renderSafeguardingPanel, renderOffTopicFeedback, renderAQAExtendedResponseFeedback, renderMasteryHeatmap, renderSessionContext, renderSessionCompleteSummary, renderExamPaperFeedbackSummary, renderSelfRatingPrompt, renderAdaptiveFeedback, renderHintsPanel, normalizeQuestionHints, mountNumericQuestionWorkflow, mountChemistryQuestionWorkflow, mountCircuitQuestionWorkflow, mountEquipmentQuestionWorkflow, QUESTION_TYPE_ORDER, renderQuestionTypeMasteryBars } from './uiComponents.js';
+import { textLooksConcerning, isOffTopicSubmission, OFF_TOPIC_FEEDBACK_MESSAGE } from './safeguarding.js';
 import {
   DEFAULT_ADAPTIVE_STATE,
   loadAdaptivePracticeState,
@@ -3801,6 +3802,25 @@ function wireAnswerLengthCounter() {
   update();
 }
 
+/** Prevent further edits after an off-topic AI refusal or safeguarding block. */
+function lockExtendedAnswerInput() {
+  const textarea = el("txtAns");
+  if (!textarea) return;
+  textarea.readOnly = true;
+  textarea.setAttribute("aria-readonly", "true");
+  textarea.classList.add("answer-input-locked");
+}
+
+/** Show safeguarding panel, lock answer, persist session for resume after support page. */
+function presentSafeguardingFeedback() {
+  feedback.innerHTML = renderSafeguardingPanel();
+  lockExtendedAnswerInput();
+  persistCurrentPracticeSession();
+  setAdvanceButtonPending(false);
+  hideSubmitButton();
+  showAdvanceButton();
+}
+
 function mixWordTokens(studentText) {
   return studentText.split(/(\s+|[.,\/#!$%\^&\*;:{}=\-_`~()?])/);
 }
@@ -4567,10 +4587,16 @@ function applyMcqAnswerHighlighting(correctVal, selectedAnswer) {
 }
 
 async function runLocalExtendedMarking(response) {
+  const studentTextRaw = (response.text || el("txtAns")?.value || "").trim();
+
+  if (textLooksConcerning(studentTextRaw)) {
+    presentSafeguardingFeedback();
+    return;
+  }
+
   const customPayload = {};
   const localKeywords = ["describe", "explain", "method", "results"];
 
-  const studentTextRaw = (response.text || el("txtAns")?.value || "").trim();
   const cleanStudentText = studentTextRaw.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "");
   const studentWords = cleanStudentText.split(/\s+/).filter(Boolean);
   const matchedKeywords = localKeywords.filter(targetKeyword =>
@@ -6013,6 +6039,11 @@ async function submitCurrentAnswer() {
   if (currentQ.question_type === "extended_response" || currentQ.marking_method === "ai_rubric") {
     let useAiMarking = !!currentAccess?.hasAccess;
 
+    if (textLooksConcerning(response.text)) {
+      presentSafeguardingFeedback();
+      return;
+    }
+
     if (!useAiMarking) {
       showUpgradeModal("paywall");
       showToastBanner("AI examiner marking requires an active trial or Student Pro subscription.", true);
@@ -6021,7 +6052,9 @@ async function submitCurrentAnswer() {
     if (!useAiMarking) {
       await runLocalExtendedMarking(response);
       showAdvanceButton();
-      hideSubmitButton();
+      if (!textLooksConcerning(response.text)) {
+        hideSubmitButton();
+      }
     } else {
       setAdvanceButtonPending(true);
       feedback.innerHTML = `
@@ -6044,6 +6077,51 @@ async function submitCurrentAnswer() {
       });
 
       if (error) throw error;
+
+      if (data?.status === "safeguarding") {
+        presentSafeguardingFeedback();
+        return;
+      }
+
+      if (isOffTopicSubmission(data)) {
+        feedback.innerHTML = renderOffTopicFeedback(
+          data?.actionable_improvement_advice || OFF_TOPIC_FEEDBACK_MESSAGE
+        );
+        lockExtendedAnswerInput();
+        persistCurrentPracticeSession();
+        setAdvanceButtonPending(false);
+        const maxMarks = Number(data?.score_max) || currentQ.max_marks || 6;
+        const result = await insertAttemptRow({
+          user_id: currentUser.id,
+          question_id: currentQ.id,
+          response_payload: response,
+          score_total: 0,
+          score_max: maxMarks,
+          ao1_score: 0,
+          ao2_score: 0,
+          ao3_score: 0,
+          feedback_payload: {
+            submission_status: "not_science",
+            actionable_improvement_advice: OFF_TOPIC_FEEDBACK_MESSAGE
+          },
+          xp_earned: 0,
+          hints_revealed: hintsRevealed
+        });
+        if (result.error) throw result.error;
+        sessionQualityLog.push({ specPointId: srsSpecPointIdForQuestion(), quality: 0 });
+        logSessionAttempt({
+          questionId: currentQ.id,
+          questionType: currentQ.question_type,
+          specPointId: srsSpecPointIdForQuestion(),
+          specPoint: resolveQuestionSpecMeta(currentQ, currentUserProfile),
+          scoreTotal: 0,
+          scoreMax: maxMarks,
+          xpEarned: 0
+        });
+        showAdvanceButton();
+        hideSubmitButton();
+        return;
+      }
 
       if (data?.improved_answer) {
         lastAiImprovedAnswer = data.improved_answer;
@@ -6126,11 +6204,18 @@ async function submitCurrentAnswer() {
 
     } catch (err) {
       console.error("AI Marking route failed, applying local self-assessment failover:", err);
-      showToastBanner("AI Grader slow or offline. Displaying local grading rubric schema.", true);
-      await runLocalExtendedMarking(response);
-      showAdvanceButton();
+      if (textLooksConcerning(response.text)) {
+        presentSafeguardingFeedback();
+      } else {
+        showToastBanner("AI Grader slow or offline. Displaying local grading rubric schema.", true);
+        await runLocalExtendedMarking(response);
+        showAdvanceButton();
+        hideSubmitButton();
+      }
     }
-    hideSubmitButton();
+    if (!textLooksConcerning(response.text)) {
+      hideSubmitButton();
+    }
     }
 
   } else {

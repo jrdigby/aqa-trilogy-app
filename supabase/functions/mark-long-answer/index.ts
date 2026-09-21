@@ -55,7 +55,80 @@ function parseGeminiEvaluationJson(rawResultText: string) {
 /** Trial default: Flash-Lite (cheaper; thinking off by default). Override with GEMINI_MARK_MODEL. */
 const GEMINI_MODEL = Deno.env.get("GEMINI_MARK_MODEL") || "gemini-2.5-flash-lite";
 /** Bump when static system text or model/cache identity changes. */
-const SYSTEM_PROMPT_VERSION = "v4-ao-delta";
+const SYSTEM_PROMPT_VERSION = "v5-safeguard-scope";
+
+/** Fixed refusal shown when the student input is not a science answer. */
+const OFF_TOPIC_FEEDBACK_MESSAGE =
+  "Please submit a science-related answer to receive feedback.";
+
+/** Science contexts that contain words otherwise treated as concerning. */
+const SCIENCE_SAFE_PHRASE_RES = [
+  /suicide\s+gene/gi,
+  /programmed\s+cell\s+death/gi,
+  /cell\s+suicid\w*/gi,
+  /apoptosis/gi,
+  /kill(?:s|ing|ed)?\s+(?:the\s+)?(?:bacteria|bacterium|pathogen(?:s)?|microbe(?:s)?|micro[\s-]?organism(?:s)?|virus(?:es)?|fungi|fungus|weed(?:s)?|pest(?:s)?|cell(?:s)?|cancer|tumou?rs?)/gi,
+  /antibiotics?\s+kill/gi,
+  /disinfectant(?:s)?\s+kill/gi,
+  /white\s+blood\s+cells?\s+kill/gi
+];
+
+const CONCERNING_PATTERNS = [
+  /\bkill(?:ing)?\s+myself\b/i,
+  /\bend\s+my\s+(?:own\s+)?life\b/i,
+  /\btake\s+my\s+own\s+life\b/i,
+  /\bsuicid(?:e|al)\b/i,
+  /\bself[-\s]?harm(?:ing)?\b/i,
+  /\bcut(?:ting)?\s+myself\b/i,
+  /\bhurt(?:ing)?\s+myself\b/i,
+  /\bwant\s+to\s+die\b/i,
+  /\bi\s+(?:just\s+)?want\s+to\s+die\b/i,
+  /\bdon'?t\s+want\s+to\s+(?:live|be\s+alive)\b/i,
+  /\bi\s+wish\s+i\s+(?:was|were)\s+dead\b/i,
+  /\bgoing\s+to\s+kill\s+myself\b/i
+];
+
+/**
+ * Conservative precheck for self-harm / acute distress language.
+ * Prefer precision over recall; science-safe phrases are stripped first.
+ * Keep in sync with src/safeguarding.js.
+ */
+function textLooksConcerning(text: string): boolean {
+  let normalised = String(text || "").toLowerCase();
+  if (!normalised.trim()) return false;
+
+  for (const re of SCIENCE_SAFE_PHRASE_RES) {
+    normalised = normalised.replace(re, " ");
+  }
+
+  return CONCERNING_PATTERNS.some((re) => re.test(normalised));
+}
+
+function safeguardingResponse(): Response {
+  return new Response(JSON.stringify({ status: "safeguarding" }), {
+    status: 200,
+    headers: { ...corsHeaders, "Content-Type": "application/json" }
+  });
+}
+
+function buildOffTopicEvaluation(maxMarks: number, isImprovement: boolean): Record<string, unknown> {
+  const base: Record<string, unknown> = {
+    submission_status: "not_science",
+    score_total: 0,
+    score_max: maxMarks,
+    level_achieved: "",
+    ao_breakdown: { AO1: 0, AO2: 0, AO3: 0 },
+    analysis_highlights: [],
+    missing_or_incorrect: [],
+    actionable_improvement_advice: OFF_TOPIC_FEEDBACK_MESSAGE
+  };
+  if (isImprovement) {
+    base.improvements_recognised = [];
+  } else {
+    base.improved_answer = "";
+  }
+  return base;
+}
 /** Explicit cache TTL; refreshed when an existing cache is reused. */
 const EXPLICIT_CACHE_TTL = "86400s";
 
@@ -74,6 +147,12 @@ type SciencePath = "combined" | "triple";
 
 /** Shared fields for first marks and improvement resubmits. */
 const EVALUATION_RESPONSE_PROPERTIES_BASE = {
+  submission_status: {
+    type: "STRING",
+    enum: ["science_answer", "not_science"],
+    description:
+      "science_answer when the student attempted the science question; not_science for chat, off-topic, or non-answers."
+  },
   score_total: { type: "INTEGER" },
   score_max: { type: "INTEGER" },
   level_achieved: { type: "STRING" },
@@ -98,6 +177,7 @@ const EVALUATION_RESPONSE_PROPERTIES_BASE = {
 };
 
 const EVALUATION_REQUIRED_BASE = [
+  "submission_status",
   "score_total",
   "score_max",
   "level_achieved",
@@ -142,7 +222,14 @@ const MAX_OUTPUT_TOKENS_IMPROVEMENT = 2048;
  * Question-specific bands, rubrics, and answers must NEVER go here.
  */
 const SHARED_AQA_LOR_SYSTEM_CORE = `
-You are an expert, strict, and fair senior examiner for AQA GCSE Science extended-response (Level of Response / LoR) questions.
+SCOPE LOCK (HARD RULE — CHECK FIRST):
+You are an automated AQA GCSE science mark scheme evaluator only.
+If the user input is not an attempt to answer the science question in the user message, you must not mark it and must set submission_status to "not_science", with actionable_improvement_advice exactly equal to: "Please submit a science-related answer to receive feedback."
+Do not engage in conversation, chat, roleplay, general advice, homework help outside the supplied stem, or emotional support.
+Weak or incorrect science answers still get normal marking; this rule applies only to non-answers.
+Concerning or distress content: do not counsel and do not invent crisis advice — set submission_status appropriately only if it is not a science answer; otherwise the server handles signposting separately.
+
+For normal marking you are a strict, fair senior examiner for AQA GCSE Science extended-response (Level of Response / LoR) questions. Set submission_status to "science_answer" whenever the student attempted the science question.
 
 BOARD SCOPE:
 - Mark only against AQA criteria and language. Do not import Edexcel, OCR, or WJEC phrasing or grade boundaries.
@@ -204,7 +291,8 @@ WHAT NOT TO DO:
 - Do not invent board rules outside AQA.
 - Do not change score_max away from the Maximum Marks in the user message.
 - Do not award marks above the top band allowed for that question.
-- Do not refuse to mark ordinary school science content within AQA GCSE scope.
+- Do not refuse to mark ordinary school science answers within AQA GCSE scope (SCOPE LOCK still applies to non-answers / chat).
+- When submission_status is "not_science": score_total must be 0, AO marks 0, feedback feedback arrays, improved_answer empty (first mark), and actionable_improvement_advice must be exactly the fixed refusal sentence — nothing else.
 - Do not include explanations outside the JSON fields defined by the schema.
 
 COMMON AQA LoR FAILURE MODES (STATIC COACHING REFERENCE):
@@ -277,14 +365,15 @@ Apply the system instruction for every subsequent marking request in this conver
 Live question stem, mark scheme, band caps, AO targets, and the student answer arrive only in later user messages.
 
 Reminder checklist for every mark:
-1. Board = AQA only (Combined Science Trilogy 8464 or Triple / separate sciences 8461–8463 as stated in the system pathway).
-2. Use only the supplied mark scheme for required science points; do not invent extra hurdles.
-3. Apply the misconception / band cap written in the user message for that question.
-4. AO1 + AO2 + AO3 must equal score_total; score_max must equal Maximum Marks.
-5. Feedback must be specific, constructive, and GCSE-appropriate; include key-term spelling fixes when needed.
-6. improved_answer is a full-mark coaching rewrite that preserves the student's voice where possible.
-7. Escape every LaTeX backslash as a double backslash inside JSON string values.
-8. Return only fields required by the response schema — no markdown fences, no preamble.
+1. SCOPE LOCK first: if the student input is not a science answer attempt, set submission_status to "not_science" and use the fixed refusal sentence only.
+2. Board = AQA only (Combined Science Trilogy 8464 or Triple / separate sciences 8461–8463 as stated in the system pathway).
+3. Use only the supplied mark scheme for required science points; do not invent extra hurdles.
+4. Apply the misconception / band cap written in the user message for that question.
+5. AO1 + AO2 + AO3 must equal score_total; score_max must equal Maximum Marks.
+6. Feedback must be specific, constructive, and GCSE-appropriate; include key-term spelling fixes when needed.
+7. improved_answer is a full-mark coaching rewrite that preserves the student's voice where possible (omit content when not_science).
+8. Escape every LaTeX backslash as a double backslash inside JSON string values.
+9. Return only fields required by the response schema — no markdown fences, no preamble.
 
 Quality bar for analysis_highlights:
 - Cite what the student actually wrote when praising a point.
@@ -805,7 +894,13 @@ async function generateWithGemini(
 
   const payload: Record<string, unknown> = {
     contents: [{ role: "user", parts: [{ text: userQuery }] }],
-    generationConfig
+    generationConfig,
+    safetySettings: [
+      { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+      { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+      { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+      { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" }
+    ]
   };
 
   if (cachedContentName) {
@@ -889,6 +984,15 @@ serve(async (req) => {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
+    }
+
+    if (textLooksConcerning(student_text)) {
+      console.log(JSON.stringify({
+        requestId,
+        event: "safeguarding_precheck_hit",
+        userId
+      }));
+      return safeguardingResponse();
     }
 
     // Profile pathway (Combined vs Triple) drives the stable system instruction variant.
@@ -1099,6 +1203,43 @@ serve(async (req) => {
     const geminiData = await response.json();
     const usage = geminiData?.usageMetadata || null;
     const finishReason = geminiData?.candidates?.[0]?.finishReason || null;
+    const blockReason = geminiData?.promptFeedback?.blockReason || null;
+
+    // Prefer explicit block signals; also treat empty candidate + SAFETY as safeguarding.
+    if (
+      blockReason
+      || ["SAFETY", "BLOCKLIST", "PROHIBITED_CONTENT"].includes(String(finishReason || "").toUpperCase())
+    ) {
+      console.log(JSON.stringify({
+        requestId,
+        event: "safeguarding_gemini_safety_block",
+        userId,
+        finishReason,
+        blockReason
+      }));
+      await recordAiUsageEvent(supabase, {
+        user_id: userId,
+        feature: "mark_long_answer",
+        model: GEMINI_MODEL,
+        request_id: requestId,
+        question_id,
+        prompt_token_count: usage?.promptTokenCount ?? null,
+        candidates_token_count: usage?.candidatesTokenCount ?? null,
+        total_token_count: usage?.totalTokenCount ?? null,
+        finish_reason: finishReason,
+        usage_meta: usage,
+        status: "safeguarding",
+        meta: {
+          science_path: sciencePath,
+          is_improvement: isImprovement,
+          cache_mode: cacheMode,
+          system_prompt_version: SYSTEM_PROMPT_VERSION,
+          block_reason: blockReason
+        }
+      });
+      return safeguardingResponse();
+    }
+
     if (usage) {
       console.log(JSON.stringify({
         requestId,
@@ -1144,6 +1285,45 @@ serve(async (req) => {
     }
 
     const parsedEvaluation = parseGeminiEvaluationJson(rawResultText) as Record<string, unknown>;
+
+    const submissionStatus = String(parsedEvaluation.submission_status || "science_answer")
+      .toLowerCase();
+    if (submissionStatus === "not_science") {
+      const offTopic = buildOffTopicEvaluation(maxMarks, isImprovement);
+      await recordAiUsageEvent(supabase, {
+        user_id: userId,
+        feature: "mark_long_answer",
+        model: GEMINI_MODEL,
+        request_id: requestId,
+        question_id,
+        prompt_token_count: usage?.promptTokenCount ?? null,
+        candidates_token_count: usage?.candidatesTokenCount ?? null,
+        total_token_count: usage?.totalTokenCount ?? null,
+        finish_reason: finishReason,
+        usage_meta: usage,
+        status: "success",
+        meta: {
+          submission_status: "not_science",
+          science_path: sciencePath,
+          is_improvement: isImprovement,
+          cache_mode: cacheMode,
+          system_prompt_version: SYSTEM_PROMPT_VERSION
+        }
+      });
+      console.log(JSON.stringify({
+        requestId,
+        event: "mark_off_topic",
+        userId,
+        sciencePath,
+        isImprovement
+      }));
+      return new Response(JSON.stringify(offTopic), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
+    }
+
+    parsedEvaluation.submission_status = "science_answer";
 
     // Enforce mark ceiling and AO target caps (UI previously invented fake AO denominators).
     const scoreTotal = Math.max(

@@ -24,6 +24,34 @@ export function restoreMangledLatexEscapes(text) {
     .replace(/[\b](?=[a-zA-Z])/g, "\\b"); // \beta, \binom
 }
 
+/** Soft signposting panel when concerning input is blocked (student-only). */
+export function renderSafeguardingPanel() {
+  return `
+    <div class="safeguarding-panel" role="status">
+      <strong class="safeguarding-panel__title">We cannot mark this answer</strong>
+      <p class="safeguarding-panel__body">
+        This tool only marks GCSE science answers. If you are struggling or need someone to talk to,
+        please reach out to a trusted adult at school or at home, or use the support links below.
+        No marks were awarded for this submission.
+      </p>
+      <p class="safeguarding-panel__actions">
+        <a class="safeguarding-panel__link" href="support.html" target="_blank" rel="opener">View support options</a>
+        <span class="safeguarding-panel__hint">Opens in a new tab — use Back to the app there to close it and return here.</span>
+      </p>
+    </div>
+  `;
+}
+
+/** Fixed off-topic refusal (SCOPE LOCK) — no AO / model-answer chrome. */
+export function renderOffTopicFeedback(message) {
+  const text = String(message || "Please submit a science-related answer to receive feedback.");
+  return `
+    <div class="off-topic-panel" role="status">
+      <p class="off-topic-panel__body">${escapeHtml(text)}</p>
+    </div>
+  `;
+}
+
 function formatCalcMissingFeedbackBody(item) {
   if (item.stepType === "equation_select" && item.html) {
     return `The correct equation is: ${item.html}`;
@@ -381,6 +409,12 @@ export async function renderFeedback(marking, currentQ, currentKey, currentMarkP
 
 // ====== AI GRADER EXPERT PANELS VIEW SYSTEM ======
 export function renderLiveAIFeedback(evaluation, hasImprovedCurrentQ) {
+  if (String(evaluation?.submission_status || "").toLowerCase() === "not_science") {
+    const msg = evaluation?.actionable_improvement_advice
+      || "Please submit a science-related answer to receive feedback.";
+    return renderOffTopicFeedback(msg);
+  }
+
   const score = Number(evaluation.score_total) || 0;
   const max = evaluation.score_max || 6;
   // Level 1 requires at least 1 mark — 0 marks is below the level bands.

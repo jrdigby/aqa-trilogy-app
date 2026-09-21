@@ -1,9 +1,27 @@
-/** Persist in-progress practice sessions across refresh / navigation. */
+/** Persist in-progress practice sessions across refresh / navigation / new tabs. */
 
 import { QUESTION_SELECT, QUESTION_SELECT_FALLBACK } from "./sessionEngine.js";
 
 const STORAGE_KEY = "aqa_practice_session_v1";
 const MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+function readStoredRaw() {
+  try {
+    const fromLocal = localStorage.getItem(STORAGE_KEY);
+    if (fromLocal) return fromLocal;
+
+    // Migrate older same-tab sessionStorage snapshots (pre cross-tab resume).
+    const fromSession = sessionStorage.getItem(STORAGE_KEY);
+    if (fromSession) {
+      localStorage.setItem(STORAGE_KEY, fromSession);
+      sessionStorage.removeItem(STORAGE_KEY);
+      return fromSession;
+    }
+  } catch (_) {
+    /* ignore */
+  }
+  return null;
+}
 
 /**
  * @param {{
@@ -38,7 +56,12 @@ export function savePracticeSession(state) {
       sessionQualityLog: state.sessionQualityLog || [],
       sessionXpEarned: Number(state.sessionXpEarned) || 0,
     };
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    try {
+      sessionStorage.removeItem(STORAGE_KEY);
+    } catch (_) {
+      /* ignore */
+    }
   } catch (err) {
     console.warn("Could not persist practice session:", err?.message || err);
   }
@@ -50,7 +73,7 @@ export function savePracticeSession(state) {
  */
 export function loadPracticeSession(userId) {
   try {
-    const raw = sessionStorage.getItem(STORAGE_KEY);
+    const raw = readStoredRaw();
     if (!raw) return null;
     const data = JSON.parse(raw);
     if (!data || data.userId !== userId || !Array.isArray(data.questionIds) || !data.questionIds.length) {
@@ -67,6 +90,11 @@ export function loadPracticeSession(userId) {
 }
 
 export function clearPracticeSession() {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch (_) {
+    /* ignore */
+  }
   try {
     sessionStorage.removeItem(STORAGE_KEY);
   } catch (_) {
