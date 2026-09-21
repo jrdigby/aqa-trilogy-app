@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Need support?</title>
+  <link rel="stylesheet" href="landing.css">
+  <style>
+    .legal-page { padding: 40px 0 56px; }
+    .legal-page h1 { font-size: 1.75rem; margin-bottom: 8px; }
+    .legal-page .legal-updated { color: var(--landing-muted); margin-bottom: 28px; font-size: 0.95rem; }
+    .legal-page h2 { font-size: 1.15rem; margin: 28px 0 10px; }
+    .legal-page p, .legal-page li { color: var(--landing-muted); margin-bottom: 12px; font-size: 0.95rem; }
+    .legal-page ul { padding-left: 20px; margin-bottom: 12px; }
+    .legal-page a { color: var(--landing-primary); }
+    .legal-back { margin-bottom: 24px; }
+  </style>
+</head>
+<body class="landing-page">
+  <div class="landing-container legal-page">
+    <p class="legal-back"><a class="js-return-to-app" href="app.html">← Back to the app</a> · <a href="index.html">Home</a></p>
+    <h1>Need support?</h1>
+    <p class="legal-updated">This page is for students who need a person to talk to — not for science marking.</p>
+
+    <p>This app marks GCSE science answers. It cannot help with personal distress, self-harm, or emotional crises, and it does not replace a trusted adult.</p>
+
+    <p>If something you typed triggered this page, <strong>no marks were awarded</strong> for that submission. You can return to the app whenever you are ready.</p>
+
+    <h2>Talk to someone you trust</h2>
+    <ul>
+      <li>A teacher, form tutor, pastoral lead, or Designated Safeguarding Lead (DSL) at school</li>
+      <li>A parent, carer, or another trusted adult in your family</li>
+      <li>A close friend who can help you find adult support</li>
+    </ul>
+
+    <h2>Free support services (UK)</h2>
+    <ul>
+      <li><strong>Shout</strong> — 24/7 Text Support: text <a href="sms:85258?body=SHOUT"><strong>SHOUT</strong> to <strong>85258</strong></a> or visit <a href="https://giveusashout.org" target="_blank" rel="noopener">giveusashout.org</a></li>
+      <li><strong>Childline</strong> — confidential support for anyone under 19: call <a href="tel:08001111">0800 1111</a> or visit <a href="https://www.childline.org.uk" target="_blank" rel="noopener">childline.org.uk</a></li>
+      <li><strong>Samaritans</strong> — 24/7 listening support: call <a href="tel:116123">116 123</a> or visit <a href="https://www.samaritans.org" target="_blank" rel="noopener">samaritans.org</a></li>
+      <li><strong>NHS 111</strong> — urgent medical or mental health advice: call <a href="tel:111">111</a> or visit <a href="https://111.nhs.uk" target="_blank" rel="noopener">111.nhs.uk</a></li>
+    </ul>
+
+    <p>If you or someone else is in immediate danger, call <strong>999</strong>.</p>
+
+    <h2>Back to revision</h2>
+    <p>When you feel ready, <a class="js-return-to-app" href="app.html">return to the student app</a>. If this page opened from practice, that will close this tab and take you back to your session. Otherwise you can resume from the practice tab.</p>
+  </div>
+  <script>
+    (function () {
+      function returnToApp(event) {
+        event.preventDefault();
+        var opener = window.opener;
+        if (opener && !opener.closed) {
+          try {
+            opener.focus();
+          } catch (_) { /* ignore */ }
+          window.close();
+          // If the browser blocks close(), fall back to navigating this tab.
+          window.setTimeout(function () {
+            if (!window.closed) {
+              window.location.href = "app.html";
+            }
+          }, 150);
+          return;
+        }
+        window.location.href = "app.html";
+      }
+
+      document.querySelectorAll(".js-return-to-app").forEach(function (link) {
+        link.addEventListener("click", returnToApp);
+      });
+    })();
+  </script>
+</body>
+</html>
