@@ -363,13 +363,16 @@ export async function fetchWeeklyForecastSchedules(userId) {
 }
 
 // ====== ADDED: FETCH WHOLE CURRICULUM FOR HEATMAP GRID ======
-export async function fetchAllSpecificationPoints(courseTrack = "combined") {
+export async function fetchAllSpecificationPoints(courseTrack = "combined", examBoard = "aqa") {
   let query = supabaseClient
     .from("spec_points")
-    .select("id, subject, topic_name, spec_ref, spec_text, course_track")
+    .select("id, subject, topic_name, spec_ref, spec_text, course_track, exam_board")
     .order("subject", { ascending: true })
     .order("spec_ref", { ascending: true });
 
+  if (examBoard) {
+    query = query.eq("exam_board", examBoard);
+  }
   if (courseTrack) {
     query = query.eq("course_track", courseTrack);
   }
@@ -389,16 +392,19 @@ export async function fetchUserSRSState(userId) {
 }
 
 // ====== SYLLABUS, QUESTIONS, & MASTERY BATCH ENGINE ======
-export async function fetchSyllabusPipelineData(userId, subject, paper, targetTiers, qType, courseTrack = "combined") {
+export async function fetchSyllabusPipelineData(userId, subject, paper, targetTiers, qType, courseTrack = "combined", examBoard = "aqa") {
   const today = todayISO();
 
   let specPointsQuery = supabaseClient
     .from("spec_points")
-    .select("id, topic_name, course_track")
+    .select("id, topic_name, course_track, exam_board")
     .eq("subject", subject)
     .eq("paper", paper)
     .order("topic_number", { ascending: true });
 
+  if (examBoard) {
+    specPointsQuery = specPointsQuery.eq("exam_board", examBoard);
+  }
   if (courseTrack) {
     specPointsQuery = specPointsQuery.eq("course_track", courseTrack);
   }
@@ -497,16 +503,18 @@ export async function fetchSyllabusPipelineData(userId, subject, paper, targetTi
 
 // ====== USER PROFILE (ONBOARDING) ======
 const PROFILE_COLUMNS_FULL =
+  "user_id, role, preferred_tier, exam_board, science_path, subject_tiers, science_subjects, subscription_tier, trial_ends_at, onboarding_completed_at, subject_preference, class_id, display_name, total_xp, xp_rewards, revision_horizon_preset, target_exam_date, revision_pace_state, current_grades, target_grades, weekly_report_enabled, parent_email, parent_email_enabled, weekly_report_unsubscribed_at";
+const PROFILE_COLUMNS_FULL_WITHOUT_EXAM_BOARD =
   "user_id, role, preferred_tier, science_path, subject_tiers, science_subjects, subscription_tier, trial_ends_at, onboarding_completed_at, subject_preference, class_id, display_name, total_xp, xp_rewards, revision_horizon_preset, target_exam_date, revision_pace_state, current_grades, target_grades, weekly_report_enabled, parent_email, parent_email_enabled, weekly_report_unsubscribed_at";
 const PROFILE_COLUMNS_FULL_WITHOUT_SCIENCE_SUBJECTS =
-  "user_id, role, preferred_tier, science_path, subject_tiers, subscription_tier, trial_ends_at, onboarding_completed_at, subject_preference, class_id, display_name, total_xp, xp_rewards, revision_horizon_preset, target_exam_date, revision_pace_state, current_grades, target_grades, weekly_report_enabled, parent_email, parent_email_enabled, weekly_report_unsubscribed_at";
+  "user_id, role, preferred_tier, exam_board, science_path, subject_tiers, subscription_tier, trial_ends_at, onboarding_completed_at, subject_preference, class_id, display_name, total_xp, xp_rewards, revision_horizon_preset, target_exam_date, revision_pace_state, current_grades, target_grades, weekly_report_enabled, parent_email, parent_email_enabled, weekly_report_unsubscribed_at";
 const PROFILE_COLUMNS_BASE = "user_id, preferred_tier";
 const PROFILE_COLUMNS_LEGACY =
   "user_id, role, preferred_tier, science_path, subject_tiers, subscription_tier, onboarding_completed_at, subject_preference, class_id, display_name, total_xp, xp_rewards";
 const PROFILE_COLUMNS_WITHOUT_REPORTS =
-  "user_id, role, preferred_tier, science_path, subject_tiers, subscription_tier, trial_ends_at, onboarding_completed_at, subject_preference, class_id, display_name, total_xp, xp_rewards, revision_horizon_preset, target_exam_date, revision_pace_state, current_grades, target_grades";
+  "user_id, role, preferred_tier, exam_board, science_path, subject_tiers, subscription_tier, trial_ends_at, onboarding_completed_at, subject_preference, class_id, display_name, total_xp, xp_rewards, revision_horizon_preset, target_exam_date, revision_pace_state, current_grades, target_grades";
 const PROFILE_COLUMNS_WITHOUT_TRIAL =
-  "user_id, role, preferred_tier, science_path, subject_tiers, science_subjects, subscription_tier, onboarding_completed_at, subject_preference, class_id, display_name, total_xp, xp_rewards, revision_horizon_preset, target_exam_date, revision_pace_state, current_grades, target_grades, weekly_report_enabled, parent_email, parent_email_enabled, weekly_report_unsubscribed_at";
+  "user_id, role, preferred_tier, exam_board, science_path, subject_tiers, science_subjects, subscription_tier, onboarding_completed_at, subject_preference, class_id, display_name, total_xp, xp_rewards, revision_horizon_preset, target_exam_date, revision_pace_state, current_grades, target_grades, weekly_report_enabled, parent_email, parent_email_enabled, weekly_report_unsubscribed_at";
 
 function isMissingColumnError(error) {
   const msg = error?.message || "";
@@ -557,6 +565,7 @@ function normalizeProfileRow(data, userId) {
     user_id: data.user_id ?? userId,
     role: data.role ?? "student",
     preferred_tier: data.preferred_tier ?? "FT",
+    exam_board: data.exam_board ?? "aqa",
     science_path: data.science_path ?? "combined",
     subject_tiers: data.subject_tiers ?? null,
     science_subjects: data.science_subjects ?? null,
@@ -605,6 +614,7 @@ export async function patchUserProfile(userId, payload) {
 
 const PROFILE_SELECT_FALLBACKS = [
   PROFILE_COLUMNS_FULL,
+  PROFILE_COLUMNS_FULL_WITHOUT_EXAM_BOARD,
   PROFILE_COLUMNS_FULL_WITHOUT_SCIENCE_SUBJECTS,
   PROFILE_COLUMNS_WITHOUT_TRIAL,
   PROFILE_COLUMNS_WITHOUT_REPORTS,
@@ -688,12 +698,15 @@ export async function rpcMigrateSrsForTrackChange(newPath, userId = null) {
   return restRpc("migrate_srs_for_track_change", { p_new_path: newPath }, userId);
 }
 
-export async function fetchRequiredPracticals(subject = null, courseTrack = null) {
+export async function fetchRequiredPracticals(subject = null, courseTrack = null, examBoard = "aqa") {
   let query = supabaseClient
     .from("required_practicals")
-    .select("id, subject, course_track, code, title, sort_order")
+    .select("id, subject, course_track, exam_board, code, title, sort_order")
     .order("sort_order", { ascending: true });
 
+  if (examBoard) {
+    query = query.eq("exam_board", examBoard);
+  }
   if (subject) query = query.eq("subject", subject);
   if (courseTrack) {
     query = query.in("course_track", [courseTrack, "both"]);
@@ -800,10 +813,10 @@ export async function fetchStudentSRSStateDetailed(userId) {
 }
 
 export async function fetchTeacherStudentProfile(userId) {
-  const withSubjects =
-    "user_id, display_name, preferred_tier, science_path, subject_tiers, science_subjects, subscription_tier, onboarding_completed_at, current_streak, last_login_date, class_id, total_xp, xp_rewards";
+    const withSubjects =
+    "user_id, display_name, preferred_tier, exam_board, science_path, subject_tiers, science_subjects, subscription_tier, onboarding_completed_at, current_streak, last_login_date, class_id, total_xp, xp_rewards";
   const withoutSubjects =
-    "user_id, display_name, preferred_tier, science_path, subject_tiers, subscription_tier, onboarding_completed_at, current_streak, last_login_date, class_id, total_xp, xp_rewards";
+    "user_id, display_name, preferred_tier, exam_board, science_path, subject_tiers, subscription_tier, onboarding_completed_at, current_streak, last_login_date, class_id, total_xp, xp_rewards";
   let result = await supabaseClient
     .from("profiles")
     .select(withSubjects)

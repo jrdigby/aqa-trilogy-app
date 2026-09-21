@@ -9,7 +9,7 @@ import {
   fetchStudentSRSStateDetailed,
   fetchTeacherStudentProfile,
 } from "./dbClient.js";
-import { formatSciencePathLabel, courseTrackForProfile, getActiveSubjects } from "./sciencePath.js";
+import { formatSciencePathLabel, courseTrackForProfile, getActiveSubjects, getExamBoard } from "./sciencePath.js";
 import { renderMasteryHeatmap } from "./uiComponents.js";
 import { addDaysISO, escapeHtml, todayISO } from "./utils.js";
 import { computeQuestionAOMaxCaps } from "./evalEngine.js";
@@ -539,7 +539,7 @@ export async function openStudentDetail(studentId, displayName) {
     const [srsStates, specPoints, gapAttempts, activityAttempts, rosterStatsMap] =
       await Promise.all([
         fetchStudentSRSStateDetailed(studentId),
-        fetchAllSpecificationPoints(courseTrack),
+        fetchAllSpecificationPoints(courseTrack, getExamBoard(profile || {})),
         fetchConceptGapAttempts(studentId),
         fetchAttemptActivity(studentId, sinceISO),
         fetchClassRosterStats([studentId]),

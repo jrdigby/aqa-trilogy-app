@@ -1,7 +1,7 @@
 # Multi-Exam-Board Rollout Plan
 
 **Last updated:** September 2026  
-**Status:** Planning only — no implementation started
+**Status:** Phase 0 complete (platform ready) — `exam_board` dimension live with AQA default; non-AQA boards selectable in UI as Coming soon until Phase 1+
 
 **Goal:** Add **Edexcel**, **OCR Gateway**, and **OCR 21st Century** (each with **combined** and **separate** science) alongside existing **AQA** — without rebuilding the question bank from scratch.
 

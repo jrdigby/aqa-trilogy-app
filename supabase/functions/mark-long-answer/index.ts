@@ -996,9 +996,10 @@ serve(async (req) => {
     }
 
     // Profile pathway (Combined vs Triple) drives the stable system instruction variant.
+    // exam_board is read for future board-specific prompts; Phase 0 still uses AQA copy.
     const { data: profile, error: profileErr } = await supabase
       .from("profiles")
-      .select("science_path")
+      .select("science_path, exam_board")
       .eq("user_id", userId)
       .maybeSingle();
 
@@ -1010,6 +1011,11 @@ serve(async (req) => {
       }));
     }
     const sciencePath = normalizeSciencePath(profile?.science_path);
+    const rawBoard = String(profile?.exam_board || "aqa").toLowerCase().trim();
+    const examBoard = ["aqa", "edexcel", "ocr_gateway", "ocr_21c"].includes(rawBoard)
+      ? rawBoard
+      : "aqa";
+    // Non-AQA boards still use AQA marking prompts until board packs ship.
 
     console.log(JSON.stringify({
       requestId,
@@ -1017,6 +1023,7 @@ serve(async (req) => {
       userId,
       question_id,
       sciencePath,
+      examBoard,
       isImprovement,
       studentTextLength: student_text.length
     }));

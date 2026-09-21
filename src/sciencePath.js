@@ -1,12 +1,80 @@
-/** Combined vs Triple science path — profile helpers and question filtering. */
+/** Exam board × Combined/Triple science path — profile helpers and question filtering. */
 
 export const SUBJECTS = ["biology", "chemistry", "physics"];
+
+/** Supported exam boards. Only `aqa` has content in Phase 0. */
+export const EXAM_BOARDS = ["aqa", "edexcel", "ocr_gateway", "ocr_21c"];
+export const DEFAULT_EXAM_BOARD = "aqa";
+
+export const EXAM_BOARD_META = {
+  aqa: {
+    id: "aqa",
+    displayName: "AQA",
+    combinedLabel: "Combined Science (Trilogy)",
+    separateLabel: "Separate Sciences (Triple)",
+    combinedSpecCode: "8464",
+    active: true
+  },
+  edexcel: {
+    id: "edexcel",
+    displayName: "Edexcel",
+    combinedLabel: "Combined Science",
+    separateLabel: "Separate Sciences",
+    combinedSpecCode: "1SC0",
+    active: false
+  },
+  ocr_gateway: {
+    id: "ocr_gateway",
+    displayName: "OCR Gateway",
+    combinedLabel: "Combined Science A",
+    separateLabel: "Separate Sciences A",
+    combinedSpecCode: "J250",
+    active: false
+  },
+  ocr_21c: {
+    id: "ocr_21c",
+    displayName: "OCR 21st Century",
+    combinedLabel: "Combined Science B",
+    separateLabel: "Separate Sciences B",
+    combinedSpecCode: "J260",
+    active: false
+  }
+};
 
 const DEFAULT_SUBJECT_TIERS = {
   biology: "FT",
   chemistry: "FT",
   physics: "FT"
 };
+
+export function normalizeExamBoard(board) {
+  const id = String(board || "").toLowerCase().trim();
+  return EXAM_BOARDS.includes(id) ? id : DEFAULT_EXAM_BOARD;
+}
+
+export function getExamBoard(profile) {
+  return normalizeExamBoard(profile?.exam_board);
+}
+
+export function getExamBoardMeta(boardOrProfile) {
+  const id =
+    typeof boardOrProfile === "string" || !boardOrProfile
+      ? normalizeExamBoard(boardOrProfile)
+      : getExamBoard(boardOrProfile);
+  return EXAM_BOARD_META[id] || EXAM_BOARD_META[DEFAULT_EXAM_BOARD];
+}
+
+export function isExamBoardActive(board) {
+  return Boolean(getExamBoardMeta(board)?.active);
+}
+
+export function pathLabelsForBoard(board) {
+  const meta = getExamBoardMeta(board);
+  return {
+    combined: meta.combinedLabel,
+    triple: meta.separateLabel
+  };
+}
 
 export function normalizeTier(tier) {
   if (tier === "foundation") return "FT";
@@ -133,21 +201,23 @@ function shortSubjectLabel(subject) {
 }
 
 export function formatSciencePathLabel(profile) {
+  const boardName = getExamBoardMeta(profile).displayName;
   if (getSciencePath(profile) === "triple") {
     const tiers = getSubjectTiers(profile);
     const parts = getActiveSubjects(profile).map((s) => `${shortSubjectLabel(s)} ${tiers[s]}`);
-    return `Triple · ${parts.join(" · ")}`;
+    return `${boardName} · Triple · ${parts.join(" · ")}`;
   }
   const tier = normalizeTier(profile?.preferred_tier || "FT");
-  return `Combined · ${tier === "HT" ? "Higher" : "Foundation"}`;
+  return `${boardName} · Combined · ${tier === "HT" ? "Higher" : "Foundation"}`;
 }
 
 export function formatSciencePathShort(profile) {
-  if (getSciencePath(profile) !== "triple") return "Combined Science";
+  const boardName = getExamBoardMeta(profile).displayName;
+  if (getSciencePath(profile) !== "triple") return `${boardName} · Combined Science`;
   const active = getActiveSubjects(profile);
-  if (active.length === SUBJECTS.length) return "Triple Science";
+  if (active.length === SUBJECTS.length) return `${boardName} · Triple Science`;
   const names = active.map((s) => s.charAt(0).toUpperCase() + s.slice(1));
-  return `Triple Science · ${names.join(", ")}`;
+  return `${boardName} · Triple Science · ${names.join(", ")}`;
 }
 
 const SUBJECT_DISPLAY_NAMES = {
@@ -204,10 +274,12 @@ export function formatSpecRefChipForProfile(spec, profile) {
   return spec.spec_ref;
 }
 
-/** Whether a question is visible to this student (audience + track). */
+/** Whether a question is visible to this student (audience + track + exam board). */
 export function questionMatchesStudent(q, profile, specPoint) {
   if (!q || !specPoint) return false;
   const track = courseTrackForProfile(profile);
+  const board = getExamBoard(profile);
+  if (specPoint.exam_board && normalizeExamBoard(specPoint.exam_board) !== board) return false;
   if (specPoint.course_track && specPoint.course_track !== track) return false;
 
   const audience = q.audience || "both";
@@ -273,6 +345,7 @@ export function filterQuestionsForProfile(questions, profile, specPointsById = n
 export function normalizeSeedProfile(profile) {
   const science_path = getSciencePath(profile);
   return {
+    exam_board: getExamBoard(profile),
     science_path,
     preferred_tier: normalizeTier(profile?.preferred_tier || "FT"),
     subject_tiers: getSubjectTiers(profile),
