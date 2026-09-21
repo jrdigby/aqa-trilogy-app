@@ -13,6 +13,8 @@ import { todayISO, addDaysISO } from "./utils.js";
 import {
   SUBJECTS,
   normalizeTier,
+  normalizeExamBoard,
+  getExamBoard,
   targetTiersForTier,
   normalizeSeedProfile,
   courseTrackForProfile,
@@ -89,6 +91,7 @@ export async function fetchOnboardingStatus(userId) {
 export async function saveOnboardingProfile(userId, payload) {
   const {
     preferred_tier,
+    exam_board,
     science_path,
     subject_tiers,
     science_subjects,
@@ -101,6 +104,7 @@ export async function saveOnboardingProfile(userId, payload) {
   const path = science_path === "triple" ? "triple" : "combined";
   const patch = {
     preferred_tier: normalizeTier(preferred_tier),
+    exam_board: normalizeExamBoard(exam_board),
     science_path: path,
     science_subjects: normalizeScienceSubjectsForSave(science_subjects),
     subject_preference: subject_preference || {
@@ -134,6 +138,7 @@ export async function saveOnboardingProfile(userId, payload) {
 export async function saveUserProfileSettings(userId, payload) {
   const {
     preferred_tier,
+    exam_board,
     science_path,
     subject_tiers,
     science_subjects,
@@ -152,6 +157,9 @@ export async function saveUserProfileSettings(userId, payload) {
     science_path: path,
     science_subjects: normalizeScienceSubjectsForSave(science_subjects)
   };
+  if (exam_board !== undefined) {
+    patch.exam_board = normalizeExamBoard(exam_board);
+  }
   if (science_path === "triple" && subject_tiers) {
     patch.subject_tiers = subject_tiers;
   }
@@ -301,6 +309,7 @@ export async function pickWeeklyStarterSpecPoints(
 ) {
   const seedProfile = normalizeSeedProfile(profile);
   const courseTrack = courseTrackForProfile(seedProfile);
+  const examBoard = getExamBoard(seedProfile);
   const active = getActiveSubjects(seedProfile);
   const ordered = opts.useStudyOrder
     ? sortSubjectsByPreference(seedProfile.subject_preference).filter((s) => active.includes(s))
@@ -313,9 +322,10 @@ export async function pickWeeklyStarterSpecPoints(
     const targetTiers = targetTiersForProfile(seedProfile, subject);
     const { data: specPoints, error: spErr } = await supabaseClient
       .from("spec_points")
-      .select("id, subject, paper, topic_number, spec_ref, course_track")
+      .select("id, subject, paper, topic_number, spec_ref, course_track, exam_board")
       .eq("subject", subject)
       .eq("course_track", courseTrack)
+      .eq("exam_board", examBoard)
       .order("topic_number", { ascending: true });
     if (spErr) throw spErr;
 
@@ -697,10 +707,12 @@ export async function pickStarterSpecPoints(profile, existingSpecIds = new Set()
 export async function countEligibleSpecPoints(profile) {
   const seedProfile = normalizeSeedProfile(profile);
   const courseTrack = courseTrackForProfile(seedProfile);
+  const examBoard = getExamBoard(seedProfile);
   const { data: specPoints, error } = await supabaseClient
     .from("spec_points")
     .select("id, subject")
-    .eq("course_track", courseTrack);
+    .eq("course_track", courseTrack)
+    .eq("exam_board", examBoard);
   if (error) throw error;
 
   const bySubject = {};

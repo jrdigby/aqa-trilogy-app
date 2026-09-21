@@ -5,6 +5,7 @@ import {
 import { buildExamPaper } from "./paperBuilder.js";
 import {
   courseTrackForProfile,
+  getExamBoard,
   getActiveSubjects,
   targetTiersForProfile,
   filterQuestionsForProfile,
@@ -26,12 +27,12 @@ const QUESTION_SKILLS_EMBED =
 const QUESTION_SELECT =
   "id,question_type,prompt,options,spec_point_id,triple_spec_point_id,audience,tier,difficulty,demand_level,ao1_marks,ao2_marks,ao3_marks,is_maths_skill,is_required_practical,required_practical_id,resource_links,hints,marking_method,max_marks,image_url,calculation_config,chemistry_config,circuit_config,equipment_config," +
   QUESTION_SKILLS_EMBED +
-  ",spec_points!spec_point_id(subject,paper,topic_name,spec_ref,spec_text,course_track),triple_spec_point:spec_points!triple_spec_point_id(subject,paper,topic_name,spec_ref,spec_text,course_track)";
+  ",spec_points!spec_point_id(subject,paper,topic_name,spec_ref,spec_text,course_track,exam_board),triple_spec_point:spec_points!triple_spec_point_id(subject,paper,topic_name,spec_ref,spec_text,course_track,exam_board)";
 
 export { QUESTION_SELECT };
 
 const QUESTION_SELECT_FALLBACK =
-  "id,question_type,prompt,options,spec_point_id,triple_spec_point_id,audience,tier,difficulty,resource_links,marking_method,max_marks,image_url,spec_points!spec_point_id(subject,paper,topic_name,spec_ref,spec_text,course_track),triple_spec_point:spec_points!triple_spec_point_id(subject,paper,topic_name,spec_ref,spec_text,course_track)";
+  "id,question_type,prompt,options,spec_point_id,triple_spec_point_id,audience,tier,difficulty,resource_links,marking_method,max_marks,image_url,spec_points!spec_point_id(subject,paper,topic_name,spec_ref,spec_text,course_track,exam_board),triple_spec_point:spec_points!triple_spec_point_id(subject,paper,topic_name,spec_ref,spec_text,course_track,exam_board)";
 
 export { QUESTION_SELECT_FALLBACK };
 
@@ -54,6 +55,7 @@ async function fetchFilteredPracticePool(context) {
   const { subject, paper, topic, qType, tier } = getSelectedFilters();
   const profile = getUserProfile?.() || null;
   const courseTrack = courseTrackForProfile(profile);
+  const examBoard = getExamBoard(profile);
   const targetTiers = profile
     ? targetTiersForProfile(profile, subject)
     : tier === "HT"
@@ -62,10 +64,11 @@ async function fetchFilteredPracticePool(context) {
 
   let query = supabaseClient
     .from("spec_points")
-    .select("id, subject, paper, topic_name, course_track")
+    .select("id, subject, paper, topic_name, course_track, exam_board")
     .eq("subject", subject)
     .eq("paper", paper)
-    .eq("course_track", courseTrack);
+    .eq("course_track", courseTrack)
+    .eq("exam_board", examBoard);
 
   if (topic) query = query.eq("topic_name", topic);
 

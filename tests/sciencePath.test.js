@@ -9,7 +9,11 @@ import {
   targetTiersForTier,
   getActiveSubjects,
   formatSciencePathLabel,
-  formatSciencePathShort
+  formatSciencePathShort,
+  getExamBoard,
+  normalizeExamBoard,
+  questionMatchesStudent,
+  DEFAULT_EXAM_BOARD
 } from "../src/sciencePath.js";
 
 const ftTiers = targetTiersForTier("FT");
@@ -85,6 +89,21 @@ test("getActiveSubjects — missing triple selection means all three", () => {
   );
 });
 
+test("getExamBoard defaults to aqa", () => {
+  assert.equal(getExamBoard(null), DEFAULT_EXAM_BOARD);
+  assert.equal(getExamBoard({}), "aqa");
+  assert.equal(getExamBoard({ exam_board: "AQA" }), "aqa");
+  assert.equal(getExamBoard({ exam_board: "edexcel" }), "edexcel");
+});
+
+test("normalizeExamBoard falls back for unknown values", () => {
+  assert.equal(normalizeExamBoard("aqa"), "aqa");
+  assert.equal(normalizeExamBoard("ocr_gateway"), "ocr_gateway");
+  assert.equal(normalizeExamBoard("unknown"), "aqa");
+  assert.equal(normalizeExamBoard(""), "aqa");
+  assert.equal(normalizeExamBoard(null), "aqa");
+});
+
 test("formatSciencePathLabel lists only selected triple subjects", () => {
   assert.equal(
     formatSciencePathLabel({
@@ -92,11 +111,41 @@ test("formatSciencePathLabel lists only selected triple subjects", () => {
       science_subjects: ["physics"],
       subject_tiers: { physics: "HT" }
     }),
-    "Triple · Phy HT"
+    "AQA · Triple · Phy HT"
   );
   assert.equal(
     formatSciencePathShort({ science_path: "triple", science_subjects: ["physics"] }),
-    "Triple Science · Physics"
+    "AQA · Triple Science · Physics"
+  );
+});
+
+test("formatSciencePathLabel includes AQA for combined", () => {
+  assert.equal(
+    formatSciencePathLabel({ science_path: "combined", preferred_tier: "FT" }),
+    "AQA · Combined · Foundation"
+  );
+  assert.match(
+    formatSciencePathLabel({ science_path: "combined", preferred_tier: "HT", exam_board: "aqa" }),
+    /AQA/
+  );
+});
+
+test("questionMatchesStudent rejects wrong exam_board", () => {
+  const profile = { science_path: "combined", exam_board: "aqa" };
+  const q = { audience: "both" };
+  assert.equal(
+    questionMatchesStudent(q, profile, {
+      course_track: "combined",
+      exam_board: "aqa"
+    }),
+    true
+  );
+  assert.equal(
+    questionMatchesStudent(q, profile, {
+      course_track: "combined",
+      exam_board: "edexcel"
+    }),
+    false
   );
 });
 

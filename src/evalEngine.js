@@ -1,6 +1,7 @@
 // src/evalEngine.js
 import { escapeHtml } from './utils.js';
 import { loadCalculationWorkflow } from './lazyCalculationWorkflow.js';
+import { getExamBoardMeta, DEFAULT_EXAM_BOARD } from './sciencePath.js';
 
 export const MCQ_FLASHCARD_ADDED_MSG = "This question has been added to your flashcard list.";
 const LEGACY_FLASHCARD_REVIEW_SUFFIX = / Review your flashcards for this specific unit or definition\.?$/i;
@@ -566,11 +567,15 @@ export function computeSessionQuality(qualities) {
 
 const PUNCTUATION_STRIP = /[.,\/#!$%\^&\*;:{}=\-_`~()?]/g;
 
-function getTipHtmlForCommandWord(word) {
+function tipBannerTitle(boardName, label) {
+  return `📋 ${boardName} GCSE Examiner Tip (${label})`;
+}
+
+function getTipHtmlForCommandWord(word, boardName = "AQA") {
   if (word === "describe") {
     return `
       <div class="exam-tip exam-tip--describe">
-        <strong>📋 AQA GCSE Examiner Tip (DESCRIBE)</strong><br/>
+        <strong>${tipBannerTitle(boardName, "DESCRIBE")}</strong><br/>
         Give a detailed account of facts, characteristics, steps, or features. <strong>Do not explain why!</strong> State <em>what</em> happens or <em>how</em> a practical procedure is done without adding underlying scientific theory.
       </div>
     `;
@@ -578,7 +583,7 @@ function getTipHtmlForCommandWord(word) {
   if (word === "explain") {
     return `
       <div class="exam-tip exam-tip--explain">
-        <strong>📋 AQA GCSE Examiner Tip (EXPLAIN)</strong><br/>
+        <strong>${tipBannerTitle(boardName, "EXPLAIN")}</strong><br/>
         Set out purposes or reasons. You must use scientific relationships and theory. Structure your statements with explicit logical connectors like <strong>"because..."</strong>, <strong>"this means that..."</strong>, or <strong>"consequently..."</strong> to claim your marks.
       </div>
     `;
@@ -586,7 +591,7 @@ function getTipHtmlForCommandWord(word) {
   if (word === "evaluate") {
     return `
       <div class="exam-tip exam-tip--evaluate">
-        <strong>📋 AQA GCSE Examiner Tip (EVALUATE)</strong><br/>
+        <strong>${tipBannerTitle(boardName, "EVALUATE")}</strong><br/>
         Make a qualitative judgement based on available facts or data criteria. You must explicitly provide <strong>advantages (pros)</strong>, <strong>disadvantages (cons)</strong>, and finish with a clear, justified <strong>conclusion</strong>.
       </div>
     `;
@@ -594,7 +599,7 @@ function getTipHtmlForCommandWord(word) {
   if (word === "calculate") {
     return `
       <div class="exam-tip exam-tip--calculate">
-        <strong>📋 AQA GCSE Examiner Tip (CALCULATE)</strong><br/>
+        <strong>${tipBannerTitle(boardName, "CALCULATE")}</strong><br/>
         Find a numerical answer. You must <strong>show every step of your working out</strong>. Always check if unit conversions are needed first, recall/rearrange the formula, insert values, and state the correct <strong>units</strong>.
       </div>
     `;
@@ -602,7 +607,7 @@ function getTipHtmlForCommandWord(word) {
   if (word === "compare") {
     return `
       <div class="exam-tip exam-tip--compare">
-        <strong>📋 AQA GCSE Examiner Tip (COMPARE)</strong><br/>
+        <strong>${tipBannerTitle(boardName, "COMPARE")}</strong><br/>
         Identify the similarities and/or differences between two or more items. Ensure you describe <strong>both variables</strong> across the comparison instead of just describing one of them in isolation.
       </div>
     `;
@@ -610,7 +615,7 @@ function getTipHtmlForCommandWord(word) {
   if (word === "state" || word === "name") {
     return `
       <div class="exam-tip exam-tip--state">
-        <strong>📋 AQA GCSE Examiner Tip (${word.toUpperCase()})</strong><br/>
+        <strong>${tipBannerTitle(boardName, word.toUpperCase())}</strong><br/>
         Provide a concise, factual answer without any background explanation or computation. Keep your response short, precise, and directly focused on the required keyword, fact, or definition.
       </div>
     `;
@@ -618,7 +623,7 @@ function getTipHtmlForCommandWord(word) {
   if (word === "suggest") {
     return `
       <div class="exam-tip exam-tip--suggest">
-        <strong>📋 AQA GCSE Examiner Tip (SUGGEST)</strong><br/>
+        <strong>${tipBannerTitle(boardName, "SUGGEST")}</strong><br/>
         Apply your scientific knowledge to a novel or unfamiliar situation. There is often more than one acceptable logical path here, so deduce a reasoned, scientifically valid hypothesis or explanation.
       </div>
     `;
@@ -626,7 +631,7 @@ function getTipHtmlForCommandWord(word) {
   if (word === "discuss") {
     return `
       <div class="exam-tip exam-tip--discuss">
-        <strong>📋 AQA GCSE Examiner Tip (DISCUSS)</strong><br/>
+        <strong>${tipBannerTitle(boardName, "DISCUSS")}</strong><br/>
         Write about the key issues, theories, or observations surrounding the topic. Explore different scientific perspectives or factors (e.g., biological impacts vs. environmental costs) balanced evenly.
       </div>
     `;
@@ -634,7 +639,7 @@ function getTipHtmlForCommandWord(word) {
   if (word === "justify") {
     return `
       <div class="exam-tip exam-tip--justify">
-        <strong>📋 AQA GCSE Examiner Tip (JUSTIFY)</strong><br/>
+        <strong>${tipBannerTitle(boardName, "JUSTIFY")}</strong><br/>
         Provide evidence, data points, or robust theoretical reasoning to support a previously stated answer, choice, or experimental conclusion.
       </div>
     `;
@@ -642,7 +647,7 @@ function getTipHtmlForCommandWord(word) {
   if (word === "determine") {
     return `
       <div class="exam-tip exam-tip--determine">
-        <strong>📋 AQA GCSE Examiner Tip (DETERMINE)</strong><br/>
+        <strong>${tipBannerTitle(boardName, "DETERMINE")}</strong><br/>
         Use the data provided in the prompt, or quantitative evidence from a graph/table, to calculate or logically establish the single correct value or conclusion.
       </div>
     `;
@@ -650,7 +655,7 @@ function getTipHtmlForCommandWord(word) {
   if (word === "define") {
     return `
       <div class="exam-tip exam-tip--define">
-        <strong>📋 AQA GCSE Examiner Tip (DEFINE)</strong><br/>
+        <strong>${tipBannerTitle(boardName, "DEFINE")}</strong><br/>
         State the exact scientific meaning of a word, term, or physical quantity. Use precise specification keywords to ensure full credit.
       </div>
     `;
@@ -803,11 +808,12 @@ export function renderPromptStemHtml(promptText, options = {}) {
   return out.join("");
 }
 
-// Formats AQA GCSE standard examiner tips dynamically based on prompt words
-export function getAQACommandWordHelper(promptText) {
+// Formats board-specific GCSE examiner tips dynamically based on prompt words
+export function getAQACommandWordHelper(promptText, examBoard = DEFAULT_EXAM_BOARD) {
   const segments = splitPromptSegments(promptText || "");
   if (!segments.length) return "";
 
+  const boardName = getExamBoardMeta(examBoard).displayName;
   const seen = new Set();
   const banners = [];
 
@@ -817,7 +823,7 @@ export function getAQACommandWordHelper(promptText) {
 
     if (!isKnownCommandWord(word)) continue;
 
-    const tipHtml = getTipHtmlForCommandWord(word);
+    const tipHtml = getTipHtmlForCommandWord(word, boardName);
 
     seen.add(word);
     banners.push(tipHtml);

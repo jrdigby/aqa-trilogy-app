@@ -1513,12 +1513,13 @@ function usesEquationSheetAuthoring(prefix = "") {
 }
 
 /** Fetch equation sheet rows for admin dropdowns (optional subject filter). */
-export async function loadEquationSheetCatalog(supabaseClient, subject = null, courseTrack = null) {
+export async function loadEquationSheetCatalog(supabaseClient, subject = null, courseTrack = null, examBoard = "aqa") {
   if (!supabaseClient) return [];
   let query = supabaseClient
     .from("equation_sheets")
-    .select("id, subject, title, tier, paper, exam_series, course_track")
+    .select("id, subject, title, tier, paper, exam_series, course_track, exam_board")
     .order("id");
+  if (examBoard) query = query.eq("exam_board", examBoard);
   if (subject) query = query.eq("subject", subject);
   if (courseTrack) query = query.eq("course_track", courseTrack);
   const { data, error } = await query;

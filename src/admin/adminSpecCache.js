@@ -7,15 +7,35 @@ const specPointById = new Map();
 let equivalencesCombinedToTriple = new Map();
 let equivalencesTripleToCombined = new Map();
 let equivalencesLoaded = false;
+let equivalencesLoadPromise = null;
 let supabaseRef = null;
 
-function cacheKey({ subject, paper, courseTrack }) {
-  return `${subject}|${paper}|${courseTrack}`;
+function cacheKey({ subject, paper, courseTrack, examBoard = "aqa" }) {
+  return `${examBoard}|${subject}|${paper}|${courseTrack}`;
 }
 
 function indexSpecRows(rows) {
   for (const row of rows || []) {
     if (row?.id) specPointById.set(row.id, row);
+  }
+}
+
+function isMissingColumnError(error) {
+  const msg = error?.message || "";
+  return error?.code === "42703" || /column/i.test(msg) || /does not exist/i.test(msg);
+}
+
+function indexEquivalenceRows(rows, examBoard = "aqa") {
+  equivalencesCombinedToTriple = new Map();
+  equivalencesTripleToCombined = new Map();
+  const board = String(examBoard || "aqa").toLowerCase();
+  for (const row of rows || []) {
+    const rowBoard = row.exam_board != null ? String(row.exam_board).toLowerCase() : "aqa";
+    if (rowBoard !== board) continue;
+    if (row.combined_spec_point_id && row.triple_spec_point_id) {
+      equivalencesCombinedToTriple.set(row.combined_spec_point_id, row.triple_spec_point_id);
+      equivalencesTripleToCombined.set(row.triple_spec_point_id, row.combined_spec_point_id);
+    }
   }
 }
 
@@ -29,26 +49,39 @@ export function clearSpecCache() {
   equivalencesCombinedToTriple = new Map();
   equivalencesTripleToCombined = new Map();
   equivalencesLoaded = false;
+  equivalencesLoadPromise = null;
 }
 
-export async function ensureEquivalencesLoaded(supabaseClient = supabaseRef) {
+async function fetchEquivalenceRows(supabaseClient) {
+  let result = await supabaseClient
+    .from("spec_point_equivalences")
+    .select("combined_spec_point_id, triple_spec_point_id, exam_board");
+
+  if (result.error && isMissingColumnError(result.error)) {
+    result = await supabaseClient
+      .from("spec_point_equivalences")
+      .select("combined_spec_point_id, triple_spec_point_id");
+  }
+
+  if (result.error) throw result.error;
+  return result.data || [];
+}
+
+export async function ensureEquivalencesLoaded(supabaseClient = supabaseRef, examBoard = "aqa") {
   if (equivalencesLoaded) return;
   if (!supabaseClient) throw new Error("Spec cache not initialised");
 
-  const { data, error } = await supabaseClient
-    .from("spec_point_equivalences")
-    .select("combined_spec_point_id, triple_spec_point_id");
-  if (error) throw error;
-
-  equivalencesCombinedToTriple = new Map();
-  equivalencesTripleToCombined = new Map();
-  for (const row of data || []) {
-    if (row.combined_spec_point_id && row.triple_spec_point_id) {
-      equivalencesCombinedToTriple.set(row.combined_spec_point_id, row.triple_spec_point_id);
-      equivalencesTripleToCombined.set(row.triple_spec_point_id, row.combined_spec_point_id);
-    }
+  if (!equivalencesLoadPromise) {
+    equivalencesLoadPromise = (async () => {
+      const rows = await fetchEquivalenceRows(supabaseClient);
+      indexEquivalenceRows(rows, examBoard);
+      equivalencesLoaded = true;
+    })().finally(() => {
+      equivalencesLoadPromise = null;
+    });
   }
-  equivalencesLoaded = true;
+
+  await equivalencesLoadPromise;
 }
 
 /**
@@ -56,22 +89,38 @@ export async function ensureEquivalencesLoaded(supabaseClient = supabaseRef) {
  * @returns {Promise<Array>}
  */
 export async function loadSpecPoints(
-  { subject, paper, courseTrack },
+  { subject, paper, courseTrack, examBoard = "aqa" },
   supabaseClient = supabaseRef
 ) {
   if (!supabaseClient) throw new Error("Spec cache not initialised");
-  const key = cacheKey({ subject, paper, courseTrack });
+  const key = cacheKey({ subject, paper, courseTrack, examBoard });
   if (specPointsByKey.has(key)) {
     return specPointsByKey.get(key);
   }
 
-  const { data, error } = await supabaseClient
+  let query = supabaseClient
     .from("spec_points")
-    .select("id, spec_ref, topic_name, spec_text, subject, paper, course_track")
+    .select("id, spec_ref, topic_name, spec_text, subject, paper, course_track, exam_board")
     .eq("subject", subject)
     .eq("paper", paper)
     .eq("course_track", courseTrack)
+    .eq("exam_board", examBoard)
     .order("spec_ref", { ascending: true });
+
+  let { data, error } = await query;
+
+  // Schema-cache fallback before exam_board is visible to PostgREST.
+  if (error && isMissingColumnError(error)) {
+    const fallback = await supabaseClient
+      .from("spec_points")
+      .select("id, spec_ref, topic_name, spec_text, subject, paper, course_track")
+      .eq("subject", subject)
+      .eq("paper", paper)
+      .eq("course_track", courseTrack)
+      .order("spec_ref", { ascending: true });
+    data = fallback.data;
+    error = fallback.error;
+  }
 
   if (error) throw error;
   const rows = data || [];
@@ -97,26 +146,113 @@ export async function formatSpecPointLabelOrFetch(specPointId, supabaseClient = 
   const cached = formatSpecPointLabel(specPointId);
   if (cached) return cached;
   if (!specPointId || !supabaseClient) return "";
-  const { data: sp } = await supabaseClient
+
+  let result = await supabaseClient
     .from("spec_points")
-    .select("id, spec_ref, topic_name, spec_text, subject, paper, course_track")
+    .select("id, spec_ref, topic_name, spec_text, subject, paper, course_track, exam_board")
     .eq("id", specPointId)
     .maybeSingle();
-  if (!sp) return "";
-  specPointById.set(sp.id, sp);
+
+  if (result.error && isMissingColumnError(result.error)) {
+    result = await supabaseClient
+      .from("spec_points")
+      .select("id, spec_ref, topic_name, spec_text, subject, paper, course_track")
+      .eq("id", specPointId)
+      .maybeSingle();
+  }
+
+  if (result.error || !result.data) return "";
+  specPointById.set(result.data.id, result.data);
   return formatSpecPointLabel(specPointId);
 }
 
-export async function lookupEquivalence(primarySpecPointId, track, supabaseClient = supabaseRef) {
-  if (!primarySpecPointId) return null;
-  await ensureEquivalencesLoaded(supabaseClient);
+async function liveLookupEquivalence(primarySpecPointId, track, supabaseClient, examBoard = "aqa") {
+  if (!primarySpecPointId || !supabaseClient) return null;
 
   if (track === "combined") {
-    const triple = equivalencesCombinedToTriple.get(primarySpecPointId) || null;
+    let result = await supabaseClient
+      .from("spec_point_equivalences")
+      .select("triple_spec_point_id, exam_board")
+      .eq("combined_spec_point_id", primarySpecPointId)
+      .maybeSingle();
+
+    if (result.error && isMissingColumnError(result.error)) {
+      result = await supabaseClient
+        .from("spec_point_equivalences")
+        .select("triple_spec_point_id")
+        .eq("combined_spec_point_id", primarySpecPointId)
+        .maybeSingle();
+    }
+
+    if (result.error || !result.data?.triple_spec_point_id) return null;
+    if (result.data.exam_board && String(result.data.exam_board).toLowerCase() !== examBoard) {
+      return null;
+    }
+    return {
+      combined: primarySpecPointId,
+      triple: result.data.triple_spec_point_id
+    };
+  }
+
+  let result = await supabaseClient
+    .from("spec_point_equivalences")
+    .select("combined_spec_point_id, exam_board")
+    .eq("triple_spec_point_id", primarySpecPointId)
+    .maybeSingle();
+
+  if (result.error && isMissingColumnError(result.error)) {
+    result = await supabaseClient
+      .from("spec_point_equivalences")
+      .select("combined_spec_point_id")
+      .eq("triple_spec_point_id", primarySpecPointId)
+      .maybeSingle();
+  }
+
+  if (result.error || !result.data?.combined_spec_point_id) return null;
+  if (result.data.exam_board && String(result.data.exam_board).toLowerCase() !== examBoard) {
+    return null;
+  }
+  return {
+    combined: result.data.combined_spec_point_id,
+    triple: primarySpecPointId
+  };
+}
+
+export async function lookupEquivalence(
+  primarySpecPointId,
+  track,
+  supabaseClient = supabaseRef,
+  examBoard = "aqa"
+) {
+  if (!primarySpecPointId) return null;
+  try {
+    await ensureEquivalencesLoaded(supabaseClient, examBoard);
+  } catch (err) {
+    console.warn("Equivalence cache load failed, using live lookup:", err);
+  }
+
+  if (track === "combined") {
+    let triple = equivalencesCombinedToTriple.get(primarySpecPointId) || null;
+    if (!triple) {
+      const live = await liveLookupEquivalence(primarySpecPointId, track, supabaseClient, examBoard);
+      triple = live?.triple || null;
+      if (triple) {
+        equivalencesCombinedToTriple.set(primarySpecPointId, triple);
+        equivalencesTripleToCombined.set(triple, primarySpecPointId);
+      }
+    }
     return { triple, combined: primarySpecPointId };
   }
 
-  const combined = equivalencesTripleToCombined.get(primarySpecPointId) || null;
+  let combined = equivalencesTripleToCombined.get(primarySpecPointId) || null;
+  if (!combined) {
+    const live = await liveLookupEquivalence(primarySpecPointId, track, supabaseClient, examBoard);
+    combined = live?.combined || null;
+    if (combined) {
+      equivalencesTripleToCombined.set(primarySpecPointId, combined);
+      equivalencesCombinedToTriple.set(combined, primarySpecPointId);
+    }
+  }
   return { combined, triple: primarySpecPointId };
 }
 

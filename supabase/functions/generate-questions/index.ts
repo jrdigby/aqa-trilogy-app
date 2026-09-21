@@ -347,6 +347,22 @@ function buildSingleQuestionPrompt(payload, recipe, context = {}) {
     forceDistinct = false
   } = context;
 
+  const rawBoard = String(payload.exam_board || payload.examBoard || context.examBoard || "aqa")
+    .toLowerCase()
+    .trim();
+  const examBoard = ["aqa", "edexcel", "ocr_gateway", "ocr_21c"].includes(rawBoard) ? rawBoard : "aqa";
+  const boardMeta = {
+    aqa: { displayName: "AQA", combinedSpecCode: "8464" },
+    edexcel: { displayName: "Edexcel", combinedSpecCode: "1SC0" },
+    ocr_gateway: { displayName: "OCR Gateway", combinedSpecCode: "J250" },
+    ocr_21c: { displayName: "OCR 21st Century", combinedSpecCode: "J260" }
+  }[examBoard];
+  const commandWordLabel = examBoard === "aqa" ? "AQA command_word" : `${boardMeta.displayName} command_word`;
+  const authorPersona =
+    examBoard === "aqa"
+      ? "AQA GCSE Combined Science (8464) question author. Write ONE original exam-style question. British English."
+      : `${boardMeta.displayName} GCSE Combined Science (${boardMeta.combinedSpecCode}) question author. Write ONE original exam-style question. British English.`;
+
   const allPrior = [...avoidSameType, ...priorSameType];
   const marks = recipeMaxMarks(recipe);
   const typeHint = typeHintForRecipe(recipe);
@@ -386,10 +402,10 @@ function buildSingleQuestionPrompt(payload, recipe, context = {}) {
     : "Single-line prompt (no line breaks).";
 
   const closingRequirements = authorPrompt
-    ? `Requirements: ${typeHint} · appropriate AQA command_word · ON-FOCUS for the AUTHOR FOCUS above · genuinely distinct from any listed above.`
-    : `Requirements: ${typeHint} · appropriate AQA command_word · genuinely distinct from any listed above.`;
+    ? `Requirements: ${typeHint} · appropriate ${commandWordLabel} · ON-FOCUS for the AUTHOR FOCUS above · genuinely distinct from any listed above.`
+    : `Requirements: ${typeHint} · appropriate ${commandWordLabel} · genuinely distinct from any listed above.`;
 
-  return `AQA GCSE Combined Science (8464) question author. Write ONE original exam-style question. British English.
+  return `${authorPersona}
 ${distinctNote}${varietyNote}${authorBlock}
 Subject: ${subject} · Paper: ${paper} · Spec: ${spec_ref} · Topic: ${topic_name} · Tier: ${tier}
 Batch item: ${batchIndex + 1} · Type: ${recipe.question_type} · demand_level: ${recipe.demand_level} · max_marks: ${marks}

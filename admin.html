@@ -2297,6 +2297,15 @@
           
           <div class="row row-filters">
             <div class="field-fit">
+              <label>Exam board:</label>
+              <select id="examBoardSelect" class="select-fit">
+                <option value="aqa" selected>AQA</option>
+                <option value="edexcel" disabled>Edexcel (Coming soon)</option>
+                <option value="ocr_gateway" disabled>OCR Gateway (Coming soon)</option>
+                <option value="ocr_21c" disabled>OCR 21st Century (Coming soon)</option>
+              </select>
+            </div>
+            <div class="field-fit">
               <label>Syllabus Subject Area:</label>
               <select id="subjectSelect" class="select-fit">
                 <option value="physics">Physics</option>
@@ -3287,6 +3296,15 @@
 
           <div class="row row-compact">
             <div class="field-fit">
+              <label>Exam board</label>
+              <select id="batchExamBoard" class="select-fit">
+                <option value="aqa" selected>AQA</option>
+                <option value="edexcel" disabled>Edexcel (Coming soon)</option>
+                <option value="ocr_gateway" disabled>OCR Gateway (Coming soon)</option>
+                <option value="ocr_21c" disabled>OCR 21st Century (Coming soon)</option>
+              </select>
+            </div>
+            <div class="field-fit">
               <label>Subject</label>
               <select id="batchSubject" class="select-fit">
                 <option value="physics">Physics</option>
@@ -3480,6 +3498,15 @@
 
           <div class="row row-compact" style="gap:6px;align-items:flex-end;flex-wrap:wrap;">
             <div class="field-fit">
+              <label>Exam board</label>
+              <select id="chemQuantExamBoard" class="select-fit">
+                <option value="aqa" selected>AQA</option>
+                <option value="edexcel" disabled>Edexcel (Coming soon)</option>
+                <option value="ocr_gateway" disabled>OCR Gateway (Coming soon)</option>
+                <option value="ocr_21c" disabled>OCR 21st Century (Coming soon)</option>
+              </select>
+            </div>
+            <div class="field-fit">
               <label>Scenario</label>
               <select id="chemQuantScenario" class="select-fit" style="min-width:10.5rem;">
                 <option value="rfm">Relative formula mass</option>
@@ -3625,6 +3652,15 @@
 
           <div class="row row-compact">
             <div class="field-fit">
+              <label>Exam board</label>
+              <select id="batchMcqExamBoard" class="select-fit">
+                <option value="aqa" selected>AQA</option>
+                <option value="edexcel" disabled>Edexcel (Coming soon)</option>
+                <option value="ocr_gateway" disabled>OCR Gateway (Coming soon)</option>
+                <option value="ocr_21c" disabled>OCR 21st Century (Coming soon)</option>
+              </select>
+            </div>
+            <div class="field-fit">
               <label>Subject</label>
               <select id="batchMcqSubject" class="select-fit">
                 <option value="physics">Physics</option>
@@ -3755,6 +3791,16 @@
           </p>
 
           <div class="row row-compact audit-filters">
+            <div>
+              <label>Exam board:</label>
+              <select id="auditExamBoard" class="select-fit">
+                <option value="aqa" selected>AQA</option>
+                <option value="edexcel" disabled>Edexcel (Coming soon)</option>
+                <option value="ocr_gateway" disabled>OCR Gateway (Coming soon)</option>
+                <option value="ocr_21c" disabled>OCR 21st Century (Coming soon)</option>
+                <option value="">All boards</option>
+              </select>
+            </div>
             <div>
               <label>Filter Subject:</label>
               <select id="auditSubject">
@@ -4154,6 +4200,15 @@
         <div class="spec-link-panel edit-form-span-full" id="editSpecPanel">
           <p class="spec-link-status" id="editSpecLinkStatus">Change subject, paper, or course track to load spec points, then pick the target specification statement.</p>
           <div class="row row-compact" style="margin-bottom: 8px;">
+            <div class="field-fit">
+              <label for="editSpecExamBoardSelect">Exam board</label>
+              <select id="editSpecExamBoardSelect" class="select-fit">
+                <option value="aqa" selected>AQA</option>
+                <option value="edexcel" disabled>Edexcel (Coming soon)</option>
+                <option value="ocr_gateway" disabled>OCR Gateway (Coming soon)</option>
+                <option value="ocr_21c" disabled>OCR 21st Century (Coming soon)</option>
+              </select>
+            </div>
             <div class="field-fit">
               <label for="editSpecSubjectSelect">Subject</label>
               <select id="editSpecSubjectSelect" class="select-fit">
@@ -5473,9 +5528,11 @@
 
   async function loadRequiredPracticalCatalog() {
     try {
+      const examBoard = getAuthoringExamBoard();
       const { data, error } = await supabaseClient
         .from("required_practicals")
-        .select("id, subject, course_track, code, title, sort_order")
+        .select("id, subject, course_track, exam_board, code, title, sort_order")
+        .eq("exam_board", examBoard)
         .order("sort_order", { ascending: true });
       if (error) throw error;
       cachedRequiredPracticals = data || [];
@@ -5487,6 +5544,36 @@
 
   function getAuthoringCourseTrack() {
     return document.getElementById("courseTrackSelect")?.value || "combined";
+  }
+
+  function getExamBoardFrom(selectId, fallback = "aqa") {
+    const raw = document.getElementById(selectId)?.value;
+    if (raw === "") return ""; // audit "All boards"
+    return raw || fallback;
+  }
+
+  function getAuthoringExamBoard() {
+    return getExamBoardFrom("examBoardSelect", "aqa");
+  }
+
+  function getBatchExamBoard() {
+    return getExamBoardFrom("batchExamBoard", "aqa");
+  }
+
+  function getChemQuantExamBoard() {
+    return getExamBoardFrom("chemQuantExamBoard", "aqa");
+  }
+
+  function getBatchMcqExamBoard() {
+    return getExamBoardFrom("batchMcqExamBoard", "aqa");
+  }
+
+  function getAuditExamBoard() {
+    return getExamBoardFrom("auditExamBoard", "aqa");
+  }
+
+  function getEditExamBoard() {
+    return getExamBoardFrom("editSpecExamBoardSelect", "aqa");
   }
 
   function fillRequiredPracticalSelect(selectEl, subject, courseTrack, selectedId = "") {
@@ -5550,10 +5637,15 @@
     syncSpecLinkUi();
   }
 
-  async function lookupEquivalence(primarySpecPointId, track) {
+  async function lookupEquivalence(primarySpecPointId, track, examBoard = null) {
     if (!primarySpecPointId) return null;
     try {
-      return await AdminSpecCache.lookupEquivalence(primarySpecPointId, track, supabaseClient);
+      return await AdminSpecCache.lookupEquivalence(
+        primarySpecPointId,
+        track,
+        supabaseClient,
+        examBoard || getAuthoringExamBoard()
+      );
     } catch (err) {
       console.warn("Equivalence lookup failed:", err);
       return null;
@@ -5595,6 +5687,9 @@
     }
 
     display.value = await formatSpecPointLabel(linkedId);
+    if (!display.value) {
+      display.value = `(Linked ID ${String(linkedId).slice(0, 8)}…) — label unavailable`;
+    }
     if (warning) {
       warning.classList.add("hidden");
       warning.textContent = "";
@@ -5661,9 +5756,16 @@
     }
 
     const track = getEditCourseTrack();
-    const equiv = await lookupEquivalence(primarySpecPointId, track);
+    const equiv = await lookupEquivalence(primarySpecPointId, track, getEditExamBoard());
     const linkedId = track === "combined" ? equiv?.triple : equiv?.combined;
-    display.value = linkedId ? await formatSpecPointLabel(linkedId) : "";
+    if (!linkedId) {
+      display.value = "";
+      return;
+    }
+    display.value = await formatSpecPointLabel(linkedId);
+    if (!display.value) {
+      display.value = `(Linked ID ${String(linkedId).slice(0, 8)}…) — label unavailable`;
+    }
   }
 
   async function loadEditSyllabusReferenceSelects(selectedSpecPointId = "") {
@@ -5676,7 +5778,7 @@
     selector.innerHTML = "<option value=\"\">Loading references...</option>";
 
     try {
-      const rows = await AdminSpecCache.loadSpecPoints({ subject, paper, courseTrack }, supabaseClient);
+      const rows = await AdminSpecCache.loadSpecPoints({ subject, paper, courseTrack, examBoard: getEditExamBoard() }, supabaseClient);
       selector.innerHTML = AdminSpecCache.renderSpecPointOptions(rows, {
         selectedId: selectedSpecPointId,
         emptyLabel: "No spec points found for this filter",
@@ -5727,10 +5829,10 @@
       return { spec_point_id: primaryId, triple_spec_point_id: null, ok: true };
     }
 
-    let equiv = await lookupEquivalence(primaryId, track);
+    let equiv = await lookupEquivalence(primaryId, track, getEditExamBoard());
     if (!equiv?.combined || !equiv?.triple) {
       const altTrack = track === "combined" ? "triple" : "combined";
-      equiv = await lookupEquivalence(primaryId, altTrack);
+      equiv = await lookupEquivalence(primaryId, altTrack, getEditExamBoard());
     }
 
     if (equiv?.combined && equiv?.triple) {
@@ -5784,7 +5886,7 @@
 
   /** Canonical triple link for a stored combined spec_point_id (edit save). */
   async function resolveTripleLinkForCombinedSpec(combinedSpecPointId) {
-    const equiv = await lookupEquivalence(combinedSpecPointId, "combined");
+    const equiv = await lookupEquivalence(combinedSpecPointId, "combined", getAuthoringExamBoard());
     return equiv?.triple || null;
   }
 
@@ -5802,7 +5904,7 @@
     selector.innerHTML = "<option>Loading references...</option>";
     
     try {
-      const rows = await AdminSpecCache.loadSpecPoints({ subject, paper, courseTrack }, supabaseClient);
+      const rows = await AdminSpecCache.loadSpecPoints({ subject, paper, courseTrack, examBoard: getAuthoringExamBoard() }, supabaseClient);
       selector.innerHTML = AdminSpecCache.renderSpecPointOptions(rows, { selectedId });
       
     } catch(err) {
@@ -5823,7 +5925,7 @@
     const subject = document.getElementById("subjectSelect")?.value || "physics";
     const courseTrack = getAuthoringCourseTrack();
     const current = document.getElementById("CalcEquationSheet")?.value || "";
-    const sheets = await CalcWorkflow.loadEquationSheetCatalog(supabaseClient, subject, courseTrack);
+    const sheets = await CalcWorkflow.loadEquationSheetCatalog(supabaseClient, subject, courseTrack, getAuthoringExamBoard());
     CalcWorkflow.fillEquationSheetSelect(document.getElementById("CalcEquationSheet"), sheets, current);
     if (autoLink) CalcWorkflow.applyAutoEquationSheet("");
     await onCalcWorkflowChange("");
@@ -5833,7 +5935,7 @@
     const subject = document.getElementById("editEqSheetSubject")?.value || "physics";
     const courseTrack = document.getElementById("editEqSheetCourseTrack")?.value || "combined";
     const current = selectedId || document.getElementById("editCalcEquationSheet")?.value || "";
-    const sheets = await CalcWorkflow.loadEquationSheetCatalog(supabaseClient, subject, courseTrack);
+    const sheets = await CalcWorkflow.loadEquationSheetCatalog(supabaseClient, subject, courseTrack, getEditExamBoard());
     CalcWorkflow.fillEquationSheetSelect(document.getElementById("editCalcEquationSheet"), sheets, current);
     if (autoLink) CalcWorkflow.applyAutoEquationSheet("edit");
     if (refreshWorkflow) await onCalcWorkflowChange("edit");
@@ -5849,6 +5951,12 @@
   document.getElementById("paperSelect").onchange = onAuthoringMetadataChange;
   document.getElementById("tierSelect").onchange = onAuthoringMetadataChange;
   document.getElementById("courseTrackSelect")?.addEventListener("change", onAuthoringMetadataChange);
+  document.getElementById("examBoardSelect")?.addEventListener("change", async () => {
+    AdminSpecCache.clearSpecCache();
+    AdminSpecCache.initSpecCache(supabaseClient);
+    await onAuthoringMetadataChange();
+    await loadRequiredPracticalCatalog();
+  });
   document.getElementById("audienceSelect")?.addEventListener("change", () => {
     syncSpecLinkUi();
     const specId = document.getElementById("specPointSelect")?.value;
@@ -5867,7 +5975,7 @@
       await loadEditSyllabusReferenceSelects(specId || "");
     }
   });
-  ["editSpecSubjectSelect", "editSpecPaperSelect", "editSpecCourseTrackSelect"].forEach((id) => {
+  ["editSpecSubjectSelect", "editSpecPaperSelect", "editSpecCourseTrackSelect", "editSpecExamBoardSelect"].forEach((id) => {
     document.getElementById(id)?.addEventListener("change", async () => {
       await loadEditSyllabusReferenceSelects();
       await refreshEditEquationSheetDropdown({ autoLink: false });
@@ -7829,6 +7937,7 @@
       paper: document.getElementById("batchPaper")?.value || "paper1",
       tier: document.getElementById("batchTier")?.value || "both",
       courseTrack: document.getElementById("batchCourseTrack")?.value || "combined",
+      examBoard: getBatchExamBoard(),
       audience: document.getElementById("batchAudience")?.value || "both",
       rearrangement_subject: rearrSubj,
       efficiency_as_percentage: efficiencyAsPct && NumericGen.isEfficiencyEquation(eqId),
@@ -7886,22 +7995,16 @@
     const subject = document.getElementById("batchSubject")?.value || "physics";
     const paper = document.getElementById("batchPaper")?.value || "paper1";
     const courseTrack = document.getElementById("batchCourseTrack")?.value || "combined";
+    const examBoard = getBatchExamBoard();
     const select = document.getElementById("batchSpecPointSelect");
     if (!select) return;
 
     select.innerHTML = "<option value=\"\">Loading references…</option>";
     try {
-      const { data, error } = await supabaseClient
-        .from("spec_points")
-        .select("id, spec_ref, topic_name, spec_text")
-        .eq("subject", subject)
-        .eq("paper", paper)
-        .eq("course_track", courseTrack)
-        .order("spec_ref", { ascending: true });
-      if (error) throw error;
-      select.innerHTML = (data || []).map((row) =>
-        `<option value="${row.id}">${row.spec_ref} - [${row.topic_name}] ${(row.spec_text || "").slice(0, 75)}…</option>`
-      ).join("");
+      const rows = await AdminSpecCache.loadSpecPoints({ subject, paper, courseTrack, examBoard }, supabaseClient);
+      select.innerHTML = AdminSpecCache.renderSpecPointOptions(rows, {
+        emptyLabel: "Select subject and paper…",
+      });
     } catch (err) {
       select.innerHTML = "<option value=\"\">Error loading spec points</option>";
       console.warn(err);
@@ -7920,7 +8023,7 @@
       return;
     }
     const track = document.getElementById("batchCourseTrack")?.value || "combined";
-    const equiv = await lookupEquivalence(primarySpecPointId, track);
+    const equiv = await lookupEquivalence(primarySpecPointId, track, getBatchExamBoard());
     const linkedId = track === "triple" ? equiv?.combined : equiv?.triple;
     if (!linkedId) {
       display.value = "";
@@ -7942,7 +8045,7 @@
       return { spec_point_id: primaryId, triple_spec_point_id: null, ok: true };
     }
 
-    const equiv = await lookupEquivalence(primaryId, track);
+    const equiv = await lookupEquivalence(primaryId, track, getBatchExamBoard());
     if (!equiv?.combined || !equiv?.triple) {
       return { spec_point_id: null, triple_spec_point_id: null, ok: false };
     }
@@ -8319,7 +8422,7 @@
     refreshBatchEquationSelect().catch((err) => showAdminToast(err.message, true));
   });
 
-  ["batchSubject", "batchPaper", "batchTier", "batchCourseTrack"].forEach((id) => {
+  ["batchSubject", "batchPaper", "batchTier", "batchCourseTrack", "batchExamBoard"].forEach((id) => {
     document.getElementById(id)?.addEventListener("change", () => {
       if (id === "batchTier") syncBatchRecipeUiForTier(true);
       loadBatchSpecPointSelect().catch(() => {});
@@ -8580,7 +8683,7 @@
       return;
     }
     const track = document.getElementById("chemQuantCourseTrack")?.value || "combined";
-    const equiv = await lookupEquivalence(primarySpecPointId, track);
+    const equiv = await lookupEquivalence(primarySpecPointId, track, getChemQuantExamBoard());
     const linkedId = track === "triple" ? equiv?.combined : equiv?.triple;
     if (!linkedId) {
       display.value = "";
@@ -8602,7 +8705,7 @@
       return { spec_point_id: primaryId, triple_spec_point_id: null, ok: true };
     }
 
-    const equiv = await lookupEquivalence(primaryId, track);
+    const equiv = await lookupEquivalence(primaryId, track, getChemQuantExamBoard());
     if (!equiv?.combined || !equiv?.triple) {
       return { spec_point_id: null, triple_spec_point_id: null, ok: false };
     }
@@ -8619,19 +8722,16 @@
     if (!sel) return;
     const paper = document.getElementById("chemQuantPaper")?.value || "paper1";
     const track = document.getElementById("chemQuantCourseTrack")?.value || "combined";
+    const examBoard = getChemQuantExamBoard();
     sel.innerHTML = '<option value="">Loading references…</option>';
     try {
-      const { data, error } = await supabaseClient
-        .from("spec_points")
-        .select("id, spec_ref, topic_name, spec_text")
-        .eq("subject", "chemistry")
-        .eq("paper", paper)
-        .eq("course_track", track)
-        .order("spec_ref");
-      if (error) throw error;
-      sel.innerHTML = (data || []).map((sp) =>
-        `<option value="${sp.id}">${escapeHtml(sp.spec_ref || "?")} - [${escapeHtml(sp.topic_name || "")}] ${escapeHtml((sp.spec_text || "").slice(0, 75))}…</option>`
-      ).join("") || '<option value="">No chemistry spec points found</option>';
+      const rows = await AdminSpecCache.loadSpecPoints(
+        { subject: "chemistry", paper, courseTrack: track, examBoard },
+        supabaseClient
+      );
+      sel.innerHTML = AdminSpecCache.renderSpecPointOptions(rows, {
+        emptyLabel: "No chemistry spec points found",
+      });
     } catch (err) {
       sel.innerHTML = '<option value="">Error loading spec points</option>';
       console.warn("chemQuant spec points:", err.message);
@@ -8766,6 +8866,10 @@
 
   document.getElementById("chemQuantScenario")?.addEventListener("change", syncChemQuantScenarioUi);
   document.getElementById("chemQuantPaper")?.addEventListener("change", () => loadChemQuantSpecPointSelect().catch(() => {}));
+  document.getElementById("chemQuantExamBoard")?.addEventListener("change", () => {
+    syncChemQuantSpecLinkUi();
+    loadChemQuantSpecPointSelect().catch(() => {});
+  });
   document.getElementById("chemQuantCourseTrack")?.addEventListener("change", () => {
     syncChemQuantSpecLinkUi();
     loadChemQuantSpecPointSelect().catch(() => {});
@@ -8818,6 +8922,7 @@
         paper: document.getElementById("chemQuantPaper")?.value || "paper1",
         tier: document.getElementById("chemQuantTier")?.value || "both",
         courseTrack: document.getElementById("chemQuantCourseTrack")?.value || "combined",
+        examBoard: getChemQuantExamBoard(),
         audience: document.getElementById("chemQuantAudience")?.value || "both",
         equation_form: eqForm === "mix" ? undefined : eqForm,
         balance_subtype: balanceSubtype || undefined,
@@ -9127,6 +9232,7 @@
       paper: document.getElementById("batchMcqPaper")?.value || "paper1",
       tier: document.getElementById("batchMcqTier")?.value || "both",
       courseTrack: document.getElementById("batchMcqCourseTrack")?.value || "combined",
+      examBoard: getBatchMcqExamBoard(),
       audience: document.getElementById("batchMcqAudience")?.value || "both",
       author_prompt: document.getElementById("batchMcqAuthorPrompt")?.value?.trim() || "",
       recipes: readBatchMcqRecipes()
@@ -9172,7 +9278,7 @@
     const selectedId = select.value || "";
     select.innerHTML = "<option value=\"\">Loading references…</option>";
     try {
-      const rows = await AdminSpecCache.loadSpecPoints({ subject, paper, courseTrack }, supabaseClient);
+      const rows = await AdminSpecCache.loadSpecPoints({ subject, paper, courseTrack, examBoard: getBatchMcqExamBoard() }, supabaseClient);
       select.innerHTML = AdminSpecCache.renderSpecPointOptions(rows, {
         emptyLabel: "Select spec point…",
         selectedId,
@@ -9194,7 +9300,7 @@
       return;
     }
     const track = document.getElementById("batchMcqCourseTrack")?.value || "combined";
-    const equiv = await lookupEquivalence(primarySpecPointId, track);
+    const equiv = await lookupEquivalence(primarySpecPointId, track, getBatchMcqExamBoard());
     const linkedId = track === "triple" ? equiv?.combined : equiv?.triple;
     if (!linkedId) {
       display.value = "";
@@ -9216,7 +9322,7 @@
       return { spec_point_id: primaryId, triple_spec_point_id: null, ok: true };
     }
 
-    const equiv = await lookupEquivalence(primaryId, track);
+    const equiv = await lookupEquivalence(primaryId, track, getBatchMcqExamBoard());
     if (!equiv?.combined || !equiv?.triple) {
       return { spec_point_id: null, triple_spec_point_id: null, ok: false };
     }
@@ -9238,14 +9344,16 @@
     }
 
     const specTrack = audience === "triple_only" ? "triple" : (track === "triple" ? "triple" : "combined");
-    const { data: matchedRef, error: refErr } = await supabaseClient
+    const examBoard = meta.exam_board || getBatchMcqExamBoard();
+    let matchQuery = supabaseClient
       .from("spec_points")
       .select("id")
       .eq("subject", meta.subject)
       .eq("paper", meta.paper)
       .eq("course_track", specTrack)
-      .eq("spec_ref", specRef)
-      .maybeSingle();
+      .eq("spec_ref", specRef);
+    if (examBoard) matchQuery = matchQuery.eq("exam_board", examBoard);
+    const { data: matchedRef, error: refErr } = await matchQuery.maybeSingle();
 
     if (refErr || !matchedRef) {
       throw new Error(`spec_ref "${specRef}" not found (${specTrack}, ${meta.subject}/${meta.paper})`);
@@ -9255,7 +9363,7 @@
       return { spec_point_id: matchedRef.id, triple_spec_point_id: null, ok: true, audience };
     }
 
-    const equiv = await lookupEquivalence(matchedRef.id, track);
+    const equiv = await lookupEquivalence(matchedRef.id, track, examBoard);
     if (!equiv?.combined || !equiv?.triple) {
       return { spec_point_id: null, triple_spec_point_id: null, ok: false, audience };
     }
@@ -10008,7 +10116,7 @@
     }
   };
 
-  ["batchMcqSubject", "batchMcqPaper", "batchMcqTier", "batchMcqCourseTrack"].forEach((id) => {
+  ["batchMcqSubject", "batchMcqPaper", "batchMcqTier", "batchMcqCourseTrack", "batchMcqExamBoard"].forEach((id) => {
     document.getElementById(id)?.addEventListener("change", () => {
       if (id === "batchMcqTier") refreshBatchMcqRecipeDemandSelects();
       loadBatchMcqSpecPointSelect().catch(() => {});
@@ -11674,6 +11782,7 @@
     const sub = document.getElementById("auditSubject")?.value;
     const paper = document.getElementById("auditPaper")?.value;
     const track = document.getElementById("auditCourseTrack")?.value || "";
+    const examBoard = getAuditExamBoard();
     if (!sub || !paper) return;
 
     let query = supabaseClient
@@ -11682,6 +11791,7 @@
       .eq("subject", sub)
       .eq("paper", paper);
     if (track) query = query.eq("course_track", track);
+    if (examBoard) query = query.eq("exam_board", examBoard);
 
     const { data } = await query;
     auditSpecPointsCache = data || [];
@@ -11718,7 +11828,7 @@
     }
   }
 
-  ["auditSubject", "auditPaper", "auditCourseTrack"].forEach((id) => {
+  ["auditSubject", "auditPaper", "auditCourseTrack", "auditExamBoard"].forEach((id) => {
     document.getElementById(id)?.addEventListener("change", () => { refreshAuditFilterDatalists(); });
   });
   document.getElementById("auditTopicFilter")?.addEventListener("input", () => { updateAuditSpecRefDatalist(); });
@@ -11750,6 +11860,7 @@
     const metaFilter = document.getElementById("auditMetadataFilter")?.value || "";
     const remediationFilter = document.getElementById("auditRemediationFilter")?.value || "";
     const courseTrack = document.getElementById("auditCourseTrack")?.value || "";
+    const examBoard = getAuditExamBoard();
     const topicFilter = document.getElementById("auditTopicFilter")?.value.trim().toLowerCase() || "";
     const specRefFilter = document.getElementById("auditSpecRefFilter")?.value.trim().toLowerCase() || "";
 
@@ -11757,11 +11868,13 @@
     updateAuditResultCount("loading");
 
     try {
-      const { data: specs, error: specErr } = await supabaseClient
+      let specsQuery = supabaseClient
         .from("spec_points")
-        .select("id, spec_ref, topic_name, course_track")
+        .select("id, spec_ref, topic_name, course_track, exam_board")
         .eq("subject", sub)
         .eq("paper", paper);
+      if (examBoard) specsQuery = specsQuery.eq("exam_board", examBoard);
+      const { data: specs, error: specErr } = await specsQuery;
       if (specErr) throw specErr;
 
       auditSpecMap = {};

@@ -63,7 +63,15 @@ import {
   formatSpecLabelForProfile,
   formatSpecRefChipForProfile,
   formatSpecTopicForProfile,
-  formatFlashcardHeaderMeta
+  formatFlashcardHeaderMeta,
+  getExamBoard,
+  getExamBoardMeta,
+  EXAM_BOARD_META,
+  EXAM_BOARDS,
+  DEFAULT_EXAM_BOARD,
+  pathLabelsForBoard,
+  normalizeExamBoard,
+  isExamBoardActive
 } from './sciencePath.js';
 import {
   COMBINED_GRADE_OPTIONS,
@@ -561,6 +569,7 @@ let planQuotas = {
   half_paper_limit: 0,
 };
 let settingsTier = "FT";
+let settingsExamBoard = DEFAULT_EXAM_BOARD;
 let settingsSciencePath = "combined";
 let settingsSubjectTiers = { biology: "FT", chemistry: "FT", physics: "FT" };
 let settingsScienceSubjects = ["biology", "chemistry", "physics"];
@@ -822,7 +831,34 @@ function syncSettingsTierPanels() {
   syncSubjectChecks(".settings-subject-check", settingsScienceSubjects);
 }
 
+function syncOnboardingBoardButtons() {
+  document.querySelectorAll(".onboarding-board-btn").forEach((btn) => {
+    btn.classList.toggle("selected", btn.dataset.board === onboardingState.exam_board);
+  });
+}
+
+function syncOnboardingPathLabels() {
+  const labels = pathLabelsForBoard(onboardingState.exam_board);
+  document.querySelectorAll(".onboarding-path-btn").forEach((btn) => {
+    if (btn.dataset.path === "combined") btn.textContent = labels.combined;
+    if (btn.dataset.path === "triple") btn.textContent = labels.triple;
+  });
+}
+
+function wireOnboardingBoardButtons() {
+  document.querySelectorAll(".onboarding-board-btn").forEach((btn) => {
+    btn.classList.toggle("selected", btn.dataset.board === onboardingState.exam_board);
+    btn.onclick = () => {
+      if (btn.disabled || !isExamBoardActive(btn.dataset.board)) return;
+      onboardingState.exam_board = normalizeExamBoard(btn.dataset.board);
+      syncOnboardingBoardButtons();
+      syncOnboardingPathLabels();
+    };
+  });
+}
+
 function wireOnboardingPathButtons() {
+  syncOnboardingPathLabels();
   document.querySelectorAll(".onboarding-path-btn").forEach((btn) => {
     btn.classList.toggle("selected", btn.dataset.path === onboardingState.science_path);
     btn.onclick = () => {
@@ -835,6 +871,23 @@ function wireOnboardingPathButtons() {
       });
       syncOnboardingTierPanels();
       syncOnboardingGradePanels();
+    };
+  });
+}
+
+function syncSettingsBoardButtons() {
+  document.querySelectorAll(".settings-board-btn").forEach((btn) => {
+    btn.classList.toggle("selected", btn.dataset.board === settingsExamBoard);
+  });
+}
+
+function wireSettingsBoardButtons() {
+  document.querySelectorAll(".settings-board-btn").forEach((btn) => {
+    btn.classList.toggle("selected", btn.dataset.board === settingsExamBoard);
+    btn.onclick = () => {
+      if (btn.disabled || !isExamBoardActive(btn.dataset.board)) return;
+      settingsExamBoard = normalizeExamBoard(btn.dataset.board);
+      syncSettingsBoardButtons();
     };
   });
 }
@@ -918,8 +971,10 @@ function wireSettingsSubjectTierButtons() {
 }
 
 function buildOnboardingSummaryHtml() {
+  const boardLabel = getExamBoardMeta(onboardingState.exam_board).displayName;
+  const pathLabels = pathLabelsForBoard(onboardingState.exam_board);
   const pathLabel =
-    onboardingState.science_path === "triple" ? "Triple Science" : "Combined Science (Trilogy)";
+    onboardingState.science_path === "triple" ? pathLabels.triple : pathLabels.combined;
   const active = onboardingActiveSubjects();
   let tierLine;
   if (onboardingState.science_path === "triple") {
@@ -955,7 +1010,8 @@ function buildOnboardingSummaryHtml() {
     active
   );
   return `
-    <div><strong>Course:</strong> ${pathLabel}</div>
+    <div><strong>Exam board:</strong> ${escapeHtml(boardLabel)}</div>
+    <div><strong>Course:</strong> ${escapeHtml(pathLabel)}</div>
     <div><strong>Tier:</strong> ${tierLine}</div>
     <div><strong>Current grade:</strong> ${currentGradeLine}</div>
     <div><strong>Target grade:</strong> ${targetGradeLine}</div>
@@ -968,9 +1024,10 @@ function buildOnboardingSummaryHtml() {
 }
 
 const ONBOARDING_SUBJECTS = ["biology", "chemistry", "physics"];
-const ONBOARDING_STEP_COUNT = 7;
-let onboardingStep = 1;
+const ONBOARDING_STEP_COUNT = 8;
+let onboardingStep = 0;
 const onboardingState = {
+  exam_board: DEFAULT_EXAM_BOARD,
   science_path: "combined",
   preferred_tier: "FT",
   subject_tiers: { biology: "FT", chemistry: "FT", physics: "FT" },
@@ -1281,7 +1338,8 @@ function scheduleDashboardHeatmapRender(activeSRS) {
 
     try {
       const allSpecs = await dbClient.fetchAllSpecificationPoints(
-        courseTrackForProfile(currentUserProfile)
+        courseTrackForProfile(currentUserProfile),
+        getExamBoard(currentUserProfile)
       );
       if (generation !== heatmapRenderGeneration || !currentUser) return;
 
@@ -3675,7 +3733,7 @@ async function loadQuestion() {
     if (currentQ?.id !== questionId) return;
 
     const tipsHidden = isCommandWordTipsHidden();
-    const commandWordBanner = tipsHidden ? "" : getAQACommandWordHelper(currentQ.prompt);
+    const commandWordBanner = tipsHidden ? "" : getAQACommandWordHelper(currentQ.prompt, getExamBoard(currentUserProfile));
     const presentation = getPresentationMode(sessionMode);
 
     if (qBox) {
@@ -3703,7 +3761,7 @@ async function loadQuestion() {
   if (currentQ.question_type === "chemistry_interactive") {
     if (currentQ?.id !== questionId) return;
     const tipsHidden = isCommandWordTipsHidden();
-    const commandWordBanner = tipsHidden ? "" : getAQACommandWordHelper(currentQ.prompt);
+    const commandWordBanner = tipsHidden ? "" : getAQACommandWordHelper(currentQ.prompt, getExamBoard(currentUserProfile));
     if (qBox) {
       qBox.innerHTML = renderQuestionLayout(currentQ, commandWordBanner, currentKey, await questionLayoutOptions(currentQ, {
         presentation: "practice",
@@ -3721,7 +3779,7 @@ async function loadQuestion() {
   if (currentQ.question_type === "circuit_interactive") {
     if (currentQ?.id !== questionId) return;
     const tipsHidden = isCommandWordTipsHidden();
-    const commandWordBanner = tipsHidden ? "" : getAQACommandWordHelper(currentQ.prompt);
+    const commandWordBanner = tipsHidden ? "" : getAQACommandWordHelper(currentQ.prompt, getExamBoard(currentUserProfile));
     if (qBox) {
       qBox.innerHTML = renderQuestionLayout(currentQ, commandWordBanner, currentKey, await questionLayoutOptions(currentQ, {
         presentation: "practice",
@@ -3739,7 +3797,7 @@ async function loadQuestion() {
   if (currentQ.question_type === "equipment_interactive") {
     if (currentQ?.id !== questionId) return;
     const tipsHidden = isCommandWordTipsHidden();
-    const commandWordBanner = tipsHidden ? "" : getAQACommandWordHelper(currentQ.prompt);
+    const commandWordBanner = tipsHidden ? "" : getAQACommandWordHelper(currentQ.prompt, getExamBoard(currentUserProfile));
     if (qBox) {
       qBox.innerHTML = renderQuestionLayout(currentQ, commandWordBanner, currentKey, await questionLayoutOptions(currentQ, {
         presentation: "practice",
@@ -3757,7 +3815,7 @@ async function loadQuestion() {
   if (currentQ?.id !== questionId) return;
 
   const tipsHidden = isCommandWordTipsHidden();
-  const commandWordBanner = tipsHidden ? "" : getAQACommandWordHelper(currentQ.prompt);
+  const commandWordBanner = tipsHidden ? "" : getAQACommandWordHelper(currentQ.prompt, getExamBoard(currentUserProfile));
 
   if (qBox) {
     qBox.innerHTML = renderQuestionLayout(currentQ, commandWordBanner, currentKey, await questionLayoutOptions(currentQ, {
@@ -4754,6 +4812,7 @@ function loadSettingsPanel() {
   if (!currentUserProfile) return;
 
   settingsSciencePath = getSciencePath(currentUserProfile);
+  settingsExamBoard = getExamBoard(currentUserProfile);
   settingsTier = normalizeTier(currentUserProfile.preferred_tier || "FT");
   settingsSubjectTiers = getSubjectTiers(currentUserProfile);
   settingsScienceSubjects = normalizeScienceSubjects(currentUserProfile.science_subjects);
@@ -4766,6 +4825,7 @@ function loadSettingsPanel() {
     settingsSciencePath
   );
 
+  wireSettingsBoardButtons();
   wireSettingsPathButtons();
   syncSettingsTierPanels();
   wireSettingsGradeSelects();
@@ -4858,6 +4918,7 @@ async function refreshSettingsClassName(classId) {
 }
 
 function wireSettingsControls() {
+  wireSettingsBoardButtons();
   wireSettingsPathButtons();
   wireSettingsSubjectTierButtons();
   wireSettingsGradeSelects();
@@ -5009,6 +5070,7 @@ function wireSettingsControls() {
 
       await saveUserProfileSettings(currentUser.id, {
         preferred_tier: settingsTier,
+        exam_board: settingsExamBoard,
         science_path: settingsSciencePath,
         subject_tiers: settingsSubjectTiers,
         science_subjects: settingsScienceSubjects.length
@@ -5060,15 +5122,15 @@ function wireSettingsControls() {
 }
 
 function updateOnboardingStepUI() {
-  for (let i = 1; i <= ONBOARDING_STEP_COUNT; i++) {
+  for (let i = 0; i < ONBOARDING_STEP_COUNT; i++) {
     const panel = el(`onboardingStep${i}`);
     if (panel) panel.classList.toggle("hidden", i !== onboardingStep);
   }
 
   const dots = document.querySelectorAll("#onboardingStepDots .onboarding-step-dot");
   dots.forEach((dot, idx) => {
-    dot.classList.toggle("active", idx + 1 === onboardingStep);
-    dot.classList.toggle("done", idx + 1 < onboardingStep);
+    dot.classList.toggle("active", idx === onboardingStep);
+    dot.classList.toggle("done", idx < onboardingStep);
   });
 
   const btnBack = el("btnOnboardingBack");
@@ -5076,11 +5138,15 @@ function updateOnboardingStepUI() {
   const btnSkip = el("btnOnboardingSkip");
   const btnFinish = el("btnOnboardingFinish");
 
-  if (btnBack) btnBack.classList.toggle("hidden", onboardingStep <= 1);
-  if (btnNext) btnNext.classList.toggle("hidden", onboardingStep >= ONBOARDING_STEP_COUNT);
-  if (btnFinish) btnFinish.classList.toggle("hidden", onboardingStep !== ONBOARDING_STEP_COUNT);
+  if (btnBack) btnBack.classList.toggle("hidden", onboardingStep <= 0);
+  if (btnNext) btnNext.classList.toggle("hidden", onboardingStep >= ONBOARDING_STEP_COUNT - 1);
+  if (btnFinish) btnFinish.classList.toggle("hidden", onboardingStep !== ONBOARDING_STEP_COUNT - 1);
   if (btnSkip) btnSkip.classList.toggle("hidden", onboardingStep !== 6);
 
+  syncOnboardingBoardButtons();
+  if (onboardingStep === 1) {
+    syncOnboardingPathLabels();
+  }
   syncOnboardingTierPanels();
   syncOnboardingGradePanels();
   syncOnboardingHorizonButtons();
@@ -5105,9 +5171,10 @@ function showOnboardingUI() {
   if (authMsg) authMsg.classList.add("hidden");
   if (btnSignOut) btnSignOut.classList.remove("hidden");
 
-  onboardingStep = 1;
+  onboardingStep = 0;
   syncOnboardingStudyOrder();
 
+  wireOnboardingBoardButtons();
   wireOnboardingPathButtons();
   wireOnboardingCombinedTierButtons();
   wireOnboardingSubjectTierButtons();
@@ -5160,6 +5227,7 @@ async function finishOnboarding() {
 
     await saveOnboardingProfile(currentUser.id, {
       preferred_tier: onboardingState.preferred_tier,
+      exam_board: onboardingState.exam_board,
       science_path: onboardingState.science_path,
       subject_tiers: onboardingState.subject_tiers,
       science_subjects: onboardingActiveSubjects(),
@@ -5202,6 +5270,7 @@ async function finishOnboarding() {
     } catch (_) { /* ignore */ }
 
     const profileForSeed = {
+      exam_board: onboardingState.exam_board,
       science_path: onboardingState.science_path,
       preferred_tier: normalizeTier(onboardingState.preferred_tier),
       subject_tiers: onboardingState.subject_tiers,
@@ -5289,7 +5358,7 @@ function wireOnboardingControls() {
         }
       }
 
-      if (onboardingStep < ONBOARDING_STEP_COUNT) {
+      if (onboardingStep < 7) {
         onboardingStep += 1;
         updateOnboardingStepUI();
       }
@@ -5298,7 +5367,7 @@ function wireOnboardingControls() {
 
   if (btnBack) {
     btnBack.onclick = () => {
-      if (onboardingStep > 1) {
+      if (onboardingStep > 0) {
         onboardingStep -= 1;
         updateOnboardingStepUI();
       }
@@ -5563,7 +5632,8 @@ async function loadTopics() {
       paper,
       targetTiers,
       qType,
-      courseTrack
+      courseTrack,
+      getExamBoard(currentUserProfile)
     );
     rows = pipeline.rows;
     questions = pipeline.questions;

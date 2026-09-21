@@ -3,6 +3,8 @@
  * Keep in sync with supabase/functions/generate-questions/index.ts
  */
 
+import { getExamBoardMeta, DEFAULT_EXAM_BOARD, normalizeExamBoard } from "./sciencePath.js";
+
 export const SPEC_TEXT_MAX_CHARS = 1200;
 export const DEFAULT_BATCH_TIER = "both";
 export const AUTHOR_PROMPT_MAX_CHARS = 800;
@@ -125,6 +127,10 @@ function focusAnglesForRecipe(recipe) {
 
 export function buildSingleQuestionPrompt(payload, recipe, context = {}) {
   const { spec_ref, topic_name, spec_text, subject, paper, tier } = payload;
+  const examBoard = normalizeExamBoard(
+    payload.exam_board || payload.examBoard || context.examBoard || DEFAULT_EXAM_BOARD
+  );
+  const boardMeta = getExamBoardMeta(examBoard);
   const authorPrompt = truncateAuthorPrompt(payload.author_prompt);
   const {
     batchIndex = 0,
@@ -174,11 +180,18 @@ export function buildSingleQuestionPrompt(payload, recipe, context = {}) {
     ? "Prompt may use short paragraphs if needed, but prefer a clear exam-style stem."
     : "Single-line prompt (no line breaks).";
 
+  const commandWordLabel = examBoard === DEFAULT_EXAM_BOARD ? "AQA command_word" : `${boardMeta.displayName} command_word`;
   const closingRequirements = authorPrompt
-    ? `Requirements: ${typeHint} · appropriate AQA command_word · ON-FOCUS for the AUTHOR FOCUS above · genuinely distinct from any listed above.`
-    : `Requirements: ${typeHint} · appropriate AQA command_word · genuinely distinct from any listed above.`;
+    ? `Requirements: ${typeHint} · appropriate ${commandWordLabel} · ON-FOCUS for the AUTHOR FOCUS above · genuinely distinct from any listed above.`
+    : `Requirements: ${typeHint} · appropriate ${commandWordLabel} · genuinely distinct from any listed above.`;
 
-  return `AQA GCSE Combined Science (8464) question author. Write ONE original exam-style question. British English.
+  // Phase 0: non-AQA boards still use AQA-style authoring copy until board packs ship.
+  const opener =
+    examBoard === DEFAULT_EXAM_BOARD
+      ? "AQA GCSE Combined Science (8464) question author. Write ONE original exam-style question. British English."
+      : `${boardMeta.displayName} GCSE Combined Science (${boardMeta.combinedSpecCode}) question author. Write ONE original exam-style question. British English.`;
+
+  return `${opener}
 ${distinctNote}${varietyNote}${authorBlock}
 Subject: ${subject} · Paper: ${paper} · Spec: ${spec_ref} · Topic: ${topic_name} · Tier: ${tier}
 Batch item: ${batchIndex + 1} · Type: ${recipe.question_type} · demand_level: ${recipe.demand_level} · max_marks: ${marks}
@@ -401,6 +414,12 @@ export function makeBatchRequestKey(parts) {
 }
 
 export function parseBatchRequestKey(key) {
-  const [subject, paper, course_track, spec_ref, question_type, demand_level, slot] = key.split("|");
+  const parts = String(key || "").split("|");
+  // Newer keys: exam_board|subject|paper|course_track|spec_ref|question_type|demand_level|slot
+  if (parts.length >= 8) {
+    const [exam_board, subject, paper, course_track, spec_ref, question_type, demand_level, slot] = parts;
+    return { exam_board, subject, paper, course_track, spec_ref, question_type, demand_level, slot };
+  }
+  const [subject, paper, course_track, spec_ref, question_type, demand_level, slot] = parts;
   return { subject, paper, course_track, spec_ref, question_type, demand_level, slot };
 }
