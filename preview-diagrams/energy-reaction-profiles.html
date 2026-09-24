@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GCSE energy profile diagrams</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      background: #f8fafc;
+      color: #0f172a;
+      margin: 0;
+      padding: 24px;
+    }
+    h1 {
+      font-size: 1.4rem;
+      margin: 0 0 8px;
+    }
+    p {
+      color: #64748b;
+      margin: 0 0 20px;
+      max-width: 60ch;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 16px;
+      max-width: 1100px;
+    }
+    .card {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 16px;
+    }
+    .card h2 {
+      font-size: 1rem;
+      margin: 0 0 12px;
+    }
+    img, object {
+      width: 100%;
+      max-width: 520px;
+      display: block;
+      margin: 0 auto;
+    }
+    ul {
+      margin: 12px 0 0;
+      padding-left: 1.2rem;
+      color: #334155;
+      font-size: 0.92rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>GCSE chemistry: exothermic and endothermic energy profiles</h1>
+  <p>Reaction coordinate diagrams with activation energy (E<sub>a</sub>) and total energy change (ΔH).</p>
+
+  <div class="grid">
+    <section class="card">
+      <h2>Exothermic reaction</h2>
+      <object type="image/svg+xml" data="../images/chemistry/exothermic-energy-diagram.svg" aria-label="Exothermic energy profile diagram"></object>
+      <ul>
+        <li>Products are lower in energy than reactants.</li>
+        <li>Energy is transferred to the surroundings.</li>
+        <li>ΔH is negative.</li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2>Endothermic reaction</h2>
+      <object type="image/svg+xml" data="../images/chemistry/endothermic-energy-diagram.svg" aria-label="Endothermic energy profile diagram"></object>
+      <ul>
+        <li>Products are higher in energy than reactants.</li>
+        <li>Energy is taken in from the surroundings.</li>
+        <li>ΔH is positive.</li>
+      </ul>
+    </section>
+  </div>
+</body>
+</html>
