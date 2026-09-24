@@ -1,11 +1,28 @@
 // src/dbClient.js
 import { todayISO, addDaysISO } from './utils.js';
 import { questionTiersForFetch } from './sciencePath.js';
+import { listQuestionPoolMeta } from './questionDelivery.js';
 
-const SUPABASE_URL = "https://hemcttqmhptwgxxrtolh.supabase.co";
+/** Built-in fallbacks — override at runtime via window.__SUPABASE_URL__ / __SUPABASE_ANON_KEY__ (Phase 1A). */
+const DEFAULT_SUPABASE_URL = "https://hemcttqmhptwgxxrtolh.supabase.co";
 // Legacy JWT anon key — more reliable with supabase-js auth + RLS than publishable-only keys.
-const SUPABASE_ANON_KEY =
+const DEFAULT_SUPABASE_ANON_KEY =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhlbWN0dHFtaHB0d2d4eHJ0b2xoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzMjE5MDQsImV4cCI6MjA5OTg5NzkwNH0.ccaN15zKmOHkuDIqLLYUOakxlJkrHHEV7QAZWGTUwuY";
+
+function readSupabaseRuntimeConfig() {
+  const w = typeof globalThis !== "undefined" ? globalThis : {};
+  const url =
+    (typeof w.__SUPABASE_URL__ === "string" && w.__SUPABASE_URL__.trim()) ||
+    (typeof w.SUPABASE_URL === "string" && w.SUPABASE_URL.trim()) ||
+    DEFAULT_SUPABASE_URL;
+  const anonKey =
+    (typeof w.__SUPABASE_ANON_KEY__ === "string" && w.__SUPABASE_ANON_KEY__.trim()) ||
+    (typeof w.SUPABASE_ANON_KEY === "string" && w.SUPABASE_ANON_KEY.trim()) ||
+    DEFAULT_SUPABASE_ANON_KEY;
+  return { url, anonKey };
+}
+
+const { url: SUPABASE_URL, anonKey: SUPABASE_ANON_KEY } = readSupabaseRuntimeConfig();
 
 /** PostgREST returns at most this many rows unless paginated with .range(). */
 const POSTGREST_PAGE_SIZE = 1000;
@@ -48,12 +65,13 @@ export async function fetchAllRows(buildQuery) {
 }
 
 /**
- * All questions linked to any of the given spec-point IDs via either FK column.
- * Chunks IDs and paginates so subject/paper banks above 1000 rows are complete.
+ * Question pool linked to spec-point IDs (meta only — no stems).
+ * Full stems require open_practice_session + SELECT of granted ids.
+ * Chunks IDs so subject/paper banks above RPC fan-out limits stay complete.
  */
 export async function fetchQuestionsLinkedToSpecPoints({
   specPointIds,
-  select,
+  select: _select,
   tierValues,
   qType = "",
 } = {}) {
@@ -64,23 +82,12 @@ export async function fetchQuestionsLinkedToSpecPoints({
   const byId = new Map();
 
   for (const chunk of chunkArray(ids, SPEC_ID_CHUNK_SIZE)) {
-    const fetchByColumn = (column) =>
-      fetchAllRows(() => {
-        let q = supabaseClient
-          .from("questions")
-          .select(select)
-          .in(column, chunk)
-          .in("tier", tiers);
-        if (qType) q = q.eq("question_type", qType);
-        return q;
-      });
-
-    const [bySpec, byTriple] = await Promise.all([
-      fetchByColumn("spec_point_id"),
-      fetchByColumn("triple_spec_point_id"),
-    ]);
-    for (const row of bySpec) byId.set(row.id, row);
-    for (const row of byTriple) byId.set(row.id, row);
+    const rows = await listQuestionPoolMeta(supabaseClient, {
+      specPointIds: chunk,
+      tierValues: tiers,
+      qType,
+    });
+    for (const row of rows) byId.set(row.id, row);
   }
 
   return [...byId.values()];
@@ -113,7 +120,15 @@ export function isAuthGraceActive() {
   return Date.now() < authGraceUntil;
 }
 
-const AUTH_STORAGE_KEY = `sb-hemcttqmhptwgxxrtolh-auth-token`;
+const AUTH_STORAGE_REF = (() => {
+  try {
+    const host = new URL(SUPABASE_URL).hostname || "";
+    return host.split(".")[0] || "hemcttqmhptwgxxrtolh";
+  } catch (_) {
+    return "hemcttqmhptwgxxrtolh";
+  }
+})();
+const AUTH_STORAGE_KEY = `sb-${AUTH_STORAGE_REF}-auth-token`;
 
 function readStoredAuthSession() {
   try {
@@ -409,12 +424,7 @@ export async function fetchSyllabusPipelineData(userId, subject, paper, targetTi
     specPointsQuery = specPointsQuery.eq("course_track", courseTrack);
   }
 
-  const questionsSelectWithSkills =
-    "id, spec_point_id, triple_spec_point_id, question_type, tier, demand_level, image_url, audience, is_maths_skill, max_marks, calculation_config, chemistry_config, circuit_config, equipment_config, question_skills(skill_id, skill_framework_items(id, framework, full_code, title, category))";
-  const questionsSelectBasic =
-    "id, spec_point_id, triple_spec_point_id, question_type, tier, demand_level, image_url, audience, is_maths_skill, max_marks, calculation_config, chemistry_config, circuit_config, equipment_config";
-
-  // Spec points first — questions must be scoped to these IDs (unscoped hits PostgREST's 1000-row cap).
+  // Spec points first — question meta scoped to these IDs (stems are session-granted only).
   const specPointsRes = await Promise.race([
     specPointsQuery,
     timeoutPromise(4000, "spec_points lookup timed out"),
@@ -428,24 +438,13 @@ export async function fetchSyllabusPipelineData(userId, subject, paper, targetTi
     questions = await Promise.race([
       fetchQuestionsLinkedToSpecPoints({
         specPointIds,
-        select: questionsSelectWithSkills,
         tierValues,
         qType,
       }),
       timeoutPromise(12000, "questions lookup timed out"),
     ]);
   } catch (err) {
-    if (/column|relation|question_skills/i.test(err?.message || "")) {
-      questions = await Promise.race([
-        fetchQuestionsLinkedToSpecPoints({
-          specPointIds,
-          select: questionsSelectBasic,
-          tierValues,
-          qType,
-        }),
-        timeoutPromise(12000, "questions lookup timed out"),
-      ]);
-    } else if (!/timed out/i.test(err?.message || "")) {
+    if (!/timed out/i.test(err?.message || "")) {
       console.warn("fetchSyllabusPipelineData questions:", err);
       questions = [];
     } else {

@@ -59,7 +59,6 @@ import {
   normalizeScienceSubjects,
   resolveQuestionSpecMeta,
   questionLinksToSpecPoint,
-  buildSpecPointQuestionsOrFilter,
   formatSpecLabelForProfile,
   formatSpecRefChipForProfile,
   formatSpecTopicForProfile,
@@ -85,6 +84,7 @@ import {
   initialAdaptiveOffsetFromGrades
 } from './gradeConfig.js';
 import { markResponseOnServer, prefetchMarkingData, prefetchMarkingDataBatch } from './markClient.js';
+import { listQuestionCoverage } from './questionDelivery.js';
 import { buildFeedbackContext } from './feedbackContext.js';
 import {
   savePracticeSession,
@@ -414,7 +414,12 @@ function applyMarkingDataToCurrentQuestion(questionId) {
 }
 
 async function prefetchSessionMarkingData(questions) {
-  const ids = (questions || []).filter(isGradableForPrefetch).map((q) => q.id);
+  // Prefetch marking only for the first few session items (not the whole paper)
+  // so answer keys are not bulk-downloaded for every granted stem at once.
+  const ids = (questions || [])
+    .filter(isGradableForPrefetch)
+    .map((q) => q.id)
+    .slice(0, 3);
   if (!ids.length) return;
   try {
     const result = await prefetchMarkingDataBatch(supabaseClient, ids);
@@ -2243,17 +2248,12 @@ async function resolveScheduledSpecPoint(dueItems, { excludeSpecPointId } = {}) 
   if (candidates.length === 0) return { noDue: true };
 
   const dueSpecIds = candidates.map(d => d.spec_point_id);
-  const orFilter = buildSpecPointQuestionsOrFilter(dueSpecIds);
   let matchingQs = [];
   try {
-    let qQuery = supabaseClient
-      .from("questions")
-      .select("spec_point_id, triple_spec_point_id, audience, tier, demand_level");
-    if (orFilter) qQuery = qQuery.or(orFilter);
-
-    const result = await Promise.race([qQuery, timeoutPromise(4000, "Questions resolution query timed out")]);
-    if (result.error) throw result.error;
-    matchingQs = result.data || [];
+    matchingQs = await Promise.race([
+      listQuestionCoverage(supabaseClient, dueSpecIds, null),
+      timeoutPromise(4000, "Questions resolution query timed out")
+    ]);
   } catch (err) {
     console.error("DEBUG resolveScheduledSpecPoint: Question filtering failed:", err);
     throw err;
@@ -6294,7 +6294,28 @@ async function submitCurrentAnswer() {
     let marking;
     let feedbackContext;
 
-    if (currentKey) {
+    // Prefer server-side marking so answer keys are not required for scoring.
+    // Local markResponse is a fallback when a session key was already prefetched
+    // and the edge function is unreachable.
+    if (feedback) {
+      feedback.innerHTML = `
+        <div class="marking-status">
+          <div class="loader-spinner loader-spinner--sm" aria-hidden="true"></div>
+          <strong>Marking your answer…</strong>
+        </div>
+      `;
+    }
+    const serverResult = await markResponseOnServer(supabaseClient, {
+      question_id: currentQ.id,
+      response_payload: response,
+      equation_sheet: currentEquationSheet,
+    });
+
+    if (serverResult.ok) {
+      marking = serverResult.marking;
+      feedbackContext = serverResult.feedback_context || null;
+      currentFeedbackContext = feedbackContext;
+    } else if (currentKey) {
       marking = await markResponse(
         { ...currentQ, _equationSheet: currentEquationSheet },
         response,
@@ -6309,31 +6330,11 @@ async function submitCurrentAnswer() {
       );
       currentFeedbackContext = feedbackContext;
     } else {
-      if (feedback) {
-        feedback.innerHTML = `
-        <div class="marking-status">
-          <div class="loader-spinner loader-spinner--sm" aria-hidden="true"></div>
-          <strong>Marking your answer…</strong>
-        </div>
-      `;
-      }
-      const serverResult = await markResponseOnServer(supabaseClient, {
-        question_id: currentQ.id,
-        response_payload: response,
-        equation_sheet: currentEquationSheet,
-      });
-
-      if (!serverResult.ok) {
-        if (feedback) feedback.innerHTML = "";
-        showToastBanner(serverResult.error || "Could not mark your answer. Please try again.", true);
-        showSubmitButton();
-        hideAdvanceButton();
-        return;
-      }
-
-      marking = serverResult.marking;
-      feedbackContext = serverResult.feedback_context || null;
-      currentFeedbackContext = feedbackContext;
+      if (feedback) feedback.innerHTML = "";
+      showToastBanner(serverResult.error || "Could not mark your answer. Please try again.", true);
+      showSubmitButton();
+      hideAdvanceButton();
+      return;
     }
 
     const isExamPaper = sessionMode === "paper_practice";

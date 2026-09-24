@@ -9,6 +9,7 @@ import {
   rpcMigrateSrsForTrackChange,
   fetchQuestionsLinkedToSpecPoints
 } from "./dbClient.js";
+import { listQuestionCoverage } from "./questionDelivery.js";
 import { todayISO, addDaysISO } from "./utils.js";
 import {
   SUBJECTS,
@@ -678,11 +679,7 @@ async function specPointsWithQuestions(specPointIds, targetTiers, courseTrack = 
 
   if (matched.size) return matched;
 
-  const { data: anyTier, error: anyErr } = await supabaseClient
-    .from("questions")
-    .select("spec_point_id, triple_spec_point_id, audience")
-    .in("spec_point_id", specPointIds);
-  if (anyErr) throw anyErr;
+  const anyTier = await listQuestionCoverage(supabaseClient, specPointIds, null);
 
   for (const q of anyTier || []) {
     if (courseTrack === "combined" && q.audience === "both") matched.add(q.spec_point_id);

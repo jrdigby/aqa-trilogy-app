@@ -159,6 +159,18 @@ serve(async (req) => {
       );
     }
 
+    const { data: allowedIds, error: accessErr } = await userClient.rpc(
+      "filter_accessible_question_ids",
+      { p_question_ids: [questionId] },
+    );
+    if (accessErr) throw accessErr;
+    if (!Array.isArray(allowedIds) || !allowedIds.includes(questionId)) {
+      return jsonResponse(
+        { ok: false, error: "forbidden", reason: "not_in_session" },
+        403,
+      );
+    }
+
     const { data: question, error: qErr } = await admin
       .from("questions")
       .select(QUESTION_SELECT)
