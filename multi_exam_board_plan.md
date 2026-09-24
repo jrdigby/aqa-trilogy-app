@@ -1,7 +1,8 @@
 # Multi-Exam-Board Rollout Plan
 
 **Last updated:** September 2026  
-**Status:** Phase 0 complete (platform ready) — `exam_board` dimension live with AQA default; non-AQA boards selectable in UI as Coming soon until Phase 1+
+**Status:** Phase 0 complete (platform ready) — `exam_board` dimension live with AQA default; non-AQA boards selectable in UI as Coming soon until Phase 1+  
+**Scaffolding:** Cross-board equivalence map table + admin import/validate tooling shipped (`cross_board_spec_equivalences`, admin “Cross-board Maps” tab). Edexcel/OCR **content and verified mappings deferred** until syllabus sign-off.
 
 **Goal:** Add **Edexcel**, **OCR Gateway**, and **OCR 21st Century** (each with **combined** and **separate** science) alongside existing **AQA** — without rebuilding the question bank from scratch.
 
