@@ -1,0 +1,150 @@
+exam_board,course_track,subject,paper,also_on_other_paper,spec_ref,topic_name,paraphrase,ht_only,core_practical,include,review_notes
+edexcel,combined,biology,paper1,yes,B1,Key concepts in biology,Ideas about cells enzymes and movement of substances that both biology papers assume.,no,no,yes,Topic 1 is assessed on paper 1 and paper 2. Split or rename sub-rows below to match your PDF numbering.
+edexcel,combined,biology,paper1,yes,B1.1,Key concepts in biology,How the parts of animal plant and bacterial cells relate to what those cells do.,no,no,yes,CHECK numbering against PDF topic 1.
+edexcel,combined,biology,paper1,yes,B1.2,Key concepts in biology,How specialised cells are built for a particular job.,no,no,yes,
+edexcel,combined,biology,paper1,yes,B1.3,Key concepts in biology,Using light and electron microscopes and working out magnification and real size.,no,yes,yes,Map the microscopy core practical code from the PDF.
+edexcel,combined,biology,paper1,yes,B1.4,Key concepts in biology,How enzymes speed up reactions and why their shape matters.,no,no,yes,
+edexcel,combined,biology,paper1,yes,B1.5,Key concepts in biology,How temperature and pH change enzyme activity including a practical investigation.,no,yes,yes,
+edexcel,combined,biology,paper1,yes,B1.6,Key concepts in biology,Diffusion osmosis and active transport as ways substances enter and leave cells.,no,no,yes,
+edexcel,combined,biology,paper1,yes,B1.7,Key concepts in biology,Investigating osmosis in plant tissue.,no,yes,yes,
+edexcel,combined,biology,paper1,no,B2,Cells and control,How cells divide grow and how the nervous system coordinates responses.,no,no,yes,Paper 1 topics 2 to 5.
+edexcel,combined,biology,paper1,no,B2.1,Cells and control,Mitosis the cell cycle and why new body cells are genetically identical.,no,no,yes,
+edexcel,combined,biology,paper1,no,B2.2,Cells and control,How growth is measured in animals and plants and why those patterns differ.,no,no,yes,
+edexcel,combined,biology,paper1,no,B2.3,Cells and control,What stem cells are where they are found and the arguments about using them.,no,no,yes,CHECK whether embryonic vs adult stem-cell detail matches the combined PDF.
+edexcel,combined,biology,paper1,no,B2.4,Cells and control,How the nervous system detects stimuli and sends impulses.,no,no,yes,
+edexcel,combined,biology,paper1,no,B2.5,Cells and control,Reflex arcs synapses and how a rapid automatic response is produced.,no,no,yes,
+edexcel,combined,biology,paper1,no,B2.6,Cells and control,Structure of the eye and how it focuses light.,no,no,yes,DELETE this row if the eye is not in your combined PDF.
+edexcel,combined,biology,paper1,no,B3,Genetics,How genes are passed on and how DNA relates to inherited features.,no,no,yes,
+edexcel,combined,biology,paper1,no,B3.1,Genetics,Meiosis and why gametes are haploid and genetically varied.,no,no,yes,
+edexcel,combined,biology,paper1,no,B3.2,Genetics,The structure of DNA genes and the genome.,no,no,yes,
+edexcel,combined,biology,paper1,no,B3.3,Genetics,How the genetic code is used to build proteins.,yes,no,yes,Mark HT only if your PDF puts protein synthesis in higher tier.
+edexcel,combined,biology,paper1,no,B3.4,Genetics,Genetic diagrams for single-gene crosses including dominant and recessive alleles.,no,no,yes,
+edexcel,combined,biology,paper1,no,B3.5,Genetics,How sex is inherited in humans.,no,no,yes,
+edexcel,combined,biology,paper1,no,B3.6,Genetics,Genetic and environmental causes of variation.,no,no,yes,
+edexcel,combined,biology,paper1,no,B4,Natural selection and genetic modification,How species change over time and how people change organisms.,no,no,yes,
+edexcel,combined,biology,paper1,no,B4.1,Natural selection and genetic modification,Evidence for evolution and how natural selection changes populations.,no,no,yes,
+edexcel,combined,biology,paper1,no,B4.2,Natural selection and genetic modification,How organisms are classified and why classification systems change.,no,no,yes,DELETE if classification is thin or absent in the combined PDF.
+edexcel,combined,biology,paper1,no,B4.3,Natural selection and genetic modification,Selective breeding and its benefits and risks.,no,no,yes,
+edexcel,combined,biology,paper1,no,B4.4,Natural selection and genetic modification,Genetic engineering including how it is done and why it is debated.,no,no,yes,
+edexcel,combined,biology,paper1,no,B5,Health disease and medicines,Causes of disease how the body defends itself and how medicines are developed.,no,no,yes,
+edexcel,combined,biology,paper1,no,B5.1,Health disease and medicines,What is meant by health and how lifestyle and non-communicable diseases are linked.,no,no,yes,
+edexcel,combined,biology,paper1,no,B5.2,Health disease and medicines,Cardiovascular disease risk factors and ways of treating it.,no,no,yes,
+edexcel,combined,biology,paper1,no,B5.3,Health disease and medicines,Pathogens how they spread and how the spread of disease can be reduced.,no,no,yes,
+edexcel,combined,biology,paper1,no,B5.4,Health disease and medicines,The immune response vaccination and how immunity develops.,no,no,yes,
+edexcel,combined,biology,paper1,no,B5.5,Health disease and medicines,Antibiotics how they work and why resistance develops.,no,no,yes,
+edexcel,combined,biology,paper1,no,B5.6,Health disease and medicines,How new medicines are tested before they are used.,no,no,yes,
+edexcel,combined,biology,paper2,no,B6,Plant structures and their functions,How plants make food move substances and respond to their surroundings.,no,no,yes,Paper 2 topics 6 to 9. Topic 1 is still assumed.
+edexcel,combined,biology,paper2,no,B6.1,Plant structures and their functions,Photosynthesis as the process that builds glucose using light.,no,no,yes,
+edexcel,combined,biology,paper2,no,B6.2,Plant structures and their functions,Limiting factors of photosynthesis and a practical rate investigation.,no,yes,yes,
+edexcel,combined,biology,paper2,no,B6.3,Plant structures and their functions,How xylem and phloem move water minerals and sugars.,no,no,yes,
+edexcel,combined,biology,paper2,no,B6.4,Plant structures and their functions,Transpiration stomata and factors that change water loss.,no,no,yes,
+edexcel,combined,biology,paper2,no,B6.5,Plant structures and their functions,How plant hormones control growth and how they are used commercially.,no,no,yes,CHECK commercial uses against the combined PDF.
+edexcel,combined,biology,paper2,no,B7,Animal coordination control and homeostasis,How hormones control the body and keep internal conditions steady.,no,no,yes,
+edexcel,combined,biology,paper2,no,B7.1,Animal coordination control and homeostasis,Endocrine glands and how hormones travel in the blood.,no,no,yes,
+edexcel,combined,biology,paper2,no,B7.2,Animal coordination control and homeostasis,The menstrual cycle fertility and hormonal contraception.,no,no,yes,
+edexcel,combined,biology,paper2,no,B7.3,Animal coordination control and homeostasis,Control of blood glucose and the difference between type 1 and type 2 diabetes.,no,no,yes,
+edexcel,combined,biology,paper2,no,B7.4,Animal coordination control and homeostasis,How the body keeps temperature and water balance within limits.,no,no,yes,SPLIT or DELETE if the PDF treats kidney and temperature as separate statements.
+edexcel,combined,biology,paper2,no,B8,Exchange and transport in animals,How animals exchange materials and move them around the body.,no,no,yes,
+edexcel,combined,biology,paper2,no,B8.1,Exchange and transport in animals,Why large organisms need exchange surfaces and a transport system.,no,no,yes,
+edexcel,combined,biology,paper2,no,B8.2,Exchange and transport in animals,Structure of the heart blood vessels and the path of blood.,no,no,yes,
+edexcel,combined,biology,paper2,no,B8.3,Exchange and transport in animals,Composition of blood and the jobs of its main parts.,no,no,yes,
+edexcel,combined,biology,paper2,no,B8.4,Exchange and transport in animals,Aerobic and anaerobic respiration and when each is used.,no,no,yes,
+edexcel,combined,biology,paper2,no,B8.5,Exchange and transport in animals,Investigating the rate of respiration.,no,yes,yes,DELETE if this practical is not in the combined list.
+edexcel,combined,biology,paper2,no,B9,Ecosystems and material cycles,How organisms interact and how materials are recycled.,no,no,yes,
+edexcel,combined,biology,paper2,no,B9.1,Ecosystems and material cycles,Interdependence food webs and how communities are organised.,no,no,yes,
+edexcel,combined,biology,paper2,no,B9.2,Ecosystems and material cycles,Pyramids of biomass and transfer of energy.,no,no,yes,
+edexcel,combined,biology,paper2,no,B9.3,Ecosystems and material cycles,The carbon cycle and the water cycle.,no,no,yes,
+edexcel,combined,biology,paper2,no,B9.4,Ecosystems and material cycles,How nitrogen is cycled through living things and the soil.,no,no,yes,CHECK depth against the combined PDF.
+edexcel,combined,biology,paper2,no,B9.5,Ecosystems and material cycles,Human effects on biodiversity and ways of protecting ecosystems.,no,no,yes,
+edexcel,combined,chemistry,paper1,yes,C1,Key concepts in chemistry,Atomic structure bonding and the particle ideas both chemistry papers assume.,no,no,yes,Topic 1 is assessed on paper 1 and paper 2.
+edexcel,combined,chemistry,paper1,yes,C1.1,Key concepts in chemistry,Structure of the atom elements and how the periodic table is arranged.,no,no,yes,
+edexcel,combined,chemistry,paper1,yes,C1.2,Key concepts in chemistry,Isotopes relative atomic mass and relative formula mass.,no,no,yes,
+edexcel,combined,chemistry,paper1,yes,C1.3,Key concepts in chemistry,Electronic configurations and how they link to group and period.,no,no,yes,
+edexcel,combined,chemistry,paper1,yes,C1.4,Key concepts in chemistry,Ionic covalent and metallic bonding and the resulting structures.,no,no,yes,
+edexcel,combined,chemistry,paper1,yes,C1.5,Key concepts in chemistry,How bonding and structure explain melting point conductivity and other properties.,no,no,yes,
+edexcel,combined,chemistry,paper1,yes,C1.6,Key concepts in chemistry,Writing chemical formulae and balanced equations.,no,no,yes,
+edexcel,combined,chemistry,paper1,yes,C1.7,Key concepts in chemistry,Using moles to relate mass and amount of substance.,yes,no,yes,Set ht_only to no if your PDF teaches moles to all combined students.
+edexcel,combined,chemistry,paper1,no,C2,States of matter and mixtures,Particle arrangements changes of state and separating mixtures.,no,no,yes,Paper 1 topics 2 to 4. Chemistry topic 5 is separate-only and is omitted.
+edexcel,combined,chemistry,paper1,no,C2.1,States of matter and mixtures,Solids liquids and gases and what happens during changes of state.,no,no,yes,
+edexcel,combined,chemistry,paper1,no,C2.2,States of matter and mixtures,Purity mixtures and methods of separation including filtration crystallisation and distillation.,no,no,yes,
+edexcel,combined,chemistry,paper1,no,C2.3,States of matter and mixtures,Paper chromatography as a way to separate and identify substances.,no,yes,yes,
+edexcel,combined,chemistry,paper1,no,C2.4,States of matter and mixtures,How drinking water is produced and why some water needs treatment.,no,no,yes,DELETE if potable water is not in the combined PDF.
+edexcel,combined,chemistry,paper1,no,C3,Chemical changes,Acids metals salts and electrolysis as chemical changes.,no,no,yes,
+edexcel,combined,chemistry,paper1,no,C3.1,Chemical changes,Acids alkalis indicators and neutralisation.,no,no,yes,
+edexcel,combined,chemistry,paper1,no,C3.2,Chemical changes,Preparing a soluble salt from an acid and an insoluble base or carbonate.,no,yes,yes,
+edexcel,combined,chemistry,paper1,no,C3.3,Chemical changes,Electrolysis of molten and aqueous ionic compounds and the products formed.,no,yes,yes,
+edexcel,combined,chemistry,paper1,no,C3.4,Chemical changes,The reactivity series and displacement reactions of metals.,no,no,yes,
+edexcel,combined,chemistry,paper1,no,C3.5,Chemical changes,Oxidation and reduction described as loss and gain of electrons.,yes,no,yes,
+edexcel,combined,chemistry,paper1,no,C4,Extracting metals and equilibria,How metals are obtained from ores and how reversible reactions behave.,no,no,yes,
+edexcel,combined,chemistry,paper1,no,C4.1,Extracting metals and equilibria,Why some metals are found native and others must be extracted by reduction or electrolysis.,no,no,yes,
+edexcel,combined,chemistry,paper1,no,C4.2,Extracting metals and equilibria,Life-cycle assessment recycling and choosing materials.,no,no,yes,
+edexcel,combined,chemistry,paper1,no,C4.3,Extracting metals and equilibria,Reversible reactions dynamic equilibrium and the effect of changing conditions.,yes,no,yes,
+edexcel,combined,chemistry,paper2,no,C6,Groups in the periodic table,Patterns in groups 1 7 and 0 and how reactivity changes down a group.,no,no,yes,Numbered 6 because topic 5 is separate chemistry only.
+edexcel,combined,chemistry,paper2,no,C6.1,Groups in the periodic table,Reactions and trends of the alkali metals.,no,no,yes,
+edexcel,combined,chemistry,paper2,no,C6.2,Groups in the periodic table,Reactions and trends of the halogens including displacement.,no,no,yes,
+edexcel,combined,chemistry,paper2,no,C6.3,Groups in the periodic table,Why the noble gases are unreactive and how their properties change down the group.,no,no,yes,
+edexcel,combined,chemistry,paper2,no,C7,Rates of reaction and energy changes,How quickly reactions happen and whether they give out or take in energy.,no,no,yes,
+edexcel,combined,chemistry,paper2,no,C7.1,Rates of reaction and energy changes,Measuring rate and explaining it with collision theory.,no,no,yes,
+edexcel,combined,chemistry,paper2,no,C7.2,Rates of reaction and energy changes,How concentration temperature surface area and catalysts change rate including a practical.,no,yes,yes,
+edexcel,combined,chemistry,paper2,no,C7.3,Rates of reaction and energy changes,Exothermic and endothermic reactions and simple energy-level ideas.,no,no,yes,
+edexcel,combined,chemistry,paper2,no,C7.4,Rates of reaction and energy changes,Using bond energies to decide whether a reaction is exo or endothermic.,yes,no,yes,
+edexcel,combined,chemistry,paper2,no,C8,Fuels and Earth science,Hydrocarbon fuels the atmosphere and human effects on it.,no,no,yes,Chemistry topic 9 is separate-only and is omitted.
+edexcel,combined,chemistry,paper2,no,C8.1,Fuels and Earth science,Crude oil as a mixture of hydrocarbons and how it is separated by fractional distillation.,no,no,yes,
+edexcel,combined,chemistry,paper2,no,C8.2,Fuels and Earth science,Alkanes combustion and why complete and incomplete combustion differ.,no,no,yes,
+edexcel,combined,chemistry,paper2,no,C8.3,Fuels and Earth science,Cracking long hydrocarbons to make more useful smaller ones.,yes,no,yes,Set ht_only to no if cracking is for all tiers in your PDF.
+edexcel,combined,chemistry,paper2,no,C8.4,Fuels and Earth science,How the early atmosphere changed and how oxygen increased.,no,no,yes,
+edexcel,combined,chemistry,paper2,no,C8.5,Fuels and Earth science,The greenhouse effect climate change and atmospheric pollutants from burning fuels.,no,no,yes,
+edexcel,combined,physics,paper1,yes,P1,Key concepts of physics,Units prefixes and the quantitative habits both physics papers assume.,no,no,yes,Topic 1 is assessed on paper 1 and paper 2.
+edexcel,combined,physics,paper1,yes,P1.1,Key concepts of physics,SI units prefixes and converting between units.,no,no,yes,
+edexcel,combined,physics,paper1,yes,P1.2,Key concepts of physics,Using given equations rearranging them and handling significant figures.,no,no,yes,CHECK whether sig figs sit in the equations appendix rather than topic 1.
+edexcel,combined,physics,paper1,no,P2,Motion and forces,How motion is described and how forces change motion.,no,no,yes,Paper 1 topics 2 to 6. Physics topics 7 and 11 are separate-only and are omitted.
+edexcel,combined,physics,paper1,no,P2.1,Motion and forces,Speed velocity distance-time graphs and acceleration.,no,no,yes,
+edexcel,combined,physics,paper1,no,P2.2,Motion and forces,Velocity-time graphs and the link between gradient area and motion.,no,no,yes,
+edexcel,combined,physics,paper1,no,P2.3,Motion and forces,Newton's laws resultant force and the link between force mass and acceleration.,no,no,yes,
+edexcel,combined,physics,paper1,no,P2.4,Motion and forces,Weight mass and gravitational field strength.,no,no,yes,
+edexcel,combined,physics,paper1,no,P2.5,Motion and forces,Momentum and conservation of momentum in collisions.,yes,no,yes,
+edexcel,combined,physics,paper1,no,P2.6,Motion and forces,Stopping distance thinking distance and braking distance.,no,no,yes,
+edexcel,combined,physics,paper1,no,P3,Conservation of energy,Energy stores transfers efficiency and energy resources.,no,no,yes,
+edexcel,combined,physics,paper1,no,P3.1,Conservation of energy,Energy stores and transfers and the idea that energy is conserved.,no,no,yes,
+edexcel,combined,physics,paper1,no,P3.2,Conservation of energy,Calculating efficiency and reducing unwanted energy transfers.,no,yes,yes,Insulation practical — confirm the CP code.
+edexcel,combined,physics,paper1,no,P3.3,Conservation of energy,Renewable and non-renewable energy resources and their advantages and drawbacks.,no,no,yes,
+edexcel,combined,physics,paper1,no,P4,Waves,Describing waves how they travel and how sound is used.,no,no,yes,
+edexcel,combined,physics,paper1,no,P4.1,Waves,Transverse and longitudinal waves and the meaning of amplitude wavelength frequency and period.,no,no,yes,
+edexcel,combined,physics,paper1,no,P4.2,Waves,The wave speed equation and measuring the speed of waves in a practical.,no,yes,yes,
+edexcel,combined,physics,paper1,no,P4.3,Waves,Reflection refraction and how waves change direction at a boundary.,no,no,yes,
+edexcel,combined,physics,paper1,no,P4.4,Waves,Sound hearing range and ultrasound uses.,yes,no,yes,Set ht_only to no if ultrasound is for all tiers in your PDF.
+edexcel,combined,physics,paper1,no,P5,Light and the electromagnetic spectrum,How light behaves and the family of electromagnetic waves.,no,no,yes,
+edexcel,combined,physics,paper1,no,P5.1,Light and the electromagnetic spectrum,Ray diagrams for reflection and refraction including lenses if required.,no,no,yes,DELETE lens detail if the combined PDF stops at reflection and refraction.
+edexcel,combined,physics,paper1,no,P5.2,Light and the electromagnetic spectrum,The electromagnetic spectrum and the shared properties of those waves.,no,no,yes,
+edexcel,combined,physics,paper1,no,P5.3,Light and the electromagnetic spectrum,Uses and hazards of different parts of the electromagnetic spectrum.,no,no,yes,
+edexcel,combined,physics,paper1,no,P6,Radioactivity,The structure of the atom unstable nuclei and ionising radiation.,no,no,yes,
+edexcel,combined,physics,paper1,no,P6.1,Radioactivity,How the model of the atom developed and what is in the nucleus.,no,no,yes,
+edexcel,combined,physics,paper1,no,P6.2,Radioactivity,Alpha beta and gamma radiation and how they are absorbed.,no,no,yes,
+edexcel,combined,physics,paper1,no,P6.3,Radioactivity,Activity half-life and how to use a decay curve.,no,no,yes,
+edexcel,combined,physics,paper1,no,P6.4,Radioactivity,Uses and dangers of ionising radiation and how exposure is limited.,no,no,yes,
+edexcel,combined,physics,paper1,no,P6.5,Radioactivity,Nuclear fission and fusion as ways nuclei change and release energy.,yes,no,yes,DELETE fusion or fission if either is separate-only in your PDF.
+edexcel,combined,physics,paper2,no,P8,Energy — forces doing work,Work done power and energy transferred by a force.,no,no,yes,Numbered 8 because topic 7 astronomy is separate-only.
+edexcel,combined,physics,paper2,no,P8.1,Energy — forces doing work,Calculating work done and power.,no,no,yes,
+edexcel,combined,physics,paper2,no,P9,Forces and their effects,Moments and how forces turn or balance objects.,no,no,yes,
+edexcel,combined,physics,paper2,no,P9.1,Forces and their effects,Contact and non-contact forces and free-body style descriptions of forces on an object.,no,no,yes,CHECK wording against the PDF — this topic is often thinner than the AQA forces topic.
+edexcel,combined,physics,paper2,no,P9.2,Forces and their effects,Moments levers and the principle of moments.,no,no,yes,
+edexcel,combined,physics,paper2,no,P10,Electricity and circuits,Current potential difference resistance and domestic electricity.,no,no,yes,Topic 11 static electricity is separate-only and is omitted.
+edexcel,combined,physics,paper2,no,P10.1,Electricity and circuits,Current potential difference and resistance and the equation linking them.,no,no,yes,
+edexcel,combined,physics,paper2,no,P10.2,Electricity and circuits,Series and parallel circuits and how current and potential difference behave in each.,no,no,yes,
+edexcel,combined,physics,paper2,no,P10.3,Electricity and circuits,Investigating current-potential difference graphs for a resistor a filament lamp and a diode.,no,yes,yes,
+edexcel,combined,physics,paper2,no,P10.4,Electricity and circuits,Electrical power and energy transferred by a current.,no,no,yes,
+edexcel,combined,physics,paper2,no,P10.5,Electricity and circuits,Mains electricity safety features and the national grid.,no,no,yes,SPLIT if the PDF puts the grid with transformers in topic 13.
+edexcel,combined,physics,paper2,no,P12,Magnetism and the motor effect,Magnetic fields electromagnets and how a current in a field produces a force.,no,no,yes,Numbered 12 because topic 11 is separate-only.
+edexcel,combined,physics,paper2,no,P12.1,Magnetism and the motor effect,Permanent magnets magnetic fields and the field around a current-carrying wire.,no,no,yes,
+edexcel,combined,physics,paper2,no,P12.2,Magnetism and the motor effect,Electromagnets and factors that change their strength.,no,no,yes,
+edexcel,combined,physics,paper2,no,P12.3,Magnetism and the motor effect,The motor effect and Fleming's left-hand rule.,yes,no,yes,
+edexcel,combined,physics,paper2,no,P13,Electromagnetic induction,How a changing magnetic field induces a potential difference.,no,no,yes,
+edexcel,combined,physics,paper2,no,P13.1,Electromagnetic induction,Inducing a potential difference by moving a magnet or changing a field.,no,no,yes,Set ht_only if the whole topic is higher tier in your PDF.
+edexcel,combined,physics,paper2,no,P13.2,Electromagnetic induction,Generators transformers and why the national grid uses high voltages.,yes,no,yes,
+edexcel,combined,physics,paper2,no,P14,Particle model,Density changes of state and the particle explanation of heating and pressure.,no,no,yes,
+edexcel,combined,physics,paper2,no,P14.1,Particle model,Calculating density and measuring it for regular and irregular objects.,no,yes,yes,
+edexcel,combined,physics,paper2,no,P14.2,Particle model,Specific heat capacity specific latent heat and heating or cooling graphs.,no,yes,yes,Confirm which of these practicals are required for combined.
+edexcel,combined,physics,paper2,no,P14.3,Particle model,Gas pressure and how it changes with temperature or volume.,yes,no,yes,
+edexcel,combined,physics,paper2,no,P15,Forces and matter,Stretching objects and pressure.,no,no,yes,
+edexcel,combined,physics,paper2,no,P15.1,Forces and matter,Elastic and inelastic deformation and Hooke's law for a spring.,no,yes,yes,
+edexcel,combined,physics,paper2,no,P15.2,Forces and matter,Pressure in solids and in fluids.,no,no,yes,DELETE fluid pressure if it is separate-only in your PDF.

@@ -1,0 +1,45 @@
+exam_board,course_track,subject,paper,also_on_other_paper,spec_ref,topic_name,paraphrase,ht_only,core_practical,include,review_notes
+edexcel,triple,biology,paper1,no,B1.S1,Key concepts in biology,Measuring the energy released when a food sample is burned.,no,yes,yes,Separate-only addition inside topic 1. Renumber to the Biology PDF. DELETE if this practical is also in your combined spec.
+edexcel,triple,biology,paper1,no,B2.S1,Cells and control,The main regions of the brain and why brain and spinal problems are hard to investigate and treat.,no,no,yes,Separate-only addition inside topic 2. Renumber to the PDF.
+edexcel,triple,biology,paper1,no,B2.S2,Cells and control,How the eye focuses and how short sight and long sight are corrected.,no,no,yes,DELETE if the eye is already kept on the combined sheet as B2.6.
+edexcel,triple,biology,paper1,no,B3.S1,Genetics,How a gene carried on a sex chromosome changes the inheritance pattern.,yes,no,yes,Often higher tier. DELETE if your separate PDF does not include sex linkage.
+edexcel,triple,biology,paper1,no,B4.S1,Natural selection and genetic modification,Growing plants by tissue culture and the uses and limits of that method.,no,no,yes,Separate-only addition inside topic 4.
+edexcel,triple,biology,paper1,no,B5.S1,Health disease and medicines,Physical and chemical defences plants use and how plant disease can be identified.,no,no,yes,Separate-only addition inside topic 5.
+edexcel,triple,biology,paper1,no,B5.S2,Health disease and medicines,Growing microorganisms safely and investigating how conditions affect their growth.,no,yes,yes,Aseptic-technique practical. Confirm it is required for separate biology.
+edexcel,triple,biology,paper2,no,B6.S1,Plant structures and their functions,How auxins gibberellins and ethene are used to control plant growth and ripening.,no,no,yes,Extra depth beyond the combined plant-hormone row. Merge with B6.5 if you prefer one row.
+edexcel,triple,biology,paper2,no,B7.S1,Animal coordination control and homeostasis,Negative feedback using thyroxine and adrenaline as examples.,no,no,yes,Separate-only addition inside topic 7. CHECK tier.
+edexcel,triple,biology,paper2,no,B7.S2,Animal coordination control and homeostasis,How the kidney filters blood and how ADH controls water balance.,no,no,yes,The combined sheet only sketches water balance. Keep this row for nephron-level detail.
+edexcel,triple,biology,paper2,no,B7.S3,Animal coordination control and homeostasis,Dialysis and kidney transplant as treatments when the kidneys fail.,no,no,yes,
+edexcel,triple,biology,paper2,no,B9.S1,Ecosystems and material cycles,Estimating population size with quadrats and seeing change along a transect.,no,yes,yes,Fieldwork practical. Confirm it is separate-only in your PDF.
+edexcel,triple,biology,paper2,no,B9.S2,Ecosystems and material cycles,Factors that change the rate of decay and how that is investigated.,no,yes,yes,DELETE the practical flag if decay is theory-only in your PDF.
+edexcel,triple,biology,paper2,no,B9.S3,Ecosystems and material cycles,How farming fishing and other food production affect ecosystems and how impacts can be reduced.,no,no,yes,Includes ideas such as eutrophication and sustainable food. Split the row if your PDF separates them.
+edexcel,triple,chemistry,paper1,no,C5,Separate chemistry 1,Transition metals corrosion quantitative chemistry and chemical cells. Not in Combined Science.,no,no,yes,Whole topic is separate-only. Assessed on chemistry paper 1.
+edexcel,triple,chemistry,paper1,no,C5.1,Separate chemistry 1,Typical properties of transition metals including coloured compounds and use as catalysts.,no,no,yes,
+edexcel,triple,chemistry,paper1,no,C5.2,Separate chemistry 1,Why alloys are made and how their properties differ from the pure metal.,no,no,yes,
+edexcel,triple,chemistry,paper1,no,C5.3,Separate chemistry 1,How iron rusts and how barrier methods galvanising and sacrificial protection slow corrosion.,no,no,yes,
+edexcel,triple,chemistry,paper1,no,C5.4,Separate chemistry 1,Electroplating and why it is used.,no,no,yes,DELETE if electroplating is not in your PDF.
+edexcel,triple,chemistry,paper1,no,C5.5,Separate chemistry 1,Concentrations in mol per cubic decimetre and using a titration to find an unknown amount.,no,yes,yes,Titration core practical.
+edexcel,triple,chemistry,paper1,no,C5.6,Separate chemistry 1,Percentage yield and atom economy as ways to judge a reaction.,no,no,yes,Set ht_only if your PDF restricts either calculation to higher tier.
+edexcel,triple,chemistry,paper1,no,C5.7,Separate chemistry 1,Using the molar gas volume to link amount of substance and gas volume.,yes,no,yes,
+edexcel,triple,chemistry,paper1,no,C5.8,Separate chemistry 1,Chemical cells and fuel cells and how they differ from a battery that runs down.,no,no,yes,CHECK whether fuel cells are higher tier only.
+edexcel,triple,chemistry,paper2,no,C9,Separate chemistry 2,Ion tests further organic chemistry and polymers. Not in Combined Science.,no,no,yes,Whole topic is separate-only. Assessed on chemistry paper 2.
+edexcel,triple,chemistry,paper2,no,C9.1,Separate chemistry 2,Tests to identify common positive and negative ions in solution.,no,no,yes,
+edexcel,triple,chemistry,paper2,no,C9.2,Separate chemistry 2,Flame tests and precipitate tests as a practical identification sequence.,no,yes,yes,
+edexcel,triple,chemistry,paper2,no,C9.3,Separate chemistry 2,Alkenes as unsaturated hydrocarbons and their addition reactions.,no,no,yes,
+edexcel,triple,chemistry,paper2,no,C9.4,Separate chemistry 2,Alcohols and carboxylic acids and the reactions that link them.,no,no,yes,CHECK depth. Split if the PDF treats fermentation oxidation and esters separately.
+edexcel,triple,chemistry,paper2,no,C9.5,Separate chemistry 2,Addition polymerisation and why the repeating unit matches the monomer.,no,no,yes,
+edexcel,triple,chemistry,paper2,no,C9.6,Separate chemistry 2,Condensation polymerisation and the small molecule given off.,yes,no,yes,
+edexcel,triple,chemistry,paper2,no,C9.7,Separate chemistry 2,Why the conditions chosen for the Haber process are a compromise between rate and yield.,yes,no,yes,DELETE if this already sits entirely inside combined equilibria.
+edexcel,triple,physics,paper1,no,P7,Astronomy,The Solar System stars and evidence for the expansion of the Universe. Not in Combined Science.,no,no,yes,Whole topic is separate-only. Assessed on physics paper 1.
+edexcel,triple,physics,paper1,no,P7.1,Astronomy,The main bodies in the Solar System and how orbits are maintained.,no,no,yes,
+edexcel,triple,physics,paper1,no,P7.2,Astronomy,How gravitational field strength changes with distance and how that affects orbits.,yes,no,yes,Set ht_only to no if orbits are for all tiers in your PDF.
+edexcel,triple,physics,paper1,no,P7.3,Astronomy,The life cycle of stars of different masses.,no,no,yes,
+edexcel,triple,physics,paper1,no,P7.4,Astronomy,Red-shift as evidence that galaxies are moving apart.,no,no,yes,
+edexcel,triple,physics,paper1,no,P7.5,Astronomy,The Big Bang explanation and the cosmic microwave background as supporting evidence.,no,no,yes,
+edexcel,triple,physics,paper2,no,P11,Static electricity,How objects become charged and how that charge is useful or dangerous. Not in Combined Science.,no,no,yes,Whole topic is separate-only. Assessed on physics paper 2.
+edexcel,triple,physics,paper2,no,P11.1,Static electricity,Charging by friction and the forces between positive and negative charges.,no,no,yes,
+edexcel,triple,physics,paper2,no,P11.2,Static electricity,Electric fields around a charged object.,yes,no,yes,
+edexcel,triple,physics,paper2,no,P11.3,Static electricity,Uses of static charge and dangers such as sparks near fuels.,no,no,yes,
+edexcel,triple,physics,paper2,no,P4.S1,Waves,How infrared radiation is emitted and absorbed and how that depends on the surface.,no,yes,yes,Separate-only addition inside topic 4. Often the Leslie's cube practical. Move into combined if your 1SC0 PDF includes it.
+edexcel,triple,physics,paper2,no,P14.S1,Particle model,How gas pressure and volume are linked at constant temperature.,yes,no,yes,Extra depth beyond the combined gas-pressure row. DELETE if your PDF keeps this in combined higher tier only.
+edexcel,triple,physics,paper2,no,P15.S1,Forces and matter,Pressure in a liquid and how it changes with depth.,no,no,yes,Keep only if you dropped fluid pressure from the combined sheet.
