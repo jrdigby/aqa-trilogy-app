@@ -8,7 +8,6 @@ import {
   getExamBoard,
   getActiveSubjects,
   targetTiersForProfile,
-  filterQuestionsForProfile,
   questionMatchesStudent,
   resolveQuestionSpecMeta,
   questionLinksToSpecPoint,
@@ -16,6 +15,7 @@ import {
   questionMatchesProfileTier
 } from "./sciencePath.js";
 import { fetchQuestionsLinkedToSpecPoints } from "./dbClient.js";
+import { deliverQuestionsByIds, listQuestionPoolMeta, listQuestionMetaByIds } from "./questionDelivery.js";
 import {
   clampIntervalForExam,
   resolveExamDate
@@ -39,15 +39,12 @@ export { QUESTION_SELECT_FALLBACK };
 /** Questions per scheduled spec-point session (Start Practice / SRS). */
 export const SCHEDULED_PRACTICE_QUESTION_COUNT = 10;
 
-async function fetchQuestionsWithFallback(supabaseClient, buildQuery) {
-  let query = buildQuery(QUESTION_SELECT);
-  let result = await query;
-  if (result.error && /column/i.test(result.error.message || "")) {
-    query = buildQuery(QUESTION_SELECT_FALLBACK);
-    result = await query;
-  }
-  if (result.error) throw result.error;
-  return result.data || [];
+async function deliverSelectedQuestions(supabaseClient, questionIds, mode) {
+  return deliverQuestionsByIds(supabaseClient, questionIds, {
+    mode,
+    select: QUESTION_SELECT,
+    selectFallback: QUESTION_SELECT_FALLBACK,
+  });
 }
 
 async function fetchFilteredPracticePool(context) {
@@ -84,24 +81,11 @@ async function fetchFilteredPracticePool(context) {
   const matchingSpecPointIds = sp.map((item) => item.id);
 
   const rawQs = await Promise.race([
-    (async () => {
-      try {
-        return await fetchQuestionsLinkedToSpecPoints({
-          specPointIds: matchingSpecPointIds,
-          select: QUESTION_SELECT,
-          tierValues: questionTiersForFetch(targetTiers),
-          qType,
-        });
-      } catch (err) {
-        if (!/column/i.test(err?.message || "")) throw err;
-        return fetchQuestionsLinkedToSpecPoints({
-          specPointIds: matchingSpecPointIds,
-          select: QUESTION_SELECT_FALLBACK,
-          tierValues: questionTiersForFetch(targetTiers),
-          qType,
-        });
-      }
-    })(),
+    fetchQuestionsLinkedToSpecPoints({
+      specPointIds: matchingSpecPointIds,
+      tierValues: questionTiersForFetch(targetTiers),
+      qType,
+    }),
     timeoutPromise(12000, "Practice pool matching timed out")
   ]);
 
@@ -189,10 +173,27 @@ export async function startExamPrep(context, { targetMarks }) {
     return;
   }
 
-  await beginSession(context, paper.questions, {
+  let questions;
+  try {
+    questions = await deliverSelectedQuestions(
+      context.supabaseClient,
+      paper.questions.map((q) => q.id),
+      "paper_practice"
+    );
+  } catch (err) {
+    showToastBanner("Could not open exam paper session: " + (err.message || err), true);
+    return;
+  }
+
+  if (!questions.length) {
+    showToastBanner("Could not load exam paper questions.", true);
+    return;
+  }
+
+  await beginSession(context, questions, {
     mode: "paper_practice",
     targetMarks,
-    paperSummary: paper
+    paperSummary: { ...paper, questions }
   });
 }
 
@@ -211,12 +212,29 @@ export async function startAnyPractice(context, questionCount = 10) {
 
   const count = Math.max(1, Math.min(30, Number(questionCount) || 10));
   const adaptiveState = getAdaptivePracticeState?.() || { difficulty_offset: 0 };
-  const localizedQs = adaptiveSelectQuestions(pool.questions, {
+  const localizedMeta = adaptiveSelectQuestions(pool.questions, {
     count,
     tier: pool.tier,
     offset: adaptiveState.difficulty_offset || 0,
     mode: "any_practice"
   });
+
+  let localizedQs;
+  try {
+    localizedQs = await deliverSelectedQuestions(
+      context.supabaseClient,
+      localizedMeta.map((q) => q.id),
+      "any_practice"
+    );
+  } catch (err) {
+    showToastBanner("Could not open practice session: " + (err.message || err), true);
+    return;
+  }
+
+  if (!localizedQs.length) {
+    showToastBanner("Could not load practice questions.", true);
+    return;
+  }
 
   await beginSession(context, localizedQs, { mode: "any_practice" });
 }
@@ -233,9 +251,7 @@ export async function startFlashcardPractice(context, questionIds) {
   let questions;
   try {
     questions = await Promise.race([
-      fetchQuestionsWithFallback(supabaseClient, (selectCols) =>
-        supabaseClient.from("questions").select(selectCols).in("id", ids)
-      ),
+      deliverSelectedQuestions(supabaseClient, ids, "flashcard_practice"),
       timeoutPromise(4000, "Flashcard practice questions timed out")
     ]);
   } catch (err) {
@@ -296,17 +312,13 @@ export async function startSessionForSpecPoint(specPointId, qType = "", context)
       : ["FT", "both"];
 
   console.log("DEBUG startSessionForSpecPoint: Loading question payloads...");
-  let qs = [];
+  let qsMeta = [];
   try {
-    qs = await Promise.race([
-      fetchQuestionsWithFallback(supabaseClient, (selectCols) => {
-        let query = supabaseClient
-          .from("questions")
-          .select(selectCols)
-          .or(`spec_point_id.eq.${specPointId},triple_spec_point_id.eq.${specPointId}`)
-          .in("tier", questionTiersForFetch(targetTiers));
-        if (qType) query = query.eq("question_type", qType);
-        return query.limit(30);
+    qsMeta = await Promise.race([
+      listQuestionPoolMeta(supabaseClient, {
+        specPointIds: [specPointId],
+        tierValues: questionTiersForFetch(targetTiers),
+        qType,
       }),
       timeoutPromise(4000, "Questions loading query timed out")
     ]);
@@ -316,13 +328,13 @@ export async function startSessionForSpecPoint(specPointId, qType = "", context)
     return;
   }
 
-  qs = (qs || []).filter(
+  qsMeta = (qsMeta || []).filter(
     (q) =>
       questionLinksToSpecPoint(q, specPointId, courseTrack) &&
       questionMatchesProfileTier(q, targetTiers)
   );
 
-  if (!qs || qs.length === 0) {
+  if (!qsMeta || qsMeta.length === 0) {
     showToastBanner(`No structural questions found matching your filter rules for this topic folder.`, true);
     return;
   }
@@ -333,12 +345,29 @@ export async function startSessionForSpecPoint(specPointId, qType = "", context)
     specPointId
   );
 
-  const localizedQs = adaptiveSelectQuestions(qs, {
-    count: Math.min(SCHEDULED_PRACTICE_QUESTION_COUNT, qs.length),
+  const localizedMeta = adaptiveSelectQuestions(qsMeta, {
+    count: Math.min(SCHEDULED_PRACTICE_QUESTION_COUNT, qsMeta.length),
     tier,
     offset: specOffset,
     mode: "spec_point"
   });
+
+  let localizedQs;
+  try {
+    localizedQs = await deliverSelectedQuestions(
+      supabaseClient,
+      localizedMeta.map((q) => q.id),
+      "spec_point"
+    );
+  } catch (err) {
+    showToastBanner("Could not open practice session: " + (err.message || err), true);
+    return;
+  }
+
+  if (!localizedQs.length) {
+    showToastBanner("Could not load practice questions for this topic.", true);
+    return;
+  }
 
   setSessionState(localizedQs, 0, { mode: "spec_point", specPointId });
 
@@ -405,12 +434,10 @@ export async function startSkillPractice(context, { fullCode }) {
     return;
   }
 
-  let rawQs = [];
+  let rawMeta = [];
   try {
-    rawQs = await Promise.race([
-      fetchQuestionsWithFallback(supabaseClient, (selectCols) =>
-        supabaseClient.from("questions").select(selectCols).in("id", questionIds).in("tier", questionTiersForFetch(targetTiers))
-      ),
+    rawMeta = await Promise.race([
+      listQuestionMetaByIds(supabaseClient, questionIds.slice(0, 200)),
       timeoutPromise(6000, "Skill practice pool timed out")
     ]);
   } catch (err) {
@@ -418,7 +445,7 @@ export async function startSkillPractice(context, { fullCode }) {
     return;
   }
 
-  const activeQs = (rawQs || []).filter((q) => {
+  const activeQs = (rawMeta || []).filter((q) => {
     if (!questionMatchesProfileTier(q, targetTiers)) return false;
     if (courseTrack === "triple") {
       return q.audience === "both" || q.audience === "triple_only";
@@ -439,7 +466,19 @@ export async function startSkillPractice(context, { fullCode }) {
     mode: "skill_practice"
   });
 
-  await beginSession(context, selected, { mode: "skill_practice", skillCode: fullCode });
+  let sessionQs;
+  try {
+    sessionQs = await deliverSelectedQuestions(
+      supabaseClient,
+      selected.map((q) => q.id),
+      "skill_practice"
+    );
+  } catch (err) {
+    showToastBanner("Could not open skill practice session: " + (err.message || err), true);
+    return;
+  }
+
+  await beginSession(context, sessionQs, { mode: "skill_practice", skillCode: fullCode });
 }
 
 export async function upsertSRS(specPointId, quality, context) {

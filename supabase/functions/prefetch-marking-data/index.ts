@@ -49,6 +49,18 @@ async function fetchMarkingForQuestion(
   };
 }
 
+async function accessibleQuestionIds(
+  userClient: ReturnType<typeof createClient>,
+  ids: string[],
+): Promise<string[]> {
+  if (!ids.length) return [];
+  const { data, error } = await userClient.rpc("filter_accessible_question_ids", {
+    p_question_ids: ids,
+  });
+  if (error) throw error;
+  return Array.isArray(data) ? data.filter((id) => typeof id === "string") : [];
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -104,7 +116,15 @@ serve(async (req) => {
     }
 
     if (questionIds.length) {
-      const ids = [...new Set(questionIds)].slice(0, MAX_BATCH);
+      const requested = [...new Set(questionIds)].slice(0, MAX_BATCH);
+      const ids = await accessibleQuestionIds(userClient, requested);
+      if (!ids.length) {
+        return jsonResponse(
+          { ok: false, error: "forbidden", reason: "not_in_session" },
+          403,
+        );
+      }
+
       const { data: questions, error: qErr } = await admin
         .from("questions")
         .select(QUESTION_SELECT)
@@ -129,6 +149,14 @@ serve(async (req) => {
       }
 
       return jsonResponse({ ok: true, data });
+    }
+
+    const allowed = await accessibleQuestionIds(userClient, [questionId]);
+    if (!allowed.length) {
+      return jsonResponse(
+        { ok: false, error: "forbidden", reason: "not_in_session" },
+        403,
+      );
     }
 
     const { data: question, error: qErr } = await admin

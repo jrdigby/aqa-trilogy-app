@@ -1,6 +1,7 @@
 /** Persist in-progress practice sessions across refresh / navigation / new tabs. */
 
 import { QUESTION_SELECT, QUESTION_SELECT_FALLBACK } from "./sessionEngine.js";
+import { deliverQuestionsByIds } from "./questionDelivery.js";
 
 const STORAGE_KEY = "aqa_practice_session_v1";
 const MAX_AGE_MS = 24 * 60 * 60 * 1000;
@@ -105,17 +106,15 @@ export function clearPracticeSession() {
 /**
  * @param {import('@supabase/supabase-js').SupabaseClient} supabaseClient
  * @param {string[]} questionIds
+ * @param {string} [mode]
  */
-export async function fetchQuestionsByIds(supabaseClient, questionIds) {
+export async function fetchQuestionsByIds(supabaseClient, questionIds, mode = "session_resume") {
   const ids = [...new Set((questionIds || []).filter(Boolean))];
   if (!ids.length) return [];
 
-  let result = await supabaseClient.from("questions").select(QUESTION_SELECT).in("id", ids);
-  if (result.error && /column/i.test(result.error.message || "")) {
-    result = await supabaseClient.from("questions").select(QUESTION_SELECT_FALLBACK).in("id", ids);
-  }
-  if (result.error) throw result.error;
-
-  const byId = new Map((result.data || []).map((q) => [q.id, q]));
-  return ids.map((id) => byId.get(id)).filter(Boolean);
+  return deliverQuestionsByIds(supabaseClient, ids, {
+    mode,
+    select: QUESTION_SELECT,
+    selectFallback: QUESTION_SELECT_FALLBACK,
+  });
 }
