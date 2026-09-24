@@ -1,6 +1,9 @@
 /**
  * Flat tab/comma-separated question import for admin CSV panel.
  * Column order is fixed — use getCsvImportHeaderLine() as a Google Sheets header row.
+ *
+ * Optional multi-board mapping hint columns (board_map_*) are extension points for
+ * future porting — they do not create non-AQA questions or claim verified equivalences.
  */
 import { normalizeQuestionTierForDb } from "./sciencePath.js";
 
@@ -13,6 +16,11 @@ export const CSV_IMPORT_COLUMNS = [
   "paper",
   "spec_ref",
   "triple_spec_ref",
+  // Optional cross-board mapping hints (unverified; ignored unless importer opts in)
+  "board_map_edexcel_ref",
+  "board_map_ocr_gateway_ref",
+  "board_map_ocr_21c_ref",
+  "board_map_notes",
   "audience",
   "tier",
   "question_type",
@@ -426,11 +434,19 @@ export function recordToImportBundle(record, defaults = {}) {
     }
   }
 
+  const boardMapHints = buildBoardMapHintsFromRecord(record, {
+    subject,
+    specRef,
+    courseTrack: audience === "triple_only" ? "triple" : "combined",
+    sourceExamBoard: defaults.examBoard || record.exam_board || "aqa"
+  });
+
   return {
     subject,
     paper,
     specRef,
     tripleSpecRef: (record.triple_spec_ref || "").trim(),
+    boardMapHints,
     requiredPracticalCode: (record.required_practical_code || "").trim(),
     msSkillCodes: (record.ms_skill_codes || "").trim(),
     wsSkillCodes: (record.ws_skill_codes || "").trim(),
@@ -439,6 +455,45 @@ export function recordToImportBundle(record, defaults = {}) {
     markPoints,
     warnings
   };
+}
+
+/** Local helper — kept here to avoid a circular import with examBoards/crossBoardEquivalences. */
+function buildBoardMapHintsFromRecord(record = {}, context = {}) {
+  const source_exam_board = String(
+    context.sourceExamBoard || record.exam_board || "aqa"
+  )
+    .toLowerCase()
+    .trim();
+  const source_course_track =
+    context.courseTrack === "triple" ? "triple" : "combined";
+  const source_subject = String(context.subject || record.subject || "")
+    .toLowerCase()
+    .trim();
+  const source_spec_ref = String(context.specRef || record.spec_ref || "").trim();
+  const notes = String(record.board_map_notes || "").trim() || null;
+  const targets = [
+    ["board_map_edexcel_ref", "edexcel"],
+    ["board_map_ocr_gateway_ref", "ocr_gateway"],
+    ["board_map_ocr_21c_ref", "ocr_21c"]
+  ];
+  const hints = [];
+  for (const [col, targetBoard] of targets) {
+    const ref = String(record[col] || "").trim();
+    if (!ref || !source_spec_ref || !source_subject) continue;
+    hints.push({
+      source_exam_board,
+      source_course_track,
+      source_subject,
+      source_spec_ref,
+      target_exam_board: targetBoard,
+      target_course_track: source_course_track,
+      target_subject: source_subject,
+      target_spec_ref: ref,
+      match_quality: "unverified",
+      notes
+    });
+  }
+  return hints;
 }
 
 /**

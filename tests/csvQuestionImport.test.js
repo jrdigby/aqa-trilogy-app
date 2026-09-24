@@ -152,6 +152,10 @@ test("parseImportRecords — named header TSV", () => {
       "paper1",
       "4.1.1.1",
       "",
+      "", // board_map_edexcel_ref
+      "", // board_map_ocr_gateway_ref
+      "", // board_map_ocr_21c_ref
+      "", // board_map_notes
       "both",
       "both",
       "mcq",

@@ -2208,6 +2208,21 @@
       color: var(--text-muted);
       font-size: 0.82rem;
     }
+    .xb-muted { color: var(--text-muted); }
+    .xb-errors { color: #b91c1c; }
+    .xb-badge {
+      display: inline-block;
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+    }
+    .xb-badge.xb-ok { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
+    .xb-badge.xb-warn { background: #fffbeb; color: #b45309; border-color: #fde68a; }
+    .xb-map-table td { padding: 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    .xb-actions { display: flex; flex-direction: column; gap: 4px; }
+    .xb-creator-hint code { font-size: 0.75rem; }
     .pilot-status-badge {
       display: inline-flex;
       align-items: center;
@@ -2285,6 +2300,7 @@
         <button class="tab-btn" data-panel="aiUsage" onclick="switchPanel('aiUsage')">💸 AI Usage Monitor</button>
         <button class="tab-btn" onclick="switchPanel('pilot')">🎫 Pilot Pro Access</button>
         <button class="tab-btn" onclick="switchPanel('csv')">📂 Packaged CSV Importer</button>
+        <button class="tab-btn" data-panel="crossBoardMaps" onclick="switchPanel('crossBoardMaps')">🗺️ Cross-board Maps</button>
       </div>
 
       <!-- TAB 1: CREATOR PANEL -->
@@ -2360,6 +2376,11 @@
                 <input type="text" id="linkedSpecDisplay" readonly placeholder="— Auto-matched when an equivalent exists —" style="background:#f1f5f9;cursor:default;" />
                 <p id="specLinkWarning" class="hidden" style="font-size:0.78rem;color:#b45309;margin:6px 0 0;line-height:1.4;"></p>
               </div>
+            </div>
+            <div id="crossBoardMapHint" class="xb-creator-hint" aria-live="polite">
+              <p class="xb-muted" style="margin:8px 0 0;font-size:0.78rem;line-height:1.4;">
+                Cross-board maps (AQA↔Edexcel/OCR) appear here when stored. Extension point only — no question content is ported yet.
+              </p>
             </div>
           </div>
 
@@ -3237,7 +3258,8 @@
               <p><strong>Pick N pool (partial credit):</strong> <code>keyword_pool</code> — comma-separated acceptable answers (<code>|</code> = synonyms), e.g. <code>coal, oil|petroleum, gas, nuclear|uranium</code>. Awards <code>pool_marks_per_hit</code> (default 1) per distinct answer, capped at <code>max_marks</code>. Ideal for "State two…". When set, keyword/Section&nbsp;3 fields are ignored.</p>
               <p><strong>Hints:</strong> Separate multiple hints with <code>|||</code> (revealed one at a time in practice).</p>
               <p><strong>MCQ feedback:</strong> <code>mcq_feedback_a</code>…<code>d</code> map to <code>option_a</code>…<code>d</code> text (shown when that wrong option is chosen). Generic remediation uses Section&nbsp;3 <code>mp1_feedback</code>.</p>
-              <p style="margin-bottom:0;"><strong>Images:</strong> <code>image_url</code> = question stem diagram; <code>mpN_image_url</code> = feedback diagram when that checkpoint is missed (public HTTPS URL).</p>
+              <p><strong>Images:</strong> <code>image_url</code> = question stem diagram; <code>mpN_image_url</code> = feedback diagram when that checkpoint is missed (public HTTPS URL).</p>
+              <p style="margin-bottom:0;"><strong>Multi-board hints (optional):</strong> <code>board_map_edexcel_ref</code>, <code>board_map_ocr_gateway_ref</code>, <code>board_map_ocr_21c_ref</code>, <code>board_map_notes</code> — extension points for future porting. They do <em>not</em> create non-AQA questions. With the checkbox below, hints are stored as <strong>unverified</strong> rows in the cross-board map table.</p>
             </div>
           </details>
 
@@ -3245,6 +3267,11 @@
             <button type="button" class="btn btn-secondary" id="btnDownloadCsvTemplate">Download header template (.tsv)</button>
             <code id="csvTemplateHeaderPreview" style="font-size:0.68rem;color:var(--text-muted);word-break:break-all;flex:1;min-width:200px;"></code>
           </div>
+
+          <label style="display:flex;align-items:flex-start;gap:8px;margin-top:12px;font-size:0.82rem;line-height:1.4;color:var(--text-muted);">
+            <input type="checkbox" id="csvRecordBoardMapHints" style="margin-top:3px;" />
+            <span>Also record any <code>board_map_*</code> columns as <strong>unverified</strong> cross-board equivalences (no content port; requires migration applied).</span>
+          </label>
 
           <div class="row row-compact" style="margin-top: 16px;">
             <div class="field-fit">
@@ -4043,6 +4070,90 @@
               </div>
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- TAB: CROSS-BOARD EQUIVALENCE MAPS -->
+      <div id="panelCrossBoardMaps" class="panel">
+        <div class="card">
+          <h3 style="margin-top:0; color:var(--primary-dark); font-size:1.1rem; border-bottom:1px solid var(--border); padding-bottom:8px;">Cross-board syllabus maps</h3>
+          <p id="xbMapDisclaimer" style="color:var(--text-muted); font-size:0.85rem; line-height:1.45; margin-top:0;">
+            Scaffolding for AQA ↔ Edexcel (and later OCR) equivalences. Import and validate maps when syllabus wording is signed off — do not invent board content here.
+          </p>
+
+          <div class="row row-compact" style="margin-top: 8px;">
+            <div class="field-fit">
+              <label for="xbMapSourceBoard">Source board</label>
+              <select id="xbMapSourceBoard" class="select-fit"></select>
+            </div>
+            <div class="field-fit">
+              <label for="xbMapTargetBoard">Target board</label>
+              <select id="xbMapTargetBoard" class="select-fit"></select>
+            </div>
+            <div class="field-fit">
+              <label for="xbMapSubject">Subject</label>
+              <select id="xbMapSubject" class="select-fit">
+                <option value="">All subjects</option>
+              </select>
+            </div>
+            <div class="field-fit" style="align-self:flex-end;">
+              <label style="display:flex;gap:6px;align-items:center;font-size:0.82rem;">
+                <input type="checkbox" id="xbMapOnlyValidated" />
+                Validated only
+              </label>
+            </div>
+          </div>
+
+          <div style="margin-top:14px;display:flex;flex-wrap:wrap;gap:8px;">
+            <button type="button" class="btn btn-secondary" id="btnXbMapDownloadTemplate">Download map template (.tsv)</button>
+            <button type="button" class="btn btn-secondary" id="btnXbMapReload">Reload stored maps</button>
+            <button type="button" class="btn btn-secondary" id="btnXbMapResolveFks">Resolve FKs from refs</button>
+          </div>
+
+          <div style="margin-top:16px;">
+            <label for="xbMapFile">Import file (.tsv / .csv)</label>
+            <input type="file" id="xbMapFile" accept=".csv,.tsv,.txt" style="padding:10px;background:#fff;border:1px dashed var(--border);width:100%;box-sizing:border-box;border-radius:8px;" />
+          </div>
+          <div style="margin-top:12px;">
+            <label for="xbMapPaste">Or paste TSV/CSV</label>
+            <textarea id="xbMapPaste" rows="6" placeholder="Paste header + rows, or leave empty and use the file picker…" style="width:100%;box-sizing:border-box;font-family:ui-monospace,monospace;font-size:0.78rem;"></textarea>
+          </div>
+          <div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:8px;">
+            <button type="button" class="btn btn-secondary" id="btnXbMapValidate">Validate only</button>
+            <button type="button" class="btn btn-primary" id="btnXbMapImport">Upsert as unverified</button>
+          </div>
+
+          <div id="xbMapReport" style="margin-top:14px;font-size:0.82rem;line-height:1.45;">
+            <p class="xb-muted">No import parsed yet.</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <h4 style="margin-top:0;">Stored mappings</h4>
+          <div style="overflow:auto;max-height:420px;border:1px solid var(--border);border-radius:8px;">
+            <table class="xb-map-table" style="width:100%;border-collapse:collapse;font-size:0.8rem;">
+              <thead>
+                <tr style="background:#f8fafc;text-align:left;">
+                  <th style="padding:8px;">Source</th>
+                  <th style="padding:8px;">Track</th>
+                  <th style="padding:8px;">Target</th>
+                  <th style="padding:8px;">Quality</th>
+                  <th style="padding:8px;">Sign-off</th>
+                  <th style="padding:8px;">FKs</th>
+                  <th style="padding:8px;">Notes</th>
+                  <th style="padding:8px;">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="xbMapTableBody">
+                <tr><td colspan="8" class="xb-muted" style="padding:12px;">Load maps after the migration is applied.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <h4 style="margin-top:0;">Console</h4>
+          <pre id="xbMapLog" style="background:#1e293b;color:#38bdf8;padding:16px;border-radius:8px;font-family:'Courier New',Courier,monospace;font-size:0.8rem;max-height:220px;overflow-y:auto;margin:0;">Ready.</pre>
         </div>
       </div>
 
@@ -5000,6 +5111,11 @@
   import * as AdminSpecCache from "./src/admin/adminSpecCache.js";
   import { commitQuestionBundle } from "./src/admin/adminQuestionCommit.js";
   import { createExpertQueriesController } from "./src/admin/adminExpertQueries.js";
+  import { createCrossBoardMapsController } from "./src/admin/adminCrossBoardMaps.js";
+  import {
+    fetchCrossBoardMaps,
+    upsertCrossBoardMapRows
+  } from "./src/examBoards/crossBoardEquivalences.js";
 
   AdminSpecCache.initSpecCache(supabaseClient);
   window.AdminSpecCache = AdminSpecCache;
@@ -5088,6 +5204,12 @@
     }
   });
   window.ExpertQueriesAdmin.wire();
+
+  window.CrossBoardMapsAdmin = createCrossBoardMapsController({
+    supabaseClient,
+    showAdminToast
+  });
+  window.CrossBoardMapsAdmin.mount();
 
   const MAX_HINTS = 5;
 
@@ -5489,7 +5611,8 @@
       audit: "panelAudit",
       expertQueries: "panelExpertQueries",
       aiUsage: "panelAiUsage",
-      pilot: "panelPilot"
+      pilot: "panelPilot",
+      crossBoardMaps: "panelCrossBoardMaps"
     };
     const panelName = panelMap[panelId] || ("panel" + panelId.charAt(0).toUpperCase() + panelId.slice(1));
     const activePanel = document.getElementById(panelName);
@@ -5511,6 +5634,9 @@
     }
     if (panelId === "expertQueries" && window.ExpertQueriesAdmin) {
       window.ExpertQueriesAdmin.load().catch(() => {});
+    }
+    if (panelId === "crossBoardMaps" && window.CrossBoardMapsAdmin) {
+      window.CrossBoardMapsAdmin.reload().catch(() => {});
     }
     if (panelId === "aiUsage" && aiUsageTableBody && btnLoadAiUsage) {
       const isPlaceholderState = !!aiUsageTableBody.querySelector("[data-ai-usage-placeholder='1']");
@@ -6007,7 +6133,71 @@
   document.getElementById("specPointSelect")?.addEventListener("change", async () => {
     const specId = document.getElementById("specPointSelect")?.value;
     if (specId) await autoFillLinkedSpecFromPrimary(specId);
+    refreshCreatorCrossBoardHint().catch(() => {});
   });
+
+  async function refreshCreatorCrossBoardHint() {
+    const box = document.getElementById("crossBoardMapHint");
+    if (!box) return;
+    const specId = document.getElementById("specPointSelect")?.value;
+    const sp = specId ? AdminSpecCache.getSpecPointById(specId) : null;
+    if (!sp?.spec_ref) {
+      box.innerHTML =
+        '<p class="xb-muted" style="margin:8px 0 0;font-size:0.78rem;line-height:1.4;">Cross-board maps (AQA↔Edexcel/OCR) appear here when stored. Extension point only — no question content is ported yet.</p>';
+      return;
+    }
+    try {
+      const sourceBoard = getAuthoringExamBoard();
+      const rows = await fetchCrossBoardMaps(supabaseClient, {
+        sourceBoard,
+        targetBoard: "edexcel",
+        subject: sp.subject,
+        onlyValidated: false
+      });
+      const hits = (rows || []).filter(
+        (r) =>
+          r.source_spec_ref === sp.spec_ref &&
+          r.source_course_track === (sp.course_track || "combined")
+      );
+      // Also surface OCR rows if any exist for this source ref
+      const ocrGateway = await fetchCrossBoardMaps(supabaseClient, {
+        sourceBoard,
+        targetBoard: "ocr_gateway",
+        subject: sp.subject
+      }).catch(() => []);
+      const ocr21 = await fetchCrossBoardMaps(supabaseClient, {
+        sourceBoard,
+        targetBoard: "ocr_21c",
+        subject: sp.subject
+      }).catch(() => []);
+      const all = [
+        ...hits,
+        ...(ocrGateway || []).filter(
+          (r) =>
+            r.source_spec_ref === sp.spec_ref &&
+            r.source_course_track === (sp.course_track || "combined")
+        ),
+        ...(ocr21 || []).filter(
+          (r) =>
+            r.source_spec_ref === sp.spec_ref &&
+            r.source_course_track === (sp.course_track || "combined")
+        )
+      ];
+      if (!all.length) {
+        box.innerHTML = `<p class="xb-muted" style="margin:8px 0 0;font-size:0.78rem;line-height:1.4;">No cross-board map rows for <code>${sp.spec_ref}</code> yet (expected until Edexcel/OCR maps are signed off).</p>`;
+        return;
+      }
+      const lines = all
+        .map((r) => {
+          const badge = r.validated_at ? "signed-off" : "unverified";
+          return `<li><strong>${r.target_exam_board}</strong> <code>${r.target_spec_ref}</code> · ${r.match_quality} · ${badge}</li>`;
+        })
+        .join("");
+      box.innerHTML = `<p style="margin:8px 0 4px;font-size:0.78rem;"><strong>Cross-board maps</strong> for <code>${sp.spec_ref}</code>:</p><ul style="margin:0;padding-left:18px;font-size:0.78rem;line-height:1.4;">${lines}</ul>`;
+    } catch (err) {
+      box.innerHTML = `<p class="xb-muted" style="margin:8px 0 0;font-size:0.78rem;">Cross-board map lookup unavailable (${err.message || err}).</p>`;
+    }
+  }
   document.getElementById("chkRequiredPractical")?.addEventListener("change", () => syncRequiredPracticalRow("creator"));
   document.getElementById("editChkRequiredPractical")?.addEventListener("change", () => syncRequiredPracticalRow("edit"));
 
@@ -7767,6 +7957,19 @@
           const qId = await importCsvRecord(bundle, logArea);
           processed++;
           logArea.textContent += `\n🟢 Row ${i + 1}: ${qId}`;
+
+          const recordHints = document.getElementById("csvRecordBoardMapHints")?.checked;
+          if (recordHints && bundle.boardMapHints?.length) {
+            const mapResult = await upsertCrossBoardMapRows(
+              supabaseClient,
+              bundle.boardMapHints,
+              { markValidated: false }
+            );
+            logArea.textContent += `\n   🗺️ board map hints upserted: ${mapResult.upserted}/${mapResult.attempted} (unverified)`;
+            if (mapResult.failed.length) {
+              logArea.textContent += `\n   ⚠️ map hint failures: ${mapResult.failed.map((f) => f.error).join("; ")}`;
+            }
+          }
         } catch (err) {
           failed++;
           logArea.textContent += `\n🔴 Row ${i + 1}: ${err.message}`;
