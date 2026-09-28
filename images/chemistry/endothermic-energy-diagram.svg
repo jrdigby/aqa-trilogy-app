@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 340" width="520" height="340" role="img" aria-labelledby="title desc">
+  <title id="title">Endothermic reaction energy profile</title>
+  <desc id="desc">Energy profile diagram for an endothermic reaction showing reactants at lower energy than products, activation energy rising to the transition state peak, and a positive enthalpy change.</desc>
+
+  <defs>
+    <marker id="arrow-ea" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <polygon points="0 0, 8 4, 0 8" fill="#dc2626"/>
+    </marker>
+    <marker id="arrow-dh" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <polygon points="0 0, 8 4, 0 8" fill="#2563eb"/>
+    </marker>
+  </defs>
+
+  <rect width="520" height="340" fill="#ffffff"/>
+
+  <!-- Axes -->
+  <g stroke="#0f172a" stroke-width="2" fill="none" stroke-linecap="round">
+    <line x1="72" y1="58" x2="72" y2="286"/>
+    <line x1="72" y1="286" x2="488" y2="286"/>
+    <polyline points="72,58 64,70 72,66" fill="#0f172a" stroke="none"/>
+    <polyline points="488,286 476,278 476,294" fill="#0f172a" stroke="none"/>
+  </g>
+
+  <text x="24" y="176" font-family="system-ui, sans-serif" font-size="14" font-weight="600" fill="#0f172a" transform="rotate(-90 24 176)">Energy</text>
+  <text x="280" y="322" text-anchor="middle" font-family="system-ui, sans-serif" font-size="14" font-weight="600" fill="#0f172a">Progress of reaction</text>
+
+  <!-- Reactants and products -->
+  <g stroke="#0f172a" stroke-width="2.5" fill="none" stroke-linecap="round">
+    <line x1="92" y1="198" x2="178" y2="198"/>
+    <line x1="342" y1="98" x2="428" y2="98"/>
+    <path d="M 178 198 C 210 198, 228 48, 260 48 C 292 48, 310 98, 342 98"/>
+  </g>
+
+  <text x="135" y="218" text-anchor="middle" font-family="system-ui, sans-serif" font-size="13" font-weight="600" fill="#0f172a">Reactants</text>
+  <text x="385" y="88" text-anchor="middle" font-family="system-ui, sans-serif" font-size="13" font-weight="600" fill="#0f172a">Products</text>
+
+  <!-- Activation energy -->
+  <line x1="220" y1="198" x2="220" y2="48" stroke="#dc2626" stroke-width="2.5" marker-end="url(#arrow-ea)"/>
+  <text x="232" y="128" font-family="system-ui, sans-serif" font-size="13" font-weight="700" fill="#dc2626">E<tspan baseline-shift="sub" font-size="10">a</tspan></text>
+
+  <!-- Total energy change (endothermic: positive) -->
+  <line x1="452" y1="198" x2="452" y2="98" stroke="#2563eb" stroke-width="2.5" marker-end="url(#arrow-dh)"/>
+  <text x="464" y="154" font-family="system-ui, sans-serif" font-size="13" font-weight="700" fill="#2563eb">&#916;H</text>
+  <text x="464" y="170" font-family="system-ui, sans-serif" font-size="11" font-weight="600" fill="#2563eb">(positive)</text>
+
+  <text x="260" y="30" text-anchor="middle" font-family="system-ui, sans-serif" font-size="16" font-weight="700" fill="#0f172a">Endothermic reaction</text>
+</svg>
