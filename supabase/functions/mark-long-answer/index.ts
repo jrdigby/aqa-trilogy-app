@@ -986,6 +986,63 @@ serve(async (req) => {
       });
     }
 
+    // Continued-access + session access + per-user rate limit before any Gemini spend.
+    // Aligns with try_consume_ai_mark semantics under hard paywall (allow when unlocked).
+    const { data: markGate, error: markGateErr } = await supabase.rpc("try_begin_ai_mark", {
+      p_question_id: question_id,
+      p_user_id: userId
+    });
+    if (markGateErr) {
+      console.error(JSON.stringify({
+        requestId,
+        event: "mark_gate_rpc_failed",
+        message: markGateErr.message
+      }));
+      return new Response(JSON.stringify({ error: "Access check failed" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
+    }
+    if (!markGate || markGate.allowed !== true) {
+      const reason = String(markGate?.reason || "forbidden");
+      console.log(JSON.stringify({
+        requestId,
+        event: "mark_gate_denied",
+        userId,
+        question_id,
+        reason,
+        window: markGate?.window ?? null
+      }));
+      if (reason === "rate_limited") {
+        return new Response(JSON.stringify({
+          error: "rate_limited",
+          reason,
+          window: markGate?.window ?? null,
+          used: markGate?.used ?? null,
+          limit: markGate?.limit ?? null
+        }), {
+          status: 429,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+      if (reason === "subscription_required") {
+        return new Response(JSON.stringify({
+          error: "subscription_required",
+          reason: "subscription_required"
+        }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+      return new Response(JSON.stringify({
+        error: "forbidden",
+        reason
+      }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
+    }
+
     if (textLooksConcerning(student_text)) {
       console.log(JSON.stringify({
         requestId,
