@@ -20,9 +20,13 @@ Rate limiting alone will not protect ~965 curated rows if clients can still `SEL
 ## Related hardening (optional / opportunistic)
 
 - [ ] Audit other content-adjacent tables with broad read policies (e.g. `spec_points`, `equation_sheets`, `question_skills`) for the same anon vs authenticated posture.
-- [ ] CAPTCHA / Auth rate-limit review at signup (Supabase Auth dashboard) to reduce throwaway accounts used for scraping.
+- [ ] CAPTCHA / Auth rate-limit review at signup (Supabase Auth dashboard) to reduce throwaway accounts used for scraping. *(Leaked-password + Turnstile: human Auth Dashboard steps — see Project store `docs/security-review-vibe-coding.md`.)*
 - [ ] Monitor API usage for bulk `questions` / `answer_keys` reads after launch.
 - [ ] Finish Phase 1A env injection for production (drop hardcoded Supabase URL/anon fallbacks once hosting injects `window.__SUPABASE_*__`).
+- [x] Server-side rate limits + continued-access + question access on `mark-long-answer` (`try_begin_ai_mark`, migration `20260929104728_prelaunch_security_hardening.sql`).
+- [x] Revoke `anon` EXECUTE on SECURITY DEFINER RPCs + fix mutable `search_path` (same migration).
+- [x] Align teacher signup password minimum with `passwordPolicy.js` (8+).
+- [ ] Remove or history-scrub public-repo `dump-postgres-*.sql` once confirmed (custom-format dumps; no clear emails in string scan — still IP/content risk).
 
 ## Explicitly out of scope for hosted Supabase
 

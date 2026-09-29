@@ -1,4 +1,4 @@
-/** Shared password rules for student signup and reset flows. */
+/** Shared password rules for student, teacher signup, and reset flows. */
 
 export const PASSWORD_MIN_LENGTH = 8;
 
