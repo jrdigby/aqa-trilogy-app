@@ -2,6 +2,7 @@ import { fetchClassRosterStats, supabaseClient } from "./dbClient.js";
 import { initStudentDetailPanel, openStudentDetail } from "./teacherStudentDetail.js";
 import { formatSciencePathLabel } from "./sciencePath.js";
 import { escapeHtml, todayISO, addDaysISO, resolveAppUrl } from "./utils.js";
+import { validatePassword } from "./passwordPolicy.js";
 
 const el = (id) => document.getElementById(id);
 
@@ -446,8 +447,9 @@ async function signUpTeacher() {
     setAuthMsg("Enter your email and password.", true);
     return;
   }
-  if (password.length < 6) {
-    setAuthMsg("Password must be at least 6 characters.", true);
+  const passwordCheck = validatePassword(password);
+  if (!passwordCheck.valid) {
+    setAuthMsg(passwordCheck.message || "Password does not meet requirements.", true);
     return;
   }
 
